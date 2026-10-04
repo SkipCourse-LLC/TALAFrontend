@@ -23,6 +23,32 @@ coverage/
 !.env.example
 !.env.*.example
 
+# Local credentials, authentication secrets and private keys
+.envrc
+.netrc
+.npmrc
+.pypirc
+.aws/
+.ssh/
+credentials
+credentials.*
+*-credentials.*
+*_credentials.*
+secrets
+secrets.*
+*-secrets.*
+*_secrets.*
+service-account*.json
+service_account*.json
+*serviceAccount*.json
+*.key
+*.pem
+*.p12
+*.pfx
+*.keystore
+id_rsa*
+id_ed25519*
+
 # Test output
 playwright-report/
 test-results/
