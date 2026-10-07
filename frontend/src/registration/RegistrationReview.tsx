@@ -14,12 +14,14 @@ export function RegistrationReview({
       `${draft.intent} · ${draft.learningMode} · ${draft.timeBlock}`,
       2,
     ],
-    ["Documents", "Checklist pending; nothing uploaded", 3],
+    ["Documents", "Nothing uploaded in this preview", 3],
     ["Funding", `${draft.funding} · no payment`, 4],
   ];
   return (
     <>
-      <p>Check the details before completing this demonstration.</p>
+      <p>
+        Review your family profile. You can edit any section before continuing.
+      </p>
       <dl className="review-list">
         {rows.map(([label, value, index]) => (
           <div key={label}>
@@ -36,8 +38,8 @@ export function RegistrationReview({
         ))}
       </dl>
       <p className="small">
-        Completing this demo does not submit an application. AWAITING BACKEND —
-        account creation, billing verification and SkipCourse provisioning.
+        Next: try two-factor verification, then review your application status.
+        No application or payment is submitted in this preview.
       </p>
     </>
   );

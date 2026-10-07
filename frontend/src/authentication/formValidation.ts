@@ -7,6 +7,8 @@ export interface AuthValues {
 export function validateAuth(values: AuthValues): FormErrors {
   const errors: FormErrors = {};
   if (!values.email.trim()) errors.email = "Enter your email address.";
+  else if (values.email.trim().length > 254)
+    errors.email = "Use an email address with 254 characters or fewer.";
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim()))
     errors.email = "Enter an email address such as learner@example.com.";
   if (!values.password) errors.password = "Enter a demo password.";

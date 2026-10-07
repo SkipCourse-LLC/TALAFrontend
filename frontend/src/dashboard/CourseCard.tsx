@@ -1,7 +1,8 @@
 import type { Course } from "./learningTypes";
 import { Icon } from "../shared/Icon";
+import { courseProgress } from "./courseProgress";
 export function CourseCard({ course }: { course: Course }) {
-  const percent = Math.round((course.completed / course.lessons.length) * 100);
+  const { percent, completed, total } = courseProgress(course);
   return (
     <article className="course-card">
       <div className={`course-art ${course.color}`} aria-hidden="true">
@@ -20,15 +21,19 @@ export function CourseCard({ course }: { course: Course }) {
         <h3>{course.title}</h3>
         <div className="progress-label">
           <span>
-            {course.completed} of {course.lessons.length} sample lessons
+            {total
+              ? `${completed} of ${total} sample lessons`
+              : "Lesson outline coming soon"}
           </span>
-          <strong>{percent}%</strong>
+          <strong>{percent === null ? "—" : `${percent}%`}</strong>
         </div>
-        <progress
-          value={course.completed}
-          max={course.lessons.length}
-          aria-label={`${course.title} progress`}
-        />
+        {total > 0 && (
+          <progress
+            value={completed}
+            max={total}
+            aria-label={`${course.title} progress`}
+          />
+        )}
         <details className="course-details">
           <summary>View sample lessons</summary>
           <p>{course.description}</p>
@@ -36,15 +41,16 @@ export function CourseCard({ course }: { course: Course }) {
             {course.lessons.map((lesson, index) => (
               <li key={lesson}>
                 {lesson}{" "}
-                {index < course.completed && (
+                {index < completed && (
                   <span className="lesson-done">— completed</span>
                 )}
               </li>
             ))}
           </ol>
           <p className="small">
-            Sample outline only. Real lessons and activity tracking will come
-            from SkipCourse.
+            {total
+              ? "Sample outline only. Your real lessons and progress are not connected."
+              : "There are no sample lessons in this outline yet."}
           </p>
         </details>
       </div>

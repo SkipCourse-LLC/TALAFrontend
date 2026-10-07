@@ -1,9 +1,9 @@
 /* Design tokens, typography, accessibility and document defaults. Responsive rules live with their owning styles. */
 
 :root {
-  font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
-  color: #243e37;
-  background: #fbfcf9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #1d1d1f;
+  background: #f5f5f7;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -16,25 +16,27 @@
   --text-small: 0.875rem;
   --text-body: 1rem;
   --text-title: clamp(2rem, 3.7vw, 3.25rem);
-  --radius-control: 8px;
-  --radius-panel: 16px;
-  --shadow-focus: 0 0 0 4px #92600c1a;
+  --radius-control: 12px;
+  --radius-panel: 24px;
+  --shadow-focus: 0 0 0 4px #17413918;
   --container: 1160px;
-  --color-ink: #173f38;
-  --color-muted: #5b6b64;
-  --color-paper: #fbfcf9;
-  --color-green: #e6eee5;
-  --color-blue: #e0edf2;
-  --color-yellow: #f5e4aa;
-  --color-pink: #f3e4dd;
-  --color-line: #d9e2db;
-  --color-focus: #92600c;
+  --color-ink: #1d1d1f;
+  --color-muted: #626268;
+  --color-accent: #174139;
+  --color-paper: #f5f5f7;
+  --color-green: #edf2ef;
+  --color-blue: #edf1f6;
+  --color-yellow: #f5f2eb;
+  --color-pink: #f5eeee;
+  --color-line: #d2d2d7;
+  --color-control-line: #86868b;
+  --color-focus: #174139;
   --color-surface: white;
-  --color-divider: #dce0d5;
+  --color-divider: #e5e5e9;
   --border-panel: 1px solid var(--color-line);
   --border-divider: 1px solid var(--color-divider);
-  --radius-card: 12px;
-  --control-height: 48px;
+  --radius-card: 20px;
+  --control-height: 56px;
   --target-height: 44px;
 }
 * {
@@ -43,10 +45,12 @@
 body {
   font-size: var(--text-body);
   margin: 0;
+  min-width: 0;
 }
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 button,
@@ -94,12 +98,13 @@ h2,
 h3 {
   color: var(--color-ink);
   text-wrap: balance;
+  overflow-wrap: anywhere;
 }
 h1 {
   font-size: var(--text-title);
   line-height: 1.09;
   letter-spacing: -0.045em;
-  font-weight: 600;
+  font-weight: 650;
   margin-bottom: 26px;
 }
 h2 {
@@ -116,7 +121,7 @@ h3 {
   font-weight: 600;
 }
 p {
-  line-height: 1.7;
+  line-height: 1.65;
   color: var(--color-muted);
   margin-bottom: 20px;
   text-wrap: pretty;
@@ -141,19 +146,19 @@ svg {
   vertical-align: middle;
 }
 .container {
-  width: min(var(--container), calc(100% - 96px));
+  width: min(var(--container), calc(100% - 80px));
   margin-inline: auto;
 }
 .eyebrow {
   font-size: var(--text-small);
   font-weight: 650;
-  color: var(--color-ink);
-  margin-bottom: 20px;
-  letter-spacing: 0.015em;
+  color: var(--color-accent);
+  margin-bottom: 16px;
+  letter-spacing: 0.025em;
 }
 .lead {
   font-size: 1.1rem;
-  line-height: 1.8;
+  line-height: 1.65;
   max-width: 62ch;
 }
 .sr-only {
@@ -164,6 +169,7 @@ svg {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+  border: 0;
 }
 .skip-link {
   position: fixed;
@@ -197,5 +203,10 @@ summary::marker {
 @media (max-width: 850px) {
   .container {
     width: calc(100% - 40px);
+  }
+}
+@media (max-width: 360px) {
+  .container {
+    width: calc(100% - 32px);
   }
 }

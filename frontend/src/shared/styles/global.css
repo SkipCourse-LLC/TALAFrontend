@@ -21,3 +21,22 @@
     scroll-behavior: auto !important;
   }
 }
+
+@media (forced-colors: active) {
+  .button,
+  .nav-hub-link,
+  .menu-toggle {
+    background: ButtonFace;
+    color: ButtonText;
+    border-color: ButtonText;
+  }
+  .primary-nav a.active {
+    text-decoration: underline;
+    text-decoration-color: LinkText;
+  }
+  .notice,
+  .state-panel,
+  .demo-pill {
+    border: 1px solid CanvasText;
+  }
+}

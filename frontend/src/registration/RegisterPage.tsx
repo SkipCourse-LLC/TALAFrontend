@@ -28,11 +28,10 @@ export function RegisterPage({
     setShowPassword,
   } = useRegistration(onComplete);
   return (
-    <section className="container enrollment-page">
+    <section className="container enrollment-page enrollment-registration">
       <header>
-        <p className="eyebrow">Start with your family</p>
         <h1>Registration</h1>
-        <p>A clear path from parent account to student access.</p>
+        <p>Set up your family profile and review your learning preferences.</p>
       </header>
       <div className="enrollment-layout">
         <aside>
@@ -44,20 +43,30 @@ export function RegisterPage({
               <li
                 key={label}
                 aria-current={step === index ? "step" : undefined}
+                className={index < step ? "is-finished" : undefined}
               >
-                <span>{index + 1}</span>
-                {label}
+                <span aria-hidden="true">{index < step ? "✓" : index + 1}</span>
+                <span className="enrollment-step-label">{label}</span>
                 {index < step && <span className="sr-only"> completed</span>}
               </li>
             ))}
           </ol>
           <p className="small">
-            Demo only. Use invented details. Entries stay on this page and are
-            cleared when you leave or refresh.
+            Your draft stays on this page. Passwords are cleared when you leave
+            or refresh. After completion, a sample family summary opens in the
+            workspace.
           </p>
         </aside>
         <div className="enrollment-form">
-          <p className="eyebrow">Step {step + 1} of 6</p>
+          <p className="enrollment-step-count">Step {step + 1} of 6</p>
+          <div className="enrollment-step-meter" aria-hidden="true">
+            {enrollmentSteps.map((label, index) => (
+              <span
+                key={label}
+                className={index <= step ? "is-complete" : undefined}
+              />
+            ))}
+          </div>
           <h2 ref={heading} tabIndex={-1}>
             {enrollmentSteps[step]}
           </h2>
@@ -130,7 +139,10 @@ export function RegisterPage({
             )}
           </form>
           {!demoEnabled && (
-            <p role="alert">AWAITING BACKEND — demo mode is disabled.</p>
+            <p role="alert">
+              Registration services are not connected. This preview is
+              unavailable.
+            </p>
           )}
         </div>
       </div>

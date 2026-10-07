@@ -108,7 +108,11 @@ export default function App() {
                     </div>
                   }
                 >
-                  <StudentDashboard session={session} onLogout={logout} />
+                  <StudentDashboard
+                    session={session}
+                    enrollment={signup ?? undefined}
+                    onLogout={logout}
+                  />
                 </Suspense>
               ) : (
                 <Navigate to="/login" state={{ fromDashboard: true }} replace />

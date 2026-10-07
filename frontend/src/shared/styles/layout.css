@@ -1,93 +1,109 @@
-/* Site header, public navigation and footer. Responsive rules live with their owning styles. */
-
+/* The public site and workspaces share one calm, compact frame. */
 .preview-banner {
-  padding: 9px var(--space-3);
-  background: #e8eee7;
+  padding: 9px 20px;
+  background: #eef2ef;
   text-align: center;
-  color: #3f574a;
-  font-size: var(--text-small);
+  color: #43544c;
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
 .preview-banner span {
-  margin-inline: 10px;
-  color: #637c6e;
+  margin-inline: 8px;
 }
 .site-header {
-  background: var(--color-paper);
-  border-bottom: 1px solid #e7ebe5;
+  background: var(--color-surface);
+  border-bottom: var(--border-panel);
 }
 .nav-row {
-  min-height: 80px;
+  min-height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 38px;
+  gap: 40px;
 }
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  color: var(--color-ink);
+  gap: 8px;
+  color: var(--color-accent);
   text-decoration: none;
+  flex-shrink: 0;
 }
 .brand svg {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
 }
 .brand > span {
-  font-size: 2.55rem;
+  font-size: 2.15rem;
   font-weight: 650;
-  letter-spacing: -0.09em;
+  letter-spacing: -0.085em;
   line-height: 1.15;
 }
 .brand-dot {
-  color: #768d53;
+  color: #557a62;
 }
 .primary-nav {
   display: flex;
   align-items: center;
-  gap: 35px;
-  font-size: var(--text-small);
-  width: 77%;
+  gap: 24px;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
 }
 .primary-nav > a,
-.nav-actions > a:not(.button) {
+.nav-actions > a {
   min-height: var(--target-height);
   display: flex;
   align-items: center;
   text-decoration: none;
+  white-space: nowrap;
 }
-.primary-nav a.active:not(.button) {
+.primary-nav a.active:not(.nav-hub-link) {
+  color: var(--color-accent);
   text-decoration: underline;
-  text-decoration-color: #60835d;
   text-decoration-thickness: 2px;
-  text-underline-offset: 9px;
+  text-underline-offset: 8px;
 }
-.primary-nav a:hover:not(.button) {
-  color: #527346;
+.primary-nav a:hover {
+  color: var(--color-accent);
 }
 .nav-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 28px;
+}
+.nav-hub-link {
+  padding: 8px 16px;
+  color: var(--color-accent);
+  background: #edf2ef;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.nav-hub-link:hover,
+.nav-hub-link.active {
+  background: #e1ebe5;
 }
 .menu-toggle {
   display: none;
 }
+#main-content {
+  min-height: 60vh;
+}
 .site-footer {
   border-top: var(--border-panel);
-  padding-top: 50px;
+  padding-top: 40px;
+  background: white;
 }
 .footer-top {
   display: grid;
-  grid-template-columns: 1fr 0.75fr 1fr;
-  gap: 50px;
-  padding-bottom: 38px;
+  grid-template-columns: 1fr 0.8fr 1fr;
+  gap: 40px;
+  padding-bottom: 28px;
 }
 .footer-top p {
-  font-size: var(--text-small);
-  margin-top: 17px;
+  font-size: 0.875rem;
+  margin: 14px 0 0;
 }
 .footer-top nav {
   display: flex;
@@ -98,99 +114,113 @@
   min-height: var(--target-height);
   display: flex;
   align-items: center;
-  font-size: var(--text-small);
+  font-size: 0.875rem;
   text-decoration: none;
 }
 .footer-top nav a:hover {
   text-decoration: underline;
 }
 .footer-note {
-  max-width: 30ch;
+  max-width: 36ch;
   justify-self: end;
 }
 .footer-note p {
   font-weight: 600;
   color: var(--color-ink);
+  margin: 0 0 8px;
 }
 .footer-note small {
-  font-size: var(--text-small);
+  display: block;
+  font-size: 0.8125rem;
 }
 .footer-bottom {
   border-top: var(--border-panel);
-  padding-block: var(--space-3);
+  padding-block: 20px;
   display: flex;
   justify-content: space-between;
   gap: 20px;
   color: var(--color-muted);
-  font-size: var(--text-small);
+  font-size: 0.75rem;
 }
-@media (max-width: 1050px) {
+@media (max-width: 1100px) {
   .nav-row {
-    gap: 20px;
+    gap: 24px;
   }
   .primary-nav {
-    width: 80%;
-    gap: 22px;
+    gap: 16px;
   }
-  .nav-actions {
-    gap: 20px;
-  }
-  .nav-actions .button {
-    padding-inline: 13px;
-    font-size: var(--text-small);
+  .nav-hub-link {
+    padding-inline: 12px;
   }
 }
-@media (max-width: 850px) {
-  .preview-banner {
-    padding: var(--space-1) var(--space-2);
-  }
+@media (max-width: 960px) {
   .nav-row {
-    min-height: 78px;
+    min-height: 68px;
     flex-wrap: wrap;
     gap: 0;
   }
   .brand > span {
-    font-size: 2.2rem;
-  }
-  .brand svg {
-    width: 31px;
-    height: 31px;
+    font-size: 2rem;
   }
   .menu-toggle {
     display: flex;
     align-items: center;
-    gap: var(--space-1);
+    gap: 8px;
     min-height: var(--target-height);
     border: var(--border-panel);
-    background: transparent;
-    border-radius: 5px;
+    background: white;
+    border-radius: 10px;
     padding: 9px 12px;
-    font-size: var(--text-small);
+    font-size: 0.875rem;
+  }
+  .menu-toggle .icon {
+    width: 18px;
+    height: 18px;
   }
   .primary-nav {
     display: none;
     width: 100%;
-    padding-block: 12px 22px;
+    flex: 0 0 100%;
+    padding-block: 8px 20px;
+    font-size: 0.9375rem;
   }
   .primary-nav.is-open {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 3px;
+    gap: 4px;
   }
   .primary-nav > a {
-    padding: 10px;
+    padding: 10px 12px;
+    min-height: 48px;
+    border-radius: 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .primary-nav > a.active {
+    background: #f0f3f1;
   }
   .nav-actions {
     border-top: var(--border-panel);
-    padding-top: 15px;
-    margin: var(--space-1) 0 0;
-    justify-content: space-between;
-    padding-left: 10px;
+    padding-top: 12px;
+    margin: 8px 0 0;
+  }
+  .nav-actions > a {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+    white-space: normal;
+    text-align: center;
+  }
+}
+@media (max-width: 600px) {
+  .preview-banner {
+    font-size: 0.75rem;
+    padding: 8px 16px;
   }
   .footer-top {
     grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    gap: 24px 16px;
   }
   .footer-note {
     grid-column: 1 / -1;
@@ -199,15 +229,6 @@
   }
   .footer-bottom {
     flex-direction: column;
-    gap: 9px;
-  }
-}
-@media (min-width: 851px) {
-  .primary-nav {
-    gap: 1.1rem;
-  }
-  .primary-nav > a,
-  .nav-actions > a {
-    font-size: var(--text-small);
+    gap: 8px;
   }
 }

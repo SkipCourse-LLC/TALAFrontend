@@ -9,44 +9,48 @@
 .button {
   min-height: var(--control-height);
   padding: 14px 23px;
-  border: 1px solid var(--color-ink);
-  background: var(--color-ink);
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
   color: var(--color-surface);
   border-radius: var(--radius-control);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 15px;
+  gap: 10px;
   text-decoration: none;
-  font-size: var(--text-small);
+  font-size: 0.9375rem;
   font-weight: 600;
   line-height: 1.4;
-  transition: background-color 0.18s;
+  transition:
+    background-color 0.18s,
+    border-color 0.18s;
+  text-align: center;
 }
 .button:hover:not(:disabled) {
-  background: #28594b;
-  border-color: #28594b;
+  background: #23594d;
+  border-color: #23594d;
 }
 .button .icon {
   width: 18px;
   height: 18px;
 }
 .button-light {
-  background: #f2e8b7;
+  background: white;
   color: var(--color-ink);
-  border-color: #f2e8b7;
+  border-color: white;
 }
 .button-light:hover {
-  background: #ffefaa;
-  border-color: #ffefaa;
+  background: #edf2ef;
+  border-color: #edf2ef;
 }
 .button-outline {
-  background: transparent;
+  background: white;
   color: var(--color-ink);
-  border-color: #92a79b;
+  border-color: var(--color-control-line);
 }
 .button-outline:hover:not(:disabled) {
-  background: #e8eee8;
+  background: #f0f0f3;
+  border-color: var(--color-control-line);
 }
 .button-full {
   width: 100%;
@@ -54,7 +58,7 @@
 .button-row {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 .text-link {
@@ -94,7 +98,8 @@
 .icon-tile {
   width: 56px;
   height: 56px;
-  border-radius: 16px 16px 16px 4px;
+  border-radius: 16px;
+  color: var(--color-accent);
   display: grid;
   place-items: center;
   margin-bottom: var(--space-3);
@@ -121,7 +126,7 @@
   margin-bottom: var(--space-1);
 }
 .start-banner {
-  background: var(--color-ink);
+  background: var(--color-accent);
   color: var(--color-surface);
   padding: 49px 58px;
   border-radius: var(--radius-panel);
@@ -136,11 +141,11 @@
   margin-bottom: 15px;
 }
 .start-banner p {
-  color: #dae7de;
+  color: #e1eae5;
   font-size: var(--text-small);
 }
 .start-banner .eyebrow {
-  color: #ded5a3;
+  color: #e1eae5;
   font-size: var(--text-small);
 }
 .start-banner > div > p:last-child {
@@ -152,14 +157,14 @@
   font-size: var(--text-small);
 }
 .notice {
-  background: #eff3ed;
-  border: 1px solid #d9e3d5;
+  background: var(--color-paper);
+  border: var(--border-panel);
   border-radius: var(--radius-control);
   padding: 14px var(--space-2);
   margin-block: 22px;
   font-size: var(--text-small);
   line-height: 1.65;
-  color: #43574a;
+  color: var(--color-muted);
 }
 .notice strong {
   display: block;
@@ -189,8 +194,8 @@
 }
 .demo-pill {
   display: inline-flex;
-  background: #f2e7bd;
-  color: #62541c;
+  background: #edf2ef;
+  color: #174139;
   border-radius: 30px;
   padding: 7px 13px;
   font-size: var(--text-small);
@@ -203,8 +208,8 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  background: #f1f5ee;
-  border: 1px dashed #aebdaa;
+  background: var(--color-surface);
+  border: var(--border-panel);
   border-radius: var(--radius-panel);
   padding: 35px;
 }
@@ -223,7 +228,7 @@
 .loading-dot {
   width: 22px;
   height: 22px;
-  background: #7a9162;
+  background: var(--color-accent);
   border-radius: 50%;
   margin-bottom: 25px;
 }

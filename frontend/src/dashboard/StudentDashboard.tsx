@@ -11,12 +11,15 @@ import { DashboardContent } from "./DashboardContent";
 import { CommunityWorkspace } from "./CommunityWorkspace";
 import { StudentAccountPanel } from "./StudentAccountPanel";
 import { StudentSchedule } from "../classes/StudentSchedule";
+import type { EnrollmentReceipt } from "../registration/enrollmentService";
 export function StudentDashboard({
   session,
   onLogout,
+  enrollment,
 }: {
   session: DemoSession;
   onLogout: () => void;
+  enrollment?: EnrollmentReceipt;
 }) {
   const [params, setParams] = useSearchParams();
   const selectedView = params.get("view") ?? "overview";
@@ -35,7 +38,13 @@ export function StudentDashboard({
     ? (requestedScenario as DemoScenario)
     : "success";
   if (session.role && session.role !== "Student" && !session.representing)
-    return <CommunityWorkspace session={session} onLogout={onLogout} />;
+    return (
+      <CommunityWorkspace
+        session={session}
+        onLogout={onLogout}
+        enrollment={enrollment}
+      />
+    );
   const learner = session.representing
     ? {
         ...session,
@@ -54,6 +63,7 @@ export function StudentDashboard({
       <div className="dashboard-main">
         <div className="dashboard-heading">
           <div>
+            <p className="eyebrow">Your learning workspace</p>
             <h1 tabIndex={-1}>
               {view === "overview"
                 ? `Hello, ${learner.name.split(" ")[0] || "learner"}.`
@@ -73,8 +83,8 @@ export function StudentDashboard({
               Parent demo: {session.name}, representing {session.representing}
             </strong>
             <p>
-              These are sample student records. Real delegated access is
-              AWAITING BACKEND.{" "}
+              These are sample student records. Your parent identity stays
+              visible in this preview.{" "}
               <Link
                 to="/login"
                 state={{
@@ -92,16 +102,14 @@ export function StudentDashboard({
             </p>
           </div>
         )}
-        <p>
-          <Link to="/enrollment-status">Enrollment status &amp; payment</Link>
-        </p>
-        <div className="integration-notice">
-          <Icon name="book" />
-          <div>
-            <strong>
-              Sample learning data · SkipCourse not connected · AWAITING BACKEND
-            </strong>
+        <div className="workspace-toolbar">
+          <div className="integration-notice">
+            <Icon name="book" />
+            <strong>Sample learning data · SkipCourse not connected</strong>
           </div>
+          <Link className="text-link" to="/enrollment-status">
+            Enrollment status &amp; payment <Icon name="arrow" />
+          </Link>
         </div>
         {demoToolsEnabled && (
           <details className="demo-tools dashboard-tools">
@@ -123,7 +131,7 @@ export function StudentDashboard({
         )}
         {["calendar", "classes", "slots"].includes(view) ? (
           <StudentSchedule
-            key={`${scenario}-${session.email}-${session.representing ?? "self"}`}
+            key={`${view}-${scenario}-${session.email}-${session.representing ?? "self"}`}
             student={
               session.representing
                 ? (session.studentEmail ?? session.email)

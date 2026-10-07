@@ -1,57 +1,127 @@
-import { useEffect, useState } from "react";
-import { scheduleService } from "./scheduleService";
-import type { ScheduleData } from "./scheduleService";
+import { useEffect, useRef, useState } from "react";
+import { scheduleService, scheduleErrorMessage } from "./scheduleService";
+import type { ScheduleData, ScheduleService } from "./scheduleService";
 import type { DemoScenario } from "../shared/services/serviceTypes";
-export function useStudentSchedule(student: string, scenario: DemoScenario) {
-  const [data, setData] = useState<ScheduleData | null>(null);
-  const [error, setError] = useState("");
-  const [joining, setJoining] = useState("");
-  const [message, setMessage] = useState("");
-  const [joinError, setJoinError] = useState("");
+
+export function useStudentSchedule(
+  student: string,
+  scenario: DemoScenario,
+  service: ScheduleService = scheduleService,
+) {
+  const [revision, setRevision] = useState(0);
+  const context = { student, scenario, service, revision };
+  const [loaded, setLoaded] = useState({
+    ...context,
+    data: null as ScheduleData | null,
+    error: "",
+  });
+  const [joiningState, setJoiningState] = useState({ ...context, id: "" });
+  const [feedback, setFeedback] = useState({
+    ...context,
+    message: "",
+    error: "",
+  });
   const [simulateError, setSimulateError] = useState(false);
   const [mode, setMode] = useState("All");
+  const loadRequest = useRef<AbortController | null>(null);
+  const joinRequest = useRef<AbortController | null>(null);
+  const matches = (value: typeof context) =>
+    value.student === student &&
+    value.scenario === scenario &&
+    value.service === service &&
+    value.revision === revision;
+  const data = matches(loaded) ? loaded.data : null;
+  const error = matches(loaded) ? loaded.error : "";
   useEffect(() => {
     const controller = new AbortController();
-    scheduleService
+    loadRequest.current = controller;
+    service
       .load(student, scenario, controller.signal)
       .then((result) => {
-        if (!controller.signal.aborted) setData(result);
+        if (!controller.signal.aborted && loadRequest.current === controller)
+          setLoaded({
+            student,
+            scenario,
+            service,
+            revision,
+            data: result,
+            error: "",
+          });
       })
-      .catch((e: unknown) => {
-        if (!controller.signal.aborted)
-          setError(e instanceof Error ? e.message : "Please retry.");
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted && loadRequest.current === controller)
+          setLoaded({
+            student,
+            scenario,
+            service,
+            revision,
+            data: null,
+            error: scheduleErrorMessage(failure),
+          });
       });
-    return () => controller.abort();
-  }, [student, scenario]);
+    return () => {
+      controller.abort();
+      if (loadRequest.current === controller) loadRequest.current = null;
+      joinRequest.current?.abort();
+      joinRequest.current = null;
+    };
+  }, [student, scenario, service, revision]);
+  function retry() {
+    loadRequest.current?.abort();
+    joinRequest.current?.abort();
+    joinRequest.current = null;
+    setRevision((value) => value + 1);
+  }
   async function joinClass(slot: ScheduleData["slots"][number]) {
-    if (!data) return;
-    setJoining(slot.id);
-    setMessage("");
-    setJoinError("");
+    if (!data || joinRequest.current) return;
+    const controller = new AbortController();
+    joinRequest.current = controller;
+    setJoiningState({ ...context, id: slot.id });
+    setFeedback({ ...context, message: "", error: "" });
     try {
-      const joinedIds = await scheduleService.join(
+      const joined = await service.join(
         student,
         slot.id,
         simulateError,
+        controller.signal,
       );
-      setData({ ...data, joined: joinedIds });
-      setMessage(`${slot.title} added to My classes and Personal calendar.`);
-    } catch (e) {
-      setJoinError(e instanceof Error ? e.message : "Please retry.");
+      if (controller.signal.aborted || joinRequest.current !== controller)
+        return;
+      setLoaded((current) =>
+        matches(current) && current.data
+          ? { ...current, data: { ...current.data, joined } }
+          : current,
+      );
+      setFeedback({
+        ...context,
+        message: slot.title + " added to My classes and Personal calendar.",
+        error: "",
+      });
+    } catch (failure) {
+      if (!controller.signal.aborted && joinRequest.current === controller)
+        setFeedback({
+          ...context,
+          message: "",
+          error: scheduleErrorMessage(failure),
+        });
     } finally {
-      setJoining("");
+      if (joinRequest.current === controller) {
+        joinRequest.current = null;
+        if (!controller.signal.aborted) setJoiningState({ ...context, id: "" });
+      }
     }
   }
   return {
     data,
     error,
-    joining,
-    message,
-    joinError,
+    joining: matches(joiningState) ? joiningState.id : "",
+    message: matches(feedback) ? feedback.message : "",
+    joinError: matches(feedback) ? feedback.error : "",
     simulateError,
     setSimulateError,
     mode,
     setMode,
     joinClass,
+    retry,
   };
 }

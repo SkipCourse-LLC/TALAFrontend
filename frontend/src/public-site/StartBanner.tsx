@@ -1,18 +1,19 @@
 import { Link } from "react-router-dom";
-import { Icon } from "../shared/Icon";
 export function StartBanner() {
   return (
     <section className="start-banner container">
       <div>
-        <p className="eyebrow">The student hub</p>
+        <p className="eyebrow">Try the student experience</p>
         <h2>Your learning, in one place.</h2>
-        <p>Preview sample learning paths, progress, and projects.</p>
+        <p>
+          Explore sample learning paths, progress and projects at your own pace.
+        </p>
       </div>
       <div>
         <Link to="/login" className="button button-light">
-          Explore the demo hub <Icon name="arrow" />
+          Explore the demo hub
         </Link>
-        <p className="small">A frontend demo. No enrollment required.</p>
+        <p className="small">Sample data. No enrollment required.</p>
       </div>
     </section>
   );

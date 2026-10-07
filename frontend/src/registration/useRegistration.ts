@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { enrollmentService, validateEnrollment } from "./enrollmentService";
+import {
+  enrollmentErrorMessage,
+  enrollmentService,
+  validateEnrollment,
+} from "./enrollmentService";
 import type {
   EnrollmentDraft,
   EnrollmentErrors,
@@ -33,7 +37,13 @@ export function useRegistration(
   const [simulateError, setSimulateError] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const request = useRef<AbortController | null>(null);
-  useEffect(() => () => request.current?.abort(), []);
+  useEffect(
+    () => () => {
+      request.current?.abort();
+      request.current = null;
+    },
+    [],
+  );
   const heading = useRef<HTMLHeadingElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const failureBox = useRef<HTMLParagraphElement>(null);
@@ -53,12 +63,21 @@ export function useRegistration(
   async function next(event: FormEvent) {
     event.preventDefault();
     if (request.current) return;
-    const checked = validateEnrollment(draft, step);
+    const validationStep =
+      step === 5
+        ? ([0, 1, 2, 3, 4].find(
+            (index) => Object.keys(validateEnrollment(draft, index)).length,
+          ) ?? 5)
+        : step;
+    const checked = validateEnrollment(draft, validationStep);
     setErrors(checked);
     setFailure("");
     const first = Object.keys(checked)[0];
     if (first) {
-      form.current?.querySelector<HTMLElement>(`#${first}`)?.focus();
+      if (validationStep !== step) setStep(validationStep);
+      requestAnimationFrame(() =>
+        form.current?.querySelector<HTMLElement>(`#${first}`)?.focus(),
+      );
       return;
     }
     if (step < 5) {
@@ -70,10 +89,11 @@ export function useRegistration(
     setPending(true);
     try {
       const receipt = await enrollmentService.submit(
-        draft,
+        { ...draft },
         simulateError,
         controller.signal,
       );
+      if (controller.signal.aborted || request.current !== controller) return;
       setDraft((current) => ({
         ...current,
         password: "",
@@ -81,11 +101,13 @@ export function useRegistration(
       }));
       onComplete(receipt);
     } catch (error) {
-      if (!controller.signal.aborted)
-        setFailure(error instanceof Error ? error.message : "Please retry.");
+      if (!controller.signal.aborted && request.current === controller)
+        setFailure(enrollmentErrorMessage(error));
     } finally {
-      if (!controller.signal.aborted) setPending(false);
-      request.current = null;
+      if (request.current === controller) {
+        if (!controller.signal.aborted) setPending(false);
+        request.current = null;
+      }
     }
   }
   function goBack() {

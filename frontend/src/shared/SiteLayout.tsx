@@ -19,9 +19,9 @@ export function SiteLayout({ session }: { session: DemoSession | null }) {
         Skip to content
       </a>
       <div className="preview-banner">
-        TALA preview <span aria-hidden="true">·</span>{" "}
+        TALA product preview <span aria-hidden="true">·</span>{" "}
         {demoEnabled
-          ? "Demo only. No real accounts."
+          ? "Explore with sample data. No real accounts or charges."
           : "Live account services are not connected."}
       </div>
       <SiteHeader key={location.pathname} session={session} />
@@ -44,16 +44,16 @@ export function SiteLayout({ session }: { session: DemoSession | null }) {
             <Link to={session ? "/dashboard" : "/login"}>Student hub</Link>
           </nav>
           <div className="footer-note">
-            <p>A learning experience, taking shape.</p>
+            <p>Your learning. Your next step.</p>
             <small>
-              Website content is a preview and awaits final review by the TALA
-              team.
+              This frontend preview brings enrollment and learning together.
+              School decisions, billing and live services are not connected.
             </small>
           </div>
         </div>
         <div className="container footer-bottom">
-          <span>TALA-Hub · ASU Capstone frontend</span>
-          <span>Built with curiosity. Designed for everyone.</span>
+          <span>TALA-Hub · Frontend product preview</span>
+          <span>Built for different ways to learn.</span>
         </div>
       </footer>
     </>

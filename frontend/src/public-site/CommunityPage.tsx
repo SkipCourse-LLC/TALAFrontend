@@ -1,43 +1,91 @@
 import { Link } from "react-router-dom";
+import { Icon } from "../shared/Icon";
+
 export function CommunityPage({ kind }: { kind: "events" | "contact" }) {
+  const events = kind === "events";
   return (
-    <section className="page-intro container">
-      <p className="eyebrow">TALA community</p>
-      <h1>{kind === "events" ? "Community events" : "Contact TALA"}</h1>
-      {kind === "events" ? (
-        <>
-          <p className="lead">A place to connect, share and learn.</p>
-          <div className="state-panel">
-            <h2>No confirmed events yet</h2>
+    <div className="public-page public-community">
+      <section className="page-intro container">
+        <p className="eyebrow">TALA community</p>
+        <h1>{events ? "Community events" : "Contact TALA"}</h1>
+        <p className="lead">
+          {events
+            ? "A place to connect, share and learn. See what’s taking shape."
+            : "Explore the next step for your family."}
+        </p>
+      </section>
+      <section className="container public-community-content">
+        <div className="public-empty-state">
+          <span className="public-feature-symbol">
+            <Icon name={events ? "people" : "voice"} />
+          </span>
+          <h2>
+            {events
+              ? "No confirmed events yet"
+              : "Contact details are being confirmed"}
+          </h2>
+          <p>
+            {events
+              ? "Dates, locations and registration information will appear here after TALA confirms them."
+              : "Official email, phone and campus details are not ready for publication. This preview does not send inquiries."}
+          </p>
+          <Link
+            className="button button-outline"
+            to={events ? "/learn-more" : "/programs"}
+          >
+            {events ? "Learn more about TALA" : "Explore programs"}
+          </Link>
+        </div>
+        {events && (
+          <div className="community-upcoming">
+            <h2>Ideas for future gatherings</h2>
+            <div>
+              <article>
+                <Icon name="voice" />
+                <div>
+                  <h3>Lecture series</h3>
+                  <p>
+                    Speakers, topics and dates will be shared once confirmed.
+                  </p>
+                </div>
+              </article>
+              <article>
+                <Icon name="book" />
+                <div>
+                  <h3>Visiting professors</h3>
+                  <p>
+                    Meet future guests when participants and programs are
+                    announced.
+                  </p>
+                </div>
+              </article>
+            </div>
+          </div>
+        )}
+        <div className="community-next-step">
+          <div>
+            <h2>Keep exploring.</h2>
             <p>
-              AWAITING SPONSOR — event dates, locations and registration
-              details.
+              Get to know the proposed learning approach or preview
+              registration.
             </p>
           </div>
-          <h2>Lecture series & visiting professors</h2>
-          <p>Guest announcements will appear here once approved.</p>
-        </>
-      ) : (
-        <>
-          <p className="lead">The right next step for your family.</p>
-          <div className="notice">
-            <strong>AWAITING SPONSOR — verified contact details</strong>
-            <p>
-              Official email, phone, address and response arrangements have not
-              been confirmed for publication. This preview cannot send an
-              inquiry.
-            </p>
+          <div className="button-row">
+            <Link className="button" to="/register">
+              Explore registration demo
+            </Link>
+            <Link
+              className="text-link"
+              to={events ? "/programs" : "/learn-more"}
+            >
+              {events
+                ? "Explore learning opportunities"
+                : "Learn more about TALA"}
+              <Icon name="arrow" />
+            </Link>
           </div>
-        </>
-      )}
-      <div className="button-row">
-        <Link className="button" to="/register">
-          Explore registration demo
-        </Link>
-        <Link className="text-link" to="/learn-more">
-          Learn more about TALA
-        </Link>
-      </div>
-    </section>
+        </div>
+      </section>
+    </div>
   );
 }

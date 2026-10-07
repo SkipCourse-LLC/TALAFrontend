@@ -1,27 +1,39 @@
 import { TextField } from "../shared/TextField";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { demoEnabled, demoToolsEnabled } from "../shared/services/demoConfig";
 import { validateAuth } from "./formValidation";
 import type { AuthField, AuthValues, FormErrors } from "./formValidation";
 import { Icon } from "../shared/Icon";
+import { authErrorMessage } from "./authService";
 
 interface Props {
   initialEmail?: string;
   onSubmit: (values: AuthValues, simulateError: boolean) => Promise<void>;
+  pending?: boolean;
 }
-export function AuthForm({ initialEmail = "", onSubmit }: Props) {
+export function AuthForm({
+  initialEmail = "",
+  onSubmit,
+  pending = false,
+}: Props) {
   const [values, setValues] = useState<AuthValues>({
     email: initialEmail,
     password: "",
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [serviceError, setServiceError] = useState("");
-  const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [simulateError, setSimulateError] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const errorBox = useRef<HTMLDivElement>(null);
+  const active = useRef(true);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
@@ -35,18 +47,15 @@ export function AuthForm({ initialEmail = "", onSubmit }: Props) {
         ?.focus();
       return;
     }
-    setPending(true);
     try {
-      await onSubmit(values, simulateError);
+      await onSubmit({ ...values, email: values.email.trim() }, simulateError);
     } catch (error) {
-      setServiceError(
-        error instanceof Error
-          ? error.message
-          : "Something went wrong. Please try again.",
-      );
-      requestAnimationFrame(() => errorBox.current?.focus());
-    } finally {
-      setPending(false);
+      if (active.current) {
+        setServiceError(authErrorMessage(error));
+        requestAnimationFrame(() => {
+          if (active.current) errorBox.current?.focus();
+        });
+      }
     }
   }
   const fields: {
@@ -65,14 +74,14 @@ export function AuthForm({ initialEmail = "", onSubmit }: Props) {
       name: "password",
       label: "Demo password",
       type: showPassword ? "text" : "password",
-      autoComplete: "current-password",
+      autoComplete: "new-password",
     },
   ];
   return (
     <form ref={form} onSubmit={submit} noValidate aria-busy={pending}>
       {!demoEnabled && (
         <div className="notice error" role="status">
-          Live accounts are not connected. Demo mode is disabled.
+          Sign-in is unavailable in this preview.
         </div>
       )}
       {serviceError && (
@@ -80,7 +89,9 @@ export function AuthForm({ initialEmail = "", onSubmit }: Props) {
           {serviceError}
         </div>
       )}
-      <p className="small">All fields are required.</p>
+      <p className="sr-only">
+        All fields are required. Use invented details in this preview.
+      </p>
       {fields.map((field) => (
         <TextField
           key={field.name}
@@ -121,6 +132,7 @@ export function AuthForm({ initialEmail = "", onSubmit }: Props) {
         <input
           type="checkbox"
           checked={showPassword}
+          disabled={pending}
           onChange={(e) => setShowPassword(e.target.checked)}
         />{" "}
         Show password

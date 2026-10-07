@@ -1,69 +1,108 @@
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useApproval } from "./useApproval";
 import { PaymentForm } from "./PaymentForm";
-import type { DemoSession } from "../shared/services/serviceTypes";
-export function PaymentPage({ session }: { session: DemoSession }) {
-  const { state, reload } = useApproval(session);
+import { PaymentLayout } from "./PaymentLayout";
+import { paymentService } from "./paymentService";
+import type { PaymentService, PaymentSession } from "./paymentService";
+
+export function PaymentPage({
+  session,
+  service = paymentService,
+}: {
+  session: PaymentSession;
+  service?: PaymentService;
+}) {
+  const { state, reload } = useApproval(session, service);
+  const errorHeading = useRef<HTMLHeadingElement>(null);
+  const lockedHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (state.status === "error") errorHeading.current?.focus();
+  }, [state.status]);
+  const isDemo = service.environment === "demo";
+  const approved = state.status === "ready" && state.approval === "approved";
+  const locked = state.status === "ready" && !approved;
+  useEffect(() => {
+    if (locked) lockedHeading.current?.focus();
+  }, [locked]);
   return (
-    <section className="container enrollment-page payment-page">
-      <div className="enrollment-form">
-        <p className="eyebrow">Enrollment · Funding</p>
-        <h1>Payment</h1>
-        <p>Confirm a funding path for this approved enrollment demo.</p>
-        <ol className="payment-steps" aria-label="Enrollment payment progress">
-          <li className="is-complete">Application</li>
-          <li className="is-complete">Approval</li>
-          <li className="is-current" aria-current="step">
-            Funding
-          </li>
-        </ol>
-        <div className="notice">
-          <strong>Payment demo · AWAITING BACKEND</strong>
-          No charge will be made. Do not enter real payment information. Real
-          approval, billing and payment processing are not connected.
+    <PaymentLayout
+      title="Payment"
+      description={
+        isDemo
+          ? "Choose your funding preference and review your payment."
+          : "Review your funding choice before confirming the next enrollment step."
+      }
+      stage={approved ? "funding" : "approval"}
+      environment={service.environment}
+      variant="checkout"
+    >
+      {state.status === "loading" && (
+        <div className="payment-panel payment-state" role="status">
+          <span className="payment-state-mark" aria-hidden="true">
+            …
+          </span>
+          <div>
+            <strong>Checking approval</strong>
+            <p>
+              {isDemo
+                ? "Confirming that this demo can continue to funding…"
+                : "Confirming that you can continue to funding…"}
+            </p>
+          </div>
         </div>
-        {state.status === "loading" && (
-          <div className="payment-state" role="status">
-            <span className="state-dot" aria-hidden="true" />
+      )}
+      {state.status === "error" && (
+        <div role="alert" className="payment-panel payment-error">
+          <h2 ref={errorHeading} tabIndex={-1}>
+            We could not check approval
+          </h2>
+          <p>{state.message}</p>
+          <button
+            type="button"
+            className="payment-button"
+            onClick={() => reload()}
+          >
+            Retry approval check
+          </button>
+        </div>
+      )}
+      {state.status === "ready" &&
+        (approved ? (
+          <PaymentForm session={session} service={service} />
+        ) : (
+          <div
+            className="payment-panel payment-state payment-state-locked"
+            role="status"
+          >
+            <span className="payment-state-mark" aria-hidden="true">
+              ◇
+            </span>
             <div>
-              <strong>Checking approval</strong>
-              <p>Confirming that this demo can continue to funding…</p>
-            </div>
-          </div>
-        )}
-        {state.status === "error" && (
-          <div role="alert" className="notice error">
-            <p>{state.message}</p>
-            <button className="button" onClick={() => reload()}>
-              Retry approval check
-            </button>
-          </div>
-        )}
-        {state.status === "ready" &&
-          (state.approval === "approved" ? (
-            <PaymentForm session={session} />
-          ) : (
-            <div className="payment-state payment-state-locked" role="status">
-              <span className="state-lock" aria-hidden="true">
-                ×
-              </span>
-              <div>
-                <strong>Approval required</strong>
-                <p>
-                  This application is{" "}
-                  {state.approval === "pending"
-                    ? "pending review"
+              <h2 ref={lockedHeading} tabIndex={-1}>
+                Approval required
+              </h2>
+              <p>
+                This application is{" "}
+                {state.approval === "pending"
+                  ? "pending review"
+                  : state.approval === "rejected"
+                    ? "rejected"
                     : "not approved"}
-                  . Return to enrollment status before continuing.
+                . Return to enrollment status before continuing.
+              </p>
+              {isDemo && (
+                <p className="payment-small">
+                  A link or URL parameter cannot unlock this demo payment form.
                 </p>
-              </div>
+              )}
             </div>
-          ))}
-        <div className="form-actions">
-          <Link to="/enrollment-status">Back to enrollment status</Link>
-          <Link to="/dashboard">Back to dashboard</Link>
-        </div>
+          </div>
+        ))}
+      <div className="payment-footer-links">
+        <Link to="/enrollment-status">Back to enrollment status</Link>
+        <Link to="/dashboard">Back to dashboard</Link>
       </div>
-    </section>
+    </PaymentLayout>
   );
 }

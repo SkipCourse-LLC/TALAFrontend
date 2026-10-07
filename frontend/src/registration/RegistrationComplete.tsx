@@ -20,10 +20,10 @@ export function RegistrationComplete({
           {receipt.studentName}.
         </p>
         <div className="notice">
-          <strong>AWAITING BACKEND</strong>
+          <strong>Profile preview complete</strong>
           <p>
-            No account, enrollment, payment or SkipCourse account was created.
-            Real student access will follow verified registration and billing.
+            Your sample family profile is ready to explore. No real account,
+            school enrollment or payment was submitted.
           </p>
         </div>
         <p role="status">

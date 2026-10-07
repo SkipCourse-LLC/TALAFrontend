@@ -14,7 +14,7 @@ export function StudentProfile({
         </span>
         <div>
           <h2>{session.name}</h2>
-          <p>Frontend demo profile</p>
+          <p>Your sample learning profile</p>
         </div>
       </div>
       <dl>
@@ -32,8 +32,8 @@ export function StudentProfile({
         </div>
       </dl>
       <p className="small">
-        Profile editing and verified account details will be available after the
-        backend is connected. No personal information is sent from this demo.
+        This preview does not update a real profile. Your sample identity stays
+        in this browser tab until you sign out.
       </p>
     </section>
   );

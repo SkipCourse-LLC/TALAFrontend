@@ -1,12 +1,11 @@
-import { demoAuthAdapter } from "./demoAuthAdapter";
+import { AuthError, demoAuthAdapter } from "./demoAuthAdapter";
+export { authErrorMessage } from "./demoAuthAdapter";
 import type { AuthAdapter, DemoSession } from "../shared/services/serviceTypes";
 
 import { demoEnabled } from "../shared/services/demoConfig";
 const sessionKey = "tala.frontend-demo.session";
 const unavailable = async (): Promise<never> => {
-  throw new Error(
-    "Live accounts are not connected. This preview requires demo mode.",
-  );
+  throw new AuthError("UNAVAILABLE");
 };
 // NEEDS_CONFIRMATION: server-owned authentication + SkipCourse provisioning contract.
 // Fail closed: disabling the demo never falls through to a guessed endpoint.

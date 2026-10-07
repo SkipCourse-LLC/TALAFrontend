@@ -1,6 +1,7 @@
 import { Link, useSearchParams } from "react-router-dom";
 import { programs } from "./programContent";
 import { Icon } from "../shared/Icon";
+import { StartBanner } from "./StartBanner";
 export function ProgramsPage() {
   const [params, setParams] = useSearchParams();
   const requested = params.get("program");
@@ -10,18 +11,17 @@ export function ProgramsPage() {
   const shown =
     selected === "all" ? programs : programs.filter((p) => p.id === selected);
   return (
-    <>
+    <div className="public-page public-programs">
       <section className="page-intro container">
-        <p className="eyebrow">Programs & learning experiences</p>
+        <p className="eyebrow">Programs &amp; learning experiences</p>
         <h1>Find a way to learn.</h1>
         <p className="lead">
-          Explore different ways to learn with TALA, from focused support to
-          discoveries beyond the classroom.
+          From focused support to discoveries beyond the classroom. Explore
+          early ideas for learning with TALA.
         </p>
         <p className="content-note">
-          AWAITING SPONSOR — early concept previews, not a confirmed course
-          catalog. Details, eligibility, pricing and schedules are not yet
-          confirmed.
+          Concept previews. Program details, eligibility and schedules are still
+          being confirmed.
         </p>
       </section>
       <section
@@ -93,20 +93,7 @@ export function ProgramsPage() {
           ))}
         </div>
       </section>
-      <section className="container program-note">
-        <Icon name="voice" />
-        <div>
-          <h2>Wondering which path is right for you?</h2>
-          <p>
-            Confirmed contact details and enrollment guidance will be added by
-            the TALA team. In the meantime, you can explore the student
-            experience without enrolling.
-          </p>
-          <Link to="/login" className="text-link">
-            Explore the demo hub <Icon name="arrow" />
-          </Link>
-        </div>
-      </section>
-    </>
+      <StartBanner />
+    </div>
   );
 }

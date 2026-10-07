@@ -62,11 +62,15 @@ export function SiteHeader({ session }: { session: DemoSession | null }) {
             Home
           </NavLink>
           <NavLink to="/learn-more">Learn More</NavLink>
+          <NavLink to="/programs">Programs</NavLink>
           <NavLink to="/register">Enrollment</NavLink>
           <NavLink to="/events">Community Events</NavLink>
           <NavLink to="/contact">Contact</NavLink>
           <div className="nav-actions">
-            <NavLink to={session ? "/dashboard" : "/login"}>
+            <NavLink
+              className="nav-hub-link"
+              to={session ? "/dashboard" : "/login"}
+            >
               {session ? "My dashboard" : "Community Login"}
             </NavLink>
           </div>

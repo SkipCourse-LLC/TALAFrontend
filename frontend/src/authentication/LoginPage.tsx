@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AuthForm } from "./AuthForm";
 import { Icon } from "../shared/Icon";
-import { authService } from "./authService";
+import { authErrorMessage, authService } from "./authService";
+import type { AuthValues } from "./formValidation";
 import { demoEnabled } from "../shared/services/demoConfig";
 import { sampleSession } from "../shared/services/demoData";
 import type { EnrollmentReceipt } from "../registration/enrollmentService";
@@ -16,9 +17,22 @@ export function LoginPage({
   onLogin: (session: DemoSession) => void;
 }) {
   const location = useLocation();
+  return <LoginPageContent key={location.key} onLogin={onLogin} />;
+}
+
+function LoginPageContent({
+  onLogin,
+}: {
+  onLogin: (session: DemoSession) => void;
+}) {
+  const location = useLocation();
   const navigate = useNavigate();
-  const [quickPending, setQuickPending] = useState(false);
+  const [pendingSource, setPendingSource] = useState<"form" | "sample" | null>(
+    null,
+  );
   const [quickError, setQuickError] = useState("");
+  const request = useRef<AbortController | null>(null);
+  const quickErrorBox = useRef<HTMLParagraphElement>(null);
   const state = location.state as {
     registered?: { name: string; email: string };
     fromDashboard?: boolean;
@@ -31,32 +45,78 @@ export function LoginPage({
   const [parentView, setParentView] = useState("self");
   const family = state?.family;
   const studentName = family?.studentName ?? sampleSession.name;
-  function enter(session: DemoSession) {
-    onLogin({
-      ...session,
-      role,
-      name:
-        role === "Parent"
-          ? (family?.parentName ?? "Demo parent")
-          : role === "Student"
-            ? session.name
-            : `Demo ${role.toLowerCase()}`,
-      studentName: role === "Parent" ? studentName : undefined,
-      studentEmail:
-        role === "Parent"
-          ? (family?.studentEmail ?? sampleSession.email)
-          : undefined,
-      representing:
-        role === "Parent" && parentView === "student" ? studentName : undefined,
-    });
-    navigate(state?.fromPayment ? "/enrollment-status" : "/dashboard", {
-      replace: true,
-    });
+  const pending = pendingSource !== null;
+  useEffect(
+    () => () => {
+      request.current?.abort();
+      request.current = null;
+    },
+    [],
+  );
+  useEffect(() => {
+    if (quickError) quickErrorBox.current?.focus();
+  }, [quickError]);
+
+  async function openSession(
+    values: AuthValues,
+    simulateError: boolean,
+    source: "form" | "sample",
+  ) {
+    if (request.current || !demoEnabled) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setPendingSource(source);
+    setQuickError("");
+    // Capture identity and destination before awaiting; later UI changes cannot
+    // turn the same response into a different role or family.
+    const chosenRole = role;
+    const chosenParentView = parentView;
+    const destination = state?.fromPayment
+      ? "/enrollment-status"
+      : "/dashboard";
+    try {
+      const session = await authService.login(
+        values.email,
+        values.password,
+        registered?.name ??
+          (source === "sample" ? sampleSession.name : undefined),
+        simulateError,
+        controller.signal,
+      );
+      if (controller.signal.aborted || request.current !== controller) return;
+      onLogin({
+        ...session,
+        role: chosenRole,
+        name:
+          chosenRole === "Parent"
+            ? (family?.parentName ?? "Demo parent")
+            : chosenRole === "Student"
+              ? session.name
+              : `Demo ${chosenRole.toLowerCase()}`,
+        studentName: chosenRole === "Parent" ? studentName : undefined,
+        studentEmail:
+          chosenRole === "Parent"
+            ? (family?.studentEmail ?? sampleSession.email)
+            : undefined,
+        representing:
+          chosenRole === "Parent" && chosenParentView === "student"
+            ? studentName
+            : undefined,
+      });
+      navigate(destination, { replace: true });
+    } catch (error) {
+      if (!controller.signal.aborted && request.current === controller)
+        throw error;
+    } finally {
+      if (request.current === controller) {
+        request.current = null;
+        if (!controller.signal.aborted) setPendingSource(null);
+      }
+    }
   }
   return (
     <section className="auth-layout container">
       <div className="auth-panel">
-        <p className="eyebrow">Community login</p>
         <h1>Welcome back.</h1>
         <p>
           New to TALA? <Link to="/register">Create a demo profile</Link>
@@ -71,17 +131,18 @@ export function LoginPage({
             Open a demo session to explore the student dashboard.
           </div>
         )}
-        <div className="notice">
-          <strong>Demo sign-in, not real authentication.</strong> Use any sample
-          email and a made-up password of 8+ characters. Identity is not
-          verified.
-        </div>
         <div className="form-field">
           <label htmlFor="community-role">I am a</label>
           <select
             id="community-role"
             value={role}
-            onChange={(event) => setRole(event.target.value as CommunityRole)}
+            aria-describedby="auth-role-hint"
+            disabled={pending}
+            onChange={(event) => {
+              if (request.current) return;
+              setRole(event.target.value as CommunityRole);
+              setQuickError("");
+            }}
           >
             {(["Student", "Parent", "Alumni", "Staff"] as const).map((item) => (
               <option key={item}>{item}</option>
@@ -89,14 +150,16 @@ export function LoginPage({
           </select>
         </div>
         {role === "Parent" && (
-          <fieldset className="identity-choice">
+          <fieldset className="identity-choice" disabled={pending}>
             <legend>Enter the community</legend>
             <label className="checkbox-row">
               <input
                 type="radio"
                 name="parent-view"
                 checked={parentView === "self"}
-                onChange={() => setParentView("self")}
+                onChange={() => {
+                  if (!request.current) setParentView("self");
+                }}
               />
               As myself (parent)
             </label>
@@ -105,30 +168,25 @@ export function LoginPage({
                 type="radio"
                 name="parent-view"
                 checked={parentView === "student"}
-                onChange={() => setParentView("student")}
+                onChange={() => {
+                  if (!request.current) setParentView("student");
+                }}
               />
               On behalf of {studentName} (sample student)
             </label>
           </fieldset>
         )}
-        <p className="small">
-          AWAITING BACKEND — verified identity and permissions. This selector
-          changes the demo experience only.
+        <p className="sr-only" id="auth-role-hint">
+          Choose the workspace you want to preview.
         </p>
         <AuthForm
           key={role}
           initialEmail={
             role === "Parent" ? family?.parentEmail : registered?.email
           }
-          onSubmit={async (values, simulateError) =>
-            enter(
-              await authService.login(
-                values.email,
-                values.password,
-                registered?.name,
-                simulateError,
-              ),
-            )
+          pending={pending}
+          onSubmit={(values, simulateError) =>
+            openSession(values, simulateError, "form")
           }
         />
         <div className="or-divider">
@@ -136,59 +194,76 @@ export function LoginPage({
         </div>
         <button
           className="button button-outline button-full"
-          disabled={quickPending || !demoEnabled}
+          type="button"
+          disabled={pending || !demoEnabled}
           onClick={async () => {
-            setQuickPending(true);
-            setQuickError("");
             try {
-              enter(
-                await authService.login(
-                  role === "Parent"
-                    ? (family?.parentEmail ?? "parent@example.com")
-                    : sampleSession.email,
-                  "",
-                  sampleSession.name,
-                ),
+              await openSession(
+                {
+                  email:
+                    role === "Parent"
+                      ? (family?.parentEmail ?? "parent@example.com")
+                      : (registered?.email ?? sampleSession.email),
+                  password: "",
+                },
+                false,
+                "sample",
               );
             } catch (error) {
-              setQuickError(
-                error instanceof Error
-                  ? error.message
-                  : "Demo unavailable. Try again.",
-              );
-            } finally {
-              setQuickPending(false);
+              setQuickError(authErrorMessage(error));
             }
           }}
         >
-          {quickPending ? "Opening demo…" : "Explore with a sample profile"}
+          {pendingSource === "sample"
+            ? "Opening demo…"
+            : "Explore with a sample profile"}
           <Icon name="arrow" />
         </button>
         {quickError && (
-          <p className="field-error" role="alert">
+          <p
+            ref={quickErrorBox}
+            tabIndex={-1}
+            className="field-error"
+            role="alert"
+          >
             {quickError}
           </p>
         )}
         <p className="small">
-          The demo identity and role stay in this browser tab until sign-out.
-          Class selections may remain for this tab. Passwords are never saved.
+          Your sample profile stays in this tab until sign-out. Class choices
+          may remain for this tab. Passwords are never saved.
         </p>
       </div>
       <aside className="auth-story">
-        <p className="eyebrow">Your student hub</p>
+        <p className="eyebrow">A connected learning space</p>
         <h2>
-          A little progress.
+          Your learning.
           <br />
-          New possibilities.
+          One place.
         </h2>
-        <p>
-          Your learning, your projects, and your next steps. All with room to
-          grow.
-        </p>
-        <div className="login-illustration" aria-hidden="true">
-          <Icon name="book" />
-          <span>Keep your curiosity close.</span>
-          <div className="pencil-line" />
+        <p>Keep your learning paths, next classes and family updates close.</p>
+        <div className="auth-preview-list">
+          <div>
+            <Icon name="book" />
+            <span>
+              <strong>Learning paths</strong>
+              <small>A clear view of your progress</small>
+            </span>
+          </div>
+          <div>
+            <Icon name="grid" />
+            <span>
+              <strong>Weekly calendar</strong>
+              <small>Your next class, in one place</small>
+            </span>
+          </div>
+          <div>
+            <Icon name="user" />
+            <span>
+              <strong>Family access</strong>
+              <small>Explore your learner’s workspace</small>
+            </span>
+          </div>
         </div>
         <p className="auth-story-note">
           A preview of your future learning space.

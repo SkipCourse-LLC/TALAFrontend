@@ -16,8 +16,8 @@
   margin-bottom: var(--space-1);
 }
 .form-field input {
-  border: 1px solid #9eafa4;
-  padding: 11px 13px;
+  border: 1px solid var(--color-control-line);
+  padding: 14px 16px;
   color: var(--color-ink);
 }
 .form-field input[aria-invalid="true"] {
@@ -45,7 +45,7 @@
 .checkbox-row input {
   width: 18px;
   height: 18px;
-  accent-color: var(--color-ink);
+  accent-color: var(--color-accent);
 }
 .plain-fieldset {
   border: 0;
@@ -60,7 +60,8 @@
   margin-top: 1.5rem;
 }
 .form-field select {
-  padding: 0.7rem;
-  border: 1px solid #828879;
+  height: 3.5rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--color-control-line);
   color: inherit;
 }

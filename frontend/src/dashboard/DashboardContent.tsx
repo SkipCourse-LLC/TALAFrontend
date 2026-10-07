@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Icon } from "../shared/Icon";
 import { CourseCard } from "./CourseCard";
@@ -7,6 +8,7 @@ import type {
 } from "../shared/services/serviceTypes";
 import { useStudentOverview } from "./useStudentOverview";
 import { StudentProfile } from "./StudentProfile";
+import { courseProgress } from "./courseProgress";
 export function DashboardContent({
   scenario,
   onRetry,
@@ -19,10 +21,14 @@ export function DashboardContent({
   session: DemoSession;
 }) {
   const state = useStudentOverview(scenario);
+  const errorHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (state.status === "error") errorHeading.current?.focus();
+  }, [state.status]);
   if (state.status === "loading")
     return (
       <div className="state-panel" role="status">
-        <span className="loading-dot" />
+        <span className="loading-dot" aria-hidden="true" />
         <h2>Gathering your learning…</h2>
         <p>Loading sample courses, projects, and progress.</p>
       </div>
@@ -31,15 +37,26 @@ export function DashboardContent({
     return (
       <div className="state-panel" role="alert">
         <Icon name="voice" />
-        <h2>Let’s try that again.</h2>
+        <h2 ref={errorHeading} tabIndex={-1}>
+          Let’s try that again.
+        </h2>
         <p>{state.message}</p>
-        <button className="button" onClick={onRetry}>
+        <button
+          className="button"
+          onClick={() => {
+            state.retry();
+            onRetry();
+          }}
+        >
           Retry with demo data
         </button>
       </div>
     );
   const { data } = state;
-  const completed = data.courses.reduce((sum, c) => sum + c.completed, 0);
+  const completed = data.courses.reduce(
+    (sum, c) => sum + courseProgress(c).completed,
+    0,
+  );
   const total = data.courses.reduce((sum, c) => sum + c.lessons.length, 0);
   if (view === "profile")
     return <StudentProfile session={session} focus={data.focus} />;
@@ -131,8 +148,8 @@ export function DashboardContent({
                     <summary>View sample project</summary>
                     <p>{project.description}</p>
                     <p className="small">
-                      This example has no uploaded files. Real portfolio content
-                      awaits SkipCourse integration.
+                      This is a sample portfolio entry. No files are uploaded or
+                      shared from this preview.
                     </p>
                   </details>
                 </div>

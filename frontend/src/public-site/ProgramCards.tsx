@@ -6,7 +6,7 @@ export function ProgramCards() {
     <div className="program-grid">
       {programs.map((program) => (
         <article className="program-card" key={program.id}>
-          <div className={`icon-tile ${program.color}`}>
+          <div className={`icon-tile program-symbol ${program.color}`}>
             <Icon name={program.icon} />
           </div>
           <p className="category">{program.category}</p>

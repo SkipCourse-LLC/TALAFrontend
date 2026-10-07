@@ -1,4 +1,5 @@
 import { useStudentSchedule } from "./useStudentSchedule";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { demoToolsEnabled } from "../shared/services/demoConfig";
 import type { DemoScenario } from "../shared/services/serviceTypes";
@@ -24,21 +25,44 @@ export function StudentSchedule({
     mode,
     setMode,
     joinClass,
+    retry,
   } = useStudentSchedule(student, scenario);
+  const errorHeading = useRef<HTMLHeadingElement>(null);
+  const joinErrorBox = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (error) errorHeading.current?.focus();
+  }, [error]);
+  useEffect(() => {
+    if (joinError) joinErrorBox.current?.focus();
+  }, [joinError]);
   if (error)
     return (
       <div className="state-panel" role="alert">
-        <h2>Schedule unavailable</h2>
+        <h2 ref={errorHeading} tabIndex={-1}>
+          Schedule unavailable
+        </h2>
         <p>{error}</p>
-        <button className="button" onClick={onRetry}>
+        <button
+          className="button"
+          onClick={() => {
+            retry();
+            onRetry();
+          }}
+        >
           Retry with demo data
         </button>
       </div>
     );
   if (!data)
     return (
-      <div className="state-panel" role="status">
+      <div className="state-panel schedule-loading" role="status">
+        <span className="loading-dot" aria-hidden="true" />
         Loading your sample schedule…
+        <div className="schedule-skeleton" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
       </div>
     );
   const catalog = view === "slots";
@@ -81,9 +105,16 @@ export function StudentSchedule({
           </select>
         </div>
       )}
-      <p role="status">{message}</p>
+      <p role="status" className="schedule-feedback" aria-live="polite">
+        {message}
+      </p>
       {joinError && (
-        <p className="notice error" role="alert">
+        <p
+          ref={joinErrorBox}
+          tabIndex={-1}
+          className="notice error"
+          role="alert"
+        >
           {joinError}
         </p>
       )}
@@ -123,7 +154,8 @@ export function StudentSchedule({
                   </p>
                   {catalog && (
                     <p className="small">
-                      {slot.seats - (joined ? 1 : 0)} sample places remaining
+                      {Math.max(0, slot.seats - (joined ? 1 : 0))} sample places
+                      remaining
                     </p>
                   )}
                 </div>
@@ -164,9 +196,8 @@ export function StudentSchedule({
             </Link>
           </p>
           <p className="small">
-            Full and waiting-list classes cannot be joined in this demo.
-            AWAITING BACKEND — live capacity, waiting lists and calendar
-            synchronization.
+            Full and waiting-list classes cannot be joined in this demo. Live
+            capacity and school calendar synchronization are not connected.
           </p>
           {demoToolsEnabled && (
             <details className="demo-tools">

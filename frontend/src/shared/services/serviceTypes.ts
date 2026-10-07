@@ -16,5 +16,6 @@ export interface AuthAdapter {
     password: string,
     name?: string,
     simulateError?: boolean,
+    signal?: AbortSignal,
   ): Promise<DemoSession>;
 }

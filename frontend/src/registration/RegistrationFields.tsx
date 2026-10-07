@@ -1,5 +1,6 @@
 import { TextField } from "../shared/TextField";
 import { RegistrationReview } from "./RegistrationReview";
+import { enrollmentOptions } from "./enrollmentService";
 import type { EnrollmentDraft, EnrollmentErrors } from "./enrollmentService";
 
 interface Props {
@@ -43,7 +44,11 @@ export function RegistrationFields({
         }
         required
         readOnly={pending}
-        autoComplete="off"
+        autoComplete={
+          key === "password" || key === "confirmPassword"
+            ? "new-password"
+            : "off"
+        }
         onChange={(e) => change(key, e.target.value)}
       />
     );
@@ -51,7 +56,7 @@ export function RegistrationFields({
   function select(
     key: "learningMode" | "timeBlock" | "intent" | "funding",
     label: string,
-    options: string[],
+    options: readonly string[],
   ) {
     return (
       <div className="form-field">
@@ -107,21 +112,23 @@ export function RegistrationFields({
       {step === 0 && (
         <>
           <p>
-            Create the parent account first. No real account is created in this
-            demo.
+            Start with a sample parent profile. Your learner is linked in the
+            next step.
           </p>
           {field("parentName", "Parent name")}
           {field("parentEmail", "Parent email", "email")}
-          {field(
-            "password",
-            "Demo password",
-            showPassword ? "text" : "password",
-          )}
-          {field(
-            "confirmPassword",
-            "Confirm demo password",
-            showPassword ? "text" : "password",
-          )}
+          <div className="registration-field-pair">
+            {field(
+              "password",
+              "Demo password",
+              showPassword ? "text" : "password",
+            )}
+            {field(
+              "confirmPassword",
+              "Confirm demo password",
+              showPassword ? "text" : "password",
+            )}
+          </div>
           <p className="small">
             Use a made-up password with at least 8 characters.
           </p>
@@ -138,36 +145,32 @@ export function RegistrationFields({
       {step === 1 && (
         <>
           <p>
-            Add a sample student linked to this parent. Student access follows
-            all remaining steps.
+            Add the learner linked to this parent. Use invented details for this
+            preview.
           </p>
           {field("studentName", "Student name")}
           {field("studentEmail", "Student email", "email")}
           <p className="small">
-            AWAITING TINA — final student identity and guardian consent
-            requirements.
+            TALA will verify student identity and guardian consent before real
+            access is granted.
           </p>
         </>
       )}
       {step === 2 && (
         <>
-          {select("intent", "Registration interest", [
-            "Enrollment",
-            "Waiting list",
-          ])}
-          {select("learningMode", "Learning preference", [
-            "In-Person",
-            "Online",
-            "Hybrid",
-          ])}
-          {select("timeBlock", "Preferred time block", [
-            "6–8 AM",
-            "8–10 AM",
-            "10 AM–12 PM",
-            "12–2 PM",
-            "2–4 PM",
-            "4–6 PM",
-          ])}
+          {select("intent", "Registration interest", enrollmentOptions.intent)}
+          <div className="registration-field-pair">
+            {select(
+              "learningMode",
+              "Learning preference",
+              enrollmentOptions.learningMode,
+            )}
+            {select(
+              "timeBlock",
+              "Preferred time block",
+              enrollmentOptions.timeBlock,
+            )}
+          </div>
           <p className="small">
             Arizona time. Preferences do not reserve a place. Availability and
             placement await school review.
@@ -176,11 +179,11 @@ export function RegistrationFields({
       )}
       {step === 3 && (
         <>
-          <div className="notice">
-            <strong>AWAITING TINA — required document checklist</strong>
+          <div className="notice registration-step-note">
+            <strong>Document review</strong>
             <p>
-              The supplied layout does not include a final checklist. No health
-              records, identity documents or files should be uploaded here.
+              TALA will confirm the required checklist. This preview does not
+              accept health records, identity documents or file uploads.
             </p>
           </div>
           {acknowledge(
@@ -191,16 +194,26 @@ export function RegistrationFields({
       )}
       {step === 4 && (
         <>
-          {select("funding", "Funding preference", ["ESA", "STO", "Private"])}
-          <div className="notice">
-            <strong>AWAITING BACKEND — billing connection</strong>
-            <p>No charge will be made. Do not enter payment details.</p>
+          {select("funding", "Funding preference", enrollmentOptions.funding)}
+          <div className="notice registration-step-note">
+            <strong>Choose now. Checkout after approval.</strong>
             <p>
-              AWAITING SPONSOR — fees, funding eligibility and payment
-              instructions. Selecting ESA or STO does not establish approval or
-              coverage.
+              This step records your preference. Review your application status
+              after verification; approved applications continue to a separate
+              checkout. No payment details are collected here.
+            </p>
+            <p className="small">
+              Fees and ESA/STO coverage require confirmation from TALA.
             </p>
           </div>
+          <ol
+            className="registration-funding-path"
+            aria-label="Enrollment next steps"
+          >
+            <li aria-current="step">Preference</li>
+            <li>Application review</li>
+            <li>Checkout</li>
+          </ol>
           {acknowledge(
             "fundingAcknowledged",
             "I understand that no payment or funding approval takes place.",
