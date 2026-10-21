@@ -147,3 +147,24 @@ test("a named pipe in a private file path is refused without blocking the operat
     await assert.rejects(access(f.backup));
   } finally { await f.close(); }
 });
+
+test("manifest FIFOs and oversized files are refused before any blocking read or restore", { timeout: 10000 }, async (context) => {
+  if (process.platform === "win32") return context.skip("POSIX named pipes only");
+  const root = await mkdtemp(join(tmpdir(), "tala-backup-manifest-test-"));
+  try {
+    await mkdir(join(root, "uploads"));
+    await mkdir(join(root, "evidence"));
+    const manifest = join(root, "manifest.json");
+    const pipe = spawnSync("mkfifo", [manifest], { timeout: 1000 });
+    if (pipe.error?.code === "ENOENT") return context.skip("mkfifo is unavailable");
+    assert.equal(pipe.status, 0);
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL("../backup.cjs", import.meta.url)), "verify", "--directory", root], { timeout: 1500, encoding: "utf8" });
+    assert.equal(result.error, undefined, "A manifest pipe must be rejected instead of waiting for a writer");
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Local backup operation failed/);
+    await rm(manifest);
+    await writeFile(manifest, Buffer.alloc(16 * 1024 * 1024 + 1, 32), { mode: 0o600 });
+    assert.throws(() => verifyLocalBackup({ directory: root }), /bounded regular file/);
+    assert.equal((await stat(manifest)).size, 16 * 1024 * 1024 + 1, "Verification must not truncate or replace its source");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

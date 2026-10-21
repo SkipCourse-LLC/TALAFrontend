@@ -7,6 +7,7 @@ const { randomUUID, createHash } = require("node:crypto");
 const { createApplication } = require("../application.cjs");
 const dataDir = process.env.TALA_BROWSER_TEST_DATA_DIR;
 if (
+  process.env.NODE_ENV !== "test" ||
   !process.send ||
   !dataDir ||
   !path.isAbsolute(dataDir) ||
@@ -15,11 +16,23 @@ if (
   throw new Error(
     "The browser harness requires a generated private test directory and IPC parent.",
   );
+function loopbackTestPort(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  if (!/^[0-9]{4,5}$/.test(raw)) throw new Error("A valid isolated test port is required.");
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1024 || value > 65535)
+    throw new Error("A valid isolated test port is required.");
+  return value;
+}
+const apiPort = loopbackTestPort("TALA_BROWSER_TEST_API_PORT", 8787);
+const webPort = loopbackTestPort("TALA_BROWSER_TEST_WEB_PORT", 5180);
+if (apiPort === webPort) throw new Error("Isolated test ports must be different.");
 const application = createApplication({
   dataDir,
-  allowedOrigins: ["http://127.0.0.1:5180"],
+  allowedOrigins: [`http://127.0.0.1:${webPort}`],
 });
-application.server.listen(8787, "127.0.0.1", () =>
+application.server.listen(apiPort, "127.0.0.1", () =>
   process.send({ ready: true }),
 );
 function seedPagination(input) {

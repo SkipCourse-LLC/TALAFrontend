@@ -53,6 +53,38 @@ function digestFile(filename, maximum = Number.MAX_SAFE_INTEGER) {
     return { size: length, sha256: hash.digest("hex") };
   } finally { fs.closeSync(fd); }
 }
+function readManifest(filename) {
+  const maximum = 16 * 1024 * 1024;
+  const original = fs.lstatSync(filename);
+  if (!original.isFile() || original.isSymbolicLink() || original.size < 1 || original.size > maximum)
+    refuse("The backup manifest must be a bounded regular file.");
+  // A path can be replaced after lstat. Nonblocking/no-follow open prevents a
+  // substituted FIFO or symlink from hanging the command or redirecting reads.
+  const fd = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+  try {
+    const before = fs.fstatSync(fd);
+    if (!before.isFile() || before.ino !== original.ino || before.dev !== original.dev ||
+        before.size !== original.size || before.mtimeMs !== original.mtimeMs ||
+        before.ctimeMs !== original.ctimeMs || before.size < 1 || before.size > maximum)
+      refuse("The backup manifest changed before it could be read.");
+    const bytes = Buffer.alloc(before.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const count = fs.readSync(fd, bytes, offset, Math.min(65536, bytes.length - offset), null);
+      if (!count) refuse("The backup manifest changed while it was read.");
+      offset += count;
+    }
+    const extra = Buffer.alloc(1);
+    if (fs.readSync(fd, extra, 0, 1, null)) refuse("The backup manifest exceeded its expected size.");
+    const after = fs.fstatSync(fd), current = fs.lstatSync(filename);
+    if (!current.isFile() || current.isSymbolicLink() || current.ino !== before.ino || current.dev !== before.dev ||
+        after.size !== before.size || current.size !== before.size ||
+        after.mtimeMs !== before.mtimeMs || current.mtimeMs !== before.mtimeMs ||
+        after.ctimeMs !== before.ctimeMs || current.ctimeMs !== before.ctimeMs)
+      refuse("The backup manifest changed during verification.");
+    return JSON.parse(bytes.toString("utf8"));
+  } finally { fs.closeSync(fd); }
+}
 function copyPrivate(source, target, expectedSize) {
   // Open the original with O_NOFOLLOW; exclusive target creation cannot replace a file.
   const original = fs.lstatSync(source);
@@ -165,8 +197,7 @@ function inspectLocalBackup(input) {
   const root = directory(input);
   for (const child of ["uploads", "evidence"]) directory(path.join(root, child));
   const manifestPath = path.join(root, "manifest.json");
-  if (fs.lstatSync(manifestPath).isSymbolicLink() || fs.statSync(manifestPath).size > 16 * 1024 * 1024) refuse("The backup manifest is invalid.");
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const manifest = readManifest(manifestPath);
   if (manifest?.format !== "tala-local-backup" || manifest.version !== 1 || manifest.schemaVersion !== SCHEMA || !Array.isArray(manifest.files) || !manifest.files.length) refuse("Unsupported backup manifest.");
   const entries = new Map();
   for (const file of manifest.files) {

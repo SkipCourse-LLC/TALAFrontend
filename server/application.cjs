@@ -35,7 +35,7 @@ function createApplication(options = {}) {
   }
   function rotate(req, res, user) {
     const opaque = token(), csrfToken = token(), ttl = user ? sessionTtl : 3600000;
-    let responseUser = user;
+    let responseUser;
     transaction(db, () => {
       // Acquiring SQLite's writer lock can wait for another local process.
       // Values read before that wait cannot authorize the replacement session.
@@ -44,9 +44,12 @@ function createApplication(options = {}) {
         if (req.headers["x-tala-user"] !== undefined) actorFor(req);
       }
       const previous = currentSession(req), now = Date.now();
-      if (user) {
-        const fresh = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(user.uid);
-        if (!fresh || fresh.password_hash !== user.password_hash) fail(401, "INVALID_CREDENTIALS", "The account credentials changed. Sign in again.");
+      // Registration creates the account under the same writer fence as the
+      // session. A session-write failure must not reserve an unusable email.
+      responseUser = typeof user === "function" ? user() : user;
+      if (responseUser) {
+        const fresh = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(responseUser.uid);
+        if (!fresh || fresh.password_hash !== responseUser.password_hash) fail(401, "INVALID_CREDENTIALS", "The account credentials changed. Sign in again.");
         responseUser = fresh;
       }
       if (previous) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(previous.token_hash);
@@ -149,16 +152,13 @@ function createApplication(options = {}) {
         if (db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "ACCOUNT_EXISTS", "An account with this email already exists. Sign in instead.");
         if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before creating another account.");
         const encoded = await hashPassword(secret);
-        mutation(req);
-        if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before creating another account.");
-        let user;
-        transaction(db, () => {
+        return json(res, rotate(req, res, () => {
+          if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before creating another account.");
           if (db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "ACCOUNT_EXISTS", "An account with this email already exists. Sign in instead.");
           const uid = randomUUID();
           db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)").run(uid, address, name, encoded, input.accountType, Date.now());
-          user = db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
-        });
-        return json(res, rotate(req, res, user), 201);
+          return db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
+        }), 201);
       }
       if (req.method === "POST" && route === "/api/auth/login") {
         rate(req, "authentication");
