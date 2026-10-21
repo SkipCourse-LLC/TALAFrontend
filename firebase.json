@@ -2,13 +2,32 @@
   "projects": {
     "default": "skip-class-slsru4"
   },
-  "targets": {
-    "skip-class-slsru4": {
-      "hosting": {
-        "tala": [
-          "tucsonala"
-        ]
-      }
+  "hosting": [
+    {
+      "target": "tala",
+      "public": "public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "X-Robots-Tag",
+              "value": "noindex, nofollow"
+            }
+          ]
+        }
+      ]
     }
-  }
+  ]
 }
