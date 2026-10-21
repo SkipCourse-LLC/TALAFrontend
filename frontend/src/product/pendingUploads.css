@@ -85,6 +85,10 @@
   font-weight: 600;
   font-size: 0.76rem;
 }
+.pending-uploads-badge[data-status="expired"] {
+  background: #e9e9ed;
+  color: #555b5a;
+}
 .pending-uploads-help {
   color: var(--pending-muted);
   font-size: 0.84rem;

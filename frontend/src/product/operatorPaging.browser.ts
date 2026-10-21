@@ -398,13 +398,11 @@ test("concealed workspaces cancel pending student, operator and calendar exports
         await page
           .getByLabel("Evidence title", { exact: true })
           .fill("Unsent private draft");
-        await page
-          .getByLabel("File", { exact: true })
-          .setInputFiles({
-            name: "unsent-draft.txt",
-            mimeType: "text/plain",
-            buffer: Buffer.from("Synthetic unsent draft."),
-          });
+        await page.getByLabel("File", { exact: true }).setInputFiles({
+          name: "unsent-draft.txt",
+          mimeType: "text/plain",
+          buffer: Buffer.from("Synthetic unsent draft."),
+        });
         if (kind === "calendar")
           await page
             .getByRole("button", { name: "Meetings", exact: true })
@@ -468,4 +466,166 @@ test("concealed workspaces cancel pending student, operator and calendar exports
       await context.close();
     }
   }
+});
+
+test("an expired recovery check keeps the selected file, closes retry advice and allows explicit cancellation", async ({
+  page,
+}) => {
+  const uploads = ["pending", "uploaded"].map((status) => ({
+    uploadId: `expired-${status}`,
+    title: `Synthetic expired ${status} file`,
+    appointmentId: "booking-id",
+    contentType: "text/plain",
+    size: 28,
+    sha256: "a".repeat(64),
+    status,
+    expiresAt: new Date(Date.now() - 60_000).toISOString(),
+  }));
+  const statusReads = new Map<string, number>();
+  let mutations = 0;
+  await page.route(
+    (url) => url.pathname.startsWith("/api/"),
+    async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (route.request().method() !== "GET") {
+        mutations++;
+        return route.abort("blockedbyclient");
+      }
+      if (path === "/api/session")
+        return route.fulfill({
+          json: {
+            session: {
+              uid: "student-id",
+              name: "Synthetic expiry owner",
+              email: "expiry@example.test",
+              role: "student",
+              emailVerified: false,
+            },
+            csrfToken: "n".repeat(43),
+          },
+        });
+      if (path === "/api/workspace")
+        return route.fulfill({
+          json: {
+            slots: [],
+            appointments: [],
+            activeAppointments: [],
+            evidence: [],
+            progress: {
+              submittedEvidenceCount: 0,
+              reviewedEvidenceCount: 0,
+              assessedEvidenceCount: 0,
+              acknowledgedOutcomeCount: 0,
+              revisionSubmissionCount: 0,
+              masteryStatus: "unavailable",
+            },
+          },
+        });
+      if (path === "/api/evidence/uploads")
+        return route.fulfill({ json: { uploads } });
+      if (path === "/api/evidence" || path === "/api/appointments")
+        return route.fulfill({ json: { items: [], nextCursor: null } });
+      if (path === "/api/learning")
+        return route.fulfill({
+          json: {
+            records: [],
+            integrations: { zoom: "unavailable", ai: "unavailable" },
+            nextCursor: null,
+          },
+        });
+      if (path.startsWith("/api/evidence/uploads/expired-")) {
+        const count = (statusReads.get(path) ?? 0) + 1;
+        statusReads.set(path, count);
+        return count === 1
+          ? route.abort("connectionfailed")
+          : route.fulfill({
+              status: 410,
+              json: {
+                error: {
+                  code: "EXPIRED",
+                  message: "Synthetic expired unsubmitted intent",
+                },
+              },
+            });
+      }
+      return route.abort("blockedbyclient");
+    },
+  );
+  await page.goto("/#/dashboard?view=evidence");
+  for (const upload of uploads) {
+    const row = page
+      .locator(".pending-uploads-list > li")
+      .filter({ hasText: upload.title });
+    const finish = row.getByRole("button", {
+      name:
+        upload.status === "uploaded"
+          ? "Finish submission"
+          : "Upload and submit",
+      exact: true,
+    });
+    if (upload.status === "pending")
+      await row
+        .getByLabel(`Choose original file for ${upload.title}`, { exact: true })
+        .setInputFiles({
+          name: "kept-original.txt",
+          mimeType: "text/plain",
+          buffer: Buffer.from("Invented original file only."),
+        });
+    await finish.click();
+    await row
+      .getByRole("button", { name: "Check saved result", exact: true })
+      .click();
+    await expect(row.getByRole("alert")).toContainText(
+      "expired and cannot be submitted",
+    );
+    await expect(row.getByRole("alert")).toBeFocused();
+    await expect(
+      row.locator('.pending-uploads-badge[data-status="expired"]'),
+    ).toHaveText("Expired");
+    await expect(finish).toBeDisabled();
+    await expect(
+      row.getByRole("button", { name: "Check saved result", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      row.getByRole("button", {
+        name: "Cancel unfinished upload",
+        exact: true,
+      }),
+    ).toBeEnabled();
+    await expect(
+      row.getByRole("heading", { name: upload.title, exact: true }),
+    ).toBeVisible();
+    if (upload.status === "pending") {
+      const input = row.getByLabel(`Choose original file for ${upload.title}`, {
+        exact: true,
+      });
+      await expect(input).toBeDisabled();
+      expect(
+        await input.evaluate(
+          (element: HTMLInputElement) => element.files?.[0]?.name,
+        ),
+      ).toBe("kept-original.txt");
+      await row
+        .getByRole("button", { name: "Cancel unfinished upload", exact: true })
+        .click();
+      await row
+        .getByRole("button", { name: "Keep upload", exact: true })
+        .click();
+      expect(
+        await input.evaluate(
+          (element: HTMLInputElement) => element.files?.[0]?.name,
+        ),
+      ).toBe("kept-original.txt");
+    }
+  }
+  await expect(
+    page.locator('.pending-uploads [role="status"]'),
+  ).not.toContainText("Choose Finish submission");
+  await expect(
+    page.getByRole("button", {
+      name: "Refresh unfinished uploads",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  expect(mutations).toBe(0);
 });

@@ -59,6 +59,7 @@ export function PendingUploadsPanel({
     [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [expired, setExpired] = useState<Record<string, boolean>>({});
   const [files, setFiles] = useState<Record<string, File | undefined>>({});
   const [uncertain, setUncertain] = useState<
     Record<string, "finish" | "cancel" | undefined>
@@ -148,6 +149,7 @@ export function PendingUploadsPanel({
       return next;
     });
     setUncertain((saved) => ({ ...saved, [upload.uploadId]: undefined }));
+    setExpired((saved) => ({ ...saved, [upload.uploadId]: false }));
     setConfirmCancel(undefined);
     requestIds.current.delete(upload.uploadId);
     setMessage(text);
@@ -273,6 +275,15 @@ export function PendingUploadsPanel({
         onExpired();
         return;
       }
+      if (error.code === "EXPIRED") {
+        setExpired((saved) => ({ ...saved, [upload.uploadId]: true }));
+        setUncertain((saved) => ({ ...saved, [upload.uploadId]: undefined }));
+        showError(
+          upload.uploadId,
+          "This unfinished upload expired and cannot be submitted. Its title and any selected file are kept here. Start a new upload in the Evidence form above using your original file, or cancel this upload. Refreshing this list hides expired uploads.",
+        );
+        return;
+      }
       if (
         [
           "NETWORK",
@@ -357,12 +368,21 @@ export function PendingUploadsPanel({
                     {upload.revisesEvidenceId ? " · Revision" : ""}
                   </p>
                 </div>
-                <span className="pending-uploads-badge">
-                  {upload.status === "uploaded" ? "File saved" : "File needed"}
+                <span
+                  className="pending-uploads-badge"
+                  data-status={
+                    expired[upload.uploadId] ? "expired" : upload.status
+                  }
+                >
+                  {expired[upload.uploadId]
+                    ? "Expired"
+                    : upload.status === "uploaded"
+                      ? "File saved"
+                      : "File needed"}
                 </span>
               </div>
               <p className="pending-uploads-help">
-                Available until{" "}
+                {expired[upload.uploadId] ? "Expired at" : "Available until"}{" "}
                 <time dateTime={upload.expiresAt}>
                   {expiryLabel(upload.expiresAt)}
                 </time>
@@ -377,7 +397,7 @@ export function PendingUploadsPanel({
                     id={`pending-upload-file-${upload.uploadId}`}
                     type="file"
                     accept=".txt,.pdf,text/plain,application/pdf"
-                    disabled={blocked}
+                    disabled={blocked || expired[upload.uploadId]}
                     aria-describedby={`pending-upload-help-${upload.uploadId}`}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
@@ -395,8 +415,11 @@ export function PendingUploadsPanel({
                     className="pending-uploads-help"
                     id={`pending-upload-help-${upload.uploadId}`}
                   >
-                    Use the same file. Its type, size and checksum must match
-                    the saved upload.
+                    {expired[upload.uploadId]
+                      ? files[upload.uploadId]
+                        ? "Your original file stays selected here. Use it again when starting a new upload."
+                        : "Select your original file in the Evidence form above when starting a new upload."
+                      : "Use the same file. Its type, size and checksum must match the saved upload."}
                   </p>
                 </div>
               )}
@@ -431,7 +454,7 @@ export function PendingUploadsPanel({
                 <button
                   className="button button-secondary"
                   type="button"
-                  disabled={blocked}
+                  disabled={blocked || expired[upload.uploadId]}
                   onClick={() => void act(upload, "finish")}
                 >
                   {pending?.id === upload.uploadId && pending.work === "finish"

@@ -355,6 +355,7 @@ function createServices(db, dataDir) {
       if (actor.role === "parent") fail(403, "FORBIDDEN", "Unsubmitted upload details are private to the student and authorized operators.");
       const row = upload(actor, id);
       let status = row.status;
+      if (["pending", "uploaded"].includes(status) && row.expires_at <= Date.now()) fail(410, "EXPIRED", "This upload expired. Start a new upload.");
       if (status === "uploaded") {
         const staging = path.join(dataDir, "uploads", `${row.id}.bin`);
         const privateFile = path.join(dataDir, "evidence", `${row.id}.bin`);
@@ -395,9 +396,9 @@ function createServices(db, dataDir) {
         requireUploadWriter(actor, row);
         const previous = db.prepare("SELECT * FROM evidence WHERE id=?").get(row.id);
         if (previous) return { evidence: evidenceDTO(previous), progress: progress(row.owner_uid) };
-        storageCapacity(row.owner_uid, row.size, false);
+        if (["pending", "uploaded"].includes(row.status) && row.expires_at <= Date.now()) fail(410, "EXPIRED", "This upload expired. Start a new upload.");
         if (row.status !== "uploaded") fail(409, "CONFLICT", "Finish uploading this file before submitting it.");
-        if (row.expires_at <= Date.now()) fail(410, "EXPIRED", "This upload expired. Start a new upload.");
+        storageCapacity(row.owner_uid, row.size, false);
         if (getAppointment(row.appointment_id).status === "cancelled") fail(409, "CONFLICT", "This booking was cancelled. Choose a non-cancelled booking.");
         const revisionIntent = db.prepare("SELECT * FROM upload_revisions WHERE upload_id=?").get(row.id);
         const predecessor = revisionIntent ? revisionPredecessor(actor, revisionIntent.predecessor_id, getAppointment(row.appointment_id), revisionIntent.expected_review_version) : null;

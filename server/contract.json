@@ -277,7 +277,8 @@
     {
       "method": "GET",
       "path": "/evidence/uploads/:id",
-      "response": "UploadStatus"
+      "response": "UploadStatus",
+      "notes": "Unsubmitted pending/uploaded intents past expiresAt return 410 EXPIRED before reading file bytes. Submitted and cancelled status remains recoverable after the original deadline; explicit cancellation and cleanup remain available."
     },
     {
       "method": "PUT",
