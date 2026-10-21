@@ -24,6 +24,7 @@ import type { WorkspaceView } from "./workspaceViews";
 import { StudentOverview } from "./StudentOverview";
 import { EvidenceHistoryDialog } from "./EvidenceHistoryDialog";
 import { useWorkspaceVisible } from "./workspaceVisibility";
+import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
 import { PendingUploadsPanel } from "./PendingUploadsPanel";
 import { MeetingPanel } from "./MeetingPanel";
 import { useStudentPage } from "./useStudentPage";
@@ -273,6 +274,7 @@ function LearningWorkspace({
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const workspaceVisible = useWorkspaceVisible();
+  const exportPrivateFile = usePrivateWorkspaceExport();
   const view = readWorkspaceView(searchParams.get("view"));
   const previousView = useRef(view);
   const historyId = view === "evidence" ? searchParams.get("document") : null;
@@ -306,7 +308,6 @@ function LearningWorkspace({
   const running = useRef(false);
   const controllerRef = useRef<AbortController | null>(null);
   const requestIds = useRef(new Map<string, string>());
-  const urls = useRef(new Set<string>());
   const mutationError = useRef<HTMLParagraphElement>(null);
   const sectionNavigation = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -389,12 +390,9 @@ function LearningWorkspace({
   }, [file, pending]);
   useEffect(() => {
     active.current = true;
-    const downloadUrls = urls.current;
     return () => {
       active.current = false;
       controllerRef.current?.abort();
-      downloadUrls.forEach(URL.revokeObjectURL);
-      downloadUrls.clear();
     };
   }, []);
   const report = useCallback(
@@ -843,28 +841,20 @@ function LearningWorkspace({
       async (signal) => {
         // Re-read through the authenticated service before exporting even a
         // previously visible booking; revoked family links must fail closed.
-        const saved = await talaApi.getAppointment(booking.id, signal);
-        if (signal.aborted || !active.current) return;
-        if (saved.status === "cancelled") throw new TalaApiError("CONFLICT");
-        const calendar = buildBookingCalendar(
-          saved,
-          Intl.DateTimeFormat().resolvedOptions().timeZone,
-        );
-        const url = URL.createObjectURL(
-          new Blob([calendar.content], { type: "text/calendar;charset=utf-8" }),
-        );
-        urls.current.add(url);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = calendar.filename;
-        anchor.hidden = true;
-        document.body.append(anchor);
-        anchor.click();
-        anchor.remove();
-        window.setTimeout(() => {
-          URL.revokeObjectURL(url);
-          urls.current.delete(url);
-        }, 30_000);
+        await exportPrivateFile(async (readSignal) => {
+          const saved = await talaApi.getAppointment(booking.id, readSignal);
+          if (saved.status === "cancelled") throw new TalaApiError("CONFLICT");
+          const calendar = buildBookingCalendar(
+            saved,
+            Intl.DateTimeFormat().resolvedOptions().timeZone,
+          );
+          return {
+            blob: new Blob([calendar.content], {
+              type: "text/calendar;charset=utf-8",
+            }),
+            filename: calendar.filename,
+          };
+        }, signal);
       },
       "Private calendar file prepared. Personal calendar changes do not sync automatically.",
       false,
@@ -1398,21 +1388,14 @@ function LearningWorkspace({
                         void run(
                           `download:${evidence.id}`,
                           async (signal) => {
-                            const result = await talaApi.downloadEvidence(
-                              evidence.id,
+                            await exportPrivateFile(
+                              (readSignal) =>
+                                talaApi.downloadEvidence(
+                                  evidence.id,
+                                  readSignal,
+                                ),
                               signal,
                             );
-                            if (signal.aborted || !active.current) return;
-                            const url = URL.createObjectURL(result.blob);
-                            urls.current.add(url);
-                            const anchor = document.createElement("a");
-                            anchor.href = url;
-                            anchor.download = result.filename;
-                            anchor.click();
-                            window.setTimeout(() => {
-                              URL.revokeObjectURL(url);
-                              urls.current.delete(url);
-                            }, 1000);
                           },
                           "Private download prepared.",
                           false,

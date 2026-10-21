@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
 
 const cursor = `synthetic_page.${"s".repeat(43)}`;
 const fixture = (
@@ -244,4 +245,227 @@ test.describe("operator device-local publishing", () => {
     await expect(starts).toHaveValue("");
     await expect(ends).toHaveValue("");
   });
+});
+
+test("concealed workspaces cancel pending student, operator and calendar exports without losing local drafts", async ({
+  browser,
+}) => {
+  for (const kind of ["student", "operator", "calendar"] as const) {
+    const context = await browser.newContext({
+      baseURL: "http://127.0.0.1:5190",
+    });
+    const page = await context.newPage();
+    const role = kind === "operator" ? "operator" : "student";
+    const user = {
+      uid: `${role}-id`,
+      name: "Synthetic private owner",
+      email: "export@example.test",
+      role,
+      emailVerified: false,
+    };
+    const bytes = Buffer.from("Synthetic private export. No real records.");
+    const booking = {
+      id: "10000000-0000-4000-8000-000000000001",
+      ownerUid: "student-id",
+      slotId: "slot-id",
+      startsAt: "2027-03-15T15:00:00Z",
+      endsAt: "2027-03-15T15:30:00Z",
+      status: "reserved",
+      meetingIntegration: "unavailable",
+      updatedAt: "2026-10-21T10:00:00Z",
+    };
+    const evidence = {
+      ...fixture(
+        "export-evidence",
+        "Synthetic private document",
+        "not_reviewed",
+      ),
+      appointmentId: booking.id,
+      size: bytes.length,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    };
+    const progress = {
+      submittedEvidenceCount: 1,
+      reviewedEvidenceCount: 0,
+      assessedEvidenceCount: 0,
+      acknowledgedOutcomeCount: 0,
+      revisionSubmissionCount: 0,
+      masteryStatus: "unavailable",
+    };
+    const artifactPath =
+      kind === "calendar"
+        ? `/api/appointments/${booking.id}`
+        : "/api/evidence/export-evidence/content";
+    let releaseArtifact: (() => void) | undefined,
+      releaseSession: (() => void) | undefined,
+      started: (() => void) | undefined;
+    const artifactGate = new Promise<void>((resolve) => {
+      releaseArtifact = resolve;
+    });
+    const sessionGate = new Promise<void>((resolve) => {
+      releaseSession = resolve;
+    });
+    const artifactStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let held = true,
+      sessionReads = 0,
+      downloads = 0,
+      aborted = false;
+    page.on("download", () => downloads++);
+    page.on("requestfailed", (request) => {
+      if (new URL(request.url()).pathname === artifactPath) aborted = true;
+    });
+    await page.route(
+      (url) => url.pathname.startsWith("/api/"),
+      async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (route.request().method() !== "GET")
+          return route.abort("blockedbyclient");
+        if (path === "/api/session") {
+          if (++sessionReads > 1) await sessionGate;
+          return route
+            .fulfill({ json: { session: user, csrfToken: "n".repeat(43) } })
+            .catch(() => {});
+        }
+        if (path === artifactPath) {
+          if (held) {
+            started?.();
+            await artifactGate;
+          }
+          return kind === "calendar"
+            ? route.fulfill({ json: booking }).catch(() => {})
+            : route
+                .fulfill({
+                  body: bytes,
+                  headers: {
+                    "Content-Type": "text/plain",
+                    "Content-Length": String(bytes.length),
+                    "Content-Disposition":
+                      'attachment; filename="synthetic.txt"',
+                    "X-Content-SHA256": evidence.sha256,
+                  },
+                })
+                .catch(() => {});
+        }
+        if (path === "/api/workspace")
+          return route.fulfill({
+            json: {
+              slots: [],
+              appointments: [booking],
+              activeAppointments: [booking],
+              evidence: [evidence],
+              progress,
+            },
+          });
+        if (path === "/api/evidence" || path === "/api/operations/evidence")
+          return route.fulfill({
+            json: { items: [evidence], nextCursor: null },
+          });
+        if (path === "/api/appointments")
+          return route.fulfill({
+            json: { items: [booking], nextCursor: null },
+          });
+        if (path === "/api/learning" || path === "/api/operations/learning")
+          return route.fulfill({
+            json: {
+              records: [],
+              integrations: { zoom: "unavailable", ai: "unavailable" },
+              nextCursor: null,
+            },
+          });
+        if (path === "/api/evidence/uploads")
+          return route.fulfill({ json: { uploads: [] } });
+        if (
+          path === "/api/available-times" ||
+          path === "/api/operations/appointments"
+        )
+          return route.fulfill({ json: { items: [], nextCursor: null } });
+        if (path === "/api/availability")
+          return route.fulfill({
+            json: { slots: [], hasMore: false, nextCursor: null },
+          });
+        return route.abort("blockedbyclient");
+      },
+    );
+    try {
+      await page.goto(
+        kind === "operator"
+          ? "/#/dashboard?panel=review"
+          : "/#/dashboard?view=evidence",
+      );
+      if (kind !== "operator") {
+        await page
+          .getByLabel("Evidence title", { exact: true })
+          .fill("Unsent private draft");
+        await page
+          .getByLabel("File", { exact: true })
+          .setInputFiles({
+            name: "unsent-draft.txt",
+            mimeType: "text/plain",
+            buffer: Buffer.from("Synthetic unsent draft."),
+          });
+        if (kind === "calendar")
+          await page
+            .getByRole("button", { name: "Meetings", exact: true })
+            .click();
+      }
+      const download =
+        kind === "calendar"
+          ? page.getByRole("button", { name: "Download calendar", exact: true })
+          : page.getByRole("button", {
+              name: "Download Synthetic private document",
+              exact: true,
+            });
+      await download.click();
+      await artifactStarted;
+      await page.evaluate(() => {
+        const channel = new BroadcastChannel("tala-session-events-v1");
+        channel.postMessage({ type: "session-changed" });
+        channel.close();
+      });
+      await expect(
+        page.getByRole("heading", {
+          name: "Checking your secure session…",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect.poll(() => aborted).toBe(true);
+      releaseArtifact?.();
+      held = false;
+      releaseSession?.();
+      await expect(
+        page.getByRole("heading", {
+          name: "Checking your secure session…",
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      await expect(page.getByRole("alert")).toContainText(
+        "request was cancelled",
+      );
+      expect(downloads).toBe(0);
+      const successful = page.waitForEvent("download");
+      await download.click();
+      await successful;
+      expect(downloads).toBe(1);
+      if (kind !== "operator") {
+        if (kind === "calendar")
+          await page
+            .getByRole("button", { name: "Evidence", exact: true })
+            .click();
+        await expect(
+          page.getByLabel("Evidence title", { exact: true }),
+        ).toHaveValue("Unsent private draft");
+        expect(
+          await page
+            .getByLabel("File", { exact: true })
+            .evaluate((input: HTMLInputElement) => input.files?.[0]?.name),
+        ).toBe("unsent-draft.txt");
+      }
+    } finally {
+      releaseArtifact?.();
+      releaseSession?.();
+      await context.close();
+    }
+  }
 });

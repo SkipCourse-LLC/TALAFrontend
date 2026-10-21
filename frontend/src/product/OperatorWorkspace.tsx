@@ -11,6 +11,7 @@ import type {
 } from "../api";
 import { meetingTime } from "./format";
 import { parseLocalMeetingTime } from "./meetingHelpers";
+import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
 import "./operator.css";
 
 type Panel = "review" | "meetings" | "learning";
@@ -309,17 +310,14 @@ export function OperatorWorkspace({
   const active = useRef(false);
   const controllerRef = useRef<AbortController | null>(null);
   const requestIds = useRef(new Map<string, string>());
-  const urls = useRef(new Set<string>());
+  const exportPrivateFile = usePrivateWorkspaceExport();
   const errorBox = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     active.current = true;
-    const downloadUrls = urls.current;
     return () => {
       active.current = false;
       controllerRef.current?.abort();
-      downloadUrls.forEach(URL.revokeObjectURL);
-      downloadUrls.clear();
     };
   }, []);
   const term = search.trim();
@@ -516,21 +514,10 @@ export function OperatorWorkspace({
     }
   }
   async function download(id: string, signal: AbortSignal) {
-    const result = await talaApi.downloadEvidence(id, signal);
-    if (signal.aborted || !active.current) return;
-    const url = URL.createObjectURL(result.blob);
-    urls.current.add(url);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = result.filename;
-    anchor.hidden = true;
-    document.body.append(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => {
-      URL.revokeObjectURL(url);
-      urls.current.delete(url);
-    }, 30_000);
+    await exportPrivateFile(
+      (readSignal) => talaApi.downloadEvidence(id, readSignal),
+      signal,
+    );
   }
   const blocked = Boolean(busy) || loading || Boolean(loadError) || !operations;
   const evidence = evidencePage.items;
