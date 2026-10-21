@@ -18,6 +18,14 @@ export interface Slot {
   label: string;
   isAvailable: boolean;
 }
+export interface ManagedSlot extends Slot {
+  status: "available" | "reserved" | "withdrawn";
+  canWithdraw: boolean;
+}
+export interface Availability {
+  slots: ManagedSlot[];
+  hasMore: boolean;
+}
 export interface Appointment {
   id: string;
   startsAt: string;
@@ -42,12 +50,18 @@ export interface Evidence {
   reviewNote?: string;
   reviewedAt?: string;
   submittedAt: string;
+  revisionNumber: number;
+  rootEvidenceId: string;
+  reviewVersion: number;
+  revisesEvidenceId?: string;
+  supersededByEvidenceId?: string;
 }
 export interface Progress {
   submittedEvidenceCount: number;
   assessedEvidenceCount: number;
   reviewedEvidenceCount: number;
   acknowledgedOutcomeCount: number;
+  revisionSubmissionCount: number;
   masteryStatus: "unavailable";
 }
 export interface Workspace {
@@ -118,4 +132,9 @@ export interface Operations {
     Appointment & { studentUid: string; studentName: string }
   >;
   evidence: Array<Evidence & { studentUid: string; studentName: string }>;
+  availability: ManagedSlot[];
+  availabilityHasMore: boolean;
+  learningRecords: Array<
+    LearningRecord & { studentUid: string; studentName: string }
+  >;
 }

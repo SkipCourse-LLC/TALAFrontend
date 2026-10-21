@@ -267,6 +267,33 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         json("/api/availability", "POST", input, signal, decode.slot),
       );
     },
+    getAvailability(signal?: AbortSignal) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json("/api/availability", { signal }, decode.availability),
+      );
+    },
+    withdrawAvailability(
+      slotId: string,
+      input: { requestId: string },
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          `/api/availability/${inputId(slotId)}/withdraw`,
+          "POST",
+          input,
+          signal,
+          decode.managedSlot,
+        );
+        if (
+          saved.id !== slotId ||
+          saved.status !== "withdrawn" ||
+          saved.canWithdraw
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
     reserveAppointment(
       input: { slotId: string; requestId: string; studentUid?: string },
       signal?: AbortSignal,
@@ -328,12 +355,27 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         size: number;
         sha256: string;
         requestId: string;
+        revisesEvidenceId?: string;
       },
       signal?: AbortSignal,
     ) {
       return authenticated(signal, (_current, _transport, json) =>
         json("/api/evidence/uploads", "POST", input, signal, (raw) =>
           decode.uploadIntent(raw, input.sha256),
+        ),
+      );
+    },
+    getEvidence(evidenceId: string, signal?: AbortSignal) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/evidence/${inputId(evidenceId)}`,
+          { signal },
+          (raw) => {
+            const saved = decode.evidence(raw);
+            if (saved.id !== evidenceId)
+              throw new TalaApiError("INVALID_RESPONSE");
+            return saved;
+          },
         ),
       );
     },
@@ -536,6 +578,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         status: "reviewed" | "needs_revision";
         note: string;
         requestId: string;
+        expectedReviewVersion: number;
       },
       signal?: AbortSignal,
     ) {
@@ -547,7 +590,11 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
           signal,
           (raw) => {
             const value = decode.evidence(raw);
-            if (value.id !== evidenceId || value.reviewStatus !== input.status)
+            if (
+              value.id !== evidenceId ||
+              value.reviewStatus !== input.status ||
+              value.reviewVersion <= input.expectedReviewVersion
+            )
               throw new TalaApiError("INVALID_RESPONSE");
             return value;
           },

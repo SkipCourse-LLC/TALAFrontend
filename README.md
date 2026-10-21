@@ -13,6 +13,8 @@ npm run dev --prefix frontend
 
 Open **http://127.0.0.1:5173/#/register**. The launcher starts the API on `127.0.0.1:8787` and the website on `127.0.0.1:5173`. It reuses an API only after checking its TALA health identity, refuses unknown occupied ports, and stops only child processes it created. Ctrl+C stops both new processes. An already-running API is left running.
 
+The student workspace has separate Overview, Meetings, Learning records, Evidence and Progress views. The address preserves the selected view through refresh and browser navigation. Selected files and unfinished uploads stay in memory while switching views; they are not saved in browser storage.
+
 No `.env` file or cloud account is required. `frontend/.env.example` contains public placeholders only. The Vite development and preview servers forward `/api` to the local backend.
 
 ## What is persistent
@@ -22,6 +24,10 @@ Register a student or parent account and sign in using the server's password aut
 Profiles, accounts, sessions, appointments, Evidence metadata, staff-published outcomes, reviews and progress counts are stored in ignored `server/.runtime/tala.sqlite` by default (`TALA_DATA_DIR` can select another directory). Private files live under that runtime directory. Data survives refresh, logout/login and server restart. Stop the API cleanly before copying the whole runtime directory for a local backup. It is local disk persistence, with no cloud sync or hosted production backup.
 
 Operators publish actual availability; the product does not create fictional times or accounts. Students can book, reschedule or cancel available appointments, upload text/PDF Evidence up to 5 MiB, explicitly cancel unfinished uploads, and download their submitted files through an authenticated API. SHA-256, ownership, limits and submission idempotency are checked by the server. Staff can publish meeting outcomes and manually review Evidence. Reviewing Evidence is separate from automated assessment or academic mastery.
+
+Operators can withdraw unbooked future times without deleting reservation history. Evidence needing revision can receive one new version at a time; earlier files and review notes remain available in authorized document history. Review-version checks reject stale staff edits. Submission totals include all versions; revision counts do not represent grades or academic credit.
+
+The local schema v1→v2 upgrade creates and verifies a private SQLite backup before adding tables. See [server/README.md](server/README.md) for upgrade and separate-directory recovery instructions. The launcher rejects an incompatible older API instead of silently reusing it.
 
 Parent accounts can read a linked student's permitted records after an operator records an approved family connection. They cannot mutate student bookings, files or reviews. A stored connection is not proof of legal guardianship and does not authorize medical data or recordings.
 
@@ -47,6 +53,7 @@ The server binds to loopback and refuses production mode until HTTPS hosting, se
 npm run check --prefix server
 npm test --prefix server
 npm run test:api-client --prefix frontend
+npm run test:product --prefix frontend
 npm run typecheck --prefix frontend
 npm run lint --prefix frontend
 npm run build --prefix frontend

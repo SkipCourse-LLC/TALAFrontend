@@ -564,13 +564,19 @@ test(
       // its uploaded marker committed. Recovery must re-check actual bytes.
       await rm(join(context.dataDir, "uploads", `${intent.uploadId}.bin`));
       const missing = accepted(
-        await student.client.request(`/api/evidence/uploads/${intent.uploadId}`),
+        await student.client.request(
+          `/api/evidence/uploads/${intent.uploadId}`,
+        ),
       );
       assert.equal(missing.status, "pending");
       const recovered = accepted(
         await student.client.request(
           `/api/evidence/uploads/${intent.uploadId}/content`,
-          { method: "PUT", body: bytes, headers: { "Content-Type": "text/plain" } },
+          {
+            method: "PUT",
+            body: bytes,
+            headers: { "Content-Type": "text/plain" },
+          },
         ),
       );
       assert.equal(recovered.status, "uploaded");
@@ -910,6 +916,7 @@ test(
         status: "needs_revision",
         note: "Synthetic staff review: please add one explanation step.",
         requestId: randomUUID(),
+        expectedReviewVersion: submitted.evidence.reviewVersion,
       };
       denied(
         await student.client.request(
@@ -977,6 +984,416 @@ test(
         accepted(await student.client.request("/api/workspace")).progress
           .acknowledgedOutcomeCount,
         1,
+      );
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+test(
+  "evidence revision commits preserve immutable originals and reject stale, foreign and concurrent successors",
+  { timeout: 90_000 },
+  async () => {
+    const context = await harness();
+    try {
+      const student = await register(context.url);
+      const other = await register(context.url);
+      const parent = await register(context.url, "parent");
+      const reviewer = await register(context.url);
+      context.application.operator.promote(reviewer.account.email);
+      context.application.operator.linkFamily({
+        studentUid: student.user.uid,
+        parentUid: parent.user.uid,
+        consentReference: "Explicit synthetic read-only revision fixture",
+      });
+      const slot = await availability(context.application);
+      const booking = accepted(
+        await student.client.request("/api/appointments", {
+          method: "POST",
+          json: { slotId: slot.id, requestId: randomUUID() },
+        }),
+      );
+      const originalBytes = Buffer.from(
+        "Synthetic original explanation; immutable after submission.",
+      );
+      const revisedBytes = Buffer.from(
+        "Synthetic revision adds one independently reviewed explanation step.",
+      );
+      async function upload(
+        bytes,
+        revisesEvidenceId,
+        appointmentId = booking.id,
+      ) {
+        const intent = accepted(
+          await student.client.request("/api/evidence/uploads", {
+            method: "POST",
+            json: {
+              appointmentId,
+              title: revisesEvidenceId
+                ? "Synthetic revised reflection"
+                : "Synthetic original reflection",
+              contentType: "text/plain",
+              size: bytes.length,
+              sha256: createHash("sha256").update(bytes).digest("hex"),
+              requestId: randomUUID(),
+              ...(revisesEvidenceId ? { revisesEvidenceId } : {}),
+            },
+          }),
+        );
+        accepted(
+          await student.client.request(
+            `/api/evidence/uploads/${intent.uploadId}/content`,
+            {
+              method: "PUT",
+              body: bytes,
+              headers: { "Content-Type": "text/plain" },
+            },
+          ),
+        );
+        return intent;
+      }
+      const rootIntent = await upload(originalBytes);
+      const original = accepted(
+        await student.client.request(
+          `/api/evidence/uploads/${rootIntent.uploadId}/submit`,
+          { method: "POST", json: { requestId: randomUUID() } },
+        ),
+      ).evidence;
+      assert.equal(original.revisionNumber, 1);
+      assert.equal(original.rootEvidenceId, original.id);
+      assert.equal(original.reviewVersion, 0);
+      const revisionDraft = {
+        appointmentId: booking.id,
+        title: "Synthetic attempted revision",
+        contentType: "text/plain",
+        size: revisedBytes.length,
+        sha256: createHash("sha256").update(revisedBytes).digest("hex"),
+        requestId: randomUUID(),
+        revisesEvidenceId: original.id,
+      };
+      denied(
+        await student.client.request("/api/evidence/uploads", {
+          method: "POST",
+          json: revisionDraft,
+        }),
+        [409],
+      );
+      denied(
+        await parent.client.request("/api/evidence/uploads", {
+          method: "POST",
+          json: revisionDraft,
+        }),
+        [403],
+      );
+      denied(await other.client.request(`/api/evidence/${original.id}`));
+      denied(
+        await other.client.request("/api/evidence/uploads", {
+          method: "POST",
+          json: revisionDraft,
+        }),
+      );
+      const reviewRequest = {
+        status: "needs_revision",
+        note: "Synthetic staff feedback: explain the second step.",
+        requestId: randomUUID(),
+        expectedReviewVersion: original.reviewVersion,
+      };
+      const reviewed = accepted(
+        await reviewer.client.request(`/api/evidence/${original.id}/review`, {
+          method: "POST",
+          json: reviewRequest,
+        }),
+      );
+      assert.equal(reviewed.reviewVersion > original.reviewVersion, true);
+      denied(
+        await reviewer.client.request(`/api/evidence/${original.id}/review`, {
+          method: "POST",
+          json: {
+            ...reviewRequest,
+            status: "reviewed",
+            requestId: randomUUID(),
+          },
+        }),
+        [409],
+      );
+
+      // A different owned booking is still not a valid target for this revision.
+      context.application.db
+        .prepare("UPDATE slots SET starts_at=?,ends_at=? WHERE id=?")
+        .run(Date.now() - 3_600_000, Date.now() - 1_800_000, slot.id);
+      accepted(await student.client.request("/api/workspace"));
+      const nextSlot = await availability(context.application, 2);
+      const nextBooking = accepted(
+        await student.client.request("/api/appointments", {
+          method: "POST",
+          json: { slotId: nextSlot.id, requestId: randomUUID() },
+        }),
+      );
+      denied(
+        await student.client.request("/api/evidence/uploads", {
+          method: "POST",
+          json: {
+            ...revisionDraft,
+            appointmentId: nextBooking.id,
+            requestId: randomUUID(),
+          },
+        }),
+        [403],
+      );
+
+      const intents = await Promise.all([
+        upload(revisedBytes, original.id),
+        upload(revisedBytes, original.id),
+      ]);
+      const requests = intents.map(() => randomUUID());
+      const raced = await Promise.all(
+        intents.map((intent, index) =>
+          student.client.request(
+            `/api/evidence/uploads/${intent.uploadId}/submit`,
+            { method: "POST", json: { requestId: requests[index] } },
+          ),
+        ),
+      );
+      assert.equal(
+        raced.filter((response) => response.status === 200).length,
+        1,
+        "Only one committed successor may reference an original",
+      );
+      assert.equal(
+        raced.filter((response) => response.status === 409).length,
+        1,
+      );
+      const winningIndex = raced.findIndex(
+        (response) => response.status === 200,
+      );
+      const successor = raced[winningIndex].json.evidence;
+      const retry = accepted(
+        await student.client.request(
+          `/api/evidence/uploads/${intents[winningIndex].uploadId}/submit`,
+          { method: "POST", json: { requestId: requests[winningIndex] } },
+        ),
+      );
+      assert.equal(retry.evidence.id, successor.id);
+      assert.equal(successor.revisesEvidenceId, original.id);
+      assert.equal(successor.rootEvidenceId, original.id);
+      assert.equal(successor.revisionNumber, 2);
+      assert.equal(retry.progress.submittedEvidenceCount, 2);
+      assert.equal(retry.progress.revisionSubmissionCount, 1);
+      const savedOriginal = accepted(
+        await student.client.request(`/api/evidence/${original.id}`),
+      );
+      assert.equal(savedOriginal.supersededByEvidenceId, successor.id);
+      assert.equal(savedOriginal.reviewNote, reviewed.reviewNote);
+      assert.equal(savedOriginal.reviewVersion, reviewed.reviewVersion);
+      assert.equal(
+        (
+          await student.client.request(`/api/evidence/${original.id}/content`)
+        ).bytes.equals(originalBytes),
+        true,
+      );
+      assert.equal(
+        (
+          await parent.client.request(`/api/evidence/${successor.id}/content`)
+        ).bytes.equals(revisedBytes),
+        true,
+      );
+      denied(
+        await reviewer.client.request(`/api/evidence/${original.id}/review`, {
+          method: "POST",
+          json: {
+            ...reviewRequest,
+            expectedReviewVersion: savedOriginal.reviewVersion,
+            requestId: randomUUID(),
+          },
+        }),
+        [409],
+      );
+      denied(
+        await student.client.request("/api/evidence/uploads", {
+          method: "POST",
+          json: { ...revisionDraft, requestId: randomUUID() },
+        }),
+        [409],
+      );
+
+      // A newly changed staff review invalidates an already-uploaded draft.
+      const childReview = accepted(
+        await reviewer.client.request(`/api/evidence/${successor.id}/review`, {
+          method: "POST",
+          json: {
+            ...reviewRequest,
+            expectedReviewVersion: successor.reviewVersion,
+            requestId: randomUUID(),
+          },
+        }),
+      );
+      const staleIntent = await upload(revisedBytes, successor.id);
+      const latestReview = accepted(
+        await reviewer.client.request(`/api/evidence/${successor.id}/review`, {
+          method: "POST",
+          json: {
+            ...reviewRequest,
+            note: "Synthetic updated feedback requiring a different explanation.",
+            expectedReviewVersion: childReview.reviewVersion,
+            requestId: randomUUID(),
+          },
+        }),
+      );
+      assert.equal(
+        latestReview.reviewVersion > childReview.reviewVersion,
+        true,
+      );
+      denied(
+        await student.client.request(
+          `/api/evidence/uploads/${staleIntent.uploadId}/submit`,
+          { method: "POST", json: { requestId: randomUUID() } },
+        ),
+        [409],
+      );
+      const workspace = accepted(
+        await student.client.request("/api/workspace"),
+      );
+      assert.equal(workspace.evidence.length, 2);
+      assert.equal(workspace.progress.revisionSubmissionCount, 1);
+      assertNoPrivateLocation(workspace);
+      await context.restart();
+      student.client.baseUrl = context.url;
+      const restored = accepted(
+        await student.client.request(`/api/evidence/${successor.id}`),
+      );
+      assert.equal(restored.rootEvidenceId, original.id);
+      assert.equal(restored.revisesEvidenceId, original.id);
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+test(
+  "withdrawal and reservation share one transactional availability state without rewriting historical times",
+  { timeout: 90_000 },
+  async () => {
+    const context = await harness();
+    try {
+      const student = await register(context.url);
+      const operator = await register(context.url);
+      context.application.operator.promote(operator.account.email);
+      const slot = await availability(context.application);
+      assert.equal(
+        (await student.client.request("/api/availability")).status,
+        403,
+      );
+      denied(
+        await student.client.request(`/api/availability/${slot.id}/withdraw`, {
+          method: "POST",
+          json: { requestId: randomUUID() },
+        }),
+        [403],
+      );
+      const withdrawId = randomUUID();
+      const raced = await Promise.all([
+        operator.client.request(`/api/availability/${slot.id}/withdraw`, {
+          method: "POST",
+          json: { requestId: withdrawId },
+        }),
+        student.client.request("/api/appointments", {
+          method: "POST",
+          json: { slotId: slot.id, requestId: randomUUID() },
+        }),
+      ]);
+      assert.equal(
+        raced.filter(
+          (response) => response.status >= 200 && response.status < 300,
+        ).length,
+        1,
+      );
+      assert.equal(
+        raced.filter((response) => response.status === 409).length,
+        1,
+      );
+      if (raced[1].status === 201) {
+        accepted(
+          await student.client.request(
+            `/api/appointments/${raced[1].json.id}/cancel`,
+            { method: "POST", json: { requestId: randomUUID() } },
+          ),
+        );
+        accepted(
+          await operator.client.request(
+            `/api/availability/${slot.id}/withdraw`,
+            { method: "POST", json: { requestId: withdrawId } },
+          ),
+        );
+      }
+      const withdrawn = accepted(
+        await operator.client.request("/api/availability"),
+      ).slots.find((item) => item.id === slot.id);
+      assert.equal(withdrawn.status, "withdrawn");
+      assert.equal(withdrawn.isAvailable, false);
+      const hidden = accepted(await student.client.request("/api/workspace"));
+      assert.equal(
+        hidden.slots.some((item) => item.id === slot.id),
+        false,
+      );
+      const reactivated = accepted(
+        await operator.client.request("/api/availability", {
+          method: "POST",
+          json: {
+            startsAt: slot.startsAt,
+            endsAt: slot.endsAt,
+            label: "Synthetic reactivated time",
+            requestId: randomUUID(),
+          },
+        }),
+      );
+      assert.equal(
+        reactivated.id,
+        slot.id,
+        "An exact reactivation keeps the original immutable slot ID",
+      );
+      const booking = accepted(
+        await student.client.request("/api/appointments", {
+          method: "POST",
+          json: { slotId: slot.id, requestId: randomUUID() },
+        }),
+      );
+      denied(
+        await operator.client.request(`/api/availability/${slot.id}/withdraw`, {
+          method: "POST",
+          json: { requestId: randomUUID() },
+        }),
+        [409],
+      );
+      const later = new Date(Date.parse(slot.startsAt) + 7_200_000);
+      const changed = accepted(
+        await operator.client.request("/api/availability", {
+          method: "POST",
+          json: {
+            startsAt: later.toISOString(),
+            endsAt: new Date(later.getTime() + 1_800_000).toISOString(),
+            requestId: randomUUID(),
+          },
+        }),
+      );
+      assert.notEqual(changed.id, slot.id);
+      const stillReserved = accepted(
+        await student.client.request("/api/workspace"),
+      ).appointments.find((item) => item.id === booking.id);
+      assert.equal(stillReserved.startsAt, slot.startsAt);
+      assert.equal(stillReserved.endsAt, slot.endsAt);
+      denied(
+        await operator.client.request("/api/availability", {
+          method: "POST",
+          json: {
+            startsAt: later.toISOString().replace("Z", ""),
+            endsAt: new Date(later.getTime() + 1_800_000)
+              .toISOString()
+              .replace("Z", ""),
+            requestId: randomUUID(),
+          },
+        }),
+        [400],
       );
     } finally {
       await context.close();

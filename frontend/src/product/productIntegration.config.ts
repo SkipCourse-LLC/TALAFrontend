@@ -16,6 +16,7 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:5180",
     browserName: "chromium",
     viewport: { width: 1440, height: 1000 },
+    timezoneId: "America/Phoenix",
     actionTimeout: 15_000,
     trace: "off",
     screenshot: "off",

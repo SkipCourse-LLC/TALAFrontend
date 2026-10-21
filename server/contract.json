@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "basePath": "/api",
   "defaultOrigin": "http://127.0.0.1:8787",
   "security": {
@@ -78,14 +78,20 @@
       "reviewStatus": "not_reviewed|reviewed|needs_revision",
       "submittedAt": "ISO UTC",
       "reviewNote": "optional string",
-      "reviewedAt": "optional ISO UTC"
+      "reviewedAt": "optional ISO UTC",
+      "revisionNumber": "integer>=1",
+      "rootEvidenceId": "UUID; original evidence ID",
+      "reviewVersion": "nonnegative integer; 0 before first review, monotonic thereafter",
+      "revisesEvidenceId": "optional UUID; immediate predecessor",
+      "supersededByEvidenceId": "optional UUID; committed immediate successor"
     },
     "Progress": {
       "submittedEvidenceCount": "integer",
       "assessedEvidenceCount": 0,
       "acknowledgedOutcomeCount": "integer",
       "masteryStatus": "unavailable",
-      "reviewedEvidenceCount": "integer, manual review only; never academic credit"
+      "reviewedEvidenceCount": "integer, manual review only; never academic credit",
+      "revisionSubmissionCount": "integer; submitted revisions, also included in submittedEvidenceCount"
     },
     "UploadIntent": {
       "uploadId": "UUID",
@@ -99,9 +105,34 @@
       "sha256": "64 lowercase hex",
       "size": "integer",
       "contentType": "text/plain|application/pdf"
+    },
+    "ManagedSlot": {
+      "id": "UUID",
+      "startsAt": "ISO UTC",
+      "endsAt": "ISO UTC",
+      "label": "string",
+      "isAvailable": "boolean",
+      "status": "available|reserved|withdrawn",
+      "canWithdraw": "boolean; true only for unbooked published future slots"
     }
   },
   "routes": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "response": {
+        "application": "tala-independent-server",
+        "version": 1,
+        "contractVersion": 2,
+        "schemaVersion": 2,
+        "status": "ok",
+        "authentication": "local-server",
+        "emailDelivery": "unavailable",
+        "zoom": "unavailable",
+        "ai": "unavailable",
+        "payment": "unavailable"
+      }
+    },
     {
       "method": "GET",
       "path": "/session",
@@ -173,7 +204,7 @@
       "body": {
         "slotId": "UUID",
         "requestId": "unique string",
-        "studentUid": "optional authorized linked child UID"
+        "studentUid": "optional existing student UID; operator authorization required when acting for another account; parents are read-only"
       },
       "response": "Appointment"
     },
@@ -204,7 +235,8 @@
         "size": "integer",
         "sha256": "64 lowercase hex",
         "requestId": "unique string",
-        "studentUid": "optional authorized linked child UID (owner also checked via appointment)"
+        "studentUid": "optional existing student UID matching appointment owner; parents are read-only; linked revisions require the student owner",
+        "revisesEvidenceId": "optional UUID; own same-booking latest needs_revision Evidence; student-only revision"
       },
       "response": "UploadIntent"
     },
@@ -297,7 +329,10 @@
       "operatorOnly": true,
       "response": {
         "appointments": "(Appointment & {studentUid,studentName})[] newest100",
-        "evidence": "(Evidence & {studentUid,studentName})[] newest100"
+        "evidence": "(Evidence & {studentUid,studentName})[] newest100",
+        "availability": "ManagedSlot[] future100, includes withdrawn and reserved",
+        "availabilityHasMore": "boolean",
+        "learningRecords": "(LearningRecord & {studentUid,studentName})[] newest100; published records only"
       }
     },
     {
@@ -307,7 +342,8 @@
       "body": {
         "status": "reviewed|needs_revision",
         "note": "string 1..1000",
-        "requestId": "unique string"
+        "requestId": "unique string",
+        "expectedReviewVersion": "required nonnegative integer from Evidence.reviewVersion; stale or superseded reviews return CONFLICT"
       },
       "response": "Evidence; manual review only, no AI/grade/mastery"
     },
@@ -319,6 +355,29 @@
         "removed": "number of expired unsubmitted intents closed and private files checked/removed; never submitted Evidence",
         "hasMore": "boolean; at most25 per owner call"
       }
+    },
+    {
+      "method": "GET",
+      "path": "/availability",
+      "operatorOnly": true,
+      "response": {
+        "slots": "ManagedSlot[] future100",
+        "hasMore": "boolean"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/availability/:id/withdraw",
+      "operatorOnly": true,
+      "body": {
+        "requestId": "unique string"
+      },
+      "response": "ManagedSlot; only future unbooked published slots; never deletes booking history"
+    },
+    {
+      "method": "GET",
+      "path": "/evidence/:id",
+      "response": "Evidence; current owner, linked read-only parent or operator only"
     }
   ],
   "factory": "createApplication({dataDir,allowedOrigins,sessionTtlMs?}) returns {server,db,operator,close}; no socket is opened until server.listen()",
@@ -337,5 +396,9 @@
     "unsubmittedUploadsPerAccount": 10,
     "unsubmittedUploadBytesPerAccount": 52428800,
     "unsubmittedUploadBytesGlobal": 524288000
-  }
+  },
+  "schemaVersion": 2,
+  "availabilityPolicy": "Publish times must be ISO 8601 with explicit Z/UTC offset. Withdrawal is transactionally fenced against reservations. Times on a slot are immutable. Publishing an exactly matching withdrawn start/end reactivates its same ID; any changed time uses a new ID. Old cancelled bookings retain original times.",
+  "revisionPolicy": "Only a student can revise their own latest needs_revision Evidence for the same booking. Upload captures the current reviewVersion server-side. Final submit rechecks that review and atomically commits a single successor; concurrent or stale revisions conflict. Earlier evidence bytes, review and identifiers remain immutable. Superseded evidence cannot be reviewed again. Counters count all versions, manual review is not academic credit.",
+  "localDatabaseMigration": "Schema1 to2 is additive and local-only. A consistent VACUUM INTO backup with 0600 permissions is verified before migration. Three new tables: availability_state(slot_id,status,updated_at,updated_by); upload_revisions(upload_id,predecessor_id,expected_review_version); evidence_revisions(evidence_id,predecessor_id UNIQUE,root_id,revision_number). Existing slots backfill as published; other rows and file bytes are untouched. New databases start at schema2 with no seed data. Future schemas fail closed."
 }

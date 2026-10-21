@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { SiteLayout } from "../shared/SiteLayout";
 import { RouteFocus } from "../shared/RouteFocus";
 import { HomePage } from "../public-site/HomePage";
@@ -13,6 +13,19 @@ import { ServerAccessPage } from "./ServerAccessPage";
 import { ServerWorkspace } from "./ServerWorkspace";
 import { OperatorWorkspace } from "./OperatorWorkspace";
 import "./product.css";
+
+function IndependentRouteFocus() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (pathname !== "/dashboard") return;
+    document.title = "Your workspace | TALA";
+    window.scrollTo({ top: 0, behavior: "instant" });
+    document.getElementById("main-content")?.focus({ preventScroll: true });
+  }, [pathname]);
+  // Workspace panels manage their own focus. Public routes retain the existing
+  // shared behavior without changing the other application's navigation.
+  return pathname === "/dashboard" ? null : <RouteFocus />;
+}
 
 export function ServerApplication() {
   const [user, setUser] = useState<ApiUser | null>(null);
@@ -209,7 +222,7 @@ export function ServerApplication() {
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
-      <RouteFocus />
+      <IndependentRouteFocus />
     </>
   );
 }

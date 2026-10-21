@@ -20,8 +20,10 @@ interface TestApplication {
       parentUid: string;
       consentReference: string;
     }): Promise<unknown>;
+    promote(email: string): Promise<unknown>;
   };
   findUid(email: string): Promise<string>;
+  endBooking(email: string): Promise<{ appointmentId: string }>;
   close(): Promise<void>;
 }
 let application: TestApplication;
@@ -57,15 +59,29 @@ async function startIsolatedApplication(
   );
   const requests = new Map<
     string,
-    { resolve(value: unknown): void; reject(error: Error): void }
+    {
+      resolve(value: unknown): void;
+      reject(error: Error): void;
+      timeout: ReturnType<typeof setTimeout>;
+    }
   >();
   let ready: (() => void) | undefined;
+  let startupTimeout: ReturnType<typeof setTimeout> | undefined;
   const started = new Promise<void>((resolve, reject) => {
     ready = resolve;
+    startupTimeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error("The isolated Node test server did not become ready."));
+    }, 10_000);
     child.once("error", reject);
-    child.once("exit", (code) => {
-      if (code !== 0)
-        reject(new Error("The isolated Node test server could not start."));
+    child.once("exit", () => {
+      const failure = new Error("The isolated Node test server exited.");
+      reject(failure);
+      for (const request of requests.values()) {
+        clearTimeout(request.timeout);
+        request.reject(failure);
+      }
+      requests.clear();
     });
   });
   child.on(
@@ -80,23 +96,39 @@ async function startIsolatedApplication(
       if (!message.id) return;
       const request = requests.get(message.id);
       requests.delete(message.id);
+      if (request) clearTimeout(request.timeout);
       if (message.error) request?.reject(new Error(message.error));
       else request?.resolve(message.result);
     },
   );
   const call = (action: string, input: unknown): Promise<unknown> =>
     new Promise((resolve, reject) => {
+      if (!child.connected) {
+        reject(new Error("The isolated fixture server is unavailable."));
+        return;
+      }
       const id = randomUUID();
-      requests.set(id, { resolve, reject });
+      const timeout = setTimeout(() => {
+        requests.delete(id);
+        reject(new Error("The isolated fixture operation timed out."));
+      }, 10_000);
+      requests.set(id, { resolve, reject, timeout });
       child.send({ id, action, input });
     });
-  await started;
+  try {
+    await started;
+  } finally {
+    clearTimeout(startupTimeout);
+  }
   return {
     operator: {
       addAvailability: async (input) =>
         (await call("addAvailability", input)) as { id: string },
       linkFamily: (input) => call("linkFamily", input),
+      promote: (email) => call("promote", email),
     },
+    endBooking: async (email) =>
+      (await call("endBooking", email)) as { appointmentId: string },
     findUid: async (email) => {
       const value = await call("findUid", email);
       if (typeof value !== "string")
@@ -137,7 +169,7 @@ test.beforeEach(async ({ context, page }) => {
 test.afterEach(async ({ page }) => {
   await page.close();
   try {
-    await application.close();
+    await application?.close();
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
@@ -202,7 +234,31 @@ async function publishTimes() {
     });
   }
 }
+type WorkspaceView =
+  "overview" | "meetings" | "learning" | "evidence" | "progress";
+async function chooseView(page: Page, view: WorkspaceView) {
+  const names: Record<WorkspaceView, string> = {
+    overview: "Overview",
+    meetings: "Meetings",
+    learning: "Learning records",
+    evidence: "Evidence",
+    progress: "Progress",
+  };
+  const button = page
+    .getByRole("navigation", { name: "Workspace sections", exact: true })
+    .getByRole("button", { name: names[view], exact: true });
+  await button.click();
+  await expect(button).toHaveAttribute("aria-current", "page");
+  expect(new URL(page.url()).hash).toContain(`view=${view}`);
+}
+async function capture(page: Page, filename: string) {
+  await page.evaluate(() =>
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" }),
+  );
+  await page.screenshot({ path: join(tmpdir(), filename), fullPage: true });
+}
 async function book(page: Page) {
+  await chooseView(page, "meetings");
   await page
     .getByRole("button", { name: "Refresh records", exact: true })
     .click();
@@ -228,8 +284,8 @@ async function fillEvidence(page: Page) {
     buffer: evidenceBytes,
   });
 }
-async function submitEvidence(page: Page) {
-  await fillEvidence(page);
+async function submitEvidence(page: Page, refill = true) {
+  if (refill) await fillEvidence(page);
   await page
     .getByRole("button", { name: "Submit evidence", exact: true })
     .click();
@@ -245,11 +301,15 @@ async function submitEvidence(page: Page) {
     }),
   ).toBeVisible();
 }
-async function downloadEvidence(page: Page) {
+async function downloadEvidence(
+  page: Page,
+  buttonName = "Download Synthetic persisted reflection",
+  expectedBytes = evidenceBytes,
+) {
   const pending = page.waitForEvent("download");
   await page
     .getByRole("button", {
-      name: "Download Synthetic persisted reflection",
+      name: buttonName,
       exact: true,
     })
     .click();
@@ -260,16 +320,30 @@ async function downloadEvidence(page: Page) {
   const path = await download.path();
   expect(Boolean(path)).toBe(true);
   expect(
-    (await readFile(path!)).equals(evidenceBytes),
+    (await readFile(path!)).equals(expectedBytes),
     "Private download should match the submitted bytes",
   ).toBe(true);
   await download.delete();
 }
-async function login(page: Page, account: { email: string; password: string }) {
+async function login(
+  page: Page,
+  account: { email: string; password: string },
+  operator = false,
+) {
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page.getByRole("heading", { name: /^Hello,/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: operator ? "Learning operations" : /^Hello,/,
+    }),
+  ).toBeVisible();
+}
+async function signOut(page: Page) {
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Welcome back.", exact: true }),
+  ).toBeVisible();
 }
 
 test("student registration, booking changes, private file persistence and mobile keyboard access use the independent server", async ({
@@ -277,6 +351,7 @@ test("student registration, booking changes, private file persistence and mobile
   context,
 }) => {
   const account = await register(page);
+  await chooseView(page, "meetings");
   await expect(
     page.getByText("No meeting times are available.", { exact: false }),
   ).toBeVisible();
@@ -292,12 +367,29 @@ test("student registration, booking changes, private file persistence and mobile
       .getByRole("status")
       .filter({ hasText: "Your booking was changed on the server." }),
   ).toBeVisible();
-  await submitEvidence(page);
+  await chooseView(page, "evidence");
+  await fillEvidence(page);
+  await chooseView(page, "progress");
+  await expect(
+    page.getByLabel("Evidence title", { exact: true }),
+  ).not.toBeVisible();
+  await chooseView(page, "evidence");
+  await expect(page.getByLabel("Evidence title", { exact: true })).toHaveValue(
+    "Synthetic persisted reflection",
+  );
+  expect(
+    await page
+      .getByLabel("File", { exact: true })
+      .evaluate((input: HTMLInputElement) => input.files?.[0]?.name),
+  ).toBe("synthetic-reflection.txt");
+  await submitEvidence(page, false);
+  await chooseView(page, "progress");
   const progress = page
     .locator(".product-stats > div")
     .filter({ hasText: "Evidence submitted" })
     .locator("dd");
   await expect(progress).toHaveText("1");
+  await chooseView(page, "evidence");
   await downloadEvidence(page);
   await page.getByText("My account", { exact: true }).click();
   await page
@@ -308,6 +400,7 @@ test("student registration, booking changes, private file persistence and mobile
     page.getByRole("status").filter({ hasText: "Your profile was saved" }),
   ).toBeVisible();
   await page.reload();
+  expect(new URL(page.url()).hash).toContain("view=evidence");
   await expect(
     page.getByRole("heading", {
       name: "Hello, Updated synthetic student.",
@@ -320,9 +413,19 @@ test("student registration, booking changes, private file persistence and mobile
       exact: true,
     }),
   ).toBeVisible();
+  await chooseView(page, "progress");
   await expect(progress).toHaveText("1");
+  await page.goBack();
+  await expect(
+    page.getByRole("heading", {
+      name: "Synthetic persisted reflection",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(new URL(page.url()).hash).toContain("view=evidence");
+  await capture(page, "tala-evidence-desktop-qa.png");
   await page.goto("/#/register");
-  await expect(page).toHaveURL(/#\/dashboard$/);
+  await expect(page).toHaveURL(/#\/dashboard(?:\?|$)/);
   await expect(
     page.getByRole("button", { name: "Create account", exact: true }),
   ).toHaveCount(0);
@@ -337,18 +440,21 @@ test("student registration, booking changes, private file persistence and mobile
         .filter((key) => /tala|firebase|session|token|auth/i.test(key)),
     ),
   ).toEqual([]);
-  await page.screenshot({
-    path: join(tmpdir(), "tala-product-desktop-qa.png"),
-    fullPage: true,
-  });
+  await capture(page, "tala-product-desktop-qa.png");
+  await capture(page, "tala-overview-desktop-qa.png");
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole("button", { name: "Progress", exact: true }).click();
-  await expect(page).toHaveURL(/#\/dashboard$/);
+  await capture(page, "tala-overview-mobile-qa.png");
+  const progressButton = page
+    .getByRole("navigation", { name: "Workspace sections", exact: true })
+    .getByRole("button", { name: "Progress", exact: true });
+  await progressButton.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#\/dashboard\?view=progress$/);
   await expect(
     page.getByRole("heading", { name: "Your progress", exact: true }),
   ).toBeFocused();
@@ -364,21 +470,22 @@ test("student registration, booking changes, private file persistence and mobile
       targets: nodes.map((node) => node.target),
     })),
   ).toEqual([]);
-  await page.screenshot({
-    path: join(tmpdir(), "tala-product-mobile-qa.png"),
-    fullPage: true,
-  });
+  await capture(page, "tala-product-mobile-qa.png");
+  await chooseView(page, "evidence");
+  await capture(page, "tala-evidence-mobile-qa.png");
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Welcome back.", exact: true }),
   ).toBeVisible();
   await login(page, account);
+  await chooseView(page, "evidence");
   await expect(
     page.getByRole("heading", {
       name: "Synthetic persisted reflection",
       exact: true,
     }),
   ).toBeVisible();
+  await chooseView(page, "meetings");
   await page
     .getByRole("button", { name: "Cancel booking", exact: true })
     .click();
@@ -395,6 +502,7 @@ test("lost auth responses and rejected upload drafts recover safely, while linke
   const student = await register(page, "student", true);
   await publishTimes();
   await book(page);
+  await chooseView(page, "evidence");
   await fillEvidence(page);
   await page.route("**/api/evidence/uploads", (route) =>
     route.fulfill({
@@ -461,6 +569,7 @@ test("lost auth responses and rejected upload drafts recover safely, while linke
     consentReference: "Explicit synthetic consent fixture, read-only access",
   });
   await page.reload();
+  await chooseView(page, "evidence");
   await expect(
     page.getByText("Family access is read-only.", { exact: false }),
   ).toBeVisible();
@@ -470,12 +579,17 @@ test("lost auth responses and rejected upload drafts recover safely, while linke
       exact: true,
     }),
   ).toBeVisible();
+  await chooseView(page, "meetings");
   await expect(
     page.getByRole("button", { name: "Cancel booking", exact: true }),
   ).toBeDisabled();
+  await chooseView(page, "evidence");
+  await expect(page.getByLabel("Evidence title", { exact: true })).toHaveCount(
+    0,
+  );
   await expect(
-    page.getByLabel("Evidence title", { exact: true }),
-  ).toBeDisabled();
+    page.getByRole("button", { name: "Submit evidence", exact: true }),
+  ).toHaveCount(0);
   await downloadEvidence(page);
   await page.goto("/#/two-factor");
   await expect(
@@ -496,4 +610,264 @@ test("lost auth responses and rejected upload drafts recover safely, while linke
       "input[autocomplete='cc-number'], input[autocomplete='cc-csc']",
     ),
   ).toHaveCount(0);
+});
+
+test("operator review, availability controls and learning summaries lead to a private student revision history", async ({
+  page,
+}) => {
+  const student = await register(page);
+  await publishTimes();
+  await book(page);
+  await chooseView(page, "evidence");
+  await submitEvidence(page);
+  await application.endBooking(student.email);
+  await signOut(page);
+  const operator = await register(page);
+  await signOut(page);
+  await application.operator.promote(operator.email);
+  await login(page, operator, true);
+  const reviewTab = page.getByRole("tab", { name: /^Review evidence/ });
+  const meetingsTab = page.getByRole("tab", { name: "Meetings", exact: true });
+  const learningTab = page.getByRole("tab", {
+    name: "Learning summaries",
+    exact: true,
+  });
+  await page.getByLabel("Review queue", { exact: true }).selectOption("all");
+  const staffNote =
+    "Synthetic staff feedback: explain how you checked the final step.";
+  await page
+    .getByRole("textbox", { name: "Review note", exact: true })
+    .fill(staffNote);
+  await meetingsTab.click();
+  await expect(meetingsTab).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("textbox", { name: "Review note", exact: true }),
+  ).not.toBeVisible();
+  await reviewTab.click();
+  await expect(
+    page.getByRole("textbox", { name: "Review note", exact: true }),
+  ).toHaveValue(staffNote);
+  await capture(page, "tala-operator-desktop-qa.png");
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  const operatorViolations = (
+    await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze()
+  ).violations;
+  expect(
+    operatorViolations.map(({ id, nodes }) => ({
+      id,
+      targets: nodes.map((node) => node.target),
+    })),
+  ).toEqual([]);
+  await capture(page, "tala-operator-mobile-qa.png");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await meetingsTab.click();
+  await page
+    .getByLabel("Meeting label", { exact: true })
+    .fill("Operator cross-midnight test");
+  await page.getByLabel("Starts at", { exact: true }).fill("2099-10-21T23:30");
+  await page.getByLabel("Ends at", { exact: true }).fill("2099-10-22T00:00");
+  await page
+    .getByRole("button", { name: "Publish availability", exact: true })
+    .click();
+  const crossMidnight = page
+    .getByRole("list", { name: "Upcoming meeting times", exact: true })
+    .getByRole("listitem")
+    .filter({ hasText: "Operator cross-midnight test" });
+  await expect(crossMidnight).toContainText("Oct 21, 2099");
+  await expect(crossMidnight).toContainText("Oct 22, 2099");
+  await crossMidnight
+    .getByRole("button", { name: "Withdraw time", exact: true })
+    .click();
+  await expect(
+    crossMidnight.getByRole("button", { name: "Publish again", exact: true }),
+  ).toBeVisible();
+  await crossMidnight
+    .getByRole("button", { name: "Publish again", exact: true })
+    .click();
+  await expect(
+    crossMidnight.getByRole("button", { name: "Withdraw time", exact: true }),
+  ).toBeVisible();
+  await reviewTab.click();
+  await expect(
+    page.getByRole("textbox", { name: "Review note", exact: true }),
+  ).toHaveValue(staffNote);
+  const apiOrigin = new URL(page.url()).origin;
+  const operatorSession = (await (
+    await page.request.get(`${apiOrigin}/api/session`)
+  ).json()) as {
+    session: { uid: string };
+    csrfToken: string;
+  };
+  const beforeReview = (await (
+    await page.request.get(`${apiOrigin}/api/operations`)
+  ).json()) as {
+    evidence: { id: string; reviewVersion: number }[];
+  };
+  const competingReview = await page.request.post(
+    `${apiOrigin}/api/evidence/${beforeReview.evidence[0]!.id}/review`,
+    {
+      headers: {
+        Origin: apiOrigin,
+        "X-CSRF-Token": operatorSession.csrfToken,
+        "X-TALA-User": operatorSession.session.uid,
+      },
+      data: {
+        status: "reviewed",
+        note: "Synthetic feedback saved in another operator window.",
+        expectedReviewVersion: beforeReview.evidence[0]!.reviewVersion,
+        requestId: randomUUID(),
+      },
+    },
+  );
+  expect(competingReview.status()).toBe(200);
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
+  await expect(
+    page.getByRole("button", {
+      name: "Use latest review version",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Review note", exact: true }),
+  ).toHaveValue(staffNote);
+  await expect(
+    page.getByRole("button", { name: "Save manual review", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Use latest review version", exact: true })
+    .click();
+  await page
+    .getByLabel("Review status", { exact: true })
+    .selectOption("needs_revision");
+  await page
+    .getByRole("button", { name: "Save manual review", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Review saved" }),
+  ).toBeVisible();
+  await learningTab.click();
+  const summary =
+    "Synthetic staff learning summary: the student explained a checked solution.";
+  await page
+    .getByLabel("Reviewed learning summary", { exact: true })
+    .fill(summary);
+  await page
+    .getByRole("button", { name: "Publish reviewed summary", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Learning summary published" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Publish reviewed summary", exact: true }),
+  ).toHaveCount(0);
+  await signOut(page);
+  await login(page, student);
+  await chooseView(page, "learning");
+  await expect(page.getByText(summary, { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "I have reviewed this summary", exact: true })
+    .click();
+  await expect(
+    page.getByText("Reviewed by student", { exact: true }),
+  ).toBeVisible();
+  await chooseView(page, "evidence");
+  await expect(page.getByText(staffNote, { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: "Prepare revision of Synthetic persisted reflection",
+      exact: true,
+    })
+    .click();
+  const revisedBytes = Buffer.from(
+    "Synthetic revised reflection adds the requested explanation; no real personal data.",
+  );
+  await page
+    .getByLabel("Evidence title", { exact: true })
+    .fill("Synthetic revised reflection");
+  await page.getByLabel("File", { exact: true }).setInputFiles({
+    name: "synthetic-revision.txt",
+    mimeType: "text/plain",
+    buffer: revisedBytes,
+  });
+  await page
+    .getByRole("button", { name: "Submit revision", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Synthetic revised reflection",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Synthetic persisted reflection",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await downloadEvidence(
+    page,
+    "Download Synthetic revised reflection",
+    revisedBytes,
+  );
+  await chooseView(page, "progress");
+  const stats = page.locator("#progress .product-stats");
+  await expect(
+    stats
+      .locator("div")
+      .filter({ hasText: "Evidence submitted" })
+      .locator("dd"),
+  ).toHaveText("2");
+  await expect(
+    stats
+      .locator("div")
+      .filter({ hasText: "Revisions submitted" })
+      .locator("dd"),
+  ).toHaveText("1");
+  await expect(
+    stats
+      .locator("div")
+      .filter({ hasText: "Summaries acknowledged" })
+      .locator("dd"),
+  ).toHaveText("1");
+  await chooseView(page, "evidence");
+  await page
+    .getByRole("button", {
+      name: "Version history for Synthetic revised reflection",
+      exact: true,
+    })
+    .click();
+  const history = page.getByRole("dialog", {
+    name: "Document history",
+    exact: true,
+  });
+  await expect(history).toContainText("Version 2");
+  await history
+    .getByRole("button", { name: "Previous version", exact: true })
+    .click();
+  await expect(history).toContainText("Version 1");
+  await expect(history).toContainText(staffNote);
+  await downloadEvidence(page, "Download this version", evidenceBytes);
+  await page.reload();
+  await expect(history).toBeVisible();
+  await expect(history).toContainText("Version 1");
+  await history
+    .getByRole("button", { name: "Next version", exact: true })
+    .click();
+  await expect(history).toContainText("Version 2");
+  const dialogViolations = (
+    await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze()
+  ).violations;
+  expect(dialogViolations.map(({ id }) => id)).toEqual([]);
+  await page.keyboard.press("Escape");
+  await expect(history).toHaveCount(0);
+  expect(new URL(page.url()).hash).toContain("view=evidence");
 });

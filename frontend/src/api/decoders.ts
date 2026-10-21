@@ -1,11 +1,13 @@
 import { TalaApiError } from "./errors";
 import type {
   Appointment,
+  Availability,
   Evidence,
   EvidenceContentType,
   FamilyLinks,
   LearningRecord,
   LearningRecords,
+  ManagedSlot,
   Operations,
   Progress,
   SessionState,
@@ -105,6 +107,31 @@ export function slot(raw: unknown): Slot {
     isAvailable: value.isAvailable,
   };
 }
+export function managedSlot(raw: unknown): ManagedSlot {
+  const value = object(raw),
+    saved = slot(raw);
+  if (
+    !["available", "reserved", "withdrawn"].includes(String(value.status)) ||
+    typeof value.canWithdraw !== "boolean" ||
+    (saved.isAvailable && value.status !== "available") ||
+    (value.canWithdraw && (!saved.isAvailable || value.status !== "available"))
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    ...saved,
+    status: value.status as ManagedSlot["status"],
+    canWithdraw: value.canWithdraw,
+  };
+}
+export function availability(raw: unknown): Availability {
+  const value = object(raw);
+  if (typeof value.hasMore !== "boolean")
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    slots: array(value.slots, 100).map(managedSlot),
+    hasMore: value.hasMore,
+  };
+}
 export function appointment(raw: unknown, expectedOwner?: string): Appointment {
   const value = object(raw);
   const ownerUid = id(value.ownerUid);
@@ -142,8 +169,26 @@ export function evidence(raw: unknown, expectedOwner?: string): Evidence {
     throw new TalaApiError("INVALID_RESPONSE");
   const size = count(value.size, MAX_FILE_BYTES);
   if (!size) throw new TalaApiError("INVALID_RESPONSE");
+  const evidenceId = id(value.id),
+    rootEvidenceId = id(value.rootEvidenceId);
+  const revisionNumber = count(value.revisionNumber);
+  const revisesEvidenceId =
+    value.revisesEvidenceId === undefined
+      ? undefined
+      : id(value.revisesEvidenceId);
+  const supersededByEvidenceId =
+    value.supersededByEvidenceId === undefined
+      ? undefined
+      : id(value.supersededByEvidenceId);
+  if (
+    !revisionNumber ||
+    revisesEvidenceId === evidenceId ||
+    supersededByEvidenceId === evidenceId ||
+    (revisionNumber === 1 && rootEvidenceId !== evidenceId)
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
   return {
-    id: id(value.id),
+    id: evidenceId,
     ownerUid,
     appointmentId: id(value.appointmentId),
     title: text(value.title, 120),
@@ -153,6 +198,11 @@ export function evidence(raw: unknown, expectedOwner?: string): Evidence {
     status: "submitted",
     reviewStatus: value.reviewStatus as Evidence["reviewStatus"],
     submittedAt: instant(value.submittedAt),
+    revisionNumber,
+    rootEvidenceId,
+    reviewVersion: count(value.reviewVersion),
+    ...(revisesEvidenceId ? { revisesEvidenceId } : {}),
+    ...(supersededByEvidenceId ? { supersededByEvidenceId } : {}),
     ...(value.reviewNote !== undefined
       ? { reviewNote: text(value.reviewNote, 1000) }
       : {}),
@@ -170,6 +220,7 @@ export function progress(raw: unknown): Progress {
     assessedEvidenceCount: count(value.assessedEvidenceCount),
     reviewedEvidenceCount: count(value.reviewedEvidenceCount),
     acknowledgedOutcomeCount: count(value.acknowledgedOutcomeCount),
+    revisionSubmissionCount: count(value.revisionSubmissionCount),
     masteryStatus: "unavailable",
   };
 }
@@ -311,7 +362,19 @@ export function familyLinks(raw: unknown, currentUid: string): FamilyLinks {
 }
 export function operations(raw: unknown): Operations {
   const value = object(raw);
+  if (typeof value.availabilityHasMore !== "boolean")
+    throw new TalaApiError("INVALID_RESPONSE");
   return {
+    availability: array(value.availability, 100).map(managedSlot),
+    availabilityHasMore: value.availabilityHasMore,
+    learningRecords: array(value.learningRecords, 100).map((item) => {
+      const record = object(item);
+      return {
+        ...learningRecord(record),
+        studentUid: id(record.studentUid),
+        studentName: text(record.studentName, 80),
+      };
+    }),
     appointments: array(value.appointments, 100).map((item) => {
       const record = object(item);
       const saved = appointment(record);

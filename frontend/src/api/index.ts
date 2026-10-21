@@ -19,4 +19,6 @@ export type {
   Evidence as ApiEvidence,
   Appointment as ApiAppointment,
   LearningRecord as ApiLearningRecord,
+  ManagedSlot as ApiManagedSlot,
+  Availability as ApiAvailability,
 } from "./types";

@@ -2,6 +2,58 @@
 const { DatabaseSync } = require("node:sqlite");
 const fs = require("node:fs");
 const path = require("node:path");
+const { randomUUID } = require("node:crypto");
+
+const SCHEMA_VERSION = 2;
+const EXTENSIONS = `
+  CREATE TABLE IF NOT EXISTS availability_state (
+    slot_id TEXT PRIMARY KEY REFERENCES slots(id),
+    status TEXT NOT NULL CHECK(status IN ('published','withdrawn')),
+    updated_at INTEGER NOT NULL, updated_by TEXT REFERENCES users(uid)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS upload_revisions (
+    upload_id TEXT PRIMARY KEY REFERENCES uploads(id),
+    predecessor_id TEXT NOT NULL REFERENCES evidence(id),
+    expected_review_version INTEGER NOT NULL CHECK(expected_review_version>=0)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS evidence_revisions (
+    evidence_id TEXT PRIMARY KEY REFERENCES evidence(id),
+    predecessor_id TEXT NOT NULL UNIQUE REFERENCES evidence(id),
+    root_id TEXT NOT NULL REFERENCES evidence(id),
+    revision_number INTEGER NOT NULL CHECK(revision_number>=2),
+    CHECK(evidence_id!=predecessor_id)
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS evidence_revision_root ON evidence_revisions(root_id,revision_number);
+  INSERT OR IGNORE INTO availability_state(slot_id,status,updated_at,updated_by)
+    SELECT id,'published',created_at,NULL FROM slots;
+`;
+
+function backupBeforeMigration(db, dataDir, version) {
+  const directory = path.join(dataDir, "backups");
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.chmodSync(directory, 0o700);
+  const filename = path.join(directory, `tala-v${version}-${Date.now()}-${randomUUID()}.sqlite`);
+  // An empty 0600 destination prevents a permissions window during VACUUM.
+  fs.closeSync(fs.openSync(filename, "wx", 0o600));
+  let completed = false;
+  try {
+    // SQLite includes committed WAL content in this consistent snapshot. Never
+    // copy only the main file, and never run VACUUM inside the migration tx.
+    db.prepare("VACUUM INTO ?").run(filename);
+    const snapshot = new DatabaseSync(filename, { readOnly: true, allowExtension: false });
+    try {
+      if (snapshot.prepare("PRAGMA user_version").get().user_version !== version || snapshot.prepare("PRAGMA quick_check").get().quick_check !== "ok") throw new Error("The pre-upgrade database backup could not be verified.");
+    } finally { snapshot.close(); }
+    const file = fs.openSync(filename, "r");
+    try { fs.fsyncSync(file); } finally { fs.closeSync(file); }
+    const folder = fs.openSync(directory, "r");
+    try { fs.fsyncSync(folder); } finally { fs.closeSync(folder); }
+    completed = true;
+  } finally {
+    if (!completed) fs.rmSync(filename, { force: true });
+  }
+  return filename;
+}
 
 function openDatabase(dataDir) {
   fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
@@ -11,12 +63,14 @@ function openDatabase(dataDir) {
   const db = new DatabaseSync(filename, { timeout: 5000, enableForeignKeyConstraints: true, allowExtension: false });
   fs.chmodSync(filename, 0o600);
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 1) { db.close(); throw new Error("This database uses a newer schema. Start a compatible server; no migration was performed."); }
-  db.exec(`
-    PRAGMA journal_mode=WAL;
-    PRAGMA foreign_keys=ON;
-    PRAGMA synchronous=FULL;
-    PRAGMA busy_timeout=5000;
+  if (version > SCHEMA_VERSION) { db.close(); throw new Error("This database uses a newer schema. Start a compatible server; no migration was performed."); }
+  if (version === 0 && db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").get()) { db.close(); throw new Error("This database has an unrecognized schema. No migration was performed."); }
+  try {
+    db.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;");
+    if (version === 1) backupBeforeMigration(db, dataDir, version);
+    if (version < SCHEMA_VERSION) transaction(db, () => {
+      if (db.prepare("PRAGMA user_version").get().user_version !== version) throw new Error("The database changed during startup. Stop other local instances and retry.");
+      db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       uid TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL,
       password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('student','parent','operator')),
@@ -65,8 +119,12 @@ function openDatabase(dataDir) {
       id TEXT PRIMARY KEY, student_uid TEXT NOT NULL REFERENCES users(uid), parent_uid TEXT NOT NULL REFERENCES users(uid),
       consent_reference TEXT NOT NULL, recorded_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'active', UNIQUE(student_uid,parent_uid)
     ) STRICT;
-    PRAGMA user_version=1;
+    ${EXTENSIONS}
   `);
+      if (db.prepare("PRAGMA foreign_key_check").get()) throw new Error("The database contains an invalid relationship. Restore or review it before upgrading.");
+      db.exec(`PRAGMA user_version=${SCHEMA_VERSION}`);
+    });
+  } catch (error) { db.close(); throw error; }
   for (const suffix of ["-wal", "-shm"]) if (fs.existsSync(filename + suffix)) fs.chmodSync(filename + suffix, 0o600);
   return db;
 }

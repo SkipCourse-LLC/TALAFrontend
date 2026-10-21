@@ -49,6 +49,8 @@ async function healthy() {
     return (
       value?.application === "tala-independent-server" &&
       value.version === 1 &&
+      value.contractVersion === 2 &&
+      value.schemaVersion === 2 &&
       value.status === "ok" &&
       value.authentication === "local-server"
     );
@@ -111,7 +113,7 @@ try {
     if (await listening(8787)) {
       if (!(await healthy()))
         throw new Error(
-          "Port 8787 belongs to an unverified service. Stop it yourself or choose a separate setup. No process was stopped.",
+          "Port 8787 belongs to an older or unverified service. Stop that instance before starting this TALA version. No process was stopped.",
         );
       process.stdout.write(
         "Using the existing verified local TALA API on port 8787.\n",
