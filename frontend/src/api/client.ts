@@ -4,9 +4,15 @@ import { TalaApiError } from "./errors";
 import * as decode from "./decoders";
 import type {
   Appointment,
+  AppointmentPageQuery,
+  AvailabilityPageQuery,
+  EvidencePageQuery,
   EvidenceContentType,
   EvidenceDownload,
   PasswordChangeResult,
+  LearningPageQuery,
+  OperatorAppointmentQuery,
+  OperatorLearningQuery,
   SessionState,
   UploadIntent,
   UploadStatus,
@@ -77,8 +83,10 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
   let csrfToken = "";
   let actor: User | null | undefined;
   let revision = 0;
+  let sessionSnapshot = 0;
   let authBusy = false;
-  let bootstrap: Promise<SessionState> | undefined;
+  let bootstrap:
+    { version: number; promise: Promise<SessionState> } | undefined;
   const passwordReceiptOwners = new Map<string, string>();
   const transport = createHttpTransport({
     fetcher: options.fetcher,
@@ -90,26 +98,36 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
   function store(value: SessionState) {
     csrfToken = value.csrfToken;
     actor = value.session;
+    sessionSnapshot++;
   }
   async function loadSession(signal?: AbortSignal): Promise<User | null> {
-    if (signal?.aborted) throw new TalaApiError("CANCELLED");
-    if (!bootstrap) {
-      const version = revision;
-      // Shared bootstrap is not owned by one component's AbortSignal: StrictMode
-      // cleanup must not cancel the remount's CSRF/session initialization.
-      const next = transport
-        .json("/api/session", {}, decode.session)
-        .then((value) => {
-          if (version === revision) store(value);
-          return value;
-        })
-        .finally(() => {
-          if (bootstrap === next) bootstrap = undefined;
-        });
-      bootstrap = next;
+    for (;;) {
+      if (signal?.aborted) throw new TalaApiError("CANCELLED");
+      if (!bootstrap || bootstrap.version !== revision) {
+        const version = revision;
+        // Shared bootstrap is not owned by one component's AbortSignal:
+        // StrictMode cleanup must not cancel the remount's initialization.
+        const next = {
+          version,
+          promise: transport
+            .json("/api/session", {}, decode.session)
+            .then((value) => {
+              if (version === revision) store(value);
+              return value;
+            })
+            .finally(() => {
+              if (bootstrap === next) bootstrap = undefined;
+            }),
+        };
+        bootstrap = next;
+      }
+      const pending = bootstrap;
+      await waitForCaller(pending.promise, signal);
+      // A completed auth mutation may have rotated the cookie while this GET
+      // was in flight. Its stale response cannot validate cached actor data;
+      // join/start a GET under the current revision instead.
+      if (pending.version === revision) return actor ?? null;
     }
-    await waitForCaller(bootstrap, signal);
-    return actor ?? null;
   }
   async function authenticated<T>(
     signal: AbortSignal | undefined,
@@ -166,6 +184,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
     authBusy = true;
     let attempted = false;
     let intendedActor: User | null = null;
+    let expectedSnapshot = sessionSnapshot;
     try {
       const intendedUid = actor?.uid;
       if (actor === undefined || !csrfToken) await loadSession(signal);
@@ -178,7 +197,8 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       if (path !== "/api/auth/logout" && actor)
         throw new TalaApiError("ACTIVE_SESSION");
       intendedActor = actor ?? null;
-      revision++;
+      expectedSnapshot = sessionSnapshot;
+      const version = ++revision;
       attempted = true;
       const value = await transport.json(
         path,
@@ -191,6 +211,10 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         },
         decode.session,
       );
+      // A newer explicit session read can reflect a different tab's cookie.
+      // Neither an old success nor its error handler may roll that read back.
+      if (revision !== version || sessionSnapshot !== expectedSnapshot)
+        throw new TalaApiError("AUTH_REQUIRED");
       revision++;
       store(value);
       return value.session;
@@ -200,7 +224,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         csrfToken = "";
         // Only an explicit getSession() may adopt a possibly changed cookie.
         // Stale UI must retain its intended account after response loss.
-        actor = intendedActor;
+        if (sessionSnapshot === expectedSnapshot) actor = intendedActor;
       }
       throw error;
     } finally {
@@ -209,6 +233,28 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
   }
   function targetQuery(studentUid?: string): string {
     return studentUid ? `?studentUid=${inputId(studentUid)}` : "";
+  }
+  function pageQuery(input: object): string {
+    const params = new URLSearchParams();
+    for (const [key, raw] of Object.entries(input)) {
+      if (raw === undefined) continue;
+      const value = key === "q" && typeof raw === "string" ? raw.trim() : raw;
+      if (key === "q" && (typeof value !== "string" || value.length > 80))
+        throw new TalaApiError("INVALID_INPUT");
+      if (key === "studentUid" || key === "rootEvidenceId")
+        inputId(String(value));
+      if (
+        key === "cursor" &&
+        (typeof value !== "string" ||
+          !value ||
+          value.length > 2048 ||
+          !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(value))
+      )
+        throw new TalaApiError("INVALID_INPUT");
+      params.set(key, String(value));
+    }
+    const query = params.toString();
+    return query ? `?${query}` : "";
   }
   function matchingUpload(
     status: UploadStatus,
@@ -311,6 +357,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         if (signal?.aborted) throw new TalaApiError("CANCELLED");
         const current = actor;
         const version = ++revision;
+        const expectedSnapshot = sessionSnapshot;
         passwordReceiptOwners.set(input.requestId, current.uid);
         while (passwordReceiptOwners.size > 10) {
           const oldest = passwordReceiptOwners.keys().next().value;
@@ -331,7 +378,8 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         if (
           saved.session.uid !== current.uid ||
           actor?.uid !== current.uid ||
-          revision !== version
+          revision !== version ||
+          sessionSnapshot !== expectedSnapshot
         )
           throw new TalaApiError("AUTH_REQUIRED");
         revision++;
@@ -366,20 +414,29 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         );
       });
     },
-    updateProfile(input: { name: string }, signal?: AbortSignal) {
-      return authenticated(signal, async (current, _transport, json) => {
-        const value = await json(
-          "/api/profile",
-          "PATCH",
-          input,
-          signal,
-          decode.user,
-        );
-        if (value.uid !== current.uid)
-          throw new TalaApiError("INVALID_RESPONSE");
-        actor = value;
-        return value;
-      });
+    async updateProfile(input: { name: string }, signal?: AbortSignal) {
+      const value = await authenticated(
+        signal,
+        async (current, _transport, json) => {
+          const value = await json(
+            "/api/profile",
+            "PATCH",
+            input,
+            signal,
+            decode.user,
+          );
+          if (value.uid !== current.uid)
+            throw new TalaApiError("INVALID_RESPONSE");
+          return value;
+        },
+      );
+      // A delayed profile response must not overwrite a newer session snapshot
+      // before authenticated() has checked its intended identity. Only the
+      // display name changed; role/email belong to the latest session response.
+      if (!actor || actor.uid !== value.uid)
+        throw new TalaApiError("AUTH_REQUIRED");
+      actor = { ...actor, name: value.name };
+      return actor;
     },
     getWorkspace(studentUid?: string, signal?: AbortSignal) {
       return authenticated(signal, (current, transport) =>
@@ -387,6 +444,91 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
           `/api/workspace${targetQuery(studentUid)}`,
           { signal },
           (raw) => decode.workspace(raw, studentUid ?? current.uid),
+        ),
+      );
+    },
+    getEvidencePage(query: EvidencePageQuery = {}, signal?: AbortSignal) {
+      return authenticated(signal, (current, transport) =>
+        transport.json(`/api/evidence${pageQuery(query)}`, { signal }, (raw) =>
+          decode.cursorPage(raw, (item) =>
+            decode.evidence(
+              item,
+              query.studentUid ??
+                (current.role === "student" ? current.uid : undefined),
+            ),
+          ),
+        ),
+      );
+    },
+    getOperatorEvidencePage(
+      query: EvidencePageQuery = {},
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/operations/evidence${pageQuery(query)}`,
+          { signal },
+          (raw) => decode.cursorPage(raw, decode.operatorEvidence),
+        ),
+      );
+    },
+    getAppointmentsPage(
+      query: AppointmentPageQuery = {},
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, (current, transport) =>
+        transport.json(
+          `/api/appointments${pageQuery(query)}`,
+          { signal },
+          (raw) =>
+            decode.cursorPage(raw, (item) =>
+              decode.appointment(
+                item,
+                query.studentUid ??
+                  (current.role === "student" ? current.uid : undefined),
+              ),
+            ),
+        ),
+      );
+    },
+    getOperatorAppointmentsPage(
+      query: OperatorAppointmentQuery = {},
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/operations/appointments${pageQuery(query)}`,
+          { signal },
+          (raw) => decode.cursorPage(raw, decode.operatorAppointment),
+        ),
+      );
+    },
+    getAppointment(appointmentId: string, signal?: AbortSignal) {
+      return authenticated(signal, (current, transport) =>
+        transport.json(
+          `/api/appointments/${inputId(appointmentId)}`,
+          { signal },
+          (raw) => {
+            const saved = decode.appointment(
+              raw,
+              current.role === "student" ? current.uid : undefined,
+            );
+            if (saved.id !== appointmentId)
+              throw new TalaApiError("INVALID_RESPONSE");
+            return saved;
+          },
+        ),
+      );
+    },
+    getAvailableTimesPage(
+      query: { cursor?: string } = {},
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/available-times${pageQuery(query)}`,
+          { signal },
+          (raw) => decode.cursorPage(raw, decode.slot),
         ),
       );
     },
@@ -406,6 +548,18 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
     getAvailability(signal?: AbortSignal) {
       return authenticated(signal, (_current, transport) =>
         transport.json("/api/availability", { signal }, decode.availability),
+      );
+    },
+    getAvailabilityPage(
+      query: AvailabilityPageQuery = {},
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/availability${pageQuery(query)}`,
+          { signal },
+          decode.availability,
+        ),
       );
     },
     withdrawAvailability(
@@ -662,6 +816,41 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
           `/api/learning${targetQuery(studentUid)}`,
           { signal },
           decode.learningRecords,
+        ),
+      );
+    },
+    getLearningPage(query: LearningPageQuery = {}, signal?: AbortSignal) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/learning${pageQuery(query)}`,
+          { signal },
+          decode.learningRecords,
+        ),
+      );
+    },
+    getOperatorLearningPage(
+      query: OperatorLearningQuery = {},
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/operations/learning${pageQuery(query)}`,
+          { signal },
+          decode.operatorLearningRecords,
+        ),
+      );
+    },
+    getLearningRecord(recordId: string, signal?: AbortSignal) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/learning/${inputId(recordId)}`,
+          { signal },
+          (raw) => {
+            const saved = decode.learningRecord(raw);
+            if (saved.id !== recordId)
+              throw new TalaApiError("INVALID_RESPONSE");
+            return saved;
+          },
         ),
       );
     },

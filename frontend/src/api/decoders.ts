@@ -3,6 +3,7 @@ import type {
   AccountSessions,
   Appointment,
   Availability,
+  CursorPage,
   Evidence,
   EvidenceContentType,
   FamilyLinks,
@@ -10,6 +11,9 @@ import type {
   LearningRecords,
   ManagedSlot,
   Operations,
+  OperatorAppointment,
+  OperatorEvidence,
+  OperatorLearningRecords,
   PasswordChangeReceipt,
   PendingUploads,
   Progress,
@@ -185,10 +189,41 @@ export function availability(raw: unknown): Availability {
   const value = object(raw);
   if (typeof value.hasMore !== "boolean")
     throw new TalaApiError("INVALID_RESPONSE");
+  const nextCursor = cursor(value.nextCursor);
+  const slots = array(value.slots, 50).map(managedSlot);
+  if (
+    value.hasMore !== Boolean(nextCursor) ||
+    new Set(slots.map((item) => item.id)).size !== slots.length ||
+    (!slots.length && nextCursor)
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
   return {
-    slots: array(value.slots, 100).map(managedSlot),
+    slots,
     hasMore: value.hasMore,
+    nextCursor,
   };
+}
+export function cursor(raw: unknown): string | null {
+  if (raw === null) return null;
+  const value = text(raw, 2048);
+  if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(value))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return value;
+}
+export function cursorPage<T extends { id: string }>(
+  raw: unknown,
+  parser: (item: unknown) => T,
+  limit = 50,
+): CursorPage<T> {
+  const value = object(raw),
+    items = array(value.items, limit).map(parser),
+    nextCursor = cursor(value.nextCursor);
+  if (
+    new Set(items.map((item) => item.id)).size !== items.length ||
+    (!items.length && nextCursor)
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { items, nextCursor };
 }
 export function appointment(raw: unknown, expectedOwner?: string): Appointment {
   const value = object(raw);
@@ -212,6 +247,9 @@ export function appointment(raw: unknown, expectedOwner?: string): Appointment {
     status: value.status as Appointment["status"],
     meetingIntegration: "unavailable",
     updatedAt: instant(value.updatedAt),
+    ...(value.learningRecordId === undefined
+      ? {}
+      : { learningRecordId: id(value.learningRecordId) }),
   };
 }
 export function evidence(raw: unknown, expectedOwner?: string): Evidence {
@@ -395,9 +433,53 @@ export function learningRecords(raw: unknown): LearningRecords {
     integrations = object(value.integrations);
   if (integrations.zoom !== "unavailable" || integrations.ai !== "unavailable")
     throw new TalaApiError("INVALID_RESPONSE");
+  const records = array(value.records, 25).map(learningRecord),
+    nextCursor = cursor(value.nextCursor);
+  if (
+    new Set(records.map((record) => record.id)).size !== records.length ||
+    (!records.length && nextCursor)
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
   return {
-    records: array(value.records, 100).map(learningRecord),
+    records,
     integrations: { zoom: "unavailable", ai: "unavailable" },
+    nextCursor,
+  };
+}
+export function operatorEvidence(raw: unknown): OperatorEvidence {
+  const value = object(raw),
+    saved = evidence(raw),
+    studentUid = id(value.studentUid);
+  if (saved.ownerUid !== studentUid) throw new TalaApiError("INVALID_RESPONSE");
+  return { ...saved, studentUid, studentName: text(value.studentName, 80) };
+}
+export function operatorAppointment(raw: unknown): OperatorAppointment {
+  const value = object(raw),
+    saved = appointment(raw),
+    studentUid = id(value.studentUid);
+  if (saved.ownerUid !== studentUid) throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    ...saved,
+    studentUid,
+    studentName: text(value.studentName, 80),
+    ...(value.learningRecordId === undefined
+      ? {}
+      : { learningRecordId: id(value.learningRecordId) }),
+  };
+}
+export function operatorLearningRecords(raw: unknown): OperatorLearningRecords {
+  const value = object(raw),
+    saved = learningRecords(raw);
+  return {
+    ...saved,
+    records: array(value.records, 25).map((record) => {
+      const row = object(record);
+      return {
+        ...learningRecord(record),
+        studentUid: id(row.studentUid),
+        studentName: text(row.studentName, 80),
+      };
+    }),
   };
 }
 export function familyLinks(raw: unknown, currentUid: string): FamilyLinks {

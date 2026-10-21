@@ -733,3 +733,43 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+.student-workspace .student-page-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-color, #d8dedb);
+}
+
+.student-workspace .student-page-controls > p {
+  flex: 1 1 220px;
+  margin: 0;
+  color: var(--muted-color, #596960);
+  font-size: 0.875rem;
+}
+
+.student-workspace .student-page-controls > button {
+  min-height: 44px;
+}
+
+.student-workspace .student-page-error {
+  flex-basis: 100%;
+  padding: 14px 16px;
+  border: 1px solid #c9958a;
+  border-radius: 12px;
+  background: #fff7f4;
+  color: #743a2a;
+}
+
+.student-workspace .student-page-error > p {
+  margin: 0 0 12px;
+}
+
+@media (max-width: 540px) {
+  .student-workspace .student-page-controls > button {
+    width: 100%;
+  }
+}

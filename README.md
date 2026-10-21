@@ -13,7 +13,9 @@ npm run dev --prefix frontend
 
 Open **http://127.0.0.1:5173/#/register**. The launcher starts the API on `127.0.0.1:8787` and the website on `127.0.0.1:5173`. It reuses an API only after checking its TALA health identity, refuses unknown occupied ports, and stops only child processes it created. Ctrl+C stops both new processes. An already-running API is left running.
 
-The student workspace has separate Overview, Meetings, Learning records, Evidence and Progress views. The address preserves the selected view through refresh and browser navigation. Selected files and unfinished uploads stay in memory while switching views; they are not saved in browser storage.
+The student workspace has separate Overview, Meetings, Learning records, Evidence and Progress views. The address preserves the selected view through refresh and browser navigation. Selected files stay in memory through internal workspace/account navigation; refreshing or closing the tab loses an unsent local file. Server-created unfinished uploads can be recovered separately. Files and credentials are not saved in browser storage.
+
+Documents, booking history, availability and learning records support loading older pages. Document searches and staff review filters run on the server before pagination, so older unfinished work remains discoverable. Learning records use smaller bounded pages. Returning to a tab rechecks the current session and family access before revealing cached records; a failed check keeps them hidden with an explicit retry.
 
 Account security supports changing the current password and viewing or ending your server sessions. Changing a password signs out all other sessions and rotates the current cookie. It requires the current password; email-based password recovery and MFA are still unavailable. Personal calendar exports come from saved reservations; later booking changes do not automatically update an imported calendar file.
 
@@ -58,6 +60,8 @@ npm run check --prefix server
 npm test --prefix server
 npm run test:api-client --prefix frontend
 npm run test:product --prefix frontend
+npm run test:product-pagination --prefix frontend
+npm run test:operator-paging --prefix frontend
 npm run typecheck --prefix frontend
 npm run lint --prefix frontend
 npm run build --prefix frontend

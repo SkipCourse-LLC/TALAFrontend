@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { talaApi } from "../api";
+import { useStudentPage } from "./useStudentPage";
+import { StudentPageControls } from "./StudentPageControls";
 import type { ApiAppointment, ApiWorkspace, Slot as ApiSlot } from "../api";
 import { MeetingActionDialog } from "./MeetingActionDialog";
+import { useWorkspaceVisible } from "./workspaceVisibility";
 import {
   availableMeetingSlots,
   bookingPeriod,
@@ -21,7 +25,11 @@ export function MeetingPanel({
   busy,
   stale,
   mutationError,
-  evidenceDraftBookingId,
+  evidenceDraftBookingIds,
+  pendingUploadsKnown,
+  studentUid,
+  revision,
+  onPageFailure,
   onRefresh,
   onBook,
   onCancel,
@@ -35,12 +43,17 @@ export function MeetingPanel({
   busy: boolean;
   stale: boolean;
   mutationError: string;
-  evidenceDraftBookingId?: string;
+  evidenceDraftBookingIds: ReadonlySet<string>;
+  pendingUploadsKnown: boolean;
+  studentUid?: string;
+  revision: number;
+  onPageFailure: (failure: unknown) => void;
   onRefresh: () => void;
   onBook: (slot: ApiSlot, previous?: ApiAppointment) => Promise<boolean>;
   onCancel: (booking: ApiAppointment) => Promise<boolean>;
   onCalendar: (booking: ApiAppointment) => Promise<boolean>;
 }) {
+  const workspaceVisible = useWorkspaceVisible();
   const [now, setNow] = useState(Date.now);
   const [slotId, setSlotId] = useState("");
   const [filter, setFilter] = useState<HistoryFilter>("past");
@@ -52,12 +65,59 @@ export function MeetingPanel({
   const refreshedBoundary = useRef("");
   const observedAt = useRef(now);
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const available = availableMeetingSlots(workspace?.slots ?? [], now);
+  const loadTimes = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      talaApi.getAvailableTimesPage({ cursor }, signal),
+    [],
+  );
+  const loadHistory = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      talaApi.getAppointmentsPage(
+        {
+          studentUid,
+          status:
+            filter === "past"
+              ? "ended"
+              : filter === "upcoming"
+                ? "reserved"
+                : "cancelled",
+          cursor,
+        },
+        signal,
+      ),
+    [studentUid, filter],
+  );
+  const times = useStudentPage({
+    pageKey: "available-times",
+    revision,
+    enabled: Boolean(workspace),
+    load: loadTimes,
+    onFailure: onPageFailure,
+  });
+  const bookings = useStudentPage({
+    pageKey: `${studentUid ?? "self"}:${filter}`,
+    revision,
+    enabled: Boolean(workspace),
+    load: loadHistory,
+    onFailure: onPageFailure,
+  });
+  const available = availableMeetingSlots(
+    times.loaded ? times.items : (workspace?.slots ?? []),
+    now,
+  );
+  const confirmationWorkspace = workspace
+    ? {
+        ...workspace,
+        slots: available,
+        appointments: [...workspace.activeAppointments, ...bookings.items],
+      }
+    : undefined;
   const selected = available.find((slot) => slot.id === slotId);
   const booking = workspace?.activeAppointments.find(
     (item) => bookingPeriod(item, now) !== "past" && item.status === "reserved",
   );
-  const blocked = readOnly || busy || loading || stale || !workspace;
+  const blocked =
+    readOnly || busy || loading || stale || !workspace || Boolean(times.error);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -113,35 +173,23 @@ export function MeetingPanel({
     onRefresh();
   }, [clockActive, busy, loading, stale, workspace, now, onRefresh]);
   const slotDays = groupMeetingDays(available, timeZone);
-  const history = (workspace?.appointments ?? []).filter((item) => {
-    const period = bookingPeriod(item, now);
-    if (
-      filter === "upcoming"
-        ? !["upcoming", "in_progress"].includes(period)
-        : period !== filter
-    )
-      return false;
-    return (
+  const history = bookings.items.filter(
+    (item) =>
       !query.trim() ||
       `${meetingRange(item.startsAt, item.endsAt, timeZone)} ${item.startsAt} ${bookingStatusLabel(item, now)}`
         .toLocaleLowerCase()
-        .includes(query.trim().toLocaleLowerCase())
-    );
-  });
+        .includes(query.trim().toLocaleLowerCase()),
+  );
   const historyDays = groupMeetingDays(history, timeZone);
   if (filter !== "upcoming") historyDays.reverse();
-  const counts = { upcoming: 0, past: 0, cancelled: 0 };
-  for (const item of workspace?.appointments ?? []) {
-    const period = bookingPeriod(item, now);
-    counts[period === "in_progress" ? "upcoming" : period]++;
-  }
   async function confirm() {
     if (
       !change ||
       blocked ||
-      evidenceDraftBookingId === change.booking.id ||
+      (!pendingUploadsKnown && !readOnly) ||
+      evidenceDraftBookingIds.has(change.booking.id) ||
       confirmRunning.current ||
-      !meetingChangeIsCurrent(change, workspace, Date.now())
+      !meetingChangeIsCurrent(change, confirmationWorkspace, now)
     )
       return;
     confirmRunning.current = true;
@@ -219,7 +267,7 @@ export function MeetingPanel({
                     <button
                       type="button"
                       className="button button-secondary"
-                      disabled={blocked}
+                      disabled={blocked || !pendingUploadsKnown}
                       onClick={() => {
                         setChange({ kind: "cancel", booking });
                         setAttempted(false);
@@ -264,7 +312,12 @@ export function MeetingPanel({
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
-                    if (blocked || !selected) return;
+                    if (
+                      blocked ||
+                      !selected ||
+                      (booking && !pendingUploadsKnown)
+                    )
+                      return;
                     if (booking) {
                       setChange({
                         kind: "reschedule",
@@ -317,7 +370,14 @@ export function MeetingPanel({
                       refresh the list.
                     </p>
                   )}
-                  <button className="button" disabled={blocked || !selected}>
+                  <button
+                    className="button"
+                    disabled={
+                      blocked ||
+                      !selected ||
+                      Boolean(booking && !pendingUploadsKnown)
+                    }
+                  >
                     {busy
                       ? "Saving…"
                       : booking
@@ -333,6 +393,24 @@ export function MeetingPanel({
                     this page.
                   </p>
                 </div>
+              )}
+              <StudentPageControls
+                label="available times"
+                count={times.items.length}
+                loaded={times.loaded}
+                loading={times.loading}
+                moreLoading={times.moreLoading}
+                nextCursor={times.nextCursor}
+                error={times.error}
+                disabled={busy}
+                onMore={() => void times.loadMore()}
+                onRetry={times.retry}
+              />
+              {booking && !pendingUploadsKnown && !readOnly && (
+                <p className="meeting-help">
+                  Check unfinished Evidence uploads before changing this
+                  booking. Open Evidence to refresh their saved status.
+                </p>
               )}
             </section>
           </div>
@@ -357,9 +435,14 @@ export function MeetingPanel({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Date or status"
+                  aria-describedby="booking-history-search-help"
                 />
               </div>
             </div>
+            <p id="booking-history-search-help" className="meeting-help">
+              Searches the loaded bookings in this view. Load more bookings to
+              include earlier dates.
+            </p>
             <div
               className="meeting-history-filters"
               role="group"
@@ -379,7 +462,7 @@ export function MeetingPanel({
                   aria-pressed={filter === value}
                   onClick={() => setFilter(value)}
                 >
-                  {label} <span aria-hidden="true">{counts[value]}</span>
+                  {label}
                 </button>
               ))}
             </div>
@@ -387,7 +470,9 @@ export function MeetingPanel({
               {history.length} {filter}{" "}
               {history.length === 1 ? "booking" : "bookings"} found.
             </p>
-            {historyDays.length ? (
+            {bookings.loading && !bookings.loaded ? (
+              <p role="status">Loading booking history…</p>
+            ) : historyDays.length ? (
               historyDays.map((day) => (
                 <section
                   className="meeting-history-day"
@@ -462,22 +547,33 @@ export function MeetingPanel({
                 )}
               </div>
             )}
-            {workspace.appointments.length >= 100 && (
-              <p className="meeting-help">
-                Showing the latest 100 saved bookings. Earlier bookings are not
-                included in this view.
-              </p>
-            )}
+            <StudentPageControls
+              label="bookings"
+              count={bookings.items.length}
+              loaded={bookings.loaded}
+              loading={bookings.loading}
+              moreLoading={bookings.moreLoading}
+              nextCursor={bookings.nextCursor}
+              error={bookings.error}
+              disabled={busy}
+              onMore={() => void bookings.loadMore()}
+              onRetry={bookings.retry}
+            />
           </section>
         </>
       )}
-      {change && visible && (
+      {change && visible && workspaceVisible && (
         <MeetingActionDialog
           change={change}
           timeZone={timeZone}
           busy={busy || loading}
-          current={!stale && meetingChangeIsCurrent(change, workspace, now)}
-          draftBlocked={evidenceDraftBookingId === change.booking.id}
+          current={
+            !stale && meetingChangeIsCurrent(change, confirmationWorkspace, now)
+          }
+          draftBlocked={
+            !pendingUploadsKnown ||
+            evidenceDraftBookingIds.has(change.booking.id)
+          }
           error={
             attempted
               ? mutationError ||

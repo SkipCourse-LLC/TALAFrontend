@@ -27,4 +27,9 @@ export type {
   PasswordChangeResult as ApiPasswordChangeResult,
   PendingUpload as ApiPendingUpload,
   PendingUploads as ApiPendingUploads,
+  CursorPage as ApiCursorPage,
+  OperatorEvidence as ApiOperatorEvidence,
+  OperatorAppointment as ApiOperatorAppointment,
+  OperatorLearningRecord as ApiOperatorLearningRecord,
+  OperatorLearningRecords as ApiOperatorLearningRecords,
 } from "./types";

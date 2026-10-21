@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Outlet } from "react-router-dom";
+import type { ReactNode } from "react";
 import { SiteLayout } from "../shared/SiteLayout";
 import { RouteFocus } from "../shared/RouteFocus";
 import { HomePage } from "../public-site/HomePage";
@@ -13,6 +15,8 @@ import { ServerAccessPage } from "./ServerAccessPage";
 import { ServerWorkspace } from "./ServerWorkspace";
 import { OperatorWorkspace } from "./OperatorWorkspace";
 import { AccountSecurityPage } from "./AccountSecurityPage";
+import { useSessionPrivacy } from "./useSessionPrivacy";
+import { WorkspaceVisibility } from "./workspaceVisibility";
 import "./product.css";
 
 function IndependentRouteFocus() {
@@ -33,7 +37,32 @@ function IndependentRouteFocus() {
   );
 }
 
+/** Keep in-memory forms/files through internal links, scoped to this identity. */
+function WorkspaceKeeper({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const visible = pathname === "/dashboard";
+  return (
+    <>
+      <div
+        hidden={!visible}
+        inert={!visible}
+        style={{ display: visible ? undefined : "none" }}
+      >
+        {children}
+      </div>
+      <Outlet />
+    </>
+  );
+}
+
 export function ServerApplication() {
+  const location = useLocation();
+  const [workspaceReturn, setWorkspaceReturn] = useState("/dashboard");
+  if (
+    location.pathname === "/dashboard" &&
+    workspaceReturn !== `/dashboard${location.search}`
+  )
+    setWorkspaceReturn(`/dashboard${location.search}`);
   const [user, setUser] = useState<ApiUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,6 +70,17 @@ export function ServerApplication() {
   const active = useRef(false);
   const intent = useRef(0);
   const loggingOut = useRef(false);
+  const restored = useCallback((next: ApiUser | null) => {
+    intent.current++;
+    setUser(next);
+  }, []);
+  const privacy = useSessionPrivacy({
+    user,
+    ready: !loading && !error,
+    intent,
+    onRestored: restored,
+  });
+  const { changedHere } = privacy;
   useEffect(() => {
     active.current = true;
     return () => {
@@ -72,10 +112,22 @@ export function ServerApplication() {
       });
     return () => controller.abort();
   }, [attempt]);
-  const authenticated = useCallback((next: ApiUser) => {
-    intent.current++;
-    setUser(next);
-    setError("");
+  const authenticated = useCallback(
+    (next: ApiUser) => {
+      intent.current++;
+      setUser(next);
+      setError("");
+      changedHere();
+    },
+    [changedHere],
+  );
+  const profileSaved = useCallback((next: ApiUser) => {
+    // A profile response is not a new authentication event. A delayed response
+    // may update this identity's name, but never restore a hidden session or
+    // replace trusted role/email fields with a previous request's snapshot.
+    setUser((current) =>
+      current?.uid === next.uid ? { ...current, name: next.name } : current,
+    );
   }, []);
   async function logout() {
     if (loggingOut.current) return;
@@ -86,6 +138,7 @@ export function ServerApplication() {
       if (active.current) {
         setUser(null);
         setError("");
+        changedHere();
       }
     } finally {
       loggingOut.current = false;
@@ -95,7 +148,8 @@ export function ServerApplication() {
     intent.current++;
     setUser(null);
     setAttempt((value) => value + 1);
-  }, []);
+    changedHere();
+  }, [changedHere]);
   if (loading)
     return (
       <div className="container state-panel" role="status">
@@ -127,100 +181,163 @@ export function ServerApplication() {
   const workspace = user ? (
     user.role === "operator" ? (
       <OperatorWorkspace
-        key={user.uid}
+        key={`${user.uid}:${user.role}:${privacy.accessEpoch}`}
         user={user}
         onLogout={logout}
         onExpired={expired}
       />
     ) : (
       <ServerWorkspace
-        key={user.uid}
+        key={`${user.uid}:${user.role}:${privacy.accessEpoch}`}
         user={user}
         onLogout={logout}
         onExpired={expired}
-        onProfileSaved={authenticated}
+        onProfileSaved={profileSaved}
       />
     )
-  ) : (
-    <Navigate to="/login" replace />
-  );
+  ) : null;
   return (
     <>
-      <Routes>
-        <Route element={<SiteLayout session={user} backend="api" />}>
-          <Route
-            index
-            element={user ? <Navigate to="/dashboard" replace /> : <HomePage />}
-          />
-          <Route
-            path="login"
-            element={
-              user ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <ServerAccessPage key="login" onAuthenticated={authenticated} />
-              )
-            }
-          />
-          <Route
-            path="register"
-            element={
-              user ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <ServerAccessPage
-                  key="register"
-                  register
-                  onAuthenticated={authenticated}
-                />
-              )
-            }
-          />
-          <Route path="dashboard" element={workspace} />
-          <Route path="about" element={<AboutPage />} />
-          <Route path="learn-more" element={<AboutPage />} />
-          <Route path="programs" element={<ProgramsPage />} />
-          <Route path="contact" element={<CommunityPage kind="contact" />} />
-          <Route path="events" element={<CommunityPage kind="events" />} />
-          <Route
-            path="two-factor"
-            element={
-              user ? (
-                <AccountSecurityPage
-                  key={user.uid}
-                  user={user}
-                  onSessionChanged={authenticated}
-                  onExpired={expired}
-                  onLogout={logout}
-                />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-          <Route
-            path="payment"
-            element={
-              <section className="container state-panel">
-                <h1>Payment service not connected</h1>
-                <p>
-                  No payment provider or approved fee schedule is configured. No
-                  card details are collected and no payment can be made.
-                </p>
-                <Link className="button" to={user ? "/dashboard" : "/login"}>
-                  Back to your workspace
-                </Link>
-              </section>
-            }
-          />
-          <Route
-            path="enrollment-status"
-            element={<Navigate to="/payment" replace />}
-          />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
-      <IndependentRouteFocus />
+      {privacy.blocked && (
+        <section
+          className="container state-panel"
+          aria-busy={privacy.checking}
+          role={privacy.error ? "alert" : "status"}
+        >
+          <h1>
+            {!privacy.checking
+              ? "Confirm your session to continue"
+              : "Checking your secure session…"}
+          </h1>
+          {!privacy.checking && (
+            <>
+              {privacy.error && <p>{privacy.error}</p>}
+              <p>
+                Your records stay hidden until your current account is
+                confirmed. Unsent workspace drafts stay in this tab.
+              </p>
+              <button
+                className="button"
+                disabled={privacy.checking}
+                onClick={privacy.retry}
+              >
+                Retry session check
+              </button>
+            </>
+          )}
+        </section>
+      )}
+      <div
+        hidden={privacy.blocked}
+        inert={privacy.blocked}
+        style={{ display: privacy.blocked ? "none" : undefined }}
+      >
+        <Routes>
+          <Route element={<SiteLayout session={user} backend="api" />}>
+            <Route
+              element={
+                <WorkspaceKeeper>
+                  <WorkspaceVisibility
+                    value={
+                      !privacy.blocked && location.pathname === "/dashboard"
+                    }
+                  >
+                    {workspace}
+                  </WorkspaceVisibility>
+                </WorkspaceKeeper>
+              }
+            >
+              <Route
+                index
+                element={
+                  user ? <Navigate to="/dashboard" replace /> : <HomePage />
+                }
+              />
+              <Route
+                path="login"
+                element={
+                  user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <ServerAccessPage
+                      key="login"
+                      onAuthenticated={authenticated}
+                    />
+                  )
+                }
+              />
+              <Route
+                path="register"
+                element={
+                  user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <ServerAccessPage
+                      key="register"
+                      register
+                      onAuthenticated={authenticated}
+                    />
+                  )
+                }
+              />
+              <Route
+                path="dashboard"
+                element={user ? null : <Navigate to="/login" replace />}
+              />
+              <Route path="about" element={<AboutPage />} />
+              <Route path="learn-more" element={<AboutPage />} />
+              <Route path="programs" element={<ProgramsPage />} />
+              <Route
+                path="contact"
+                element={<CommunityPage kind="contact" />}
+              />
+              <Route path="events" element={<CommunityPage kind="events" />} />
+              <Route
+                path="two-factor"
+                element={
+                  user ? (
+                    <AccountSecurityPage
+                      key={user.uid}
+                      user={user}
+                      onSessionChanged={authenticated}
+                      onExpired={expired}
+                      onLogout={logout}
+                      returnTo={workspaceReturn}
+                    />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
+                }
+              />
+              <Route
+                path="payment"
+                element={
+                  <section className="container state-panel">
+                    <h1>Payment service not connected</h1>
+                    <p>
+                      No payment provider or approved fee schedule is
+                      configured. No card details are collected and no payment
+                      can be made.
+                    </p>
+                    <Link
+                      className="button"
+                      to={user ? "/dashboard" : "/login"}
+                    >
+                      Back to your workspace
+                    </Link>
+                  </section>
+                }
+              />
+              <Route
+                path="enrollment-status"
+                element={<Navigate to="/payment" replace />}
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Route>
+        </Routes>
+        <IndependentRouteFocus />
+      </div>
     </>
   );
 }

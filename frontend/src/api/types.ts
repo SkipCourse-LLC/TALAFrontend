@@ -49,6 +49,40 @@ export interface ManagedSlot extends Slot {
 export interface Availability {
   slots: ManagedSlot[];
   hasMore: boolean;
+  nextCursor: string | null;
+}
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+export interface EvidencePageQuery {
+  studentUid?: string;
+  reviewStatus?: "all" | "not_reviewed" | "reviewed" | "needs_revision";
+  currentOnly?: boolean;
+  rootEvidenceId?: string;
+  q?: string;
+  cursor?: string;
+}
+export interface AppointmentPageQuery {
+  studentUid?: string;
+  status?: "all" | "reserved" | "cancelled" | "ended";
+  cursor?: string;
+}
+export interface OperatorAppointmentQuery extends AppointmentPageQuery {
+  publication?: "all" | "published" | "unpublished";
+  q?: string;
+}
+export interface LearningPageQuery {
+  studentUid?: string;
+  limit?: number;
+  cursor?: string;
+}
+export interface OperatorLearningQuery extends LearningPageQuery {
+  q?: string;
+}
+export interface AvailabilityPageQuery {
+  status?: "all" | "available" | "reserved" | "withdrawn";
+  cursor?: string;
 }
 export interface Appointment {
   id: string;
@@ -59,6 +93,7 @@ export interface Appointment {
   status: "reserved" | "cancelled" | "ended";
   meetingIntegration: "unavailable";
   updatedAt: string;
+  learningRecordId?: string;
 }
 export type EvidenceContentType = "text/plain" | "application/pdf";
 export interface Evidence {
@@ -141,6 +176,25 @@ export interface LearningRecord {
 export interface LearningRecords {
   records: LearningRecord[];
   integrations: { zoom: "unavailable"; ai: "unavailable" };
+  nextCursor: string | null;
+}
+export type OperatorEvidence = Evidence & {
+  studentUid: string;
+  studentName: string;
+};
+export type OperatorAppointment = Appointment & {
+  studentUid: string;
+  studentName: string;
+  learningRecordId?: string;
+};
+export type OperatorLearningRecord = LearningRecord & {
+  studentUid: string;
+  studentName: string;
+};
+export interface OperatorLearningRecords {
+  records: OperatorLearningRecord[];
+  integrations: { zoom: "unavailable"; ai: "unavailable" };
+  nextCursor: string | null;
 }
 export interface FamilyLinks {
   relationships: Array<{

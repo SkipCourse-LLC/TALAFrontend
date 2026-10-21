@@ -111,6 +111,38 @@ test("a password change replaces the nonce before subsequent session mutations",
   });
 });
 
+test("a delayed password response cannot restore a role replaced by a newer session read", async () => {
+  const previous: User = { ...owner, role: "operator" };
+  let current = previous;
+  let passwordPosts = 0;
+  let release: ((value: Response) => void) | undefined;
+  const api = createTalaApi({
+    fetcher: async (path) => {
+      if (path === "/api/session")
+        return Response.json(envelope(initialNonce, current));
+      expect(path).toBe("/api/account/password");
+      passwordPosts++;
+      return new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+    },
+  });
+  await api.getSession();
+  const pending = api.changePassword(changeInput);
+  current = owner;
+  expect((await api.getSession())?.role).toBe("student");
+  release?.(
+    Response.json({
+      ...envelope(rotatedNonce, previous),
+      passwordChanged: true,
+      changedAt: createdAt,
+      revokedSessionCount: 1,
+    }),
+  );
+  await expect(pending).rejects.toMatchObject({ code: "AUTH_REQUIRED" });
+  expect(passwordPosts).toBe(1);
+});
+
 test("a lost password response is checked with a receipt without resending a password", async () => {
   let bootstrapCount = 0,
     passwordPosts = 0;

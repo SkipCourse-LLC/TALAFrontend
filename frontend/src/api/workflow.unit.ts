@@ -78,7 +78,11 @@ test("availability management preserves exact times and refuses substituted with
     fetcher: async (path, init) => {
       if (path === "/api/session") return sessionResponse();
       if (path === "/api/availability" && init?.method === "GET")
-        return Response.json({ slots: [meeting], hasMore: false });
+        return Response.json({
+          slots: [meeting],
+          hasMore: false,
+          nextCursor: null,
+        });
       expect(path).toBe("/api/availability/slot-id/withdraw");
       expect(init?.method).toBe("POST");
       return Response.json({

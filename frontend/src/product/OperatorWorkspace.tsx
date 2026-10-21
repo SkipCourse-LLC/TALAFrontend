@@ -1,7 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { talaApi, TalaApiError, safeTalaApiError, newRequestId } from "../api";
-import type { ApiOperations, ApiUser } from "../api";
+import type {
+  ApiCursorPage,
+  ApiOperatorAppointment,
+  ApiOperatorEvidence,
+  ApiOperatorLearningRecord,
+  ApiManagedSlot,
+  ApiUser,
+} from "../api";
 import { meetingTime } from "./format";
 import "./operator.css";
 
@@ -29,6 +36,232 @@ const dateLabel = (value: string) =>
     year: "numeric",
   }).format(new Date(value));
 
+function useOperatorPage<T extends { id: string }>(
+  key: string,
+  enabled: boolean,
+  attempt: number,
+  load: (
+    cursor: string | undefined,
+    signal: AbortSignal,
+  ) => Promise<ApiCursorPage<T>>,
+  onExpired: () => void,
+) {
+  const [saved, setSaved] = useState<{
+    key: string;
+    attempt: number;
+    items: T[];
+    nextCursor: string | null;
+    ready: boolean;
+    error: string;
+    moreError: string;
+    moreBusy: boolean;
+  }>({
+    key: "",
+    attempt: -1,
+    items: [],
+    nextCursor: null,
+    ready: false,
+    error: "",
+    moreError: "",
+    moreBusy: false,
+  });
+  const version = useRef(0),
+    completed = useRef("");
+  const more = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const request = new AbortController(),
+      current = ++version.current;
+    const cleanup = () => {
+      request.abort();
+      more.current?.abort();
+    };
+    // Cached first pages still own any later Load more request. Keep cleanup
+    // registered on a panel return, even when no first-page fetch is needed.
+    if (!enabled || completed.current === `${key}:${attempt}`) return cleanup;
+    void load(undefined, request.signal)
+      .then((page) => {
+        if (request.signal.aborted || current !== version.current) return;
+        completed.current = `${key}:${attempt}`;
+        setSaved({
+          key,
+          attempt,
+          items: page.items,
+          nextCursor: page.nextCursor,
+          ready: true,
+          error: "",
+          moreError: "",
+          moreBusy: false,
+        });
+      })
+      .catch((failure) => {
+        if (request.signal.aborted || current !== version.current) return;
+        completed.current = `${key}:${attempt}`;
+        const error = safeTalaApiError(failure);
+        if (error.code === "AUTH_REQUIRED" || error.code === "FORBIDDEN") {
+          onExpired();
+          return;
+        }
+        setSaved((previous) => ({
+          key,
+          attempt,
+          items: previous.key === key ? previous.items : [],
+          nextCursor: previous.key === key ? previous.nextCursor : null,
+          ready: previous.key === key && previous.ready,
+          error: error.message,
+          moreError: "",
+          moreBusy: false,
+        }));
+      });
+    return cleanup;
+  }, [key, enabled, attempt, load, onExpired]);
+  const current = saved.key === key;
+  const loading = enabled && (!current || saved.attempt !== attempt);
+  async function loadMore() {
+    if (more.current || loading || !current || !saved.nextCursor || saved.error)
+      return;
+    const request = new AbortController(),
+      cursor = saved.nextCursor,
+      activeVersion = version.current;
+    more.current = request;
+    setSaved((previous) => ({ ...previous, moreBusy: true, moreError: "" }));
+    try {
+      const page = await load(cursor, request.signal);
+      if (request.signal.aborted || activeVersion !== version.current) return;
+      if (page.nextCursor === cursor)
+        throw new TalaApiError("INVALID_RESPONSE");
+      setSaved((previous) => ({
+        ...previous,
+        items: [
+          ...new Map(
+            [...previous.items, ...page.items].map((item) => [item.id, item]),
+          ).values(),
+        ],
+        nextCursor: page.nextCursor,
+        moreBusy: false,
+        moreError: "",
+      }));
+      return { hasMore: page.nextCursor !== null };
+    } catch (failure) {
+      if (request.signal.aborted || activeVersion !== version.current) return;
+      const error = safeTalaApiError(failure);
+      if (error.code === "AUTH_REQUIRED" || error.code === "FORBIDDEN") {
+        onExpired();
+        return;
+      }
+      setSaved((previous) => ({
+        ...previous,
+        moreBusy: false,
+        moreError: error.message,
+      }));
+    } finally {
+      if (more.current === request) {
+        more.current = null;
+        if (request.signal.aborted)
+          setSaved((previous) => ({ ...previous, moreBusy: false }));
+      }
+    }
+  }
+  return {
+    pageKey: `${key}:${attempt}`,
+    items: current ? saved.items : [],
+    ready: current && saved.ready,
+    loading,
+    error: current ? saved.error : "",
+    nextCursor: current ? saved.nextCursor : null,
+    moreBusy: current && saved.moreBusy,
+    moreError: current ? saved.moreError : "",
+    loadMore,
+    updateItems: (change: (items: T[]) => T[]) =>
+      setSaved((previous) => ({ ...previous, items: change(previous.items) })),
+  };
+}
+function PageMore({
+  page,
+  label,
+  blocked,
+}: {
+  page: {
+    pageKey: string;
+    nextCursor: string | null;
+    moreBusy: boolean;
+    moreError: string;
+    loadMore: () => Promise<{ hasMore: boolean } | undefined>;
+  };
+  label: string;
+  blocked: boolean;
+}) {
+  const [notice, setNotice] = useState({ key: "", text: "" });
+  const button = useRef<HTMLButtonElement>(null);
+  const status = useRef<HTMLParagraphElement>(null);
+  const context = useRef({ key: page.pageKey, active: false });
+  useEffect(() => {
+    context.current = { key: page.pageKey, active: true };
+    return () => {
+      context.current.active = false;
+    };
+  }, [page.pageKey]);
+  async function requestMore() {
+    const key = page.pageKey;
+    const focusedButton = button.current;
+    const hadFocus = document.activeElement === focusedButton;
+    setNotice({ key, text: "Loading more records…" });
+    const result = await page.loadMore();
+    if (!context.current.active || context.current.key !== key) return;
+    if (!result) {
+      setNotice({ key, text: "" });
+      return;
+    }
+    setNotice({
+      key,
+      text: `More records loaded. ${result.hasMore ? "More records are available." : "You have reached the last page for these filters."}`,
+    });
+    if (!result.hasMore && hadFocus)
+      requestAnimationFrame(() => {
+        if (
+          context.current.active &&
+          context.current.key === key &&
+          status.current?.getClientRects().length &&
+          !status.current.closest("[inert]") &&
+          (document.activeElement === document.body ||
+            document.activeElement === focusedButton)
+        )
+          status.current.focus({ preventScroll: true });
+      });
+  }
+  return (
+    <div className="operator-page-more">
+      <p
+        ref={status}
+        role="status"
+        tabIndex={-1}
+        className="operator-page-status"
+      >
+        {notice.key === page.pageKey ? notice.text : ""}
+      </p>
+      {page.moreError && (
+        <p className="operator-page-error" role="alert">
+          {page.moreError} Your loaded records are kept; retry this page.
+        </p>
+      )}
+      {page.nextCursor && (
+        <button
+          ref={button}
+          type="button"
+          className="operator-text-button"
+          disabled={blocked || page.moreBusy}
+          onClick={() => void requestMore()}
+        >
+          {page.moreBusy
+            ? "Loading more…"
+            : page.moreError
+              ? `Retry ${label.toLowerCase()}`
+              : label}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function OperatorWorkspace({
   user,
   onLogout,
@@ -43,11 +276,7 @@ export function OperatorWorkspace({
   const panel: Panel = panels.some((item) => item.id === requestedPanel)
     ? (requestedPanel as Panel)
     : "review";
-  const [operations, setOperations] = useState<ApiOperations>();
   const [attempt, setAttempt] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [observedAt, setObservedAt] = useState(0);
-  const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -59,8 +288,18 @@ export function OperatorWorkspace({
     {},
   );
   const [evidenceId, setEvidenceId] = useState("");
+  const [pinnedEvidence, setPinnedEvidence] = useState<ApiOperatorEvidence>();
+  const [recordDetails, setRecordDetails] = useState<
+    Record<string, ApiOperatorLearningRecord>
+  >({});
   const [filter, setFilter] = useState<ReviewFilter>("not_reviewed");
   const [search, setSearch] = useState("");
+  const [publication, setPublication] = useState<
+    "unpublished" | "all" | "published"
+  >("unpublished");
+  const [availabilityStatus, setAvailabilityStatus] = useState<
+    "all" | "available" | "reserved" | "withdrawn"
+  >("all");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewDraft>>(
     {},
   );
@@ -81,32 +320,142 @@ export function OperatorWorkspace({
       downloadUrls.clear();
     };
   }, []);
-  useEffect(() => {
-    const controller = new AbortController();
-    void talaApi
-      .getOperations(controller.signal)
-      .then((result) => {
-        if (!controller.signal.aborted) {
-          setOperations(result);
-          setObservedAt(Date.now());
-          setLoadError("");
-        }
-      })
-      .catch((failure) => {
-        if (controller.signal.aborted) return;
-        if (
-          failure instanceof TalaApiError &&
-          (failure.code === "AUTH_REQUIRED" || failure.code === "FORBIDDEN")
-        ) {
-          setOperations(undefined);
-          onExpired();
-        } else setLoadError(safeTalaApiError(failure).message);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [attempt, onExpired]);
+  const term = search.trim();
+  const loadEvidence = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      talaApi.getOperatorEvidencePage(
+        {
+          reviewStatus: filter,
+          currentOnly: filter !== "all",
+          q: term,
+          cursor,
+        },
+        signal,
+      ),
+    [filter, term],
+  );
+  const loadAvailability = useCallback(
+    async (cursor: string | undefined, signal: AbortSignal) => {
+      const page = await talaApi.getAvailabilityPage(
+        { cursor, status: availabilityStatus },
+        signal,
+      );
+      return { items: page.slots, nextCursor: page.nextCursor };
+    },
+    [availabilityStatus],
+  );
+  const loadBookings = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      talaApi.getOperatorAppointmentsPage(
+        { status: "all", publication: "all", cursor },
+        signal,
+      ),
+    [],
+  );
+  const loadEnded = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      talaApi.getOperatorAppointmentsPage(
+        { status: "ended", publication, cursor },
+        signal,
+      ),
+    [publication],
+  );
+  const loadRecords = useCallback(
+    async (cursor: string | undefined, signal: AbortSignal) => {
+      const page = await talaApi.getOperatorLearningPage(
+        { cursor, limit: 20 },
+        signal,
+      );
+      return { items: page.records, nextCursor: page.nextCursor };
+    },
+    [],
+  );
+  const loadPinned = useCallback(
+    async (_cursor: string | undefined, signal: AbortSignal) => {
+      if (!pinnedEvidence) return { items: [], nextCursor: null };
+      const saved = await talaApi.getEvidence(pinnedEvidence.id, signal);
+      if (
+        saved.ownerUid !== pinnedEvidence.ownerUid ||
+        saved.rootEvidenceId !== pinnedEvidence.rootEvidenceId
+      )
+        throw new TalaApiError("INVALID_RESPONSE");
+      return {
+        items: [
+          {
+            ...saved,
+            studentUid: pinnedEvidence.studentUid,
+            studentName: pinnedEvidence.studentName,
+          },
+        ],
+        nextCursor: null,
+      };
+    },
+    [pinnedEvidence],
+  );
+  const pinnedPage = useOperatorPage<ApiOperatorEvidence>(
+    `pinned:${pinnedEvidence?.id ?? ""}`,
+    panel === "review" && Boolean(pinnedEvidence),
+    attempt,
+    loadPinned,
+    onExpired,
+  );
+  const evidencePage = useOperatorPage<ApiOperatorEvidence>(
+    `evidence:${filter}:${term}`,
+    panel === "review",
+    attempt,
+    loadEvidence,
+    onExpired,
+  );
+  const availabilityPage = useOperatorPage<ApiManagedSlot>(
+    `availability:${availabilityStatus}`,
+    panel === "meetings",
+    attempt,
+    loadAvailability,
+    onExpired,
+  );
+  const bookingsPage = useOperatorPage<ApiOperatorAppointment>(
+    "bookings",
+    panel === "meetings",
+    attempt,
+    loadBookings,
+    onExpired,
+  );
+  const endedPage = useOperatorPage<ApiOperatorAppointment>(
+    `ended:${publication}`,
+    panel === "learning",
+    attempt,
+    loadEnded,
+    onExpired,
+  );
+  const recordsPage = useOperatorPage<ApiOperatorLearningRecord>(
+    "learning",
+    panel === "learning",
+    attempt,
+    loadRecords,
+    onExpired,
+  );
+  const relevantPages =
+    panel === "review"
+      ? pinnedEvidence
+        ? [evidencePage, pinnedPage]
+        : [evidencePage]
+      : panel === "meetings"
+        ? [availabilityPage, bookingsPage]
+        : [endedPage, recordsPage];
+  const loading = relevantPages.some((page) => page.loading);
+  const loadError = relevantPages
+    .map((page) => page.error)
+    .filter(Boolean)
+    .join(" ");
+  const operations = relevantPages.every((page) => page.ready)
+    ? {
+        evidence: evidencePage.items,
+        appointments: bookingsPage.items,
+        availability: availabilityPage.items,
+        availabilityHasMore: Boolean(availabilityPage.nextCursor),
+        learningRecords: recordsPage.items,
+      }
+    : undefined;
   useEffect(() => {
     if (error) errorBox.current?.focus();
   }, [error]);
@@ -123,7 +472,7 @@ export function OperatorWorkspace({
       );
   }
   function refresh() {
-    setLoading(true);
+    setRecordDetails({});
     setAttempt((value) => value + 1);
   }
   async function run(
@@ -157,7 +506,6 @@ export function OperatorWorkspace({
         failure instanceof TalaApiError &&
         (failure.code === "AUTH_REQUIRED" || failure.code === "FORBIDDEN")
       ) {
-        setOperations(undefined);
         onExpired();
       } else setError(safeTalaApiError(failure).message);
     } finally {
@@ -183,20 +531,16 @@ export function OperatorWorkspace({
     }, 30_000);
   }
   const blocked = Boolean(busy) || loading || Boolean(loadError) || !operations;
-  const evidence = operations?.evidence ?? [];
+  const evidence = evidencePage.items;
   const unreviewed = evidence.filter(
     (item) =>
       item.reviewStatus === "not_reviewed" && !item.supersededByEvidenceId,
   );
-  const visibleEvidence = evidence.filter(
-    (item) =>
-      (filter === "all" ||
-        (!item.supersededByEvidenceId && item.reviewStatus === filter)) &&
-      `${item.title} ${item.studentName}`
-        .toLocaleLowerCase()
-        .includes(search.trim().toLocaleLowerCase()),
-  );
+  const visibleEvidence = evidence;
   const selectedEvidence =
+    (pinnedEvidence?.id === evidenceId
+      ? (pinnedPage.items[0] ?? pinnedEvidence)
+      : undefined) ??
     visibleEvidence.find((item) => item.id === evidenceId) ??
     visibleEvidence[0];
   const draft: ReviewDraft = selectedEvidence
@@ -213,28 +557,23 @@ export function OperatorWorkspace({
     selectedEvidence &&
     draft.expectedReviewVersion !== selectedEvidence.reviewVersion,
   );
-  const ended =
-    operations?.appointments.filter(
-      (appointment) =>
-        appointment.status !== "cancelled" &&
-        Date.parse(appointment.endsAt) <= observedAt,
-    ) ?? [];
-  const records = operations?.learningRecords ?? [];
+  const ended = endedPage.items;
+  const records = recordsPage.items;
   const selectedLearningId =
     ended.some((item) => item.id === appointmentId) ||
     records.some((item) => item.appointmentId === appointmentId)
       ? appointmentId
-      : (ended.find(
-          (item) => !records.some((record) => record.appointmentId === item.id),
-        )?.id ??
+      : (ended.find((item) => !item.learningRecordId)?.id ??
         ended[0]?.id ??
         records[0]?.appointmentId);
   const selectedAppointment = ended.find(
     (appointment) => appointment.id === selectedLearningId,
   );
-  const selectedRecord = records.find(
-    (record) => record.appointmentId === selectedLearningId,
-  );
+  const selectedRecord =
+    records.find((record) => record.appointmentId === selectedLearningId) ??
+    (selectedAppointment?.learningRecordId
+      ? recordDetails[selectedAppointment.learningRecordId]
+      : undefined);
   const olderRecords = records.filter(
     (record) =>
       !ended.some((appointment) => appointment.id === record.appointmentId),
@@ -306,7 +645,7 @@ export function OperatorWorkspace({
               {item.id === "review" && unreviewed.length > 0 && (
                 <span
                   className="operator-tab-count"
-                  aria-label={`${unreviewed.length} awaiting review`}
+                  aria-label={`${unreviewed.length} loaded awaiting review`}
                 >
                   {unreviewed.length}
                 </span>
@@ -374,7 +713,7 @@ export function OperatorWorkspace({
           </div>
           <span className="operator-caption">
             {operations
-              ? `${unreviewed.length} awaiting review`
+              ? `${visibleEvidence.length} loaded${evidencePage.nextCursor ? ", more available" : ""}`
               : "Loading queue…"}
           </span>
         </div>
@@ -384,9 +723,13 @@ export function OperatorWorkspace({
               <span>Find student work</span>
               <input
                 type="search"
+                maxLength={80}
                 placeholder="Student or document"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPinnedEvidence(undefined);
+                }}
               />
             </label>
             <div className="form-field">
@@ -394,9 +737,10 @@ export function OperatorWorkspace({
               <select
                 id="operator-review-filter"
                 value={filter}
-                onChange={(event) =>
-                  setFilter(event.target.value as ReviewFilter)
-                }
+                onChange={(event) => {
+                  setFilter(event.target.value as ReviewFilter);
+                  setPinnedEvidence(undefined);
+                }}
               >
                 <option value="not_reviewed">Awaiting review</option>
                 <option value="needs_revision">Needs revision</option>
@@ -471,6 +815,11 @@ export function OperatorWorkspace({
                 )}
               </div>
             )}
+            <PageMore
+              page={evidencePage}
+              label="Load more evidence"
+              blocked={Boolean(busy) || loading}
+            />
           </aside>
           <div className="operator-editor">
             {selectedEvidence ? (
@@ -562,25 +911,11 @@ export function OperatorWorkspace({
                               )
                                 throw new TalaApiError("INVALID_RESPONSE");
                               if (!active.current || signal.aborted) return;
-                              setOperations((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      evidence: [
-                                        {
-                                          ...saved,
-                                          studentUid:
-                                            selectedEvidence.studentUid,
-                                          studentName:
-                                            selectedEvidence.studentName,
-                                        },
-                                        ...current.evidence.filter(
-                                          (item) => item.id !== saved.id,
-                                        ),
-                                      ],
-                                    }
-                                  : current,
-                              );
+                              setPinnedEvidence({
+                                ...saved,
+                                studentUid: selectedEvidence.studentUid,
+                                studentName: selectedEvidence.studentName,
+                              });
                               setFilter("all");
                               setSearch("");
                               setEvidenceId(saved.id);
@@ -730,6 +1065,26 @@ export function OperatorWorkspace({
         <div className="operator-split operator-meeting-split">
           <div className="operator-queue">
             <h3>Upcoming times</h3>
+            <div className="form-field">
+              <label htmlFor="operator-availability-status">
+                Meeting time status
+              </label>
+              <select
+                id="operator-availability-status"
+                value={availabilityStatus}
+                disabled={Boolean(busy)}
+                onChange={(event) =>
+                  setAvailabilityStatus(
+                    event.target.value as typeof availabilityStatus,
+                  )
+                }
+              >
+                <option value="all">All upcoming times</option>
+                <option value="available">Available</option>
+                <option value="reserved">Reserved</option>
+                <option value="withdrawn">Withdrawn</option>
+              </select>
+            </div>
             {!operations ? (
               <p role="status">
                 {loading
@@ -783,9 +1138,7 @@ export function OperatorWorkspace({
                       <button
                         type="button"
                         className="operator-text-button"
-                        disabled={
-                          blocked || Date.parse(slot.startsAt) <= observedAt
-                        }
+                        disabled={blocked}
                         onClick={() =>
                           void run(
                             `republish:${slot.id}`,
@@ -824,11 +1177,11 @@ export function OperatorWorkspace({
                 </p>
               </div>
             )}
-            {operations?.availabilityHasMore && (
-              <p className="operator-field-help">
-                Showing the next 100 times. Later times remain saved.
-              </p>
-            )}
+            <PageMore
+              page={availabilityPage}
+              label="Load more meeting times"
+              blocked={Boolean(busy) || loading}
+            />
             <details className="operator-booking-history">
               <summary>
                 Recent bookings
@@ -870,6 +1223,11 @@ export function OperatorWorkspace({
                 A reservation or elapsed time does not confirm attendance. Live
                 meeting links are not connected.
               </p>
+              <PageMore
+                page={bookingsPage}
+                label="Load more bookings"
+                blocked={Boolean(busy) || loading}
+              />
             </details>
           </div>
           <div className="operator-editor">
@@ -978,6 +1336,23 @@ export function OperatorWorkspace({
         <div className="operator-split">
           <aside className="operator-queue">
             <h3>Ended meeting periods</h3>
+            <div className="form-field">
+              <label htmlFor="operator-publication-filter">
+                Meeting summary status
+              </label>
+              <select
+                id="operator-publication-filter"
+                value={publication}
+                disabled={Boolean(busy)}
+                onChange={(event) =>
+                  setPublication(event.target.value as typeof publication)
+                }
+              >
+                <option value="unpublished">Needs a summary</option>
+                <option value="published">Published</option>
+                <option value="all">All ended periods</option>
+              </select>
+            </div>
             {!operations ? (
               <p role="status">
                 {loading
@@ -1006,17 +1381,20 @@ export function OperatorWorkspace({
                         {meetingTime(appointment.startsAt, appointment.endsAt)}
                       </span>
                       <span
-                        className={`operator-badge ${records.some((record) => record.appointmentId === appointment.id) ? "operator-badge-reviewed" : "operator-badge-not_reviewed"}`}
+                        className={`operator-badge ${appointment.learningRecordId ? "operator-badge-reviewed" : "operator-badge-not_reviewed"}`}
                       >
-                        {records.some(
-                          (record) => record.appointmentId === appointment.id,
-                        )
+                        {appointment.learningRecordId
                           ? "Published"
                           : "Prepare summary"}
                       </span>
                     </button>
                   </li>
                 ))}
+                {olderRecords.length > 0 && (
+                  <li className="operator-published-label">
+                    <h4>Published summaries</h4>
+                  </li>
+                )}
                 {olderRecords.map((record) => (
                   <li key={record.id}>
                     <button
@@ -1043,19 +1421,30 @@ export function OperatorWorkspace({
               </ul>
             ) : (
               <div className="operator-empty">
-                <h3>No ended periods yet.</h3>
+                <h3>No periods match this view.</h3>
                 <p>
                   When a scheduled meeting period ends, refresh this page to
                   prepare its learning summary.
                 </p>
               </div>
             )}
+            <PageMore
+              page={endedPage}
+              label="Load more meeting periods"
+              blocked={Boolean(busy) || loading}
+            />
+            <PageMore
+              page={recordsPage}
+              label="Load more published summaries"
+              blocked={Boolean(busy) || loading}
+            />
           </aside>
           <div className="operator-editor">
             {selectedAppointment || selectedRecord ? (
               <>
                 <header className="operator-document-heading">
-                  {selectedRecord && (
+                  {(selectedRecord ||
+                    selectedAppointment?.learningRecordId) && (
                     <span className="operator-badge operator-badge-reviewed">
                       Published
                     </span>
@@ -1093,6 +1482,41 @@ export function OperatorWorkspace({
                       authorized family readers. Published summaries cannot be
                       edited here.
                     </p>
+                  </div>
+                ) : selectedAppointment?.learningRecordId ? (
+                  <div className="operator-published-summary">
+                    <p>This meeting already has a published summary.</p>
+                    <button
+                      className="button button-secondary"
+                      type="button"
+                      disabled={blocked}
+                      onClick={() =>
+                        void run(
+                          `load-summary:${selectedAppointment.learningRecordId}`,
+                          async (signal) => {
+                            const saved = await talaApi.getLearningRecord(
+                              selectedAppointment.learningRecordId!,
+                              signal,
+                            );
+                            if (saved.appointmentId !== selectedAppointment.id)
+                              throw new TalaApiError("INVALID_RESPONSE");
+                            if (active.current && !signal.aborted)
+                              setRecordDetails((previous) => ({
+                                ...previous,
+                                [saved.id]: {
+                                  ...saved,
+                                  studentUid: selectedAppointment.studentUid,
+                                  studentName: selectedAppointment.studentName,
+                                },
+                              }));
+                          },
+                          "Published summary loaded.",
+                          false,
+                        )
+                      }
+                    >
+                      Load published summary
+                    </button>
                   </div>
                 ) : (
                   selectedAppointment && (

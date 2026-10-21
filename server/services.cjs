@@ -4,6 +4,7 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { TextDecoder } = require("node:util");
 const { transaction } = require("./database.cjs");
+const { createListServices } = require("./listServices.cjs");
 const { fail, object, text, identifier, requestId, hash } = require("./security.cjs");
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const OWNER_STORAGE_BYTES = 100 * 1024 * 1024;
@@ -73,7 +74,7 @@ function createServices(db, dataDir) {
     const user = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(target);
     if (!user) fail(404, "NOT_FOUND", "This account is unavailable.");
     if (actor.uid !== target && actor.role !== "operator") {
-      const link = actor.role === "parent" && db.prepare("SELECT id FROM family_links WHERE parent_uid=? AND student_uid=? AND status='active'").get(actor.uid, target);
+      const link = actor.role === "parent" && user.role === "student" && db.prepare("SELECT id FROM family_links WHERE parent_uid=? AND student_uid=? AND status='active'").get(actor.uid, target);
       if (!link) fail(403, "FORBIDDEN", "You do not have access to this student account.");
     }
     return target;
@@ -116,10 +117,20 @@ function createServices(db, dataDir) {
   }
   function requireWriter(actor) { if (actor.role === "parent") fail(403, "FORBIDDEN", "Parent access is read-only until delegated permissions are approved."); }
   function requireOperator(actor) { if (actor.role !== "operator") fail(403, "FORBIDDEN", "An operator account is required."); }
+  function zonedTimestamp(value) {
+    const parts = typeof value === "string" && value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|([+-])(\d{2}):(\d{2}))$/);
+    if (!parts) return NaN;
+    const [, year, month, day, hour, minute, second, , offsetHour, offsetMinute] = parts;
+    const leap = Number(year) % 4 === 0 && (Number(year) % 100 !== 0 || Number(year) % 400 === 0);
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    // Date.parse normalizes February 29 in a non-leap year and 24:00 into
+    // another date. Reject those inputs instead of silently moving a meeting.
+    if (Number(month) < 1 || Number(month) > 12 || Number(day) < 1 || Number(day) > days[Number(month) - 1] || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59 || Number(offsetHour || 0) > 23 || Number(offsetMinute || 0) > 59) return NaN;
+    return Date.parse(value);
+  }
   function addAvailability(input, actorUid = null) {
-    const explicitZone = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value);
-    const starts = Date.parse(input.startsAt), ends = Date.parse(input.endsAt);
-    if (!explicitZone(input.startsAt) || !explicitZone(input.endsAt) || !Number.isFinite(starts) || !Number.isFinite(ends) || starts <= Date.now() || ends - starts < 15 * 60000 || ends - starts > 4 * 3600000) fail(400, "INVALID_INPUT", "Publish a future meeting time with an explicit timezone, lasting 15 minutes to 4 hours.");
+    const starts = zonedTimestamp(input.startsAt), ends = zonedTimestamp(input.endsAt);
+    if (!Number.isFinite(starts) || !Number.isFinite(ends) || starts <= Date.now() || ends - starts < 15 * 60000 || ends - starts > 4 * 3600000) fail(400, "INVALID_INPUT", "Publish a valid future calendar date with an explicit timezone, lasting 15 minutes to 4 hours.");
     const label = input.label ? text(input.label, "meeting label", 100) : "Advising meeting";
     if (db.prepare("SELECT s.id FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at<? AND s.ends_at>?").get(ends, starts)) fail(409, "CONFLICT", "This availability overlaps a published meeting time.");
     const previous = db.prepare("SELECT * FROM slots WHERE starts_at=? AND ends_at=?").get(starts, ends);
@@ -419,7 +430,7 @@ function createServices(db, dataDir) {
       });
     },
     family(actor) {
-      const links = db.prepare("SELECT * FROM family_links WHERE status='active' AND (student_uid=? OR parent_uid=?)").all(actor.uid, actor.uid);
+      const links = db.prepare("SELECT links.* FROM family_links links JOIN users student ON student.uid=links.student_uid AND student.disabled=0 AND student.role='student' JOIN users parent ON parent.uid=links.parent_uid AND parent.disabled=0 AND parent.role='parent' WHERE links.status='active' AND (links.student_uid=? OR links.parent_uid=?)").all(actor.uid, actor.uid);
       return { relationships: links.map((row) => ({ id: row.id, studentUid: row.student_uid, parentUid: row.parent_uid, status: "active", consent: "recorded", permissions: ["read"] })), linkedProfiles: links.map((row) => {
         const person = db.prepare("SELECT uid,name,role FROM users WHERE uid=?").get(row.student_uid === actor.uid ? row.parent_uid : row.student_uid);
         return person;
@@ -429,7 +440,7 @@ function createServices(db, dataDir) {
       requireOperator(actor);
       const appointments = db.prepare("SELECT a.*,s.starts_at,s.ends_at,u.name AS student_name FROM appointments a JOIN slots s ON a.slot_id=s.id JOIN users u ON u.uid=a.owner_uid ORDER BY s.starts_at DESC LIMIT 100").all();
       const evidence = db.prepare("SELECT e.*,u.name AS student_name FROM evidence e JOIN users u ON u.uid=e.owner_uid ORDER BY e.submitted_at DESC LIMIT 100").all();
-      const learning = db.prepare("SELECT r.*,u.name AS student_name FROM learning_records r JOIN users u ON u.uid=r.owner_uid ORDER BY r.published_at DESC,r.id DESC LIMIT 100").all();
+      const learning = db.prepare("SELECT r.*,u.name AS student_name FROM learning_records r JOIN users u ON u.uid=r.owner_uid ORDER BY r.published_at DESC,r.id DESC LIMIT 20").all();
       const availability = availabilityList();
       return { appointments: appointments.map((row) => ({ ...appointmentDTO(row), studentUid: row.owner_uid, studentName: row.student_name })), evidence: evidence.map((row) => ({ ...evidenceDTO(row), studentUid: row.owner_uid, studentName: row.student_name })),
         availability: availability.slots, availabilityHasMore: availability.hasMore, learningRecords: learning.map((row) => ({ ...recordDTO(row), studentUid: row.owner_uid, studentName: row.student_name })) };
@@ -479,7 +490,8 @@ function createServices(db, dataDir) {
       });
     },
   };
-  return { services, operator };
+  const lists = createListServices(db, { authorize, requireOperator, currentWriter, evidenceDTO, appointmentDTO, slotDTO, managedSlotDTO, recordDTO });
+  return { services, operator, lists };
 }
 function validateContent(bytes, type) {
   if (type === "application/pdf") {

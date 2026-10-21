@@ -589,3 +589,29 @@
     transition: none;
   }
 }
+.operator-page-more {
+  margin-top: 14px;
+}
+.operator-workspace .operator-page-status {
+  color: var(--op-muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+  margin: 0 0 8px;
+}
+.operator-workspace .operator-page-status:empty {
+  margin: 0;
+}
+.operator-page-error {
+  color: #7a3327;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  margin: 0 0 8px;
+}
+.operator-published-label {
+  padding: 26px 12px 8px;
+  border-top: 1px solid var(--op-line);
+}
+.operator-published-label h4 {
+  margin: 0;
+  color: var(--op-muted);
+}

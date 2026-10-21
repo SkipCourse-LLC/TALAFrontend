@@ -12,10 +12,10 @@ import type {
   ApiUser,
   ApiFamilyLinks,
   ApiWorkspace,
-  ApiLearningRecords,
   ApiUploadIntent,
   ApiEvidence,
   ApiAppointment,
+  ApiPendingUpload,
   Slot as ApiSlot,
 } from "../api";
 import { meetingTime } from "./format";
@@ -23,8 +23,11 @@ import { readWorkspaceView, workspaceViews } from "./workspaceViews";
 import type { WorkspaceView } from "./workspaceViews";
 import { StudentOverview } from "./StudentOverview";
 import { EvidenceHistoryDialog } from "./EvidenceHistoryDialog";
+import { useWorkspaceVisible } from "./workspaceVisibility";
 import { PendingUploadsPanel } from "./PendingUploadsPanel";
 import { MeetingPanel } from "./MeetingPanel";
+import { useStudentPage } from "./useStudentPage";
+import { StudentPageControls } from "./StudentPageControls";
 import { buildBookingCalendar, meetingChangeIsCurrent } from "./meetingHelpers";
 import "./studentWorkspace.css";
 
@@ -269,13 +272,12 @@ function LearningWorkspace({
   onExpired: () => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const workspaceVisible = useWorkspaceVisible();
   const view = readWorkspaceView(searchParams.get("view"));
   const previousView = useRef(view);
   const historyId = view === "evidence" ? searchParams.get("document") : null;
-  const [workspace, setWorkspace] = useState<ApiWorkspace>();
-  const [learning, setLearning] = useState<ApiLearningRecords>();
+  const [workspaceState, setWorkspace] = useState<ApiWorkspace>();
   const [loadError, setLoadError] = useState("");
-  const [learningError, setLearningError] = useState("");
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [mutationBusy, setBusy] = useState(false);
@@ -288,6 +290,13 @@ function LearningWorkspace({
   const [revisesId, setRevisesId] = useState("");
   const [documentFilter, setDocumentFilter] = useState("current");
   const [documentSearch, setDocumentSearch] = useState("");
+  const [documentQuery, setDocumentQuery] = useState("");
+  const [pinnedEvidence, setPinnedEvidence] = useState<ApiEvidence>();
+  const [pinnedBooking, setPinnedBooking] = useState<ApiAppointment>();
+  const [restoredUploads, setRestoredUploads] = useState<ApiPendingUpload[]>();
+  const [accessBlocked, setAccessBlocked] = useState(false);
+  const workspace = accessBlocked ? undefined : workspaceState;
+  const authorizationEpoch = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [uploadStage, setUploadStage] = useState("");
   const [pending, setPending] = useState<PendingUpload | null>(null);
@@ -395,7 +404,11 @@ function LearningWorkspace({
       else {
         if (failure instanceof TalaApiError && failure.code === "FORBIDDEN") {
           setWorkspace(undefined);
-          setLearning(undefined);
+          authorizationEpoch.current++;
+          setAccessBlocked(true);
+          setPinnedEvidence(undefined);
+          setPinnedBooking(undefined);
+          setRestoredUploads(undefined);
         }
         setError(safeTalaApiError(failure).message);
       }
@@ -404,10 +417,12 @@ function LearningWorkspace({
   );
   useEffect(() => {
     const controller = new AbortController();
+    const epoch = authorizationEpoch.current;
     void talaApi
       .getWorkspace(studentUid, controller.signal)
       .then((next) => {
         if (!controller.signal.aborted) {
+          if (epoch !== authorizationEpoch.current) return;
           setWorkspace(next);
           setLoadError("");
         }
@@ -418,8 +433,12 @@ function LearningWorkspace({
           onExpired();
         else {
           if (failure instanceof TalaApiError && failure.code === "FORBIDDEN") {
+            authorizationEpoch.current++;
             setWorkspace(undefined);
-            setLearning(undefined);
+            setAccessBlocked(true);
+            setPinnedEvidence(undefined);
+            setPinnedBooking(undefined);
+            setRestoredUploads(undefined);
           }
           setLoadError(safeTalaApiError(failure).message);
         }
@@ -427,32 +446,11 @@ function LearningWorkspace({
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-    void talaApi
-      .getLearningRecords(studentUid, controller.signal)
-      .then((next) => {
-        if (!controller.signal.aborted) {
-          setLearning(next);
-          setLearningError("");
-        }
-      })
-      .catch((failure) => {
-        if (!controller.signal.aborted) {
-          if (
-            failure instanceof TalaApiError &&
-            failure.code === "AUTH_REQUIRED"
-          ) {
-            setLearning(undefined);
-            onExpired();
-            return;
-          }
-          if (failure instanceof TalaApiError && failure.code === "FORBIDDEN")
-            setLearning(undefined);
-          setLearningError(safeTalaApiError(failure).message);
-        }
-      });
     return () => controller.abort();
   }, [studentUid, revision, onExpired]);
   function refresh() {
+    if (accessBlocked) setWorkspace(undefined);
+    setAccessBlocked(false);
     setLoading(true);
     setRevision((value) => value + 1);
   }
@@ -463,6 +461,141 @@ function LearningWorkspace({
     requestIds.current.set(key, created);
     return created;
   }
+  const pageFailure = useCallback(
+    (failure: unknown) => {
+      const problem = safeTalaApiError(failure);
+      if (problem.code === "AUTH_REQUIRED" || problem.code === "FORBIDDEN") {
+        authorizationEpoch.current++;
+        setAccessBlocked(true);
+        setWorkspace(undefined);
+        setPinnedEvidence(undefined);
+        setPinnedBooking(undefined);
+        report(failure);
+      }
+    },
+    [report],
+  );
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDocumentQuery(documentSearch.trim()),
+      250,
+    );
+    return () => window.clearTimeout(timer);
+  }, [documentSearch]);
+  const pagesEnabled = Boolean(workspace) && !accessBlocked;
+  const loadEvidence = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      talaApi.getEvidencePage(
+        {
+          studentUid,
+          reviewStatus:
+            documentFilter === "needs_revision"
+              ? "needs_revision"
+              : documentFilter === "reviewed"
+                ? "reviewed"
+                : "all",
+          currentOnly: documentFilter !== "all",
+          q: documentQuery,
+          cursor,
+        },
+        signal,
+      ),
+    [studentUid, documentFilter, documentQuery],
+  );
+  const documents = useStudentPage({
+    pageKey: `${studentUid ?? "self"}:${documentFilter}:${documentQuery}`,
+    revision,
+    enabled: pagesEnabled,
+    load: loadEvidence,
+    onFailure: pageFailure,
+  });
+  const loadBookingOptions = useCallback(
+    (cursor: string | undefined, signal: AbortSignal) =>
+      talaApi.getAppointmentsPage(
+        { studentUid, status: "all", cursor },
+        signal,
+      ),
+    [studentUid],
+  );
+  const bookingOptions = useStudentPage({
+    pageKey: `${studentUid ?? "self"}:booking-options`,
+    revision,
+    enabled: pagesEnabled,
+    load: loadBookingOptions,
+    onFailure: pageFailure,
+  });
+  const loadLearning = useCallback(
+    async (cursor: string | undefined, signal: AbortSignal) => {
+      const saved = await talaApi.getLearningPage(
+        { studentUid, cursor },
+        signal,
+      );
+      return { items: saved.records, nextCursor: saved.nextCursor };
+    },
+    [studentUid],
+  );
+  const learningPages = useStudentPage({
+    pageKey: `${studentUid ?? "self"}:learning`,
+    revision,
+    enabled: pagesEnabled,
+    load: loadLearning,
+    onFailure: pageFailure,
+  });
+  const learning = learningPages.loaded
+    ? {
+        records: learningPages.items,
+        nextCursor: learningPages.nextCursor,
+        integrations: {
+          zoom: "unavailable" as const,
+          ai: "unavailable" as const,
+        },
+      }
+    : undefined;
+  const uploadsChanged = useCallback(
+    (uploads: ApiPendingUpload[]) => setRestoredUploads(uploads),
+    [],
+  );
+  useEffect(() => {
+    if (!revisesId || accessBlocked) return;
+    const controller = new AbortController();
+    void talaApi
+      .getEvidence(revisesId, controller.signal)
+      .then(async (saved) => {
+        const booking = await talaApi.getAppointment(
+          saved.appointmentId,
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        setPinnedEvidence(saved);
+        setPinnedBooking(booking);
+      })
+      .catch((failure: unknown) => {
+        if (controller.signal.aborted) return;
+        pageFailure(failure);
+        setPinnedEvidence(undefined);
+        setError(
+          `${safeTalaApiError(failure).message} Your upload draft has been kept. Retry Refresh records before submitting.`,
+        );
+      });
+    return () => controller.abort();
+  }, [revisesId, revision, accessBlocked, pageFailure]);
+  useEffect(() => {
+    if (!appointmentId || accessBlocked) return;
+    const controller = new AbortController();
+    void talaApi
+      .getAppointment(appointmentId, controller.signal)
+      .then((saved) => {
+        if (!controller.signal.aborted) setPinnedBooking(saved);
+      })
+      .catch((failure: unknown) => {
+        if (controller.signal.aborted) return;
+        pageFailure(failure);
+        setError(
+          `${safeTalaApiError(failure).message} The selected booking has not been confirmed; your file is kept.`,
+        );
+      });
+    return () => controller.abort();
+  }, [appointmentId, revision, accessBlocked, pageFailure]);
   async function run(
     key: string,
     action: (signal: AbortSignal, id: string) => Promise<void>,
@@ -496,47 +629,49 @@ function LearningWorkspace({
       [
         ...(workspace?.activeAppointments ?? []),
         ...(workspace?.appointments ?? []),
-      ]
-        .filter((appointment) => appointment.status !== "cancelled")
-        .map((appointment) => [appointment.id, appointment]),
+        ...bookingOptions.items,
+        ...(pinnedBooking ? [pinnedBooking] : []),
+      ].map((appointment) => [appointment.id, appointment]),
+    ).values(),
+  ].filter((appointment) => appointment.status !== "cancelled");
+  const knownDocuments = [
+    ...new Map(
+      [
+        ...(workspace?.evidence ?? []),
+        ...documents.items,
+        ...(pinnedEvidence ? [pinnedEvidence] : []),
+      ].map((item) => [item.id, item]),
     ).values(),
   ];
-  const revisionCandidates =
-    workspace?.evidence.filter(
-      (item) =>
-        item.reviewStatus === "needs_revision" && !item.supersededByEvidenceId,
-    ) ?? [];
-  const revisionTarget = revisionCandidates.find(
-    (item) => item.id === revisesId,
+  const revisionCandidates = knownDocuments.filter(
+    (item) =>
+      item.reviewStatus === "needs_revision" && !item.supersededByEvidenceId,
   );
-  const revisionStale = Boolean(revisesId && !revisionTarget && !pending);
+  const revisionTarget = revisesId
+    ? knownDocuments.find((item) => item.id === revisesId)
+    : undefined;
+  const revisionStale = Boolean(
+    revisesId &&
+    (!revisionTarget ||
+      revisionTarget.reviewStatus !== "needs_revision" ||
+      revisionTarget.supersededByEvidenceId) &&
+    !pending,
+  );
   const selectedAppointment = revisionTarget
     ? revisionTarget.appointmentId
-    : evidenceAppointments.some(
-          (appointment) => appointment.id === appointmentId,
-        )
-      ? appointmentId
-      : (evidenceAppointments[0]?.id ?? "");
-  const visibleDocuments =
-    workspace?.evidence.filter((item) => {
-      if (
-        documentSearch.trim() &&
-        !item.title
-          .toLocaleLowerCase()
-          .includes(documentSearch.trim().toLocaleLowerCase())
-      )
-        return false;
-      if (documentFilter === "current") return !item.supersededByEvidenceId;
-      if (documentFilter === "needs_revision")
-        return (
-          item.reviewStatus === "needs_revision" && !item.supersededByEvidenceId
-        );
-      if (documentFilter === "reviewed")
-        return item.reviewStatus === "reviewed" && !item.supersededByEvidenceId;
-      return true;
-    }) ?? [];
+    : appointmentId || evidenceAppointments[0]?.id || "";
+  const selectedBooking = evidenceAppointments.find(
+    (item) => item.id === selectedAppointment,
+  );
+  const visibleDocuments = documents.items;
+  const blockedBookingIds = new Set(
+    (restoredUploads ?? []).map((item) => item.appointmentId),
+  );
+  if (pending?.appointmentId) blockedBookingIds.add(pending.appointmentId);
+  if (file && selectedAppointment) blockedBookingIds.add(selectedAppointment);
   function chooseRevision(evidence: ApiEvidence) {
     if (busy || pending || file || readOnly) return;
+    setPinnedEvidence(evidence);
     setRevisesId(evidence.id);
     setAppointmentId(evidence.appointmentId);
     setTitle(evidence.title);
@@ -631,6 +766,7 @@ function LearningWorkspace({
       setFile(null);
       setTitle("");
       setRevisesId("");
+      setPinnedEvidence(undefined);
       setUploadStage("");
       if (fileInput.current) fileInput.current.value = "";
     }
@@ -639,11 +775,25 @@ function LearningWorkspace({
     return run(
       `book:${previous?.id ?? "new"}:${slot.id}`,
       async (signal, id) => {
+        if (
+          previous &&
+          (restoredUploads === undefined || blockedBookingIds.has(previous.id))
+        )
+          throw new TalaApiError("CONFLICT");
         if (previous) {
           if (
             !meetingChangeIsCurrent(
               { kind: "reschedule", booking: previous, replacement: slot },
-              workspace,
+              workspace
+                ? {
+                    ...workspace,
+                    slots: [slot],
+                    appointments: [
+                      ...workspace.activeAppointments,
+                      ...workspace.appointments,
+                    ],
+                  }
+                : undefined,
               Date.now(),
             )
           )
@@ -654,14 +804,7 @@ function LearningWorkspace({
             signal,
           );
         } else {
-          if (
-            !workspace?.slots.some(
-              (candidate) =>
-                candidate.id === slot.id &&
-                candidate.startsAt === slot.startsAt &&
-                candidate.endsAt === slot.endsAt,
-            )
-          )
+          if (!slot.isAvailable || Date.parse(slot.startsAt) <= Date.now())
             throw new TalaApiError("CONFLICT");
           await talaApi.reserveAppointment(
             { slotId: slot.id, studentUid, requestId: id },
@@ -678,6 +821,8 @@ function LearningWorkspace({
     return run(
       `cancel:${booking.id}`,
       async (signal, id) => {
+        if (restoredUploads === undefined || blockedBookingIds.has(booking.id))
+          throw new TalaApiError("CONFLICT");
         if (
           !meetingChangeIsCurrent(
             { kind: "cancel", booking },
@@ -697,16 +842,9 @@ function LearningWorkspace({
       async (signal) => {
         // Re-read through the authenticated service before exporting even a
         // previously visible booking; revoked family links must fail closed.
-        const latest = await talaApi.getWorkspace(studentUid, signal);
+        const saved = await talaApi.getAppointment(booking.id, signal);
         if (signal.aborted || !active.current) return;
-        setWorkspace(latest);
-        setLoadError("");
-        const saved = [
-          ...latest.activeAppointments,
-          ...latest.appointments,
-        ].find((item) => item.id === booking.id);
-        if (!saved || saved.status === "cancelled")
-          throw new TalaApiError("CONFLICT");
+        if (saved.status === "cancelled") throw new TalaApiError("CONFLICT");
         const calendar = buildBookingCalendar(
           saved,
           Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -827,9 +965,11 @@ function LearningWorkspace({
             busy={busy}
             stale={Boolean(loadError)}
             mutationError={error}
-            evidenceDraftBookingId={
-              pending?.appointmentId ?? (file ? selectedAppointment : undefined)
-            }
+            evidenceDraftBookingIds={blockedBookingIds}
+            pendingUploadsKnown={readOnly || restoredUploads !== undefined}
+            studentUid={studentUid}
+            revision={revision}
+            onPageFailure={pageFailure}
             onRefresh={refresh}
             onBook={saveMeeting}
             onCancel={cancelMeeting}
@@ -849,12 +989,12 @@ function LearningWorkspace({
               reviewed them. Acknowledgement does not certify attendance or
               academic mastery.
             </p>
-            {learningError ? (
-              <p className="product-error" role="alert">
-                {learningError} Refresh records to retry.
+            {!learning ? (
+              <p>
+                {learningPages.error
+                  ? "Learning records have not loaded. Use Retry learning records below."
+                  : "Loading learning records…"}
               </p>
-            ) : !learning ? (
-              <p>Loading learning records…</p>
             ) : !learning.records.length ? (
               <p>No staff-published learning records yet.</p>
             ) : (
@@ -897,6 +1037,18 @@ function LearningWorkspace({
                 ))}
               </ul>
             )}
+            <StudentPageControls
+              label="learning records"
+              count={learningPages.items.length}
+              loaded={learningPages.loaded}
+              loading={learningPages.loading}
+              moreLoading={learningPages.moreLoading}
+              nextCursor={learningPages.nextCursor}
+              error={learningPages.error}
+              disabled={busy}
+              onMore={() => void learningPages.loadMore()}
+              onRetry={learningPages.retry}
+            />
           </section>
           <section
             id="evidence"
@@ -941,6 +1093,7 @@ function LearningWorkspace({
                       onChange={(event) => {
                         const id = event.target.value;
                         setRevisesId(id);
+                        if (!id) setPinnedEvidence(undefined);
                         const target = revisionCandidates.find(
                           (item) => item.id === id,
                         );
@@ -995,7 +1148,13 @@ function LearningWorkspace({
                       required
                       value={selectedAppointment}
                       disabled={Boolean(revisesId)}
-                      onChange={(event) => setAppointmentId(event.target.value)}
+                      onChange={(event) => {
+                        setAppointmentId(event.target.value);
+                        const saved = evidenceAppointments.find(
+                          (item) => item.id === event.target.value,
+                        );
+                        if (saved) setPinnedBooking(saved);
+                      }}
                     >
                       {evidenceAppointments.map((appointment) => (
                         <option key={appointment.id} value={appointment.id}>
@@ -1005,15 +1164,21 @@ function LearningWorkspace({
                           )}
                         </option>
                       ))}
-                      {revisionTarget &&
+                      {selectedAppointment &&
                         !evidenceAppointments.some(
-                          (item) => item.id === revisionTarget.appointmentId,
+                          (item) => item.id === selectedAppointment,
                         ) && (
-                          <option value={revisionTarget.appointmentId}>
-                            Original booking for {revisionTarget.title}
+                          <option value={selectedAppointment} disabled>
+                            Selected booking — refresh to confirm
                           </option>
                         )}
                     </select>
+                    {!selectedBooking && (
+                      <p className="product-error">
+                        Refresh records to confirm this booking before
+                        submitting. Your file is kept.
+                      </p>
+                    )}
                   </div>
                   <div className="form-field">
                     <label htmlFor="evidence-title">Evidence title</label>
@@ -1034,6 +1199,10 @@ function LearningWorkspace({
                       accept=".txt,.pdf,text/plain,application/pdf"
                       required
                       onChange={(event) => {
+                        if (selectedBooking) {
+                          setPinnedBooking(selectedBooking);
+                          setAppointmentId(selectedBooking.id);
+                        }
                         setFile(event.target.files?.[0] ?? null);
                         setError("");
                       }}
@@ -1057,6 +1226,7 @@ function LearningWorkspace({
                       busy ||
                       !workspace ||
                       revisionStale ||
+                      !selectedBooking ||
                       (!pending && (!file || !title.trim()))
                     }
                   >
@@ -1124,8 +1294,24 @@ function LearningWorkspace({
               </form>
             ) : (
               <p>
-                Book a meeting first to attach evidence to your learning record.
+                {bookingOptions.nextCursor
+                  ? "Load more related bookings below to find an earlier meeting for your Evidence."
+                  : "Book a meeting first to attach evidence to your learning record."}
               </p>
+            )}
+            {!readOnly && (
+              <StudentPageControls
+                label="related bookings"
+                count={bookingOptions.items.length}
+                loaded={bookingOptions.loaded}
+                loading={bookingOptions.loading}
+                moreLoading={bookingOptions.moreLoading}
+                nextCursor={bookingOptions.nextCursor}
+                error={bookingOptions.error}
+                disabled={busy || Boolean(pending)}
+                onMore={() => void bookingOptions.loadMore()}
+                onRetry={bookingOptions.retry}
+              />
             )}
             {!readOnly && (
               <PendingUploadsPanel
@@ -1134,13 +1320,14 @@ function LearningWorkspace({
                 onChanged={refresh}
                 onExpired={onExpired}
                 onBusyChange={setRecoveryBusy}
+                onUploadsChanged={uploadsChanged}
               />
             )}
             <div className="student-documents-heading">
               <h3>Submitted documents</h3>
               <p>
-                Browse your 100 most recent versions. Earlier versions remain
-                linked in document history.
+                Search your saved documents or load older work. Each version
+                keeps its own file and review note.
               </p>
             </div>
             <div className="student-document-filters">
@@ -1149,6 +1336,7 @@ function LearningWorkspace({
                 <input
                   id="document-search"
                   type="search"
+                  maxLength={80}
                   value={documentSearch}
                   onChange={(event) => setDocumentSearch(event.target.value)}
                   placeholder="Search by title"
@@ -1162,7 +1350,7 @@ function LearningWorkspace({
                   onChange={(event) => setDocumentFilter(event.target.value)}
                 >
                   <option value="current">Current versions</option>
-                  <option value="all">All recent versions</option>
+                  <option value="all">All versions</option>
                   <option value="needs_revision">Needs revision</option>
                   <option value="reviewed">Reviewed</option>
                 </select>
@@ -1255,15 +1443,27 @@ function LearningWorkspace({
                 </li>
               ))}
             </ul>
-            {workspace && !workspace.evidence.length && (
-              <p>No submitted evidence yet.</p>
-            )}
-            {workspace &&
-              workspace.evidence.length > 0 &&
+            <StudentPageControls
+              label="documents"
+              count={documents.items.length}
+              loaded={documents.loaded}
+              loading={
+                documents.loading || documentSearch.trim() !== documentQuery
+              }
+              moreLoading={documents.moreLoading}
+              nextCursor={documents.nextCursor}
+              error={documents.error}
+              disabled={busy}
+              onMore={() => void documents.loadMore()}
+              onRetry={documents.retry}
+            />
+            {documents.loaded &&
+              !documents.loading &&
+              !documents.error &&
               !visibleDocuments.length && (
                 <p role="status">
-                  No documents match this search or filter. Try a different
-                  title or show all recent versions.
+                  No saved documents match this search or filter. Try another
+                  title or choose All versions.
                 </p>
               )}
           </section>
@@ -1307,7 +1507,7 @@ function LearningWorkspace({
           </section>
         </aside>
       </div>
-      {historyId && (
+      {historyId && workspaceVisible && (
         <EvidenceHistoryDialog
           evidenceId={historyId}
           onNavigate={openHistory}

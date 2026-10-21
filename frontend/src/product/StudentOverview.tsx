@@ -143,7 +143,7 @@ export function StudentOverview({
             </strong>
             <span>
               {unread
-                ? `${unread} published ${unread === 1 ? "summary is" : "summaries are"} waiting for you to review.`
+                ? `${unread} recent published ${unread === 1 ? "summary is" : "summaries are"} waiting for you to review. Open learning records to browse all summaries.`
                 : "Staff-published summaries will appear in your learning records."}
             </span>
           </span>

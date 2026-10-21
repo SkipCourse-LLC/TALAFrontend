@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { meetingRange } from "./meetingHelpers";
 import type { MeetingChange } from "./meetingHelpers";
 
@@ -25,7 +25,7 @@ export function MeetingActionDialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const alert = useRef<HTMLParagraphElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = dialog.current;
     const opener =
       document.activeElement instanceof HTMLElement
@@ -34,7 +34,11 @@ export function MeetingActionDialog({
     element?.showModal();
     return () => {
       element?.close();
-      if (opener?.isConnected && !opener.matches(":disabled"))
+      if (
+        opener?.isConnected &&
+        opener.getClientRects().length &&
+        !opener.matches(":disabled")
+      )
         opener.focus({ preventScroll: true });
       else
         document

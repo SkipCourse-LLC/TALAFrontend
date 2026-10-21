@@ -17,7 +17,7 @@ function createApplication(options = {}) {
   const allowedOrigins = new Set(options.allowedOrigins || ["http://127.0.0.1:5173", "http://127.0.0.1:5176", "http://localhost:5173", "http://localhost:5176", "http://127.0.0.1:8787"]);
   if (!allowedOrigins.size || [...allowedOrigins].some((origin) => { try { return new URL(origin).origin !== origin; } catch { return true; } })) throw new Error("Configure explicit application origins, never a wildcard.");
   const db = openDatabase(dataDir);
-  const { services, operator } = createServices(db, dataDir);
+  const { services, operator, lists } = createServices(db, dataDir);
   const sessionTtl = options.sessionTtlMs || 12 * 3600000;
   const cookieName = "tala_session";
   function currentSession(req) {
@@ -131,7 +131,7 @@ function createApplication(options = {}) {
       const route = url.pathname;
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 3, schemaVersion: 2, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 4, schemaVersion: 2, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
       if (req.method === "GET" && route === "/api/session") {
         const existing = currentSession(req);
         if (existing) return json(res, { session: existing.user ? userDTO(existing.user) : null, csrfToken: existing.csrf_token });
@@ -178,7 +178,7 @@ function createApplication(options = {}) {
       let match;
       if (req.method === "GET" && route === "/api/account/sessions") {
         rate(req, "account-session-read", 120);
-        return json(res, accounts.sessions(req));
+        return json(res, lists.read(actor, () => accounts.sessions(req)));
       }
       if (req.method === "POST" && route === "/api/account/sessions/revoke") {
         rate(req, "account-session-revoke", 40);
@@ -196,20 +196,27 @@ function createApplication(options = {}) {
       }
       if (req.method === "GET" && (match = route.match(/^\/api\/account\/password-changes\/([^/]+)$/))) {
         rate(req, "account-session-read", 120);
-        return json(res, accounts.passwordChangeReceipt(req, match[1]));
+        return json(res, lists.read(actor, () => accounts.passwordChangeReceipt(req, match[1])));
       }
       if (req.method === "GET" && route === "/api/workspace") return json(res, services.workspace(actor, url.searchParams.get("studentUid")));
+      if (req.method === "GET" && route === "/api/evidence") return json(res, lists.evidence(actor, url.searchParams));
+      if (req.method === "GET" && route === "/api/appointments") return json(res, lists.appointments(actor, url.searchParams));
+      if (req.method === "GET" && (match = route.match(/^\/api\/appointments\/([^/]+)$/))) return json(res, lists.appointment(actor, match[1]));
+      if (req.method === "GET" && route === "/api/available-times") return json(res, lists.availableTimes(actor, url.searchParams));
+      if (req.method === "GET" && route === "/api/operations/evidence") return json(res, lists.operatorEvidence(actor, url.searchParams));
+      if (req.method === "GET" && route === "/api/operations/appointments") return json(res, lists.operatorAppointments(actor, url.searchParams));
+      if (req.method === "GET" && route === "/api/operations/learning") return json(res, lists.operatorLearning(actor, url.searchParams));
       if (req.method === "PATCH" && route === "/api/profile") return json(res, await perform(req, (fresh, input) => services.updateProfile(fresh, input)));
-      if (req.method === "GET" && route === "/api/availability") return json(res, services.listAvailability(actor));
+      if (req.method === "GET" && route === "/api/availability") return json(res, lists.availability(actor, url.searchParams));
       if (req.method === "POST" && route === "/api/availability") return json(res, await perform(req, (fresh, input) => services.availability(fresh, input)), 201);
       if (req.method === "POST" && route === "/api/appointments") return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input)), 201);
       if (req.method === "POST" && (match = route.match(/^\/api\/availability\/([^/]+)\/withdraw$/))) return json(res, await perform(req, (fresh, input) => services.withdrawAvailability(fresh, match[1], input)));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/reschedule$/))) return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input, match[1])));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/cancel$/))) return json(res, await perform(req, (fresh, input) => services.cancelBooking(fresh, match[1], input)));
       if (req.method === "POST" && route === "/api/evidence/uploads/cleanup") return json(res, await perform(req, (fresh, input) => { object(input, []); return services.cleanupExpired(fresh); }));
-      if (req.method === "GET" && route === "/api/evidence/uploads") return json(res, services.pendingUploads(actor));
+      if (req.method === "GET" && route === "/api/evidence/uploads") return json(res, lists.read(actor, () => services.pendingUploads(actor)));
       if (req.method === "POST" && route === "/api/evidence/uploads") return json(res, await perform(req, (fresh, input) => services.createUpload(fresh, input)), 201);
-      if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)$/))) return json(res, services.uploadStatus(actor, match[1]));
+      if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)$/))) return json(res, lists.read(actor, () => services.uploadStatus(actor, match[1])));
       if (req.method === "PUT" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)\/content$/))) {
         if (actor.role === "parent") fail(403, "FORBIDDEN", "Parent access is read-only until delegated permissions are approved.");
         rate(req, "file-upload", 200);
@@ -232,7 +239,7 @@ function createApplication(options = {}) {
         const release = () => { if (!released) { released = true; clearTimeout(deadline); downloads -= 1; } };
         res.once("finish", release); res.once("close", release);
         try {
-          const file = services.download(actor, match[1]);
+          const file = lists.read(actor, () => services.download(actor, match[1]));
           res.setHeader("Content-Type", file.contentType);
           res.setHeader("Content-Length", file.bytes.length);
           res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`);
@@ -241,12 +248,13 @@ function createApplication(options = {}) {
         } catch (error) { release(); throw error; }
         return;
       }
-      if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)$/))) return json(res, services.evidence(actor, match[1]));
-      if (req.method === "GET" && route === "/api/learning") return json(res, services.learning(actor, url.searchParams.get("studentUid")));
+      if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)$/))) return json(res, lists.read(actor, () => services.evidence(actor, match[1])));
+      if (req.method === "GET" && route === "/api/learning") return json(res, lists.learning(actor, url.searchParams));
+      if (req.method === "GET" && (match = route.match(/^\/api\/learning\/([^/]+)$/))) return json(res, lists.learningRecord(actor, match[1]));
       if (req.method === "POST" && route === "/api/outcomes") return json(res, await perform(req, (fresh, input) => services.publish(fresh, input)), 201);
       if (req.method === "POST" && (match = route.match(/^\/api\/outcomes\/([^/]+)\/acknowledge$/))) return json(res, await perform(req, (fresh, input) => services.acknowledge(fresh, match[1], input)));
-      if (req.method === "GET" && route === "/api/family") return json(res, services.family(actor));
-      if (req.method === "GET" && route === "/api/operations") return json(res, services.operations(actor));
+      if (req.method === "GET" && route === "/api/family") return json(res, lists.read(actor, () => services.family(actor)));
+      if (req.method === "GET" && route === "/api/operations") return json(res, lists.read(actor, () => services.operations(actor)));
       if (req.method === "POST" && (match = route.match(/^\/api\/evidence\/([^/]+)\/review$/))) return json(res, await perform(req, (fresh, input) => services.review(fresh, match[1], input)));
       fail(404, "NOT_FOUND", "This endpoint is unavailable.");
     } catch (error) {

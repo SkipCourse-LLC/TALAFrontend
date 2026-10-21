@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { talaApi, TalaApiError, safeTalaApiError } from "../api";
 import type { ApiEvidence } from "../api";
 
@@ -23,7 +23,7 @@ export function EvidenceHistoryDialog({
   const running = useRef(false);
   const downloadController = useRef<AbortController | null>(null);
   const urls = useRef(new Set<string>());
-  useEffect(() => {
+  useLayoutEffect(() => {
     active.current = true;
     const element = dialog.current;
     const opener =
@@ -38,7 +38,12 @@ export function EvidenceHistoryDialog({
       localUrls.forEach(URL.revokeObjectURL);
       localUrls.clear();
       element?.close();
-      opener?.focus({ preventScroll: true });
+      if (
+        opener?.isConnected &&
+        opener.getClientRects().length &&
+        !opener.matches(":disabled")
+      )
+        opener.focus({ preventScroll: true });
     };
   }, []);
   useEffect(() => {

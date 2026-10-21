@@ -35,6 +35,101 @@ test("one aborted StrictMode consumer cannot poison the shared session bootstrap
   expect(requests).toBe(1);
 });
 
+test("a pre-rotation bootstrap cannot validate cached actor data after logout", async () => {
+  let reads = 0;
+  let releaseOld: ((value: Response) => void) | undefined;
+  let releaseFresh: ((value: Response) => void) | undefined;
+  const api = createTalaApi({
+    fetcher: async (path) => {
+      if (path === "/api/auth/logout") return Response.json(session(null));
+      expect(path).toBe("/api/session");
+      reads++;
+      if (reads === 1) return Response.json(session());
+      if (reads > 3) return Response.json(session(null, "b".repeat(43)));
+      return new Promise<Response>((resolve) => {
+        if (reads === 2) releaseOld = resolve;
+        else releaseFresh = resolve;
+      });
+    },
+  });
+  await api.getSession();
+  const staleConsumer = api.getSession();
+  await api.logout();
+  const freshConsumer = api.getSession();
+  expect(reads).toBe(3);
+  releaseOld?.(Response.json(session(learner)));
+  releaseFresh?.(Response.json(session(null, "b".repeat(43))));
+  await expect(freshConsumer).resolves.toBeNull();
+  await expect(staleConsumer).resolves.toBeNull();
+  expect(reads).toBeLessThanOrEqual(4);
+});
+
+test("a delayed login success cannot overwrite a newer session read", async () => {
+  const other = { ...learner, uid: "other-session-id" };
+  let sessionUser: User | null = null;
+  let release: ((value: Response) => void) | undefined;
+  const api = createTalaApi({
+    fetcher: async (path, init) => {
+      if (path === "/api/session") return Response.json(session(sessionUser));
+      if (path === "/api/auth/login")
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      expect(path).toBe("/api/learning");
+      expect(new Headers(init?.headers).get("X-TALA-User")).toBe(other.uid);
+      return Response.json({
+        records: [],
+        integrations: { zoom: "unavailable", ai: "unavailable" },
+        nextCursor: null,
+      });
+    },
+  });
+  await api.getSession();
+  const pending = api.login({
+    email: learner.email,
+    password: "Synthetic-only-password",
+  });
+  sessionUser = other;
+  expect((await api.getSession())?.uid).toBe(other.uid);
+  release?.(Response.json(session(learner, "b".repeat(43))));
+  await expect(pending).rejects.toMatchObject({ code: "AUTH_REQUIRED" });
+  await api.getLearningRecords();
+});
+
+test("a delayed logout failure cannot roll back a newer session read", async () => {
+  const other = { ...learner, uid: "other-session-id" };
+  let sessionUser = learner;
+  let release: ((value: Response) => void) | undefined;
+  const api = createTalaApi({
+    fetcher: async (path, init) => {
+      if (path === "/api/session") return Response.json(session(sessionUser));
+      if (path === "/api/auth/logout")
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      expect(path).toBe("/api/learning");
+      expect(new Headers(init?.headers).get("X-TALA-User")).toBe(other.uid);
+      return Response.json({
+        records: [],
+        integrations: { zoom: "unavailable", ai: "unavailable" },
+        nextCursor: null,
+      });
+    },
+  });
+  await api.getSession();
+  const pending = api.logout();
+  sessionUser = other;
+  await api.getSession();
+  release?.(
+    Response.json(
+      { error: { code: "UNAVAILABLE", message: "Synthetic response loss" } },
+      { status: 503 },
+    ),
+  );
+  await expect(pending).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  await api.getLearningRecords();
+});
+
 test("successful authentication rotates the in-memory CSRF token for subsequent writes", async () => {
   const api = createTalaApi({
     fetcher: async (input, init) => {
@@ -112,6 +207,59 @@ test("workspace responses cannot substitute another student's private records", 
   await expect(api.getWorkspace()).rejects.toMatchObject({
     code: "INVALID_RESPONSE",
   });
+});
+
+test("a delayed profile response cannot roll back a newer account session", async () => {
+  const other = {
+    ...learner,
+    uid: "other-id",
+    name: "Other synthetic learner",
+  };
+  let current = learner;
+  let release: ((value: Response) => void) | undefined;
+  const api = createTalaApi({
+    fetcher: async (path, init) => {
+      if (path === "/api/session") return Response.json(session(current));
+      if (path === "/api/profile")
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      expect(path).toBe("/api/learning");
+      expect(new Headers(init?.headers).get("X-TALA-User")).toBe(other.uid);
+      return Response.json({
+        records: [],
+        integrations: { zoom: "unavailable", ai: "unavailable" },
+        nextCursor: null,
+      });
+    },
+  });
+  await api.getSession();
+  const pending = api.updateProfile({ name: "Old account response" });
+  current = other;
+  expect((await api.getSession())?.uid).toBe(other.uid);
+  release?.(Response.json({ ...learner, name: "Old account response" }));
+  await expect(pending).rejects.toMatchObject({ code: "AUTH_REQUIRED" });
+  await api.getLearningRecords();
+});
+
+test("a delayed profile response updates only the latest session's display name", async () => {
+  const previous: User = { ...learner, role: "operator", emailVerified: true };
+  let current = previous;
+  let release: ((value: Response) => void) | undefined;
+  const api = createTalaApi({
+    fetcher: async (path) => {
+      if (path === "/api/session") return Response.json(session(current));
+      return new Promise<Response>((resolve) => {
+        release = resolve;
+      });
+    },
+  });
+  await api.getSession();
+  const pending = api.updateProfile({ name: "Updated name" });
+  current = learner;
+  await api.getSession();
+  release?.(Response.json({ ...previous, name: "Updated name" }));
+  await expect(pending).resolves.toEqual({ ...learner, name: "Updated name" });
 });
 
 test("authenticated GET requests bind the displayed actor to the shared server cookie", async () => {

@@ -107,11 +107,13 @@ export function AccountSecurityPage({
   onSessionChanged,
   onExpired,
   onLogout,
+  returnTo = "/dashboard",
 }: {
   user: ApiUser;
   onSessionChanged: (user: ApiUser) => void;
   onExpired: () => void;
   onLogout: () => Promise<void>;
+  returnTo?: string;
 }) {
   const [sessions, setSessions] = useState<ApiAccountSessions>();
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -404,7 +406,7 @@ export function AccountSecurityPage({
   );
   return (
     <div className="container account-security">
-      <Link to="/dashboard" className="account-security-back">
+      <Link to={returnTo} className="account-security-back">
         Back to workspace
       </Link>
       <header className="account-security-heading">

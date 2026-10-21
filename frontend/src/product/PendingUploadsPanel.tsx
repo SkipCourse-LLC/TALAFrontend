@@ -45,12 +45,14 @@ export function PendingUploadsPanel({
   onChanged,
   onExpired,
   onBusyChange,
+  onUploadsChanged,
 }: {
   disabled?: boolean;
   excludeUploadId?: string;
   onChanged: () => void;
   onExpired: () => void;
   onBusyChange?: (busy: boolean) => void;
+  onUploadsChanged?: (uploads: ApiPendingUpload[]) => void;
 }) {
   const [uploads, setUploads] = useState<ApiPendingUpload[]>();
   const [attempt, setAttempt] = useState(0),
@@ -68,12 +70,17 @@ export function PendingUploadsPanel({
     active = useRef(false);
   const mutation = useRef<AbortController | null>(null);
   const busyListener = useRef(onBusyChange);
+  const uploadsListener = useRef(onUploadsChanged);
+  const uploadsSnapshot = useRef<ApiPendingUpload[]>([]);
   const dataRevision = useRef(0);
   const requestIds = useRef(new Map<string, string>());
   const keepUpload = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     busyListener.current = onBusyChange;
   }, [onBusyChange]);
+  useEffect(() => {
+    uploadsListener.current = onUploadsChanged;
+  }, [onUploadsChanged]);
   useEffect(() => {
     active.current = true;
     return () => {
@@ -89,7 +96,9 @@ export function PendingUploadsPanel({
       .getPendingUploads(request.signal)
       .then((saved) => {
         if (!request.signal.aborted && version === dataRevision.current) {
+          uploadsSnapshot.current = saved.uploads;
           setUploads(saved.uploads);
+          uploadsListener.current?.(saved.uploads);
           setLoadError("");
         }
       })
@@ -123,9 +132,11 @@ export function PendingUploadsPanel({
   }
   function retire(upload: ApiPendingUpload, text: string) {
     dataRevision.current++;
-    setUploads((saved) =>
-      saved?.filter((item) => item.uploadId !== upload.uploadId),
+    uploadsSnapshot.current = uploadsSnapshot.current.filter(
+      (item) => item.uploadId !== upload.uploadId,
     );
+    setUploads(uploadsSnapshot.current);
+    uploadsListener.current?.(uploadsSnapshot.current);
     setFiles((saved) => {
       const next = { ...saved };
       delete next[upload.uploadId];
@@ -180,13 +191,13 @@ export function PendingUploadsPanel({
       if (status.status === "pending" || status.status === "uploaded") {
         dataRevision.current++;
         const freshStatus = status.status;
-        setUploads((saved) =>
-          saved?.map((item) =>
-            item.uploadId === upload.uploadId
-              ? { ...item, status: freshStatus }
-              : item,
-          ),
+        uploadsSnapshot.current = uploadsSnapshot.current.map((item) =>
+          item.uploadId === upload.uploadId
+            ? { ...item, status: freshStatus }
+            : item,
         );
+        setUploads(uploadsSnapshot.current);
+        uploadsListener.current?.(uploadsSnapshot.current);
       }
       if (status.status === "submitted") {
         await recoverSubmission(upload, request.signal);

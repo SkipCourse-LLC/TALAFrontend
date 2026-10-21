@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "basePath": "/api",
   "defaultOrigin": "http://127.0.0.1:8787",
   "security": {
@@ -65,7 +65,8 @@
       "endsAt": "ISO UTC",
       "status": "reserved|cancelled|ended",
       "meetingIntegration": "unavailable",
-      "updatedAt": "ISO UTC"
+      "updatedAt": "ISO UTC",
+      "learningRecordId": "optional UUID on paginated appointment views/detail when a real published summary exists"
     },
     "Evidence": {
       "id": "UUID",
@@ -141,6 +142,10 @@
       "status": "pending|uploaded",
       "expiresAt": "ISO UTC",
       "revisesEvidenceId": "optional UUID"
+    },
+    "ResourcePage": {
+      "items": "resource DTO[] maximum50",
+      "nextCursor": "opaque scoped keyset cursor or null; never an authentication credential"
     }
   },
   "routes": [
@@ -150,7 +155,7 @@
       "response": {
         "application": "tala-independent-server",
         "version": 1,
-        "contractVersion": 3,
+        "contractVersion": 4,
         "schemaVersion": 2,
         "status": "ok",
         "authentication": "local-server",
@@ -307,14 +312,17 @@
       "method": "GET",
       "path": "/learning",
       "response": {
-        "records": "published record DTO compatible with the existing UI: {id,appointmentId,status:'published',attendance:'not_recorded',outcomes:[{id,summary,status:'published',source:'staff',publishedAt}],acknowledgedOutcomeIds,updatedAt}",
+        "records": "LearningRecord[] newest20 by default, hard maximum25 per page",
         "integrations": {
           "zoom": "unavailable",
           "ai": "unavailable"
-        }
+        },
+        "nextCursor": "string|null"
       },
       "query": {
-        "studentUid": "optional child UID; parent must have a current operator-recorded active consent link"
+        "studentUid": "optional child UID; parent must have a current operator-recorded active consent link",
+        "limit": "optional integer1..25, default20",
+        "cursor": "optional scoped keyset cursor"
       }
     },
     {
@@ -359,7 +367,7 @@
         "evidence": "(Evidence & {studentUid,studentName})[] newest100",
         "availability": "ManagedSlot[] future100, includes withdrawn and reserved",
         "availabilityHasMore": "boolean",
-        "learningRecords": "(LearningRecord & {studentUid,studentName})[] newest100; published records only"
+        "learningRecords": "(LearningRecord & {studentUid,studentName})[] newest20 summary; use /operations/learning for all pages"
       }
     },
     {
@@ -388,8 +396,13 @@
       "path": "/availability",
       "operatorOnly": true,
       "response": {
-        "slots": "ManagedSlot[] future100",
-        "hasMore": "boolean"
+        "slots": "ManagedSlot[] future50 per page",
+        "hasMore": "boolean; same as nextCursor!==null",
+        "nextCursor": "string|null"
+      },
+      "query": {
+        "status": "all|available|reserved|withdrawn, defaultall",
+        "cursor": "optional scoped keyset cursor"
       }
     },
     {
@@ -458,6 +471,93 @@
       "response": {
         "uploads": "PendingUpload[]; own current UID only, nonexpired, newest10; parents forbidden; no automatic cleanup/write"
       }
+    },
+    {
+      "method": "GET",
+      "path": "/evidence",
+      "query": {
+        "studentUid": "optional current-authorized target student UID",
+        "reviewStatus": "all|not_reviewed|reviewed|needs_revision, defaultall",
+        "currentOnly": "true|false, defaultfalse; true excludes every superseded version",
+        "rootEvidenceId": "optional original evidence UUID; fetches its version chain within the authorized target",
+        "q": "optional trimmed literal text up to80 characters; owner searches title; operator searches title or student name",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Evidence>; current owner or active linked parent/authorized operator"
+    },
+    {
+      "method": "GET",
+      "path": "/operations/evidence",
+      "operatorOnly": true,
+      "query": {
+        "studentUid": "optional current-authorized target student UID",
+        "reviewStatus": "all|not_reviewed|reviewed|needs_revision, defaultall",
+        "currentOnly": "true|false, defaultfalse; true excludes every superseded version",
+        "rootEvidenceId": "optional original evidence UUID; fetches its version chain within the authorized target",
+        "q": "optional trimmed literal text up to80 characters; owner searches title; operator searches title or student name",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Evidence & {studentUid,studentName}>"
+    },
+    {
+      "method": "GET",
+      "path": "/appointments",
+      "query": {
+        "studentUid": "optional authorized target student UID",
+        "status": "all|reserved|cancelled|ended, defaultall",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Appointment>; period-ended status is derived at page read without claiming attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/appointments/:id",
+      "response": "Appointment, including learningRecordId when published; actual owner authorization is checked independently of loaded pages"
+    },
+    {
+      "method": "GET",
+      "path": "/operations/appointments",
+      "operatorOnly": true,
+      "query": {
+        "studentUid": "optional filter",
+        "status": "all|reserved|cancelled|ended, defaultended",
+        "publication": "all|published|unpublished, defaultunpublished",
+        "q": "optional literal student name or meeting label, up to80 characters",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Appointment & {studentUid,studentName}>; learningRecordId identifies actual published records without loading all summaries"
+    },
+    {
+      "method": "GET",
+      "path": "/available-times",
+      "query": {
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Slot>; all authenticated roles; only future published unreserved times, ascending"
+    },
+    {
+      "method": "GET",
+      "path": "/operations/learning",
+      "operatorOnly": true,
+      "query": {
+        "studentUid": "optional filter",
+        "q": "optional literal student name or published summary text, up to80 characters",
+        "limit": "optional integer1..25, default20",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": {
+        "records": "(LearningRecord & {studentUid,studentName})[]",
+        "integrations": {
+          "zoom": "unavailable",
+          "ai": "unavailable"
+        },
+        "nextCursor": "string|null"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/learning/:id",
+      "response": "LearningRecord; actual owner/active linked parent/operator authorization; no fake absence when an ID falls outside loaded pages"
     }
   ],
   "factory": "createApplication({dataDir,allowedOrigins,sessionTtlMs?,downloadTtlMs?}) returns {server,db,operator,close}; downloadTtlMs is test-factory-only integer100..30000, defaults30000, no environment override. No socket is opened until server.listen()",
@@ -483,12 +583,19 @@
     "evidenceBytesPerAccount": 104857600,
     "evidenceVersionsPerAccount": 1000,
     "evidenceBytesPerInstance": 2147483648,
-    "evidenceVersionsPerInstance": 20000
+    "evidenceVersionsPerInstance": 20000,
+    "resourcePageItems": 50,
+    "learningPageItemsDefault": 20,
+    "learningPageItemsMaximum": 25,
+    "pageCursorCharacters": 2048,
+    "listSearchCharacters": 80
   },
   "schemaVersion": 2,
   "availabilityPolicy": "Publish times must be ISO 8601 with explicit Z/UTC offset. Withdrawal is transactionally fenced against reservations. Times on a slot are immutable. Publishing an exactly matching withdrawn start/end reactivates its same ID; any changed time uses a new ID. Old cancelled bookings retain original times.",
   "revisionPolicy": "Only a student can revise their own latest needs_revision Evidence for the same booking. Upload captures the current reviewVersion server-side. Final submit rechecks that review and atomically commits a single successor; concurrent or stale revisions conflict. Earlier evidence bytes, review and identifiers remain immutable. Superseded evidence cannot be reviewed again. Counters count all versions, manual review is not academic credit.",
   "localDatabaseMigration": "Schema1 to2 is additive and local-only. A consistent VACUUM INTO backup with 0600 permissions is verified before migration. Three new tables: availability_state(slot_id,status,updated_at,updated_by); upload_revisions(upload_id,predecessor_id,expected_review_version); evidence_revisions(evidence_id,predecessor_id UNIQUE,root_id,revision_number). Existing slots backfill as published; other rows and file bytes are untouched. New databases start at schema2 with no seed data. Future schemas fail closed.",
   "accountSecurityPolicy": "Password changes require the current password, per-account and per-IP rate limits, fresh CSRF/session/disabled-account/password checks after each asynchronous hash, and one transaction for credential update, all-session revocation, replacement session and completion receipt. No plaintext or fast password-derived idempotency digest is stored. Session handles grant no authentication and expose neither cookie nor database session hash. Current-session revocation uses logout. After a lost password-change response, bootstrap GET /session and query the completion receipt before claiming success; if the replacement cookie was lost, reauthenticate with the new password. A receipt never restores authentication. No email delivery or MFA is implied.",
-  "storageQuotaPolicy": "Logical Evidence quotas include pending intents at creation, with committed storage rechecked at final submit. They bound 100 MiB/1000 versions per owner and 2 GiB/20000 versions per instance, and fail with STORAGE_FULL. They are not a physical disk quota for database history, backup directories or unrelated/orphan files. No submitted Evidence is automatically deleted."
+  "storageQuotaPolicy": "Logical Evidence quotas include pending intents at creation, with committed storage rechecked at final submit. They bound 100 MiB/1000 versions per owner and 2 GiB/20000 versions per instance, and fail with STORAGE_FULL. They are not a physical disk quota for database history, backup directories or unrelated/orphan files. No submitted Evidence is automatically deleted.",
+  "paginationPolicy": "Each page uses a short DEFERRED read snapshot that rechecks the server session, account status, role and target relationship before querying. Filters are applied before LIMIT. Cursors use bounded base64url JSON with a domain-separated HMAC, bound to actor UID, authorized target UID, resource and canonical filters; they expose no password verifier and grant no authentication. Unknown/repeated parameters, tampered cursors or changed scopes return INVALID_INPUT. Historical pages sort (immutable time DESC,id DESC), available times sort ASC. No OFFSET or full-dataset preload is used. Changes to reviews, statuses or search results are live, not a cross-request immutable snapshot: reset pagination after edits or filter changes. /workspace and /operations remain bounded overview summaries, not complete histories.",
+  "privateReadPolicy": "Single Evidence records, unfinished-upload metadata, family access, operator overviews and account-security reads use the same short DEFERRED authorization snapshot as resource pages. Private files are authorized and integrity-checked before the download response starts; later permission revocation cannot recall bytes already sent. Every private download has an absolute thirty-second deadline."
 }

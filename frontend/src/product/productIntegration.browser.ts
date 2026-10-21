@@ -29,6 +29,7 @@ interface TestApplication {
   findUid(email: string): Promise<string>;
   endBooking(email: string): Promise<{ appointmentId: string }>;
   dropUnsubmittedFile(uploadId: string): Promise<void>;
+  disableStudent(email: string): Promise<void>;
   close(): Promise<void>;
 }
 let application: TestApplication;
@@ -137,6 +138,9 @@ async function startIsolatedApplication(
       (await call("endBooking", email)) as { appointmentId: string },
     dropUnsubmittedFile: async (uploadId) => {
       await call("dropUnsubmittedFile", uploadId);
+    },
+    disableStudent: async (email) => {
+      await call("disableStudent", email);
     },
     findUid: async (email) => {
       const value = await call("findUid", email);
@@ -350,7 +354,7 @@ async function downloadCalendar(page: Page, studentUid?: string) {
   const observe = (request: import("@playwright/test").Request) => {
     if (
       request.method() === "GET" &&
-      new URL(request.url()).pathname === "/api/workspace"
+      new URL(request.url()).pathname === `/api/appointments/${booking.id}`
     )
       authorizationReads++;
   };
@@ -1310,4 +1314,417 @@ test("unfinished Evidence survives refresh and recovers submitted or missing-fil
       .filter({ hasText: "Evidence submitted" })
       .locator("dd"),
   ).toHaveText("2");
+});
+
+test("session privacy keeps unsent files through internal navigation and releases hidden native dialogs", async ({
+  page,
+}) => {
+  await register(page);
+  await publishTimes();
+  await book(page);
+  await chooseView(page, "evidence");
+  await submitEvidence(page);
+  await fillEvidence(page);
+  await page
+    .getByLabel("Evidence title", { exact: true })
+    .fill("Unsent private draft");
+  await page
+    .getByRole("link", { name: "Account security", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Account security", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Back to workspace", exact: true })
+    .click();
+  await expect(page.getByLabel("Evidence title", { exact: true })).toHaveValue(
+    "Unsent private draft",
+  );
+  expect(
+    await page
+      .getByLabel("File", { exact: true })
+      .evaluate((input: HTMLInputElement) => input.files?.[0]?.name),
+  ).toBe("synthetic-reflection.txt");
+  await page
+    .getByRole("button", {
+      name: "Version history for Synthetic persisted reflection",
+      exact: true,
+    })
+    .click();
+  const history = page.getByRole("dialog", {
+    name: "Document history",
+    exact: true,
+  });
+  await expect(history).toContainText("Version 1");
+  await page.route("**/api/session", (route) =>
+    route.abort("connectionfailed"),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(
+    page.getByRole("heading", {
+      name: "Confirm your session to continue",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(history).toHaveCount(0);
+  expect(await page.locator("dialog:modal").count()).toBe(0);
+  const retry = page.getByRole("button", {
+    name: "Retry session check",
+    exact: true,
+  });
+  await expect(retry).toBeEnabled();
+  await page.unroute("**/api/session");
+  await retry.click();
+  await expect(history).toContainText("Version 1");
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Evidence title", { exact: true })).toHaveValue(
+    "Unsent private draft",
+  );
+  expect(
+    await page
+      .getByLabel("File", { exact: true })
+      .evaluate((input: HTMLInputElement) => input.files?.[0]?.name),
+  ).toBe("synthetic-reflection.txt");
+  await page
+    .getByRole("button", {
+      name: "Version history for Synthetic persisted reflection",
+      exact: true,
+    })
+    .click();
+  await expect(history).toContainText("Version 1");
+  const documentQuery = new URL(page.url()).hash.split("?")[1]!;
+  await page.evaluate((query) => {
+    window.location.hash = `/two-factor?${query}`;
+  }, documentQuery);
+  await expect(
+    page.getByRole("heading", { name: "Account security", exact: true }),
+  ).toBeVisible();
+  expect(await page.locator("dialog:modal").count()).toBe(0);
+  await page
+    .getByRole("link", { name: "Back to workspace", exact: true })
+    .click();
+  await expect(history).toContainText("Version 1");
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Evidence title", { exact: true })).toHaveValue(
+    "Unsent private draft",
+  );
+});
+
+test("session privacy removes cached child records when current family access changes", async ({
+  page,
+}) => {
+  const student = await register(page);
+  await publishTimes();
+  await book(page);
+  await chooseView(page, "evidence");
+  await submitEvidence(page);
+  await signOut(page);
+  const parent = await register(page, "parent");
+  const studentUid = await application.findUid(student.email);
+  const parentUid = await application.findUid(parent.email);
+  await application.operator.linkFamily({
+    studentUid,
+    parentUid,
+    consentReference: "Synthetic consent for cache-isolation verification",
+  });
+  await page.reload();
+  await chooseView(page, "evidence");
+  const document = page.getByRole("heading", {
+    name: "Synthetic persisted reflection",
+    exact: true,
+  });
+  await expect(document).toBeVisible();
+  await application.disableStudent(student.email);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(
+    page.getByText("No student is linked to this account.", { exact: false }),
+  ).toBeVisible();
+  await expect(document).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Retry session check", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("session privacy discards a superseded in-flight account snapshot before restoring private content", async ({
+  page,
+  context,
+}) => {
+  const account = await register(page);
+  await publishTimes();
+  await book(page);
+  await chooseView(page, "evidence");
+  await submitEvidence(page);
+  await fillEvidence(page);
+  const other = await context.newPage();
+  other.on("pageerror", () =>
+    runtimeFailures.push("Unhandled secondary-tab runtime error"),
+  );
+  try {
+    await other.goto("/#/dashboard");
+    await expect(
+      other.getByRole("heading", {
+        name: `Hello, ${account.name}.`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.bringToFront();
+    await expect(
+      page.getByRole("heading", { name: "Submitted documents", exact: true }),
+    ).toBeVisible();
+    let release: (() => void) | undefined;
+    let captured: (() => void) | undefined;
+    const gotSnapshot = new Promise<void>((resolve) => {
+      captured = resolve;
+    });
+    const releaseSnapshot = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let intercepted = false;
+    await page.route("**/api/session", async (route) => {
+      if (intercepted) return route.continue();
+      intercepted = true;
+      const old = await route.fetch();
+      captured?.();
+      await releaseSnapshot;
+      await route.fulfill({ response: old });
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await gotSnapshot;
+    await expect(
+      page.getByRole("heading", {
+        name: "Checking your secure session…",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await other.bringToFront();
+    await signOut(other);
+    release?.();
+    await page.bringToFront();
+    await expect(
+      page.getByRole("heading", { name: "Welcome back.", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        name: "Synthetic persisted reflection",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await page.unroute("**/api/session");
+    const next = await register(other);
+    await page.bringToFront();
+    await expect(
+      page.getByRole("heading", { name: `Hello, ${next.name}.`, exact: true }),
+    ).toBeVisible();
+    await book(page);
+    await chooseView(page, "evidence");
+    await expect(
+      page.getByLabel("Evidence title", { exact: true }),
+    ).toHaveValue("");
+    await expect(
+      page.getByRole("heading", {
+        name: "Synthetic persisted reflection",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+  } finally {
+    await other.close();
+  }
+});
+
+test("session privacy cannot be dismissed by a delayed profile-save response after another tab signs out", async ({
+  page,
+  context,
+}) => {
+  const account = await register(page);
+  const other = await context.newPage();
+  let releaseProfile: (() => void) | undefined;
+  let releaseSession: (() => void) | undefined;
+  try {
+    await other.goto("/#/dashboard");
+    await expect(
+      other.getByRole("heading", {
+        name: `Hello, ${account.name}.`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.bringToFront();
+    await page.getByText("My account", { exact: true }).click();
+    await page
+      .getByLabel("Display name", { exact: true })
+      .fill("Delayed synthetic profile");
+    let profileCaptured: (() => void) | undefined;
+    let sessionCaptured: (() => void) | undefined;
+    const profileReady = new Promise<void>((resolve) => {
+      profileCaptured = resolve;
+    });
+    const profileGate = new Promise<void>((resolve) => {
+      releaseProfile = resolve;
+    });
+    const sessionReady = new Promise<void>((resolve) => {
+      sessionCaptured = resolve;
+    });
+    const sessionGate = new Promise<void>((resolve) => {
+      releaseSession = resolve;
+    });
+    await page.route("**/api/profile", async (route) => {
+      const saved = await route.fetch();
+      expect(saved.ok()).toBe(true);
+      profileCaptured?.();
+      await profileGate;
+      await route.fulfill({ response: saved });
+    });
+    let held = false;
+    await page.route("**/api/session", async (route) => {
+      if (held) return route.continue();
+      held = true;
+      const saved = await route.fetch();
+      sessionCaptured?.();
+      await sessionGate;
+      await route.fulfill({ response: saved });
+    });
+    await page
+      .getByRole("button", { name: "Save profile", exact: true })
+      .click();
+    await profileReady;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await sessionReady;
+    await other.bringToFront();
+    await signOut(other);
+    releaseProfile?.();
+    await expect(
+      page
+        .locator(".product-status")
+        .filter({ hasText: "Your profile was saved to the server." }),
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole("heading", {
+        name: "Hello, Delayed synthetic profile.",
+        exact: true,
+      }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        name: "Checking your secure session…",
+        exact: true,
+      }),
+    ).toBeVisible();
+    releaseSession?.();
+    await page.bringToFront();
+    await expect(
+      page.getByRole("heading", { name: "Welcome back.", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Display name", { exact: true })).toHaveCount(
+      0,
+    );
+  } finally {
+    releaseProfile?.();
+    releaseSession?.();
+    await other.close();
+  }
+});
+
+test("session privacy revalidates after a delayed password body instead of reusing an obsolete session bootstrap", async ({
+  page,
+  context,
+}) => {
+  const account = await register(page);
+  await page
+    .getByRole("link", { name: "Account security", exact: true })
+    .click();
+  const other = await context.newPage();
+  let releasePassword: (() => void) | undefined;
+  let releaseSession: (() => void) | undefined;
+  try {
+    await other.goto("/#/dashboard");
+    await expect(
+      other.getByRole("heading", {
+        name: `Hello, ${account.name}.`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.bringToFront();
+    await page
+      .getByLabel("Current password", { exact: true })
+      .fill(account.password);
+    const replacement = `Changed-synthetic-${randomUUID()}`;
+    await page.getByLabel("New password", { exact: true }).fill(replacement);
+    await page
+      .getByLabel("Confirm new password", { exact: true })
+      .fill(replacement);
+    let passwordCaptured: (() => void) | undefined;
+    let sessionCaptured: (() => void) | undefined;
+    const passwordReady = new Promise<void>((resolve) => {
+      passwordCaptured = resolve;
+    });
+    const passwordGate = new Promise<void>((resolve) => {
+      releasePassword = resolve;
+    });
+    const sessionReady = new Promise<void>((resolve) => {
+      sessionCaptured = resolve;
+    });
+    const sessionGate = new Promise<void>((resolve) => {
+      releaseSession = resolve;
+    });
+    await page.route("**/api/account/password", async (route) => {
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      passwordCaptured?.();
+      await passwordGate;
+      await route.fulfill({ response });
+    });
+    await page
+      .getByRole("button", { name: "Change password", exact: true })
+      .click();
+    await passwordReady;
+    // Adopt the server's newly rotated cookie in the second tab, then hold the
+    // first tab's current GET before ending that same shared session.
+    await other.reload();
+    await expect(
+      other.getByRole("heading", {
+        name: `Hello, ${account.name}.`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    let held = false;
+    await page.route("**/api/session", async (route) => {
+      if (held) return route.continue();
+      held = true;
+      const response = await route.fetch();
+      sessionCaptured?.();
+      await sessionGate;
+      await route.fulfill({ response });
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await sessionReady;
+    await other.bringToFront();
+    await signOut(other);
+    const passwordDelivered = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/account/password" &&
+        response.ok(),
+    );
+    releasePassword?.();
+    await passwordDelivered;
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
+    );
+    await expect(
+      page.getByRole("heading", { name: "Account security", exact: true }),
+    ).not.toBeVisible();
+    releaseSession?.();
+    await page.bringToFront();
+    await expect(
+      page.getByRole("heading", { name: "Welcome back.", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("Current password", { exact: true }),
+    ).toHaveCount(0);
+  } finally {
+    releasePassword?.();
+    releaseSession?.();
+    await other.close();
+  }
 });
