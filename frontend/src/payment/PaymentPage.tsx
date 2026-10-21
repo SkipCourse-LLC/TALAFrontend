@@ -30,8 +30,8 @@ export function PaymentPage({
       title="Payment"
       description={
         isDemo
-          ? "Choose your funding preference and review your payment."
-          : "Review your funding choice before confirming the next enrollment step."
+          ? "Review your private funding and demo payment."
+          : "Review your private funding before confirming the next enrollment step."
       }
       stage={approved ? "funding" : "approval"}
       environment={service.environment}

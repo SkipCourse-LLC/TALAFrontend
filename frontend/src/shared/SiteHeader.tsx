@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
-import type { DemoSession } from "./services/serviceTypes";
 import { Brand } from "./Brand";
 import { Icon } from "./Icon";
-export function SiteHeader({ session }: { session: DemoSession | null }) {
+export function SiteHeader({
+  session,
+}: {
+  session: { name: string; email: string } | null;
+}) {
   const [open, setOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
   const header = useRef<HTMLElement>(null);

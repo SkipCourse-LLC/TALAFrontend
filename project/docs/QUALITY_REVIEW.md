@@ -1,5 +1,48 @@
 # MVP 检查记录
 
+## 2026-10-20：可切换 Firebase 架构与 Dylan 交付验证
+
+本轮在 `yichen` 完成开发与定向复核；没有运行完整历史测试矩阵，也没有访问真实学生记录或修改云端环境。下面较早的 Emulator 阶段记录保留为历史，其“未 commit”和旧测试数不描述本轮最终本地提交。
+
+| 检查 | 本轮结果 |
+| --- | --- |
+| TypeScript、全前端 ESLint | PASS，零警告 |
+| 默认 build／仅 Git 暂存文件的独立 Emulator build | PASS；独立快照未包含留在本地的旧 product／sprint 测试和文件清单，证明运行源码不依赖它们 |
+| 配置、认证边界、错误及 Evidence 合同 | 17/17 PASS |
+| 服务端 runtime guard | 2/2 PASS |
+| 真实 Emulator 工作流、权限、事务、文件和重试 | 11/11 PASS |
+| 云边界／学习记录浏览器检查 | 3/3 PASS；仅本地请求，包含成果确认持久化和拒绝伪造家庭关联 |
+| Firebase 浏览器流程 | 3/3 PASS；注册／验证限制、会话、预约、Evidence、手机／键盘与定向 Axe |
+| Private-only 既有桌面流程 | 4/4 PASS；未重跑其余历史矩阵 |
+| 未配置测试云启动 | 按预期拒绝；没有发起真实云端认证请求 |
+| 运行依赖 npm audit | 前端与 Functions 均零已知 advisory；Firebase CLI 开发工具仍有 7 项上游 advisory，未用不兼容覆盖来掩盖 |
+
+修复：云端 SDK 初始化／会话恢复前核对官方公开 Auth 项目配置，防止混入其他项目的 API key；角色与会话关键操作在服务端核验；过去时段不会占满可预约列表；预约结束释放锁但不确认出席；文件强制绑定 SHA-256，归档到无 Firebase bearer token 的 server-only 路径后删除 staging；确认成果与 Evidence 计数并发时保持一致。SDK 按需加载并单独拆分 Firestore，约 470 kB 的最大 Firebase chunk 已无旧 655 kB 警告。
+
+真实云端仍未连接或部署，IAM、provider、MFA 与已部署 Rules 未验证。独立测试项目、服务部署与测试用户验证需要 Sponsor 授权。未完成 staging 文件可能保留 bearer token，自动清理、恶意文件扫描、App Check／限流、保留与删除、直接数据库读取的即时撤销策略仍需正式发布前完成。未实现真实 Zoom、出席确认、AI 评估、支付或家长工作区。已记录亲子同意不代表获批采集录音或医疗资料。当前版本适合 Dylan review 与合成数据本地演示，不是上线批准。
+
+## 2026-10-20：Firebase Emulator 集成验证
+
+本次在 `yichen` 重新运行定向验证，没有重跑旧全套测试，未 commit、push、merge 或 deploy。生产 SkipClass 没有改动。
+
+| 检查 | 本次结果 |
+| --- | --- |
+| TypeScript、全前端 Lint | PASS |
+| 默认 build 及最终 Firebase Emulator 模式 build | PASS；Firebase SDK chunk 约 655 kB minified，仍有体积提示，正式发布前需性能预算复核 |
+| 核心配置／角色／错误安全单测 | 7/7 PASS |
+| 后端运行边界、Rules、预约事务、文件与幂等检查 | 7/7 PASS，含 runtime guard 与工作流分组 |
+| Emulator 浏览器流程 | 3/3 PASS；注册、验证限制、预约／改期／取消、Evidence、资料与刷新／重登、付款锁定、跨 UID 拒绝 |
+| 手机、键盘及自动无障碍 | 320/390 px 无横向溢出；错误／状态焦点检查通过；定向 Axe 零违规，不等同完整无障碍认证 |
+| 冷启动持久化 | 显式导出与自动退出导出两轮恢复后，Auth／profile／预约／Evidence bytes+metadata／提交计数一致；仅清理自建合成 fixture |
+| 凭据扫描 | Gitleaks 当前 151 个非忽略文本文件、14 个本地 Git commits：未发现泄露；生成数据、node_modules、日志和报告不入 Git |
+| 依赖审计 | 前端运行依赖与 Functions 全依赖零已知漏洞；CLI 工具仍有 7 个上游 advisory，见 backend README |
+
+实际发现并修复：邮箱 reload 先改变 SDK 用户字段、签名 token 稍后刷新的竞态；现在只以新签名验证状态开放页面。活跃预约独立查询，不受 100 条历史分页限制影响；Storage 禁止覆盖已上传文件；gRPC 间接依赖锁定官方修补版 1.14.6（[官方安全公告](https://github.com/grpc/grpc-node/security/advisories/GHSA-f596-whhp-79r4)）。
+
+限制：实际云端 IAM、启用 providers／MFA、Web App 配置与 deployed Rules 未完整取得；进一步原生 Chrome 读取被自动审批拒绝，原因是无法确认 Work 窗口，可能暴露无关个人标签页。未绕过。现有后端源码的权限问题不等于已验证的生产漏洞。真实 Zoom、出席、AI 评估、付款、未成年人同意／保留与正式测试项目仍未接入。此阶段可运行的结果是隔离本地 Firebase 集成，不能标记正式上线。
+
+当前交接说明（2026-10-07）：下文保留各阶段的历史记录；其中 `staging`、旧文件路径、测试数量、依赖与未推送声明只适用于对应日期，不代表当前 `yichen` 交付状态。Dylan 的当前技术交接见 [INTEGRATION.md](INTEGRATION.md)，本轮 SCRUM-46–49 行为与实际验证证据见 [SPRINT_2.md](SPRINT_2.md)，现有路径以 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) 为准。本次文档更新不新增或重跑测试结果。
+
 此文保留第一阶段记录；最新四尺寸回归和视觉结果见 [Frontend Excellence Review](FRONTEND_EXCELLENCE.md)。
 
 日期：2026-09-20。开发与检查均在 `staging`；没有提交、推送、合并或部署。

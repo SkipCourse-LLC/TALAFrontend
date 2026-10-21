@@ -19,7 +19,7 @@ export const enrollmentOptions = Object.freeze({
     "2–4 PM",
     "4–6 PM",
   ] as const),
-  funding: Object.freeze(["ESA", "STO", "Private"] as const),
+  funding: Object.freeze(["Private"] as const),
 });
 export interface EnrollmentDraft {
   parentName: string;

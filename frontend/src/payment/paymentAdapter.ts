@@ -9,6 +9,7 @@ export interface PaymentSession {
 }
 export type ApprovalStatus =
   "pending" | "approved" | "not-approved" | "rejected";
+// Historical draft values remain readable; current checkout accepts Private only.
 export type FundingMethod = "ESA" | "STO" | "Private";
 // Fixed demo choices, never provider tokens or user-supplied financial details.
 export type SamplePaymentMethod = "card" | "bank";
@@ -138,8 +139,7 @@ function paymentDraftErrorCode(
   draft: PaymentDraft,
   environment: "demo" | "live",
 ): PaymentErrorCode | null {
-  if (!["ESA", "STO", "Private"].includes(draft.funding))
-    return "FUNDING_REQUIRED";
+  if (draft.funding !== "Private") return "FUNDING_REQUIRED";
   if (
     environment === "demo" &&
     draft.funding === "Private" &&

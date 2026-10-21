@@ -69,7 +69,7 @@ export function RegistrationFields({
           aria-invalid={!!errors[key]}
           aria-describedby={errors[key] ? `${key}-error` : undefined}
         >
-          <option value="">Choose an option</option>
+          {key !== "funding" && <option value="">Choose an option</option>}
           {options.map((option) => (
             <option key={option}>{option}</option>
           ))}
@@ -196,14 +196,15 @@ export function RegistrationFields({
         <>
           {select("funding", "Funding preference", enrollmentOptions.funding)}
           <div className="notice registration-step-note">
-            <strong>Choose now. Checkout after approval.</strong>
+            <strong>Private funding. Checkout after approval.</strong>
             <p>
-              This step records your preference. Review your application status
-              after verification; approved applications continue to a separate
-              checkout. No payment details are collected here.
+              This step records private, self-funded enrollment. Review your
+              application status after verification; approved applications
+              continue to a separate checkout. No payment details are collected
+              here.
             </p>
             <p className="small">
-              Fees and ESA/STO coverage require confirmation from TALA.
+              Fees and payment instructions require confirmation from TALA.
             </p>
           </div>
           <ol

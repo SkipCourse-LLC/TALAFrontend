@@ -12,13 +12,13 @@ const failures = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
   failures.set(page, errors);
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", () => errors.push("Page error"));
   page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text());
+    if (message.type() === "error") errors.push("Console error");
   });
   page.on("request", (request) => {
     if (!request.url().startsWith("http://127.0.0.1:4173"))
-      errors.push(`Unexpected external request: ${request.url()}`);
+      errors.push("Unexpected external request");
   });
 });
 test.afterEach(async ({ page }) => {
@@ -38,7 +38,7 @@ async function checkPage(page: Page) {
       await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
         .analyze()
-    ).violations,
+    ).violations.map(({ id, impact }) => ({ id, impact })),
   ).toEqual([]);
 }
 async function route(page: Page, path: string) {
@@ -130,7 +130,7 @@ test("SCRUM-46/47: setup, empty and invalid codes, retry, back and verified pare
   const storage = await page.evaluate(() =>
     JSON.stringify({ ...sessionStorage, ...localStorage }),
   );
-  expect(storage).not.toMatch(/practice-only|246810|challenge|password/);
+  expect(/practice-only|246810|challenge|password/.test(storage)).toBe(false);
   await checkPage(page);
 });
 
@@ -240,17 +240,47 @@ test("SCRUM-48/49: signup to approval to payment, validation and failure recover
   await page
     .getByRole("button", { name: "Complete payment demo", exact: true })
     .click();
-  await expect(page.getByLabel("Funding method")).toBeFocused();
-  await expect(page.getByRole("alert")).toContainText("Choose a funding");
-  await page.getByLabel("Funding method").selectOption("Private");
   await expect(
-    page.getByText("Private funding selected", { exact: true }),
+    page.getByRole("button", { name: "Add demo payment method", exact: true }),
+  ).toBeFocused();
+  await expect(page.getByRole("alert")).toContainText(
+    "Choose a demo payment method",
+  );
+  await expect(page.getByLabel("Funding method")).toHaveValue("Private");
+  await expect(
+    page.getByRole("heading", { name: "Pay with card", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("securely collect billing details", { exact: false }),
+    page
+      .locator(".payment-method-inline-preview")
+      .getByRole("heading", { name: "Credit card details", exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Complete payment demo", exact: true })
+    .getByRole("button", { name: "Add demo payment method", exact: true })
+    .click();
+  const methodDialog = page.getByRole("dialog", {
+    name: "Add demo payment method",
+    exact: true,
+  });
+  await methodDialog
+    .getByRole("radio", { name: "Demo card ending in 4242", exact: true })
+    .check();
+  await methodDialog
+    .getByRole("button", { name: "Save demo payment method", exact: true })
+    .click();
+  await expect(methodDialog).toHaveCount(0);
+  await expect(page.locator(".payment-method-saved")).toContainText("4242");
+  await expect(
+    page.getByRole("form", { name: "Payment demo", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Demo card payment complete",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Pay with demo card", exact: true })
     .click();
   await expect(page.getByLabel("I understand this is a demo")).toBeFocused();
   await checkPage(page);
@@ -258,27 +288,54 @@ test("SCRUM-48/49: signup to approval to payment, validation and failure recover
   await page.getByText("Demo testing options", { exact: true }).click();
   await page.getByLabel("Simulate payment error").check();
   await page
-    .getByRole("button", { name: "Complete payment demo", exact: true })
+    .getByRole("button", { name: "Pay with demo card", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: "Completing payment demo…" }),
   ).toBeDisabled();
   await expect(page.getByRole("alert")).toContainText("No payment was made");
   await expect(page.getByLabel("Funding method")).toHaveValue("Private");
+  await expect(page.locator(".payment-method-saved")).toContainText("4242");
   await page.getByLabel("Simulate payment error").uncheck();
   await page
-    .getByRole("button", { name: "Complete payment demo", exact: true })
+    .getByRole("button", { name: "Pay with demo card", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Payment demo complete" }),
+    page.getByRole("heading", {
+      name: "Demo card payment complete",
+      exact: true,
+    }),
   ).toBeFocused();
+  await expect(page.locator(".payment-success")).toContainText("4242");
+  await expect(page.locator(".payment-success")).toContainText(
+    "$0 · Demo only",
+  );
   await expect(
     page.getByText("No money was paid", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Complete payment demo", exact: true }),
+    page.getByRole("button", { name: "Pay with demo card", exact: true }),
   ).toHaveCount(0);
   await checkPage(page);
+  await page.getByRole("link", { name: "Back to enrollment status" }).click();
+  await page.getByRole("link", { name: "Continue to payment" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Demo card payment complete",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".payment-success")).toContainText("4242");
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Approval required", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Demo card payment complete",
+      exact: true,
+    }),
+  ).toHaveCount(0);
   await page.getByRole("link", { name: "Back to dashboard" }).click();
   await expect(
     page.getByRole("heading", { name: "Parent workspace" }),
@@ -362,33 +419,36 @@ test("SCRUM-49: approval resets on refresh, role change and sign-out", async ({
   ).toBeNull();
 });
 
-test("SCRUM-48: ESA and STO choices, keyboard submission and no financial persistence", async ({
+test("SCRUM-48: private card checkout, keyboard submission and no financial persistence", async ({
   page,
   browserName,
 }) => {
-  for (const funding of ["ESA", "STO"]) {
-    await openApproval(page);
-    await openApprovedPayment(page);
-    await page.getByLabel("Funding method").selectOption(funding);
-    await page.getByLabel("I understand this is a demo").focus();
-    await page.keyboard.press("Space");
-    await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
-    await expect(
-      page.getByRole("button", { name: "Complete payment demo", exact: true }),
-    ).toBeFocused();
-    await page.keyboard.press("Enter");
+  await openApproval(page);
+  await openApprovedPayment(page);
+  await expect(page.getByLabel("Funding method")).toHaveValue("Private");
+  await expect(page.getByLabel("Funding method").locator("option")).toHaveText([
+    "Private (self-funded)",
+  ]);
+  await page
+    .getByRole("button", { name: "Use demo card", exact: true })
+    .click();
+  await page.getByLabel("I understand this is a demo").focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press(browserName === "webkit" ? "Alt+Tab" : "Tab");
   await expect(
-    page.getByRole("heading", { name: "Payment demo complete" }),
+    page.getByRole("button", { name: "Pay with demo card", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "Demo card payment complete" }),
   ).toBeVisible();
   await expect(page.getByText("$0 · Demo only")).toBeVisible();
-    await expect(
-      page.getByText(`Sample funding choice: ${funding}.`),
-    ).toBeVisible();
-    const storage = await page.evaluate(() =>
-      JSON.stringify({ ...localStorage, ...sessionStorage }),
-    );
-    expect(storage).not.toMatch(/funding|receipt|payment|approved|cardNumber/);
-  }
+  await expect(page.locator(".payment-summary")).toContainText("Private");
+  await expect(page.locator(".payment-summary")).toContainText("4242");
+  const storage = await page.evaluate(() =>
+    JSON.stringify({ ...localStorage, ...sessionStorage }),
+  );
+  expect(storage).not.toMatch(/funding|receipt|payment|approved|cardNumber/);
 });
 
 test("SCRUM-46: leaving registration during submission cancels its redirect", async ({

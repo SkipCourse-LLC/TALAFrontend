@@ -1,10 +1,15 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import type { DemoSession } from "./services/serviceTypes";
 import { demoEnabled } from "./services/demoConfig";
 import { Brand } from "./Brand";
 import { SiteHeader } from "./SiteHeader";
 
-export function SiteLayout({ session }: { session: DemoSession | null }) {
+export function SiteLayout({
+  session,
+  backend,
+}: {
+  session: { name: string; email: string } | null;
+  backend?: "firebase-emulator" | "firebase-test" | "firebase";
+}) {
   const location = useLocation();
   return (
     <>
@@ -19,10 +24,20 @@ export function SiteLayout({ session }: { session: DemoSession | null }) {
         Skip to content
       </a>
       <div className="preview-banner">
-        TALA product preview <span aria-hidden="true">·</span>{" "}
-        {demoEnabled
-          ? "Explore with sample data. No real accounts or charges."
-          : "Live account services are not connected."}
+        {backend === "firebase-emulator" ? (
+          "TALA · Local Firebase integration · Synthetic test accounts and files only. No live meetings or charges."
+        ) : backend === "firebase-test" ? (
+          "TALA · Approved Firebase test cloud · Synthetic accounts and files only. No real meetings or charges."
+        ) : backend === "firebase" ? (
+          "TALA · Firebase authentication · Scheduling, evidence and payments await team approval."
+        ) : (
+          <>
+            TALA product preview <span aria-hidden="true">·</span>{" "}
+            {demoEnabled
+              ? "Explore with sample data. No real accounts or charges."
+              : "Live account services are not connected."}
+          </>
+        )}
       </div>
       <SiteHeader key={location.pathname} session={session} />
       <main id="main-content" tabIndex={-1}>
@@ -46,13 +61,18 @@ export function SiteLayout({ session }: { session: DemoSession | null }) {
           <div className="footer-note">
             <p>Your learning. Your next step.</p>
             <small>
-              This frontend preview brings enrollment and learning together.
-              School decisions, billing and live services are not connected.
+              {backend
+                ? "Authentication uses Firebase. Meeting, evidence and payment services require an approved environment and team integration."
+                : "This frontend preview brings enrollment and learning together. School decisions, billing and live services are not connected."}
             </small>
           </div>
         </div>
         <div className="container footer-bottom">
-          <span>TALA-Hub · Frontend product preview</span>
+          <span>
+            {backend
+              ? "TALA-Hub · Backend integration"
+              : "TALA-Hub · Frontend product preview"}
+          </span>
           <span>Built for different ways to learn.</span>
         </div>
       </footer>

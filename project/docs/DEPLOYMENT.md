@@ -1,12 +1,20 @@
 # Deployment process
 
-This guide covers building TALA Hub and publishing a frontend demo for review. It does not describe a live school service: login, enrollment, funding and SkipCourse data are still simulated.
+## Current delivery: `yichen`, no publishing authorization
 
-The build settings below match the repository. Remote hosting settings and a remote deployment have not been verified. The team must confirm the hosting project and release owner before publishing.
+The current handoff targets the independent `yichen` branch in [the team Frontend repository](https://github.com/Tucson-Adaptive-Learning-Academy/Frontend). Delivering source code does not authorize a merge into `main` or `rewrite/nextjs`, a hosting release, DNS/CNAME changes, or a real school service. Login, enrollment, funding, learning records and payments remain frontend demos. Current handoff details and verification evidence are in [INTEGRATION.md](INTEGRATION.md) and [SPRINT_2.md](SPRINT_2.md).
+
+The local `yichen` tree has no GitHub Actions workflow or hosting deployment configuration. `frontend/package.json` has build and local preview commands, not a deploy or publish command. `vite.config.ts` uses relative assets for static hosting; this is not a deployment trigger. Local Git hooks are only inactive `.sample` files, and no custom hooks path is configured. The existing `CNAME` is retained unchanged.
+
+A read-only check of the team's `rewrite/nextjs` branch found `.github/workflows/ci.yml`: it runs checks for pull requests and pushes to `main`, with no deployment job. That workflow does not establish the hosting behavior of `yichen`. GitHub Pages configuration, connected hosting projects, webhooks and other external triggers have not been verified. A future push to `yichen` could still trigger an external deployment; the repository/hosting owner must confirm those settings before a push that must not deploy. No deployment configuration was modified as part of this handoff.
+
+## Earlier `staging` preview plan: reference only
+
+The following guide records the earlier preview plan. `staging` is its historical source branch, not the current delivery target or an approved hosting branch. Apply publishing steps only after the hosting owner confirms the project, environment, branch, automatic triggers and release permission. Remote hosting settings and a remote deployment have not been verified.
 
 ## 1. Prepare the release
 
-- Use `staging` for the team preview. Record the commit being reviewed.
+- Confirm the intended preview branch with its owner; the earlier plan used `staging`. Record the commit being reviewed.
 - Obtain access to the approved hosting project from its owner.
 - Use a Node.js version supported by `frontend/package.json` (`^22.13.0 || >=24`). Use the same version locally and on the host.
 - Keep production separate. Publishing from `main` requires team approval; this guide does not authorize a merge or production release.
@@ -25,11 +33,14 @@ npm ci
 ```sh
 npm run lint
 npm run typecheck
+npm run build
 npx playwright install chromium webkit
 npm test
+npx playwright test -c tests/sprint2Unit.config.ts
+npx playwright test -c tests/sprint2Browser.config.ts
 ```
 
-Playwright checks the frontend at 320, 390, 768 and 1440 pixels. It uses port 4173; stop any local server on that port before running it. Do not publish if a check fails.
+The main Playwright suite uses port 4173; isolated module browser checks use 4175. Browser projects cover 320, 390, 768 and 1440 pixels; pure service checks do not start a browser. The test servers require those ports to be available. Do not publish if a check fails. Only format the files being changed; do not run the repository-wide `npm run format` as a handoff prerequisite.
 
 Tests build the site with QA controls enabled. **Build again with those controls off before publishing:**
 
@@ -38,21 +49,21 @@ VITE_DEMO_MODE=true VITE_DEMO_TOOLS=false npm run build
 npm run preview -- --port 4173 --strictPort
 ```
 
-Open `http://127.0.0.1:4173/` and check the demo. This preview server is for local verification, not production hosting.
+Open `http://127.0.0.1:4173/#/` and check the demo. This preview server is for local verification, not production hosting.
 
 ## 3. Configure the preview build
 
 Use these values in the approved static hosting project:
 
-| Setting | Value |
-| --- | --- |
-| Source branch | `staging` |
-| Application root | `frontend` |
-| Install command | `npm ci` |
-| Build command | `npm run build` |
-| Output directory | `dist`, relative to `frontend` |
-| `VITE_DEMO_MODE` | `true` |
-| `VITE_DEMO_TOOLS` | `false` |
+| Setting           | Value                                                          |
+| ----------------- | -------------------------------------------------------------- |
+| Source branch     | Owner-confirmed preview branch; `staging` was the earlier plan |
+| Application root  | `frontend`                                                     |
+| Install command   | `npm ci`                                                       |
+| Build command     | `npm run build`                                                |
+| Output directory  | `dist`, relative to `frontend`                                 |
+| `VITE_DEMO_MODE`  | `true`                                                         |
+| `VITE_DEMO_TOOLS` | `false`                                                        |
 
 Set both environment variables for the preview build, then rebuild. They are public build settings, not secrets. Never put credentials in `VITE_*` variables. Setting demo mode to false does not connect a real backend; account and data services become unavailable.
 
@@ -60,11 +71,11 @@ If publishing static files manually, publish the contents of `frontend/dist/`. D
 
 ## 4. Publish and verify
 
-1. Confirm that the hosting project targets the preview environment and the intended `staging` commit.
+1. Confirm publishing permission, automatic triggers, the preview environment and the intended commit with the hosting owner.
 2. Start the preview build using the host's deployment mechanism. The exact platform steps must be confirmed by the hosting owner.
 3. Check the build log for success. Record the commit, preview URL and deployment identifier.
 4. Open the remote preview URL and complete: Home → Registration → Parent Account → Student Information → Enrollment → Documents → Funding → Review → 2FA Setup → Verification (current authenticator code; Email demo only uses `246810`) → Parent Workspace → Student Login → Dashboard → Add Class → Calendar.
-5. Also check Enrollment status → Approved (demo) → Payment. Confirm no card details are collected and the result says no money was paid. Check parent/student switching, mobile navigation and keyboard navigation. Refresh a direct route such as `/#/register`.
+5. Also check Enrollment status → Approved (demo) → Payment → Private → **Use demo card**. Fixed brands, card number, expiry, CVV, billing and contact text appear inline; The fixed-sample card/bank chooser opens through **Add demo payment method** before selection or **Change demo payment method** afterwards. Confirm these fixtures cannot accept financial input, no payment provider is connected and the result says no money was paid. Check parent/student switching, mobile navigation and keyboard navigation. Refresh a direct route such as `/#/register`.
 6. Confirm there are no broken assets, browser console errors, horizontal overflow or QA controls. Demo labels must remain visible.
 
 Local tests do not replace this check on the deployed URL. Attach the build result, URL and check results to the release record.

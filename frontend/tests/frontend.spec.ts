@@ -62,7 +62,7 @@ test("public navigation, filters, refresh, history and not-found route", async (
 }) => {
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Find your way to learn with TALA." }),
+    page.getByRole("heading", { name: "Room to learn. Space to grow." }),
   ).toBeVisible();
   await expectNoOverflow(page);
   const menu = page.getByRole("button", { name: "Menu", exact: true });
@@ -177,11 +177,13 @@ test("parent-first registration, review, recoverable failure and student login",
   await expect(page.getByRole("checkbox")).toBeFocused();
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByLabel("Funding preference").selectOption("ESA");
+  await expect(page.getByLabel("Funding preference")).toHaveValue("Private");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.locator(".review-list")).toContainText("Sam Parent");
-  await expect(page.locator(".review-list")).toContainText("ESA · no payment");
+  await expect(page.locator(".review-list")).toContainText(
+    "Private · no payment",
+  );
   await page.getByRole("button", { name: "Edit Student" }).click();
   await expect(page.getByLabel("Student name")).toHaveValue("Sam Learner");
   for (let i = 0; i < 4; i++)
@@ -268,7 +270,9 @@ test("dashboard views, loading, empty, error, retry, refresh and sign-out", asyn
   await page.getByText("View sample project").first().click();
   await expect(
     page
-      .getByText("This example has no uploaded files.", { exact: false })
+      .getByText("No files are uploaded or shared from this preview.", {
+        exact: false,
+      })
       .first(),
   ).toBeVisible();
   await dashboardView(page, "My profile");
@@ -438,7 +442,7 @@ test("small screens, long profile text and reduced motion stay usable", async ({
   await page.reload();
   await page.goto("/#/dashboard?view=profile");
   await expect(
-    page.getByText("Frontend demo profile", { exact: true }),
+    page.getByText("Your sample learning profile", { exact: true }),
   ).toBeVisible();
   await expectNoOverflow(page);
   await page.getByText("Demo preview settings", { exact: true }).click();
@@ -542,7 +546,7 @@ test("student journey using only the keyboard", async ({
     await page.keyboard.press("Enter");
   }
   await page.goto("/");
-  await expect(page.locator("h1")).toContainText("Find your way");
+  await expect(page.locator("h1")).toHaveText("Room to learn. Space to grow.");
   await navigate("Learn More");
   await reach(
     page.getByRole("link", { name: "Meet the learning opportunities" }),
@@ -755,7 +759,7 @@ test("new schedule and community surfaces pass accessibility checks", async ({
   }
 });
 
-test("funding choices, waiting list and registered parent retain the correct student", async ({
+test("private funding, waiting list and registered parent retain the correct student", async ({
   page,
 }, testInfo) => {
   test.setTimeout(60000);
@@ -764,112 +768,103 @@ test("funding choices, waiting list and registered parent retain the correct stu
     path: testInfo.outputPath("home.png"),
     fullPage: true,
   });
-  for (const funding of ["STO", "Private"]) {
-    await page.goto("/#/register?intent=waiting-list");
-    await page.getByLabel("Parent name").fill("Pat Sample");
-    await page.getByLabel("Parent email").fill("pat@example.com");
-    await page
-      .getByLabel("Demo password", { exact: true })
-      .fill("made-up-only");
-    await page.getByLabel("Confirm demo password").fill("made-up-only");
-    await page.screenshot({
-      path: testInfo.outputPath(`registration-${funding}.png`),
-      fullPage: true,
-    });
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await page.getByLabel("Student name").fill("Jamie Sample");
-    await page.getByLabel("Student email").fill("jamie@example.com");
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.getByLabel("Registration interest")).toHaveValue(
-      "Waiting list",
-    );
-    await page.getByLabel("Learning preference").selectOption("Online");
-    await page.getByLabel("Preferred time block").selectOption("2–4 PM");
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.locator("input[type=file]")).toHaveCount(0);
-    await page.getByRole("checkbox").check();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.getByLabel("Funding preference")).toBeFocused();
-    await page.getByLabel("Funding preference").selectOption(funding);
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.getByRole("checkbox")).toBeFocused();
-    await page.getByRole("checkbox").check();
-    await page.screenshot({
-      path: testInfo.outputPath(`funding-${funding}.png`),
-      fullPage: true,
-    });
-    const fundingAxe = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
-    expect(fundingAxe.violations).toEqual([]);
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.locator(".review-list")).toContainText(funding);
-    await expectNoOverflow(page);
-    await page.screenshot({
-      path: testInfo.outputPath(`review-${funding}.png`),
-      fullPage: true,
-    });
-    await page
-      .getByRole("button", { name: "Complete registration demo" })
-      .click();
-    await completeDemoVerification(page);
-    await page.getByRole("link", { name: "Explore as a parent" }).click();
-    await expect(page.getByLabel("I am a")).toHaveValue("Parent");
-    await page
-      .getByRole("button", { name: "Explore with a sample profile" })
-      .click();
-    await expect(
-      page.getByRole("heading", { name: "Parent workspace" }),
-    ).toBeVisible();
-    await page.reload();
-    await page
-      .getByRole("link", { name: "Choose my student’s demo view" })
-      .click();
-    await page
-      .getByRole("radio", { name: /On behalf of Jamie Sample/ })
-      .check();
-    await page.screenshot({
-      path: testInfo.outputPath(`parent-login-${funding}.png`),
-      fullPage: true,
-    });
-    await page
-      .getByRole("button", { name: "Explore with a sample profile" })
-      .click();
-    await expect(
-      page.getByText("Parent demo: Pat Sample, representing Jamie Sample"),
-    ).toBeVisible();
-    await dashboardView(page, "My profile");
-    await expect(page.locator(".profile-panel")).toContainText(
-      "jamie@example.com",
-    );
-    await dashboardView(page, "Available class slots");
-    await expect(page.locator(".schedule-list li")).toHaveCount(4);
-    await page.screenshot({
-      path: testInfo.outputPath(`classes-${funding}.png`),
-      fullPage: true,
-    });
-    await page.getByRole("button", { name: "Join Reading together" }).click();
-    await expect(
-      page.getByRole("button", { name: "Reading together added" }),
-    ).toBeDisabled();
-    // A catalog filter must never hide a joined class in the personal calendar.
-    await page.getByLabel("Class format").selectOption("In-Person");
-    await page.getByRole("link", { name: "View personal calendar" }).click();
-    await expect(page.locator(".schedule-list")).toContainText(
-      "Reading together",
-    );
-    await page.screenshot({
-      path: testInfo.outputPath(`calendar-${funding}.png`),
-      fullPage: true,
-    });
-    await page.getByRole("button", { name: "Sign out" }).click();
-    // Start the second funding walkthrough with an independent browser-tab data set.
-    if (funding === "STO") {
-      await page.evaluate(() => sessionStorage.clear());
-      await page.reload();
-    }
-  }
+  const funding = "Private";
+  await page.goto("/#/register?intent=waiting-list");
+  await page.getByLabel("Parent name").fill("Pat Sample");
+  await page.getByLabel("Parent email").fill("pat@example.com");
+  await page.getByLabel("Demo password", { exact: true }).fill("made-up-only");
+  await page.getByLabel("Confirm demo password").fill("made-up-only");
+  await page.screenshot({
+    path: testInfo.outputPath(`registration-${funding}.png`),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Student name").fill("Jamie Sample");
+  await page.getByLabel("Student email").fill("jamie@example.com");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByLabel("Registration interest")).toHaveValue(
+    "Waiting list",
+  );
+  await page.getByLabel("Learning preference").selectOption("Online");
+  await page.getByLabel("Preferred time block").selectOption("2–4 PM");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.locator("input[type=file]")).toHaveCount(0);
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByLabel("Funding preference")).toHaveValue(funding);
+  await expect(
+    page.getByLabel("Funding preference").locator("option"),
+  ).toHaveText(["Private"]);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("checkbox")).toBeFocused();
+  await page.getByRole("checkbox").check();
+  await page.screenshot({
+    path: testInfo.outputPath(`funding-${funding}.png`),
+    fullPage: true,
+  });
+  const fundingAxe = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(fundingAxe.violations).toEqual([]);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.locator(".review-list")).toContainText(funding);
+  await expectNoOverflow(page);
+  await page.screenshot({
+    path: testInfo.outputPath(`review-${funding}.png`),
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Complete registration demo" })
+    .click();
+  await completeDemoVerification(page);
+  await page.getByRole("link", { name: "Explore as a parent" }).click();
+  await expect(page.getByLabel("I am a")).toHaveValue("Parent");
+  await page
+    .getByRole("button", { name: "Explore with a sample profile" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Parent workspace" }),
+  ).toBeVisible();
+  await page.reload();
+  await page
+    .getByRole("link", { name: "Choose my student’s demo view" })
+    .click();
+  await page.getByRole("radio", { name: /On behalf of Jamie Sample/ }).check();
+  await page.screenshot({
+    path: testInfo.outputPath(`parent-login-${funding}.png`),
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Explore with a sample profile" })
+    .click();
+  await expect(
+    page.getByText("Parent demo: Pat Sample, representing Jamie Sample"),
+  ).toBeVisible();
+  await dashboardView(page, "My profile");
+  await expect(page.locator(".profile-panel")).toContainText(
+    "jamie@example.com",
+  );
+  await dashboardView(page, "Available class slots");
+  await expect(page.locator(".schedule-list li")).toHaveCount(4);
+  await page.screenshot({
+    path: testInfo.outputPath(`classes-${funding}.png`),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Join Reading together" }).click();
+  await expect(
+    page.getByRole("button", { name: "Reading together added" }),
+  ).toBeDisabled();
+  // A catalog filter must never hide a joined class in the personal calendar.
+  await page.getByLabel("Class format").selectOption("In-Person");
+  await page.getByRole("link", { name: "View personal calendar" }).click();
+  await expect(page.locator(".schedule-list")).toContainText(
+    "Reading together",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath(`calendar-${funding}.png`),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Sign out" }).click();
 });
 
 // Authentication tests handle ephemeral enrollment secrets; do not record traces.

@@ -21,7 +21,40 @@ const StudentDashboard = lazy(() =>
 import { NotFoundPage } from "./public-site/NotFoundPage";
 import { readDemoSession, saveDemoSession } from "./authentication/authService";
 import type { DemoSession } from "./shared/services/serviceTypes";
+const FirebaseApplication = lazy(() =>
+  import("./backend/FirebaseApplication").then((module) => ({
+    default: module.FirebaseApplication,
+  })),
+);
+
 export default function App() {
+  const mode = import.meta.env.VITE_BACKEND_MODE;
+  if (!mode || mode === "demo") return <DemoApplication />;
+  if (
+    mode !== "firebase" &&
+    mode !== "firebase-emulator" &&
+    mode !== "firebase-test"
+  )
+    return (
+      <section className="container state-panel" role="alert">
+        <h1>Backend configuration unavailable</h1>
+        <p>Use demo, firebase-emulator or an approved firebase environment.</p>
+      </section>
+    );
+  return (
+    <Suspense
+      fallback={
+        <div className="container state-panel" role="status">
+          Connecting to authentication…
+        </div>
+      }
+    >
+      <FirebaseApplication />
+    </Suspense>
+  );
+}
+
+function DemoApplication() {
   const [session, setSession] = useState(readDemoSession);
   const navigate = useNavigate();
   const [signup, setSignup] = useState<EnrollmentReceipt | null>(null);

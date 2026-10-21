@@ -17,7 +17,7 @@ export async function registerDemoFamily(page: Page, submit = true) {
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByLabel("Funding preference").selectOption("ESA");
+  await expect(page.getByLabel("Funding preference")).toHaveValue("Private");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   if (!submit) return;
@@ -48,14 +48,31 @@ export async function completeDemoVerification(page: Page) {
 }
 
 export async function readAuthenticator(page: Page) {
-  const key = page.locator(".two-factor-manual code");
-  await expect(key).toHaveText(/^[A-Z2-7]{32}$/);
-  return new TOTP({
-    secret: Secret.fromBase32((await key.textContent())!),
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-  });
+  // Locator failure output must not include the generated enrollment key.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const keys = document.querySelectorAll(".two-factor-manual code");
+        return (
+          keys.length === 1 && /^[A-Z2-7]{32}$/.test(keys[0]?.textContent ?? "")
+        );
+      }),
+    )
+    .toBe(true);
+  const key = await page.evaluate(
+    () => document.querySelector(".two-factor-manual code")?.textContent ?? "",
+  );
+  expect(/^[A-Z2-7]{32}$/.test(key)).toBe(true);
+  try {
+    return new TOTP({
+      secret: Secret.fromBase32(key),
+      algorithm: "SHA1",
+      digits: 6,
+      period: 30,
+    });
+  } catch {
+    throw new Error("Authenticator fixture could not be prepared.");
+  }
 }
 export function invalidCode(authenticator: TOTP) {
   let value = 0;

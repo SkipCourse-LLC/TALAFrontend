@@ -105,13 +105,13 @@ export function AboutPage() {
         <article>
           <div>
             <p className="eyebrow">Planning ahead</p>
-            <h2>Funding sources</h2>
+            <h2>Private funding</h2>
           </div>
           <div>
             <p>
-              Explore ESA, STO and Private funding preferences during
-              registration. Fees, eligibility and coverage need confirmation
-              from TALA. No funding or payment is approved in this demo.
+              Enrollment uses private, self-funded payment. Fees and payment
+              instructions need confirmation from TALA. No payment is made in
+              this demo.
             </p>
             <Link className="text-link" to="/register">
               Review the registration steps <Icon name="arrow" />

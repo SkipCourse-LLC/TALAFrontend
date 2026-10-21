@@ -56,6 +56,11 @@ blob-report/
 
 # Local logs
 *.log
+# Local Firebase emulator data contains test identities and authentication state.
+backend/.emulator-data/
+backend/.persistence-fixture.json
+backend/.firebase/
+firebase-export-*/
 
 # OS and editor temporary files
 .DS_Store

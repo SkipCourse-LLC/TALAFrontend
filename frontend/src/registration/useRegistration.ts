@@ -27,7 +27,7 @@ export function useRegistration(
     intent:
       params.get("intent") === "waiting-list" ? "Waiting list" : "Enrollment",
     documentsAcknowledged: false,
-    funding: "",
+    funding: "Private",
     fundingAcknowledged: false,
   });
   const [step, setStep] = useState(0);

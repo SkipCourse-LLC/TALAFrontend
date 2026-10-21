@@ -11,32 +11,10 @@ import {
 import { usePaymentSnapshot } from "./usePaymentSnapshot";
 import { SamplePaymentMethodChooser } from "./SamplePaymentMethod";
 import type {
-  FundingMethod,
   PaymentDraft,
   PaymentService,
   PaymentSession,
 } from "./paymentAdapter";
-
-const fundingNotes: Record<
-  FundingMethod,
-  { title: string; description: string }
-> = {
-  ESA: {
-    title: "ESA funding selected",
-    description:
-      "ESA eligibility and approved expenses must be verified before any real payment. This preview does not confirm coverage.",
-  },
-  STO: {
-    title: "STO funding selected",
-    description:
-      "A scholarship award and any remaining balance must be confirmed before a real payment. This preview does not confirm an award.",
-  },
-  Private: {
-    title: "Private funding selected",
-    description:
-      "Use a sample card to preview checkout. No real payment information is needed.",
-  },
-};
 
 export function PaymentForm({
   session,
@@ -68,7 +46,7 @@ function PaymentFormContent({
   const snapshot = usePaymentSnapshot(session, service);
   const isDemo = service.environment === "demo";
   const [draft, setDraft] = useState<PaymentDraft>({
-    funding: "",
+    funding: "Private",
     acknowledged: false,
   });
   const [error, setError] = useState("");
@@ -174,7 +152,7 @@ function PaymentFormContent({
     setError("");
     setSimulateError(false);
     if (clearDraft) {
-      setDraft({ funding: "", acknowledged: false });
+      setDraft({ funding: "Private", acknowledged: false });
     }
     requestAnimationFrame(() =>
       form.current?.querySelector<HTMLElement>("#payment-funding")?.focus(),
@@ -262,10 +240,7 @@ function PaymentFormContent({
     );
 
   const busy = pending || snapshot.status === "submitting";
-  const fundingDisplay =
-    draft.funding === "Private"
-      ? "Private funding"
-      : draft.funding || "Not selected yet";
+  const fundingDisplay = "Private funding";
   return (
     <div className="payment-layout payment-checkout">
       <form
@@ -334,30 +309,15 @@ function PaymentFormContent({
                 <select
                   id="payment-funding"
                   required
-                  value={draft.funding}
-                  aria-invalid={!!error && !draft.funding}
-                  aria-describedby={
-                    error && !draft.funding
-                      ? "payment-funding-hint payment-error"
-                      : "payment-funding-hint"
-                  }
-                  onChange={(event) => {
-                    setDraft({
-                      funding: event.target.value as FundingMethod,
-                      acknowledged: draft.acknowledged,
-                    });
-                    setError("");
-                  }}
+                  defaultValue="Private"
+                  aria-describedby="payment-funding-hint"
                 >
-                  <option value="">Choose a method</option>
-                  <option>ESA</option>
-                  <option>STO</option>
-                  <option value="Private">Private</option>
+                  <option value="Private">Private (self-funded)</option>
                 </select>
                 <p id="payment-funding-hint" className="payment-small">
                   {isDemo
-                    ? "Eligibility and coverage will be confirmed by TALA."
-                    : "Select the funding method you want to review."}
+                    ? "Private means self-funded. No charge is made in this demo."
+                    : "Private means self-funded. Fees must be confirmed by TALA."}
                 </p>
               </div>
             </div>
@@ -373,20 +333,15 @@ function PaymentFormContent({
               <h2 id="payment-method-heading">Payment method</h2>
             </header>
             <div className="payment-checkout-step-content">
-              {draft.funding && !(isDemo && draft.funding === "Private") ? (
-                <div className="funding-explanation" aria-live="polite">
-                  <strong>{fundingNotes[draft.funding].title}</strong>
+              {!isDemo && (
+                <div className="funding-explanation">
+                  <strong>Private funding</strong>
                   <p>
-                    {isDemo
-                      ? fundingNotes[draft.funding].description
-                      : "Eligibility and any balance must be confirmed by TALA before completing a payment."}
+                    Fees must be confirmed by TALA before completing a real
+                    payment.
                   </p>
                 </div>
-              ) : !draft.funding ? (
-                <p className="payment-small">
-                  Select funding above to see your payment options.
-                </p>
-              ) : null}
+              )}
               {draft.funding === "Private" && isDemo && (
                 <SamplePaymentMethodChooser
                   value={selectedDemoMethod ?? null}
@@ -401,11 +356,6 @@ function PaymentFormContent({
                     error && needsDemoMethod ? "payment-error" : undefined
                   }
                 />
-              )}
-              {draft.funding && draft.funding !== "Private" && (
-                <p className="payment-checkout-assurance">
-                  No card details are needed for this funding preview.
-                </p>
               )}
             </div>
           </section>
