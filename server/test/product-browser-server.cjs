@@ -84,6 +84,13 @@ process.on("message", async (request) => {
       if (updated.changes !== 1) throw new Error("A synthetic student is required.");
       result = { disabled: true };
     }
+    else if (request.action === "stagePartialUpload" && process.env.NODE_ENV === "test" && request.input && typeof request.input.uploadId === "string" && /^[a-f0-9-]{36}$/.test(request.input.uploadId) && typeof request.input.prefixBase64 === "string" && request.input.prefixBase64.length <= 128) {
+      const row = application.db.prepare("SELECT u.id,u.size FROM uploads u JOIN users p ON p.uid=u.owner_uid WHERE u.id=? AND u.status='pending' AND p.email LIKE '%@example.test' AND NOT EXISTS(SELECT 1 FROM evidence e WHERE e.id=u.id)").get(request.input.uploadId);
+      const prefix = Buffer.from(request.input.prefixBase64, "base64");
+      if (!row || !prefix.length || prefix.length >= row.size) throw new Error("A synthetic unsubmitted partial file is required.");
+      fs.writeFileSync(path.join(dataDir, "uploads", `${row.id}.bin`), prefix, { flag: "wx", mode: 0o600 });
+      result = { stagedBytes: prefix.length };
+    }
     else if (request.action === "addAvailability")
       result = application.operator.addAvailability(request.input);
     else if (request.action === "linkFamily")

@@ -43,12 +43,15 @@
 }
 .account-security-identity > div {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 7px;
   min-width: 0;
+  max-width: 100%;
 }
 .account-security-identity strong {
   font-size: 1.05rem;
   font-weight: 650;
+  overflow-wrap: anywhere;
 }
 .account-security-identity span:not(.account-security-tag) {
   color: var(--security-muted);
@@ -307,7 +310,7 @@
 }
 .account-security-session-list dl > div {
   display: grid;
-  grid-template-columns: 62px minmax(0, 1fr);
+  grid-template-columns: 4.5em minmax(0, 1fr);
   gap: 10px;
   margin-top: 6px;
 }

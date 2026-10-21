@@ -5,6 +5,55 @@ export type MeetingChange =
   | { kind: "cancel"; booking: ApiAppointment }
   | { kind: "reschedule"; booking: ApiAppointment; replacement: ApiSlot };
 
+/** Reject invalid, skipped or repeated device-local minutes instead of guessing. */
+export function parseLocalMeetingTime(value: string): Date | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!parts) return null;
+  const [year, month, day, hour, minute] = parts.slice(1).map(Number);
+  if (
+    !year ||
+    month! < 1 ||
+    month! > 12 ||
+    day! < 1 ||
+    hour! > 23 ||
+    minute! > 59
+  )
+    return null;
+  // Use UTC only as a civil-calendar reference, not as the chosen time zone.
+  // setUTCFullYear also avoids Date's special interpretation of years 00–99.
+  const civil = new Date(0);
+  civil.setUTCFullYear(year!, month! - 1, day!);
+  civil.setUTCHours(hour!, minute!, 0, 0);
+  if (
+    civil.getUTCFullYear() !== year ||
+    civil.getUTCMonth() !== month! - 1 ||
+    civil.getUTCDate() !== day ||
+    civil.getUTCHours() !== hour ||
+    civil.getUTCMinutes() !== minute
+  )
+    return null;
+  let match: Date | null = null;
+  // Enumerate possible minute offsets within a whole day. This checks both
+  // mappings of a rollback (including non-hour clock changes) without relying
+  // on Date's automatic earlier-offset choice or adding a time-zone library.
+  for (let offset = -24 * 60; offset <= 24 * 60; offset++) {
+    const candidate = new Date(civil.getTime() + offset * 60_000);
+    if (candidate.getTimezoneOffset() !== offset) continue;
+    if (
+      candidate.getFullYear() !== year ||
+      candidate.getMonth() !== month! - 1 ||
+      candidate.getDate() !== day ||
+      candidate.getHours() !== hour ||
+      candidate.getMinutes() !== minute ||
+      candidate.getSeconds() !== 0
+    )
+      continue;
+    if (match) return null;
+    match = candidate;
+  }
+  return match;
+}
+
 export function bookingPeriod(
   booking: ApiAppointment,
   now: number,

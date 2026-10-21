@@ -715,6 +715,7 @@ function LearningWorkspace({
             "NOT_FOUND",
             "EXPIRED",
             "STORAGE_FULL",
+            "RATE_LIMITED",
           ].includes(failure.code)
         )
           setDraftResetAllowed(true);

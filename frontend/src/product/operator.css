@@ -58,6 +58,7 @@
 }
 .operator-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 30px;
 }
 .operator-tabs > button {
@@ -305,6 +306,7 @@
   border: 0;
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
 }
 .operator-fields legend:not(.sr-only) {
@@ -314,9 +316,11 @@
 }
 .operator-fields .form-field {
   margin: 0;
+  min-width: 0;
 }
 .operator-fields > .button {
   justify-self: start;
+  max-width: 100%;
 }
 .operator-field-help {
   color: var(--op-muted);
@@ -457,7 +461,7 @@
 }
 .operator-time-fields {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 .operator-feedback {
@@ -527,7 +531,7 @@
     gap: 22px;
   }
   .operator-time-fields {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 760px) {

@@ -157,6 +157,8 @@
         "version": 1,
         "contractVersion": 4,
         "schemaVersion": 2,
+        "runtimeRevision": "SHA-256 of source captured at process startup; local reuse compatibility only, not authentication",
+        "instanceScope": "SHA-256 of selected absolute data directory; no private path or records are exposed",
         "status": "ok",
         "authentication": "local-server",
         "emailDelivery": "unavailable",

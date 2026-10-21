@@ -10,6 +10,7 @@ import type {
   ApiUser,
 } from "../api";
 import { meetingTime } from "./format";
+import { parseLocalMeetingTime } from "./meetingHelpers";
 import "./operator.css";
 
 type Panel = "review" | "meetings" | "learning";
@@ -273,6 +274,7 @@ export function OperatorWorkspace({
 }) {
   const [params, setParams] = useSearchParams();
   const requestedPanel = params.get("panel");
+  const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const panel: Panel = panels.some((item) => item.id === requestedPanel)
     ? (requestedPanel as Panel)
     : "review";
@@ -1232,9 +1234,11 @@ export function OperatorWorkspace({
           </div>
           <div className="operator-editor">
             <h3>Publish a meeting time</h3>
-            <p className="operator-field-help">
-              Times use your device’s time zone. Choose 15 minutes to 4 hours;
-              published times cannot overlap.
+            <p className="operator-field-help" id="operator-time-zone-help">
+              Device time zone: {deviceTimeZone}. Choose 15 minutes to 4 hours;
+              published times cannot overlap. Times skipped or repeated when
+              clocks change are not accepted. Choose a different, unambiguous
+              time.
             </p>
             <form
               onSubmit={(event) => {
@@ -1242,11 +1246,11 @@ export function OperatorWorkspace({
                 void run(
                   `availability:${startsAt}:${endsAt}:${label.trim()}`,
                   async (signal, id) => {
-                    const start = new Date(startsAt),
-                      end = new Date(endsAt);
+                    const start = parseLocalMeetingTime(startsAt),
+                      end = parseLocalMeetingTime(endsAt);
                     if (
-                      !Number.isFinite(start.getTime()) ||
-                      !Number.isFinite(end.getTime()) ||
+                      !start ||
+                      !end ||
                       start.getTime() <= Date.now() ||
                       end.getTime() - start.getTime() < 15 * 60_000 ||
                       end.getTime() - start.getTime() > 4 * 60 * 60_000
@@ -1287,6 +1291,7 @@ export function OperatorWorkspace({
                     <span>Starts at</span>
                     <input
                       type="datetime-local"
+                      aria-describedby="operator-time-zone-help"
                       required
                       value={startsAt}
                       onChange={(event) => setStartsAt(event.target.value)}
@@ -1296,6 +1301,7 @@ export function OperatorWorkspace({
                     <span>Ends at</span>
                     <input
                       type="datetime-local"
+                      aria-describedby="operator-time-zone-help"
                       required
                       value={endsAt}
                       onChange={(event) => setEndsAt(event.target.value)}

@@ -19,6 +19,12 @@ function text(value, label, max = 100) {
   if (typeof value !== "string" || !value.trim() || value.trim().length > max || /[\x00-\x1f\x7f]/.test(value)) fail(400, "INVALID_INPUT", `Enter a valid ${label}.`);
   return value.trim();
 }
+function paragraph(value, label, max = 1000) {
+  if (typeof value !== "string") fail(400, "INVALID_INPUT", `Enter a valid ${label}.`);
+  const normalized = value.replace(/\r\n/g, "\n");
+  if (!normalized.trim() || normalized.trim().length > max || /[\x00-\x08\x0b-\x1f\x7f]/.test(normalized)) fail(400, "INVALID_INPUT", `Enter a valid ${label}.`);
+  return normalized.trim();
+}
 function identifier(value) {
   if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) fail(400, "INVALID_INPUT", "This record identifier is invalid.");
   return value;
@@ -66,4 +72,4 @@ function constantEqual(first, second) {
   const left = Buffer.from(first), right = Buffer.from(second);
   return left.length === right.length && timingSafeEqual(left, right);
 }
-module.exports = { ApiError, fail, object, text, identifier, requestId, email, password, hash, token, hashPassword, verifyPassword, constantEqual };
+module.exports = { ApiError, fail, object, text, paragraph, identifier, requestId, email, password, hash, token, hashPassword, verifyPassword, constantEqual };

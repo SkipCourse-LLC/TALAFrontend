@@ -774,7 +774,7 @@ test("operator review, availability controls and learning summaries lead to a pr
   });
   await page.getByLabel("Review queue", { exact: true }).selectOption("all");
   const staffNote =
-    "Synthetic staff feedback: explain how you checked the final step.";
+    "Synthetic staff feedback: explain how you checked the final step.\n\nInclude one example from your reflection.";
   await page
     .getByRole("textbox", { name: "Review note", exact: true })
     .fill(staffNote);
@@ -894,7 +894,7 @@ test("operator review, availability controls and learning summaries lead to a pr
   ).toBeVisible();
   await learningTab.click();
   const summary =
-    "Synthetic staff learning summary: the student explained a checked solution.";
+    "Synthetic staff learning summary: the student explained a checked solution.\n\nNext conversation: discuss another approach.";
   await page
     .getByLabel("Reviewed learning summary", { exact: true })
     .fill(summary);
@@ -911,6 +911,14 @@ test("operator review, availability controls and learning summaries lead to a pr
   await login(page, student);
   await chooseView(page, "learning");
   await expect(page.getByText(summary, { exact: true })).toBeVisible();
+  expect(
+    await page
+      .getByText(summary, { exact: true })
+      .evaluate((element) => ({
+        text: element.textContent,
+        whitespace: getComputedStyle(element).whiteSpace,
+      })),
+  ).toEqual({ text: summary, whitespace: "pre-wrap" });
   await page
     .getByRole("button", { name: "I have reviewed this summary", exact: true })
     .click();

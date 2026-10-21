@@ -11,7 +11,7 @@ npm ci --prefix frontend
 npm run dev --prefix frontend
 ```
 
-Open **http://127.0.0.1:5173/#/register**. The launcher starts the API on `127.0.0.1:8787` and the website on `127.0.0.1:5173`. It reuses an API only after checking its TALA health identity, refuses unknown occupied ports, and stops only child processes it created. Ctrl+C stops both new processes. An already-running API is left running.
+Open **http://127.0.0.1:5173/#/register**. The launcher starts the API on `127.0.0.1:8787` and the website on `127.0.0.1:5173`. It reuses an API only after checking its TALA health identity, loaded source revision and selected data directory. An older process or another test database on that port is refused. Ctrl+C stops both new processes; an existing API is never stopped by the launcher.
 
 The student workspace has separate Overview, Meetings, Learning records, Evidence and Progress views. The address preserves the selected view through refresh and browser navigation. Selected files stay in memory through internal workspace/account navigation; refreshing or closing the tab loses an unsent local file. Server-created unfinished uploads can be recovered separately. Files and credentials are not saved in browser storage.
 

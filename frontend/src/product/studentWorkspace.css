@@ -599,6 +599,12 @@
 .student-review-note p {
   max-width: 74ch;
 }
+.student-review-note p,
+.student-revision-notice p,
+.student-workspace .product-outcome > p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .student-documents-heading {
   margin-top: 36px;
 }

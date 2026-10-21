@@ -1,4 +1,5 @@
 "use strict";
+const { runtimeRevision, dataScope, assertCurrentRevision } = require("./runtimeIdentity.cjs");
 const http = require("node:http");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
@@ -6,6 +7,7 @@ const { openDatabase, transaction } = require("./database.cjs");
 const { createServices, userDTO, MAX_FILE_BYTES } = require("./services.cjs");
 const { createAccountServices } = require("./accountServices.cjs");
 const { ApiError, fail, object, text, email, password, hash, token, hashPassword, verifyPassword, constantEqual } = require("./security.cjs");
+assertCurrentRevision();
 
 function createApplication(options = {}) {
   if (Number(process.versions.node.split(".")[0]) < 24) throw new Error("Node.js 24 or newer is required.");
@@ -14,6 +16,7 @@ function createApplication(options = {}) {
   if (!Number.isSafeInteger(downloadTtl) || downloadTtl < 100 || downloadTtl > 30_000) throw new Error("Private download deadlines must be 100 to 30000 milliseconds.");
   process.umask(0o077);
   const dataDir = path.resolve(options.dataDir || path.join(__dirname, ".runtime"));
+  const instanceScope = dataScope(dataDir);
   const allowedOrigins = new Set(options.allowedOrigins || ["http://127.0.0.1:5173", "http://127.0.0.1:5176", "http://localhost:5173", "http://localhost:5176", "http://127.0.0.1:8787"]);
   if (!allowedOrigins.size || [...allowedOrigins].some((origin) => { try { return new URL(origin).origin !== origin; } catch { return true; } })) throw new Error("Configure explicit application origins, never a wildcard.");
   const db = openDatabase(dataDir);
@@ -131,7 +134,7 @@ function createApplication(options = {}) {
       const route = url.pathname;
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 4, schemaVersion: 2, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 4, schemaVersion: 2, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
       if (req.method === "GET" && route === "/api/session") {
         const existing = currentSession(req);
         if (existing) return json(res, { session: existing.user ? userDTO(existing.user) : null, csrfToken: existing.csrf_token });

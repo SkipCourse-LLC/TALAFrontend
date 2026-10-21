@@ -837,7 +837,7 @@ test(
           {
             id: "synthetic-explanation",
             summary:
-              "A staff member recorded a synthetic explanation practice summary.",
+              "A staff member recorded a synthetic explanation practice summary.\r\n\tThe student explained the next step.",
           },
         ],
         requestId: randomUUID(),
@@ -868,8 +868,10 @@ test(
         }),
       );
       assert.equal(published.attendance, "not_recorded");
+      assert.equal(published.outcomes[0].summary, publication.outcomes[0].summary.replace(/\r\n/g, "\n"));
       const learning = accepted(await student.client.request("/api/learning"));
       assert.equal(learning.records[0].id, published.id);
+      assert.equal(learning.records[0].outcomes[0].summary, published.outcomes[0].summary, "Published paragraph breaks must persist");
       assert.deepEqual(learning.integrations, {
         zoom: "unavailable",
         ai: "unavailable",
@@ -914,7 +916,7 @@ test(
       );
       const manualReview = {
         status: "needs_revision",
-        note: "Synthetic staff review: please add one explanation step.",
+        note: "Synthetic staff review: please add one explanation step.\r\n\tInclude why the step is valid.",
         requestId: randomUUID(),
         expectedReviewVersion: submitted.evidence.reviewVersion,
       };
@@ -932,10 +934,12 @@ test(
         ),
       );
       assert.equal(reviewed.reviewStatus, "needs_revision");
+      assert.equal(reviewed.reviewNote, manualReview.note.replace(/\r\n/g, "\n"));
       const updatedWorkspace = accepted(
         await student.client.request("/api/workspace"),
       );
       assert.equal(updatedWorkspace.evidence[0].reviewStatus, "needs_revision");
+      assert.equal(updatedWorkspace.evidence[0].reviewNote, reviewed.reviewNote, "Manual review paragraph breaks must persist");
       assert.equal(updatedWorkspace.progress.reviewedEvidenceCount, 1);
       assert.equal(
         updatedWorkspace.progress.assessedEvidenceCount,

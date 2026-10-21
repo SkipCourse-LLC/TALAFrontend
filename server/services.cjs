@@ -5,7 +5,7 @@ const { randomUUID } = require("node:crypto");
 const { TextDecoder } = require("node:util");
 const { transaction } = require("./database.cjs");
 const { createListServices } = require("./listServices.cjs");
-const { fail, object, text, identifier, requestId, hash } = require("./security.cjs");
+const { fail, object, text, paragraph, identifier, requestId, hash } = require("./security.cjs");
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const OWNER_STORAGE_BYTES = 100 * 1024 * 1024;
 const INSTANCE_STORAGE_BYTES = 2 * 1024 * 1024 * 1024;
@@ -39,6 +39,59 @@ function createServices(db, dataDir) {
       if (final.size !== row.size || final.mtimeMs !== opened.mtimeMs || hash(bytes) !== row.sha256) fail(409, "INTEGRITY_ERROR", "The private file checksum changed and needs review.");
       return bytes;
     } finally { if (descriptor !== undefined) fs.closeSync(descriptor); }
+  }
+  function syncDirectory(directory) {
+    const descriptor = fs.openSync(directory, "r");
+    try { fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); }
+  }
+  function stagingArtifact(filename) {
+    const stat = fs.lstatSync(filename);
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size > MAX_FILE_BYTES) fail(409, "INTEGRITY_ERROR", "The unfinished private file changed and needs review.");
+    return stat;
+  }
+  const sameArtifact = (first, second) => first.ino === second.ino && first.dev === second.dev;
+  function writeStagingFile(row, bytes) {
+    const directory = path.join(dataDir, "uploads"), file = path.join(directory, `${row.id}.bin`), partial = path.join(directory, `${row.id}.part`);
+    const promoted = path.join(dataDir, "evidence", `${row.id}.bin`);
+    let previous;
+    if (fs.existsSync(file)) {
+      previous = stagingArtifact(file);
+      try { storedFile(file, row); syncDirectory(directory); return; }
+      catch (error) {
+        // Only an explicit checksum-bound retry of an uncommitted pending
+        // upload may replace a remnant from an interrupted older writer.
+        if (row.status !== "pending" || error.code !== "INTEGRITY_ERROR") throw error;
+      }
+    } else if (fs.existsSync(promoted)) {
+      // A prior submit can have renamed the private bytes before its SQLite
+      // transaction failed. Preserve that exact verified artifact for retry.
+      storedFile(promoted, row); syncDirectory(path.dirname(promoted)); return;
+    }
+    let descriptor, created;
+    try {
+      try { descriptor = fs.openSync(partial, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK, 0o600); }
+      catch (error) {
+        if (error.code !== "EEXIST") throw error;
+        const before = stagingArtifact(partial);
+        descriptor = fs.openSync(partial, fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+        const opened = fs.fstatSync(descriptor);
+        if (!opened.isFile() || opened.nlink !== 1 || !sameArtifact(before, opened)) fail(409, "INTEGRITY_ERROR", "The unfinished private file changed and needs review.");
+      }
+      created = fs.fstatSync(descriptor);
+      fs.ftruncateSync(descriptor, 0);
+      fs.writeFileSync(descriptor, bytes);
+      fs.fsyncSync(descriptor);
+      fs.closeSync(descriptor); descriptor = undefined;
+      if (!sameArtifact(created, stagingArtifact(partial))) fail(409, "INTEGRITY_ERROR", "The unfinished private file changed during its write.");
+      if (previous ? !sameArtifact(previous, stagingArtifact(file)) : fs.existsSync(file)) fail(409, "INTEGRITY_ERROR", "The unfinished private file changed during its retry.");
+      fs.renameSync(partial, file);
+      syncDirectory(directory);
+    } finally {
+      if (descriptor !== undefined) fs.closeSync(descriptor);
+      // This is only the bounded scratch file for this explicit PUT. A crash
+      // can leave it behind; the next PUT/cancel/expired cleanup handles it.
+      if (created && fs.existsSync(partial) && sameArtifact(created, fs.lstatSync(partial))) fs.rmSync(partial, { force: true });
+    }
   }
   function storageCapacity(ownerUid, size, includePending) {
     const owner = db.prepare("SELECT count(*) AS n,coalesce(sum(size),0) AS bytes FROM evidence WHERE owner_uid=?").get(ownerUid);
@@ -172,8 +225,10 @@ function createServices(db, dataDir) {
         // A submitted evidence row is never selected or removed.
         db.prepare("UPDATE uploads SET status='failed' WHERE id=?").run(row.id);
         for (const directory of ["uploads", "evidence"]) fs.rmSync(path.join(dataDir, directory, `${row.id}.bin`), { force: true });
+        fs.rmSync(path.join(dataDir, "uploads", `${row.id}.part`), { force: true });
         db.prepare("INSERT INTO operations VALUES(?, 'expired-cleanup', ?, ?, ?, ?)").run(row.owner_uid, row.id, hash(row.id), JSON.stringify({ expired: true }), Date.now());
       }
+      if (rows.length) { syncDirectory(path.join(dataDir, "uploads")); syncDirectory(path.join(dataDir, "evidence")); }
       return { removed: rows.length, hasMore: rows.length === limit };
     });
   }
@@ -321,19 +376,11 @@ function createServices(db, dataDir) {
         const row = upload(actor, id);
         requireUploadWriter(actor, row);
         if (!["pending", "uploaded"].includes(row.status)) fail(409, "CONFLICT", "This upload is closed. Start a new upload.");
+        if (db.prepare("SELECT id FROM evidence WHERE id=?").get(row.id)) fail(409, "CONFLICT", "Submitted evidence cannot be replaced.");
         if (row.expires_at <= Date.now()) fail(410, "EXPIRED", "This upload expired. Start a new upload.");
         if (bytes.length !== row.size || contentType !== row.content_type || hash(bytes) !== row.sha256) fail(409, "INTEGRITY_ERROR", "The uploaded file does not match its approved size, type or checksum.");
         validateContent(bytes, contentType);
-        const file = path.join(dataDir, "uploads", `${row.id}.bin`);
-        try {
-          const descriptor = fs.openSync(file, "wx", 0o600);
-          try { fs.writeFileSync(descriptor, bytes); fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); }
-          const directory = fs.openSync(path.dirname(file), "r");
-          try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
-        } catch (error) {
-          if (error.code !== "EEXIST") throw error;
-          storedFile(file, row);
-        }
+        writeStagingFile(row, bytes);
         db.prepare("UPDATE uploads SET status='uploaded' WHERE id=?").run(row.id);
         return services.uploadStatus(actor, row.id);
       });
@@ -362,9 +409,11 @@ function createServices(db, dataDir) {
         validateContent(bytes, row.content_type);
         if (selected === source) {
           fs.renameSync(source, destination);
-          const directory = fs.openSync(path.dirname(destination), "r");
-          try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
         }
+        fs.rmSync(path.join(dataDir, "uploads", `${row.id}.part`), { force: true });
+        // Also fsync a recovered rename before committing its database row.
+        syncDirectory(path.dirname(source));
+        syncDirectory(path.dirname(destination));
         const now = Date.now();
         db.prepare("INSERT INTO evidence(id,owner_uid,appointment_id,title,content_type,size,sha256,submitted_at) VALUES(?,?,?,?,?,?,?,?)").run(row.id, row.owner_uid, row.appointment_id, row.title, row.content_type, row.size, row.sha256, now);
         if (predecessor) db.prepare("INSERT INTO evidence_revisions VALUES(?,?,?,?)").run(row.id, predecessor.id, predecessorRevision?.root_id || predecessor.id, (predecessorRevision?.revision_number || 1) + 1);
@@ -384,6 +433,8 @@ function createServices(db, dataDir) {
         if (row.status === "submitted" || db.prepare("SELECT id FROM evidence WHERE id=?").get(row.id)) fail(409, "CONFLICT", "Submitted evidence cannot be cancelled or deleted.");
         db.prepare("UPDATE uploads SET status='cancelled' WHERE id=?").run(row.id);
         for (const directory of ["uploads", "evidence"]) fs.rmSync(path.join(dataDir, directory, `${row.id}.bin`), { force: true });
+        fs.rmSync(path.join(dataDir, "uploads", `${row.id}.part`), { force: true });
+        syncDirectory(path.join(dataDir, "uploads")); syncDirectory(path.join(dataDir, "evidence"));
         return { uploadId: row.id, status: "cancelled" };
       });
     },
@@ -406,7 +457,7 @@ function createServices(db, dataDir) {
       const booking = ownedAppointment(actor, input.appointmentId);
       if (booking.status === "cancelled" || booking.ends_at > Date.now()) fail(409, "CONFLICT", "Publish reviewed summaries only after the scheduled meeting period ends.");
       if (!Array.isArray(input.outcomes) || !input.outcomes.length || input.outcomes.length > 20) fail(400, "INVALID_INPUT", "Publish one to twenty reviewed summaries.");
-      const outcomes = input.outcomes.map((item) => { object(item, ["id", "summary"]); return { id: identifier(item.id), summary: text(item.summary, "learning summary", 1000) }; });
+      const outcomes = input.outcomes.map((item) => { object(item, ["id", "summary"]); return { id: identifier(item.id), summary: paragraph(item.summary, "learning summary", 1000) }; });
       if (new Set(outcomes.map((item) => item.id)).size !== outcomes.length) fail(400, "INVALID_INPUT", "Summary identifiers must be unique.");
       return operation(actor, "publish-outcomes", input.requestId, [booking.id, outcomes], () => {
         if (db.prepare("SELECT id FROM learning_records WHERE appointment_id=?").get(booking.id)) fail(409, "CONFLICT", "This meeting already has published summaries. A correction workflow is required.");
@@ -449,7 +500,7 @@ function createServices(db, dataDir) {
       requireOperator(actor); object(input, ["status", "note", "requestId", "expectedReviewVersion"]);
       if (!["reviewed", "needs_revision"].includes(input.status)) fail(400, "INVALID_INPUT", "Choose a supported manual review status.");
       if (!Number.isSafeInteger(input.expectedReviewVersion) || input.expectedReviewVersion < 0) fail(400, "INVALID_INPUT", "Refresh the evidence and include its current review version.");
-      const note = text(input.note, "review note", 1000);
+      const note = paragraph(input.note, "review note", 1000);
       const saved = operation(actor, "review-evidence", input.requestId, [identifier(id), input.status, note, input.expectedReviewVersion], () => {
         const row = db.prepare("SELECT * FROM evidence WHERE id=?").get(id);
         if (!row) fail(404, "NOT_FOUND", "This evidence is unavailable.");

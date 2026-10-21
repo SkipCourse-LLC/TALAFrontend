@@ -2,6 +2,9 @@ import { spawn } from "node:child_process";
 import { createConnection } from "node:net";
 import process from "node:process";
 import { fileURLToPath, URL } from "node:url";
+import path from "node:path";
+import { Buffer } from "node:buffer";
+import runtimeIdentity from "../../server/runtimeIdentity.cjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const frontend = fileURLToPath(new URL("../", import.meta.url));
@@ -12,6 +15,9 @@ const viteEntry = fileURLToPath(
   new URL("../node_modules/vite/bin/vite.js", import.meta.url),
 );
 const children = new Set();
+const expectedScope = runtimeIdentity.dataScope(
+  path.resolve(root, process.env.TALA_DATA_DIR || "server/.runtime"),
+);
 let stopping = false;
 
 function listening(port) {
@@ -44,13 +50,44 @@ async function healthy() {
         credentials: "omit",
       },
     );
-    if (!response.ok) return false;
-    const value = await response.json();
+    const refuseResponse = async () => {
+      await response.body?.cancel().catch(() => {});
+      return false;
+    };
+    if (
+      !response.ok ||
+      !/^application\/json(?:;|$)/i.test(
+        response.headers.get("content-type") || "",
+      )
+    )
+      return refuseResponse();
+    const declared = response.headers.get("content-length");
+    if (declared && (!/^\d+$/.test(declared) || Number(declared) > 4096))
+      return refuseResponse();
+    if (!response.body) return false;
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    try {
+      for (;;) {
+        const part = await reader.read();
+        if (part.done) break;
+        size += part.value.byteLength;
+        if (size > 4096) return false;
+        chunks.push(part.value);
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+    const value = JSON.parse(Buffer.concat(chunks).toString("utf8"));
     return (
       value?.application === "tala-independent-server" &&
       value.version === 1 &&
       value.contractVersion === 4 &&
       value.schemaVersion === 2 &&
+      value.runtimeRevision === runtimeIdentity.runtimeRevision &&
+      value.instanceScope === expectedScope &&
       value.status === "ok" &&
       value.authentication === "local-server"
     );
@@ -113,7 +150,7 @@ try {
     if (await listening(8787)) {
       if (!(await healthy()))
         throw new Error(
-          "Port 8787 belongs to an older or unverified service. Stop that instance before starting this TALA version. No process was stopped.",
+          "Port 8787 belongs to an older TALA version, another data directory, or an unverified service. Stop that instance yourself or choose its intended data directory before starting. No process was stopped.",
         );
       process.stdout.write(
         "Using the existing verified local TALA API on port 8787.\n",

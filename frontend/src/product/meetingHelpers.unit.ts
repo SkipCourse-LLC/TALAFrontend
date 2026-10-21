@@ -7,7 +7,48 @@ import {
   groupMeetingDays,
   meetingChangeIsCurrent,
   meetingRange,
+  parseLocalMeetingTime,
 } from "./meetingHelpers";
+
+function inDeviceTimeZone(timeZone: string, run: () => void) {
+  const previous = process.env.TZ;
+  process.env.TZ = timeZone;
+  try {
+    run();
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+}
+
+test("a unique Phoenix local minute preserves its exact ISO instant and rejects impossible dates", () => {
+  inDeviceTimeZone("America/Phoenix", () => {
+    expect(parseLocalMeetingTime("2027-03-14T02:30")?.toISOString()).toBe(
+      "2027-03-14T09:30:00.000Z",
+    );
+    expect(parseLocalMeetingTime("2027-02-30T10:00")).toBeNull();
+    expect(parseLocalMeetingTime("2027-03-14T24:00")).toBeNull();
+    expect(parseLocalMeetingTime("2027-03-14T02:30Z")).toBeNull();
+  });
+});
+
+test("a New York spring clock gap is rejected rather than silently advanced", () => {
+  inDeviceTimeZone("America/New_York", () => {
+    expect(parseLocalMeetingTime("2027-03-14T02:30")).toBeNull();
+    expect(parseLocalMeetingTime("2027-03-14T03:30")?.toISOString()).toBe(
+      "2027-03-14T07:30:00.000Z",
+    );
+  });
+});
+
+test("a New York repeated fall minute is rejected rather than selecting its earlier offset", () => {
+  inDeviceTimeZone("America/New_York", () => {
+    expect(parseLocalMeetingTime("2027-11-07T01:30")).toBeNull();
+    expect(parseLocalMeetingTime("2027-11-07T02:30")?.toISOString()).toBe(
+      "2027-11-07T07:30:00.000Z",
+    );
+  });
+});
 
 const now = Date.parse("2026-10-21T17:00:00Z");
 const appointment: ApiAppointment = {

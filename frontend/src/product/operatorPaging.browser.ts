@@ -154,3 +154,94 @@ test("returning to a cached operator panel still aborts stale pagination when it
     release?.();
   }
 });
+
+test.describe("operator device-local publishing", () => {
+  test.use({ timezoneId: "America/New_York" });
+  test("clock gaps and repeated minutes never post, while a unique time preserves its exact instant", async ({
+    page,
+  }) => {
+    const published: Array<{ startsAt: string; endsAt: string }> = [];
+    await page.route(
+      (url) => url.pathname.startsWith("/api/"),
+      async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (path === "/api/session")
+          return route.fulfill({
+            json: {
+              session: {
+                uid: "operator-id",
+                name: "Synthetic staff",
+                email: "staff@example.test",
+                role: "operator",
+                emailVerified: false,
+              },
+              csrfToken: "n".repeat(43),
+            },
+          });
+        if (path === "/api/availability") {
+          if (route.request().method() === "POST") {
+            const body = route.request().postDataJSON() as {
+              startsAt: string;
+              endsAt: string;
+            };
+            published.push({ startsAt: body.startsAt, endsAt: body.endsAt });
+            return route.fulfill({
+              json: {
+                id: "unique-time-id",
+                ...body,
+                label: "Advising meeting",
+                isAvailable: true,
+              },
+            });
+          }
+          return route.fulfill({
+            json: { slots: [], hasMore: false, nextCursor: null },
+          });
+        }
+        if (path === "/api/operations/appointments")
+          return route.fulfill({ json: { items: [], nextCursor: null } });
+        return route.abort("blockedbyclient");
+      },
+    );
+    await page.goto("/#/dashboard?panel=meetings");
+    const starts = page.getByLabel("Starts at", { exact: true });
+    const ends = page.getByLabel("Ends at", { exact: true });
+    const publish = page.getByRole("button", {
+      name: "Publish availability",
+      exact: true,
+    });
+    await expect(page.locator("#operator-time-zone-help")).toContainText(
+      "America/New_York",
+    );
+    await expect(publish).toBeEnabled();
+    for (const [start, end] of [
+      ["2027-03-14T02:30", "2027-03-14T04:00"],
+      ["2027-11-07T01:30", "2027-11-07T02:30"],
+    ]) {
+      await starts.fill(start!);
+      await ends.fill(end!);
+      await publish.click();
+      await expect(page.getByRole("alert")).toContainText(
+        "Check the entered details",
+      );
+      await expect(publish).toBeEnabled();
+      await expect(starts).toHaveValue(start!);
+      await expect(ends).toHaveValue(end!);
+      expect(published).toHaveLength(0);
+    }
+    await starts.fill("2027-03-14T03:30");
+    await ends.fill("2027-03-14T04:00");
+    await publish.click();
+    await expect(
+      page.getByRole("status").filter({ hasText: "Meeting time published." }),
+    ).toBeVisible();
+    expect(published).toEqual([
+      {
+        startsAt: "2027-03-14T07:30:00.000Z",
+        endsAt: "2027-03-14T08:00:00.000Z",
+      },
+    ]);
+    await expect(starts).toHaveValue("");
+    await expect(ends).toHaveValue("");
+  });
+});

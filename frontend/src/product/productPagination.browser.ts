@@ -555,3 +555,309 @@ test("narrow reduced-motion pagination preserves keyboard focus, retry context a
     await staffContext.close();
   }
 });
+
+test("rejected and unconfirmed Evidence uploads remain recoverable without losing files or overwriting stale revisions", async ({
+  page,
+  browser,
+}) => {
+  await register(page, "Synthetic upload recovery learner");
+  const starts = new Date(Date.now() + 86_400_000);
+  const slot = (await rpc("addAvailability", {
+    startsAt: starts.toISOString(),
+    endsAt: new Date(starts.getTime() + 1_800_000).toISOString(),
+    label: "Synthetic recovery meeting",
+  })) as { id: string };
+  await chooseView(page, "Meetings");
+  await page
+    .getByRole("button", { name: "Refresh records", exact: true })
+    .click();
+  await page
+    .getByLabel("Available meeting time", { exact: true })
+    .selectOption(slot.id);
+  await page.getByRole("button", { name: "Book meeting", exact: true }).click();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Your booking was saved to the server." }),
+  ).toBeVisible();
+  await chooseView(page, "Evidence");
+  const evidence = page.locator("#evidence");
+  const bytes = Buffer.from(
+    "Synthetic upload recovery reflection. These are not real student records.",
+  );
+  const input = { name: "recovery.txt", mimeType: "text/plain", buffer: bytes };
+  await evidence
+    .getByLabel("Evidence title", { exact: true })
+    .fill("Synthetic recovered reflection");
+  await evidence.getByLabel("File", { exact: true }).setInputFiles(input);
+  await page.route("**/api/evidence/uploads", async (route) => {
+    if (route.request().method() === "POST")
+      await route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "RATE_LIMITED" } }),
+      });
+    else await route.continue();
+  });
+  await evidence
+    .getByRole("button", { name: "Submit evidence", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("Too many attempts");
+  await evidence
+    .getByRole("button", { name: "Clear local upload draft", exact: true })
+    .click();
+  await expect(
+    evidence.getByLabel("Evidence title", { exact: true }),
+  ).toBeEnabled();
+  expect(
+    await evidence
+      .getByLabel("File", { exact: true })
+      .evaluate((element: HTMLInputElement) => element.files?.length),
+  ).toBe(1);
+  expect(
+    (await (await page.request.get("/api/evidence/uploads")).json()).uploads,
+  ).toEqual([]);
+  await page.unroute("**/api/evidence/uploads");
+
+  let lostCreate = false,
+    uploadId = "";
+  const createIds: string[] = [];
+  await page.route("**/api/evidence/uploads", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    createIds.push(
+      (route.request().postDataJSON() as { requestId: string }).requestId,
+    );
+    if (!lostCreate) {
+      lostCreate = true;
+      const saved = await route.fetch();
+      expect(saved.status()).toBe(201);
+      uploadId = ((await saved.json()) as { uploadId: string }).uploadId;
+      await route.abort("connectionfailed");
+    } else await route.continue();
+  });
+  await evidence
+    .getByRole("button", { name: "Submit evidence", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("could not be reached");
+  await expect(evidence.getByLabel("File", { exact: true })).toBeDisabled();
+  await chooseView(page, "Meetings");
+  await page
+    .getByRole("button", { name: "Cancel booking", exact: true })
+    .click();
+  const confirmation = page.getByRole("dialog", {
+    name: "Cancel this booking?",
+    exact: true,
+  });
+  await expect(
+    confirmation.getByRole("button", {
+      name: "Confirm cancellation",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await expect(confirmation).toContainText("Evidence file");
+  await confirmation
+    .getByRole("button", { name: "Keep booking", exact: true })
+    .click();
+  await chooseView(page, "Evidence");
+  let partialStaged = false;
+  await page.route("**/api/evidence/uploads/*/content", async (route) => {
+    if (!partialStaged) {
+      partialStaged = true;
+      const id = new URL(route.request().url()).pathname.split("/").at(-2);
+      expect(id).toBe(uploadId);
+      await rpc("stagePartialUpload", {
+        uploadId,
+        prefixBase64: bytes.subarray(0, 7).toString("base64"),
+      });
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "INTERNAL_ERROR" } }),
+      });
+    } else await route.continue();
+  });
+  await evidence
+    .getByRole("button", { name: "Retry this upload", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("could not be confirmed");
+  expect(createIds).toHaveLength(2);
+  expect(createIds[0]).toBe(createIds[1]);
+  await page.unroute("**/api/evidence/uploads");
+  await page.unroute("**/api/evidence/uploads/*/content");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  const unfinished = page.getByRole("list", {
+    name: "Your unfinished Evidence uploads",
+    exact: true,
+  });
+  const originalFile = unfinished.getByLabel(
+    "Choose original file for Synthetic recovered reflection",
+    { exact: true },
+  );
+  await originalFile.setInputFiles({
+    ...input,
+    name: "wrong-file.txt",
+    buffer: Buffer.alloc(bytes.length, 120),
+  });
+  await unfinished
+    .getByRole("button", { name: "Upload and submit", exact: true })
+    .click();
+  await expect(unfinished.getByRole("alert")).toContainText("checksum");
+  await originalFile.setInputFiles(input);
+  await unfinished
+    .getByRole("button", { name: "Upload and submit", exact: true })
+    .click();
+  await expect(
+    evidence.getByRole("heading", {
+      name: "Synthetic recovered reflection",
+      exact: true,
+      level: 3,
+    }),
+  ).toBeVisible();
+  await expect(
+    evidence.getByText("No unfinished uploads to continue.", { exact: true }),
+  ).toBeVisible();
+  const savedEvidence = (await (await page.request.get("/api/evidence")).json())
+    .items as { id: string; reviewVersion: number }[];
+  expect(savedEvidence).toHaveLength(1);
+  expect(savedEvidence[0]!.id).toBe(uploadId);
+
+  await evidence
+    .getByLabel("Evidence title", { exact: true })
+    .fill("Synthetic cancelled request");
+  await evidence.getByLabel("File", { exact: true }).setInputFiles(input);
+  await page.route("**/api/evidence/uploads/*/content", (route) =>
+    route.abort("connectionfailed"),
+  );
+  await evidence
+    .getByRole("button", { name: "Submit evidence", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("could not be reached");
+  let lostCancellation = false,
+    cancelledId = "";
+  await page.route("**/api/evidence/uploads/*/cancel", async (route) => {
+    cancelledId =
+      new URL(route.request().url()).pathname.split("/").at(-2) ?? "";
+    if (!lostCancellation) {
+      lostCancellation = true;
+      const saved = await route.fetch();
+      expect(saved.ok()).toBe(true);
+      await route.abort("connectionfailed");
+    } else await route.continue();
+  });
+  await evidence
+    .getByRole("button", { name: "Cancel unsubmitted upload", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("could not be reached");
+  await expect(
+    evidence.getByLabel("Evidence title", { exact: true }),
+  ).toBeDisabled();
+  await evidence
+    .getByRole("button", { name: "Cancel unsubmitted upload", exact: true })
+    .click();
+  await expect(
+    evidence.getByLabel("Evidence title", { exact: true }),
+  ).toBeEnabled();
+  expect(
+    (
+      (await (
+        await page.request.get(`/api/evidence/uploads/${cancelledId}`)
+      ).json()) as { status: string }
+    ).status,
+  ).toBe("cancelled");
+  expect(
+    (await (await page.request.get("/api/evidence/uploads")).json()).uploads,
+  ).toEqual([]);
+  expect(
+    await evidence
+      .getByLabel("File", { exact: true })
+      .evaluate((element: HTMLInputElement) => element.files?.length),
+  ).toBe(1);
+  await page.unroute("**/api/evidence/uploads/*/content");
+  await page.unroute("**/api/evidence/uploads/*/cancel");
+
+  const staffContext = await browser.newContext({
+    baseURL: "http://127.0.0.1:5180",
+  });
+  try {
+    await restrict(staffContext);
+    const staffPage = await staffContext.newPage();
+    const staff = await register(staffPage, "Synthetic revision reviewer");
+    await rpc("promote", staff.email);
+    const staffSession = (await (
+      await staffPage.request.get("/api/session")
+    ).json()) as { csrfToken: string; session: { uid: string } };
+    const review = async (
+      status: "reviewed" | "needs_revision",
+      version: number,
+    ) => {
+      const response = await staffPage.request.post(
+        `/api/evidence/${uploadId}/review`,
+        {
+          headers: {
+            Origin: "http://127.0.0.1:5180",
+            "X-CSRF-Token": staffSession.csrfToken,
+            "X-TALA-User": staffSession.session.uid,
+          },
+          data: {
+            status,
+            note: "Synthetic review change for recovery validation.",
+            expectedReviewVersion: version,
+            requestId: randomUUID(),
+          },
+        },
+      );
+      expect(response.ok()).toBe(true);
+      return (await response.json()) as { reviewVersion: number };
+    };
+    const needingRevision = await review("needs_revision", 0);
+    await page.bringToFront();
+    await evidence.getByLabel("File", { exact: true }).setInputFiles([]);
+    await page
+      .getByRole("button", { name: "Refresh records", exact: true })
+      .click();
+    await evidence
+      .getByRole("button", {
+        name: "Prepare revision of Synthetic recovered reflection",
+        exact: true,
+      })
+      .click();
+    await evidence.getByLabel("File", { exact: true }).setInputFiles(input);
+    await page.route("**/api/evidence/uploads/*/content", (route) =>
+      route.abort("connectionfailed"),
+    );
+    await evidence
+      .getByRole("button", { name: "Submit revision", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("could not be reached");
+    await review("reviewed", needingRevision.reviewVersion);
+    await page.unroute("**/api/evidence/uploads/*/content");
+    await evidence
+      .getByRole("button", { name: "Retry this upload", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("changed");
+    expect(
+      (await (await page.request.get("/api/evidence")).json()).items,
+    ).toHaveLength(1);
+    await evidence
+      .getByRole("button", { name: "Cancel unsubmitted upload", exact: true })
+      .click();
+    await expect(
+      evidence.getByLabel("Submission type", { exact: true }),
+    ).toBeEnabled();
+    await evidence
+      .getByLabel("Submission type", { exact: true })
+      .selectOption("");
+    await expect(evidence.getByLabel("File", { exact: true })).toBeEnabled();
+    expect(
+      await evidence
+        .getByLabel("File", { exact: true })
+        .evaluate((element: HTMLInputElement) => element.files?.length),
+    ).toBe(1);
+  } finally {
+    await staffContext.close();
+  }
+});
