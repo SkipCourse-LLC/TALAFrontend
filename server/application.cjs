@@ -4,11 +4,14 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { openDatabase, transaction } = require("./database.cjs");
 const { createServices, userDTO, MAX_FILE_BYTES } = require("./services.cjs");
+const { createAccountServices } = require("./accountServices.cjs");
 const { ApiError, fail, object, text, email, password, hash, token, hashPassword, verifyPassword, constantEqual } = require("./security.cjs");
 
 function createApplication(options = {}) {
   if (Number(process.versions.node.split(".")[0]) < 24) throw new Error("Node.js 24 or newer is required.");
   if (process.env.NODE_ENV === "production") throw new Error("Production hosting requires a reviewed HTTPS, mail, backup and data-protection configuration. This launcher is local-only.");
+  const downloadTtl = options.downloadTtlMs === undefined ? 30_000 : options.downloadTtlMs;
+  if (!Number.isSafeInteger(downloadTtl) || downloadTtl < 100 || downloadTtl > 30_000) throw new Error("Private download deadlines must be 100 to 30000 milliseconds.");
   process.umask(0o077);
   const dataDir = path.resolve(options.dataDir || path.join(__dirname, ".runtime"));
   const allowedOrigins = new Set(options.allowedOrigins || ["http://127.0.0.1:5173", "http://127.0.0.1:5176", "http://localhost:5173", "http://localhost:5176", "http://127.0.0.1:8787"]);
@@ -28,15 +31,30 @@ function createApplication(options = {}) {
     return { ...session, user };
   }
   function rotate(req, res, user) {
-    const previous = currentSession(req);
-    const opaque = token(), csrfToken = token(), now = Date.now(), ttl = user ? sessionTtl : 3600000;
+    const opaque = token(), csrfToken = token(), ttl = user ? sessionTtl : 3600000;
+    let responseUser = user;
     transaction(db, () => {
+      // Acquiring SQLite's writer lock can wait for another local process.
+      // Values read before that wait cannot authorize the replacement session.
+      if (req.method !== "GET") {
+        mutation(req);
+        if (req.headers["x-tala-user"] !== undefined) actorFor(req);
+      }
+      const previous = currentSession(req), now = Date.now();
+      if (user) {
+        const fresh = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(user.uid);
+        if (!fresh || fresh.password_hash !== user.password_hash) fail(401, "INVALID_CREDENTIALS", "The account credentials changed. Sign in again.");
+        responseUser = fresh;
+      }
       if (previous) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(previous.token_hash);
       db.prepare("DELETE FROM sessions WHERE expires_at<=?").run(now);
-      db.prepare("INSERT INTO sessions VALUES(?,?,?,?,?)").run(hash(opaque), user?.uid || null, csrfToken, now + ttl, now);
+      db.prepare("INSERT INTO sessions VALUES(?,?,?,?,?)").run(hash(opaque), responseUser?.uid || null, csrfToken, now + ttl, now);
     });
+    setSessionCookie(res, opaque, ttl);
+    return { session: responseUser ? userDTO(responseUser) : null, csrfToken };
+  }
+  function setSessionCookie(res, opaque, ttl) {
     res.setHeader("Set-Cookie", `${cookieName}=${opaque}; Path=/api; Max-Age=${Math.floor(ttl / 1000)}; HttpOnly; SameSite=Strict`);
-    return { session: user ? userDTO(user) : null, csrfToken };
   }
   function rate(req, group, max = 40) {
     const key = hash(`${group}\0${req.socket.remoteAddress || "unknown"}`), now = Date.now(), window = 15 * 60000;
@@ -54,12 +72,22 @@ function createApplication(options = {}) {
     if (!session?.user) fail(401, "AUTH_REQUIRED", "Sign in before continuing.");
     const expectedUid = req.headers["x-tala-user"];
     if (expectedUid !== undefined && expectedUid !== session.user.uid) fail(401, "AUTH_REQUIRED", "Your signed-in account changed. Refresh before continuing.");
+    Object.defineProperty(session.user, "sessionTokenHash", { value: session.token_hash, enumerable: false });
     return session.user;
   }
   function mutation(req) {
     const session = currentSession(req);
     if (!session || !constantEqual(req.headers["x-csrf-token"], session.csrf_token)) fail(403, "CSRF_INVALID", "Your security session changed. Refresh and try again.");
   }
+  const accounts = createAccountServices(db, {
+    sessionTtl, userDTO,
+    context(req, changing = false) {
+      if (changing) mutation(req);
+      const user = actorFor(req), session = currentSession(req);
+      if (!session?.user || session.user.uid !== user.uid) fail(401, "AUTH_REQUIRED", "Your security session expired or changed. Sign in again.");
+      return { user: session.user, session };
+    },
+  });
   async function perform(req, action, raw = false) {
     const input = await body(req, raw);
     mutation(req);
@@ -87,6 +115,7 @@ function createApplication(options = {}) {
     res.end(JSON.stringify(value));
   }
   let downloads = 0;
+  let uploads = 0;
   const server = http.createServer({ maxHeaderSize: 16384, requestTimeout: 30000, headersTimeout: 10000 }, async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -102,7 +131,7 @@ function createApplication(options = {}) {
       const route = url.pathname;
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 2, schemaVersion: 2, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 3, schemaVersion: 2, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
       if (req.method === "GET" && route === "/api/session") {
         const existing = currentSession(req);
         if (existing) return json(res, { session: existing.user ? userDTO(existing.user) : null, csrfToken: existing.csrf_token });
@@ -146,29 +175,61 @@ function createApplication(options = {}) {
         return json(res, rotate(req, res, null));
       }
       const actor = actorFor(req);
+      let match;
+      if (req.method === "GET" && route === "/api/account/sessions") {
+        rate(req, "account-session-read", 120);
+        return json(res, accounts.sessions(req));
+      }
+      if (req.method === "POST" && route === "/api/account/sessions/revoke") {
+        rate(req, "account-session-revoke", 40);
+        return json(res, await perform(req, (_fresh, input) => accounts.revoke(req, input)));
+      }
+      if (req.method === "POST" && route === "/api/account/sessions/revoke-others") {
+        rate(req, "account-session-revoke", 40);
+        return json(res, await perform(req, (_fresh, input) => accounts.revokeOthers(req, input)));
+      }
+      if (req.method === "POST" && route === "/api/account/password") {
+        rate(req, "account-password-change", 20);
+        const completed = await perform(req, (_fresh, input) => accounts.changePassword(req, input));
+        if (completed.cookie) setSessionCookie(res, completed.cookie.opaque, completed.cookie.ttl);
+        return json(res, completed.response);
+      }
+      if (req.method === "GET" && (match = route.match(/^\/api\/account\/password-changes\/([^/]+)$/))) {
+        rate(req, "account-session-read", 120);
+        return json(res, accounts.passwordChangeReceipt(req, match[1]));
+      }
       if (req.method === "GET" && route === "/api/workspace") return json(res, services.workspace(actor, url.searchParams.get("studentUid")));
       if (req.method === "PATCH" && route === "/api/profile") return json(res, await perform(req, (fresh, input) => services.updateProfile(fresh, input)));
       if (req.method === "GET" && route === "/api/availability") return json(res, services.listAvailability(actor));
       if (req.method === "POST" && route === "/api/availability") return json(res, await perform(req, (fresh, input) => services.availability(fresh, input)), 201);
       if (req.method === "POST" && route === "/api/appointments") return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input)), 201);
-      let match;
       if (req.method === "POST" && (match = route.match(/^\/api\/availability\/([^/]+)\/withdraw$/))) return json(res, await perform(req, (fresh, input) => services.withdrawAvailability(fresh, match[1], input)));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/reschedule$/))) return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input, match[1])));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/cancel$/))) return json(res, await perform(req, (fresh, input) => services.cancelBooking(fresh, match[1], input)));
       if (req.method === "POST" && route === "/api/evidence/uploads/cleanup") return json(res, await perform(req, (fresh, input) => { object(input, []); return services.cleanupExpired(fresh); }));
+      if (req.method === "GET" && route === "/api/evidence/uploads") return json(res, services.pendingUploads(actor));
       if (req.method === "POST" && route === "/api/evidence/uploads") return json(res, await perform(req, (fresh, input) => services.createUpload(fresh, input)), 201);
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)$/))) return json(res, services.uploadStatus(actor, match[1]));
       if (req.method === "PUT" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)\/content$/))) {
+        if (actor.role === "parent") fail(403, "FORBIDDEN", "Parent access is read-only until delegated permissions are approved.");
         rate(req, "file-upload", 200);
-        return json(res, await perform(req, (fresh, input) => services.writeUpload(fresh, match[1], (req.headers["content-type"] || "").split(";")[0].trim(), input), true));
+        if (uploads >= 4) fail(429, "RATE_LIMITED", "Too many file uploads. Try again shortly.");
+        uploads += 1;
+        try {
+          return json(res, await perform(req, (fresh, input) => services.writeUpload(fresh, match[1], (req.headers["content-type"] || "").split(";")[0].trim(), input), true));
+        } finally { uploads -= 1; }
       }
       if (req.method === "POST" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)\/submit$/))) return json(res, await perform(req, (fresh, input) => services.submit(fresh, match[1], input)));
       if (req.method === "POST" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)\/cancel$/))) { return json(res, await perform(req, (fresh, input) => { object(input, []); return services.cancelUpload(fresh, match[1]); })); }
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)\/content$/))) {
         if (downloads >= 4) fail(429, "RATE_LIMITED", "Too many file downloads. Try again shortly.");
         downloads += 1;
+        // requestTimeout bounds incoming requests, not a client that stops
+        // reading a response. An absolute deadline also defeats slow drips.
+        const deadline = setTimeout(() => res.destroy(), downloadTtl);
+        deadline.unref();
         let released = false;
-        const release = () => { if (!released) { released = true; downloads -= 1; } };
+        const release = () => { if (!released) { released = true; clearTimeout(deadline); downloads -= 1; } };
         res.once("finish", release); res.once("close", release);
         try {
           const file = services.download(actor, match[1]);

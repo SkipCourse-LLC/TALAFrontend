@@ -198,3 +198,52 @@ test("private downloads become Blobs only after exact size, type and checksum va
     code: "INTEGRITY_ERROR",
   });
 });
+
+test("a rejected CSRF nonce is refreshed only by the caller's explicit mutation retry", async () => {
+  let sessionReads = 0,
+    mutationPosts = 0;
+  const originalRequest = { requestId: "same-explicit-retry-request" };
+  const api = createTalaApi({
+    fetcher: async (path, init) => {
+      if (path === "/api/session")
+        return Response.json(
+          session(
+            learner,
+            ++sessionReads === 1 ? "a".repeat(43) : "b".repeat(43),
+          ),
+        );
+      mutationPosts++;
+      expect(path).toBe("/api/account/sessions/revoke-others");
+      expect(JSON.parse(String(init?.body))).toEqual(originalRequest);
+      const headers = new Headers(init?.headers);
+      expect(headers.get("X-TALA-User")).toBe(learner.uid);
+      expect(headers.get("X-CSRF-Token")).toBe(
+        (mutationPosts === 1 ? "a" : "b").repeat(43),
+      );
+      return mutationPosts === 1
+        ? Response.json(
+            {
+              error: {
+                code: "CSRF_INVALID",
+                message: "Synthetic rotated session nonce",
+              },
+            },
+            { status: 403 },
+          )
+        : Response.json({
+            revokedSessionCount: 1,
+            currentSessionRevoked: false,
+          });
+    },
+  });
+  await expect(api.revokeOtherSessions(originalRequest)).rejects.toMatchObject({
+    code: "CSRF_INVALID",
+  });
+  expect(mutationPosts).toBe(1);
+  expect(sessionReads).toBe(1);
+  expect(
+    (await api.revokeOtherSessions(originalRequest)).revokedSessionCount,
+  ).toBe(1);
+  expect(mutationPosts).toBe(2);
+  expect(sessionReads).toBe(2);
+});

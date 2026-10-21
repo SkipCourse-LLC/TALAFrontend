@@ -6,6 +6,7 @@ import type {
   Appointment,
   EvidenceContentType,
   EvidenceDownload,
+  PasswordChangeResult,
   SessionState,
   UploadIntent,
   UploadStatus,
@@ -78,6 +79,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
   let revision = 0;
   let authBusy = false;
   let bootstrap: Promise<SessionState> | undefined;
+  const passwordReceiptOwners = new Map<string, string>();
   const transport = createHttpTransport({
     fetcher: options.fetcher,
     getCsrfToken: async (signal) => {
@@ -138,7 +140,18 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         },
         parser,
       );
-    const result = await action(current, bound, json);
+    let result: T;
+    try {
+      result = await action(current, bound, json);
+    } catch (failure) {
+      if (failure instanceof TalaApiError && failure.code === "CSRF_INVALID") {
+        // Another tab can rotate a shared cookie while this instance retains
+        // its old nonce. Keep the intended actor; only an explicit next attempt
+        // may bootstrap a fresh nonce. Never replay the failed mutation here.
+        csrfToken = "";
+      }
+      throw failure;
+    }
     if (signal?.aborted) throw new TalaApiError("CANCELLED");
     if (revision !== version || actor?.uid !== current.uid)
       throw new TalaApiError("AUTH_REQUIRED");
@@ -152,10 +165,19 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
     if (authBusy) throw new TalaApiError("CONFLICT");
     authBusy = true;
     let attempted = false;
+    let intendedActor: User | null = null;
     try {
+      const intendedUid = actor?.uid;
       if (actor === undefined || !csrfToken) await loadSession(signal);
+      if (
+        path === "/api/auth/logout" &&
+        intendedUid &&
+        actor?.uid !== intendedUid
+      )
+        throw new TalaApiError("AUTH_REQUIRED");
       if (path !== "/api/auth/logout" && actor)
         throw new TalaApiError("ACTIVE_SESSION");
+      intendedActor = actor ?? null;
       revision++;
       attempted = true;
       const value = await transport.json(
@@ -176,7 +198,9 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       if (attempted) {
         revision++;
         csrfToken = "";
-        actor = undefined;
+        // Only an explicit getSession() may adopt a possibly changed cookie.
+        // Stale UI must retain its intended account after response loss.
+        actor = intendedActor;
       }
       throw error;
     } finally {
@@ -229,6 +253,118 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
     async logout(signal?: AbortSignal): Promise<void> {
       if (await authAction("/api/auth/logout", {}, signal))
         throw new TalaApiError("INVALID_RESPONSE");
+    },
+    getAccountSessions(signal?: AbortSignal) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          "/api/account/sessions",
+          { signal },
+          decode.accountSessions,
+        ),
+      );
+    },
+    revokeAccountSession(
+      sessionId: string,
+      input: { requestId: string },
+      signal?: AbortSignal,
+    ) {
+      if (!/^session_[a-zA-Z0-9_-]{43}$/.test(sessionId))
+        return Promise.reject(new TalaApiError("INVALID_INPUT"));
+      return authenticated(signal, (_current, _transport, json) =>
+        json(
+          "/api/account/sessions/revoke",
+          "POST",
+          { sessionId, ...input },
+          signal,
+          decode.sessionRevocation,
+        ),
+      );
+    },
+    revokeOtherSessions(input: { requestId: string }, signal?: AbortSignal) {
+      return authenticated(signal, (_current, _transport, json) =>
+        json(
+          "/api/account/sessions/revoke-others",
+          "POST",
+          input,
+          signal,
+          decode.sessionRevocation,
+        ),
+      );
+    },
+    async changePassword(
+      input: {
+        currentPassword: string;
+        newPassword: string;
+        requestId: string;
+      },
+      signal?: AbortSignal,
+    ): Promise<PasswordChangeResult> {
+      if (authBusy) throw new TalaApiError("CONFLICT");
+      authBusy = true;
+      let attempted = false;
+      try {
+        const intendedUid = actor?.uid;
+        if (actor === undefined || !csrfToken) await loadSession(signal);
+        if (intendedUid && actor?.uid !== intendedUid)
+          throw new TalaApiError("AUTH_REQUIRED");
+        if (!actor) throw new TalaApiError("AUTH_REQUIRED");
+        if (signal?.aborted) throw new TalaApiError("CANCELLED");
+        const current = actor;
+        const version = ++revision;
+        passwordReceiptOwners.set(input.requestId, current.uid);
+        while (passwordReceiptOwners.size > 10) {
+          const oldest = passwordReceiptOwners.keys().next().value;
+          if (oldest) passwordReceiptOwners.delete(oldest);
+        }
+        attempted = true;
+        const saved = await transport.json(
+          "/api/account/password",
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+            contentType: "application/json",
+            expectedUser: current.uid,
+            signal,
+          },
+          decode.passwordChangeSession,
+        );
+        if (
+          saved.session.uid !== current.uid ||
+          actor?.uid !== current.uid ||
+          revision !== version
+        )
+          throw new TalaApiError("AUTH_REQUIRED");
+        revision++;
+        store(saved);
+        return {
+          user: saved.session,
+          changedAt: saved.changedAt,
+          revokedSessionCount: saved.revokedSessionCount,
+        };
+      } catch (failure) {
+        if (attempted) {
+          revision++;
+          // A committed password change can rotate the cookie before its body is
+          // received. Restore its nonce explicitly; retain the intended actor so
+          // another tab's cookie never silently authorizes stale UI operations.
+          csrfToken = "";
+        }
+        throw failure;
+      } finally {
+        authBusy = false;
+      }
+    },
+    getPasswordChangeStatus(requestId: string, signal?: AbortSignal) {
+      return authenticated(signal, (current, transport) => {
+        const expectedOwner = passwordReceiptOwners.get(requestId);
+        if (expectedOwner && expectedOwner !== current.uid)
+          throw new TalaApiError("AUTH_REQUIRED");
+        return transport.json(
+          `/api/account/password-changes/${inputId(requestId)}`,
+          { signal },
+          decode.passwordChangeReceipt,
+        );
+      });
     },
     updateProfile(input: { name: string }, signal?: AbortSignal) {
       return authenticated(signal, async (current, _transport, json) => {
@@ -385,6 +521,15 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
           `/api/evidence/uploads/${inputId(uploadId)}`,
           { signal },
           (raw) => decode.uploadStatus(raw, uploadId),
+        ),
+      );
+    },
+    getPendingUploads(signal?: AbortSignal) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          "/api/evidence/uploads",
+          { signal },
+          decode.pendingUploads,
         ),
       );
     },

@@ -15,6 +15,8 @@ Open **http://127.0.0.1:5173/#/register**. The launcher starts the API on `127.0
 
 The student workspace has separate Overview, Meetings, Learning records, Evidence and Progress views. The address preserves the selected view through refresh and browser navigation. Selected files and unfinished uploads stay in memory while switching views; they are not saved in browser storage.
 
+Account security supports changing the current password and viewing or ending your server sessions. Changing a password signs out all other sessions and rotates the current cookie. It requires the current password; email-based password recovery and MFA are still unavailable. Personal calendar exports come from saved reservations; later booking changes do not automatically update an imported calendar file.
+
 No `.env` file or cloud account is required. `frontend/.env.example` contains public placeholders only. The Vite development and preview servers forward `/api` to the local backend.
 
 ## What is persistent
@@ -26,6 +28,8 @@ Profiles, accounts, sessions, appointments, Evidence metadata, staff-published o
 Operators publish actual availability; the product does not create fictional times or accounts. Students can book, reschedule or cancel available appointments, upload text/PDF Evidence up to 5 MiB, explicitly cancel unfinished uploads, and download their submitted files through an authenticated API. SHA-256, ownership, limits and submission idempotency are checked by the server. Staff can publish meeting outcomes and manually review Evidence. Reviewing Evidence is separate from automated assessment or academic mastery.
 
 Operators can withdraw unbooked future times without deleting reservation history. Evidence needing revision can receive one new version at a time; earlier files and review notes remain available in authorized document history. Review-version checks reject stale staff edits. Submission totals include all versions; revision counts do not represent grades or academic credit.
+
+The Evidence view can find unexpired unfinished server uploads after navigation or refresh. Finish an already-uploaded file, or reselect the exact original file when its bytes still need uploading. Saved Evidence storage has explicit local limits; no automatic retention deletes existing documents. [Private backup and separate-directory restore commands](server/README.md#explicit-private-backups) are available for local evaluation, without cloud deployment.
 
 The local schema v1→v2 upgrade creates and verifies a private SQLite backup before adding tables. See [server/README.md](server/README.md) for upgrade and separate-directory recovery instructions. The launcher rejects an incompatible older API instead of silently reusing it.
 

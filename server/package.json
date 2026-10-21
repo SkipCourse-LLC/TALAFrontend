@@ -3,6 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "description": "Local TALA HTTP server with private persistent SQLite data and no Firebase dependency.",
-  "engines": { "node": ">=24" },
-  "scripts": { "start": "node index.cjs", "check": "node --check application.cjs && node --check services.cjs && node --check database.cjs && node --check security.cjs && node --check operator.cjs", "test": "node --test test/*.test.mjs" }
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node index.cjs",
+    "check": "node --check application.cjs && node --check services.cjs && node --check database.cjs && node --check security.cjs && node --check operator.cjs && node --check accountServices.cjs && node --check backup.cjs",
+    "test": "node --test test/*.test.mjs"
+  }
 }

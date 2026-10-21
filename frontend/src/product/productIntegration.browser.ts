@@ -20,10 +20,15 @@ interface TestApplication {
       parentUid: string;
       consentReference: string;
     }): Promise<unknown>;
+    revokeFamily(input: {
+      studentUid: string;
+      parentUid: string;
+    }): Promise<unknown>;
     promote(email: string): Promise<unknown>;
   };
   findUid(email: string): Promise<string>;
   endBooking(email: string): Promise<{ appointmentId: string }>;
+  dropUnsubmittedFile(uploadId: string): Promise<void>;
   close(): Promise<void>;
 }
 let application: TestApplication;
@@ -125,10 +130,14 @@ async function startIsolatedApplication(
       addAvailability: async (input) =>
         (await call("addAvailability", input)) as { id: string },
       linkFamily: (input) => call("linkFamily", input),
+      revokeFamily: (input) => call("revokeFamily", input),
       promote: (email) => call("promote", email),
     },
     endBooking: async (email) =>
       (await call("endBooking", email)) as { appointmentId: string },
+    dropUnsubmittedFile: async (uploadId) => {
+      await call("dropUnsubmittedFile", uploadId);
+    },
     findUid: async (email) => {
       const value = await call("findUid", email);
       if (typeof value !== "string")
@@ -325,6 +334,62 @@ async function downloadEvidence(
   ).toBe(true);
   await download.delete();
 }
+async function downloadCalendar(page: Page, studentUid?: string) {
+  const url = new URL("/api/workspace", page.url());
+  if (studentUid) url.searchParams.set("studentUid", studentUid);
+  const saved = (await (await page.request.get(url.href)).json()) as {
+    activeAppointments: {
+      id: string;
+      ownerUid: string;
+      startsAt: string;
+      endsAt: string;
+    }[];
+  };
+  const booking = saved.activeAppointments[0]!;
+  let authorizationReads = 0;
+  const observe = (request: import("@playwright/test").Request) => {
+    if (
+      request.method() === "GET" &&
+      new URL(request.url()).pathname === "/api/workspace"
+    )
+      authorizationReads++;
+  };
+  page.on("request", observe);
+  const pendingDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download calendar", exact: true })
+    .click();
+  const download = await pendingDownload;
+  page.off("request", observe);
+  expect(authorizationReads).toBeGreaterThan(0);
+  expect(download.suggestedFilename()).toMatch(
+    /^tala-meeting-\d{4}-\d{2}-\d{2}\.ics$/,
+  );
+  const file = await download.path();
+  const calendar = (await readFile(file!, "utf8")).replaceAll("\r\n ", "");
+  expect(calendar).toContain(`UID:${booking.id}@tala.local\r\n`);
+  const instant = (key: string) => {
+    const value = calendar.match(
+      new RegExp(
+        `(?:^|\\r\\n)${key}:(\\d{4})(\\d{2})(\\d{2})T(\\d{2})(\\d{2})(\\d{2})Z`,
+      ),
+    );
+    expect(value).not.toBeNull();
+    return `${value![1]}-${value![2]}-${value![3]}T${value![4]}:${value![5]}:${value![6]}.000Z`;
+  };
+  expect(Date.parse(instant("DTSTART"))).toBe(
+    Math.floor(Date.parse(booking.startsAt) / 1000) * 1000,
+  );
+  expect(Date.parse(instant("DTEND"))).toBe(
+    Math.floor(Date.parse(booking.endsAt) / 1000) * 1000,
+  );
+  expect(calendar).toContain("CLASS:PRIVATE\r\n");
+  expect(calendar).toContain("does not confirm attendance");
+  expect(calendar).toContain("do not sync automatically");
+  expect(calendar).not.toContain(booking.ownerUid);
+  expect(calendar).not.toMatch(/(?:ATTENDEE|ORGANIZER|URL|TOKEN):/i);
+  await download.delete();
+}
 async function login(
   page: Page,
   account: { email: string; password: string },
@@ -358,15 +423,35 @@ test("student registration, booking changes, private file persistence and mobile
   await publishTimes();
   await book(page);
   const select = page.getByLabel("Available meeting time", { exact: true });
+  const originalTime = await page.locator(".meeting-current-time").innerText();
   await select.selectOption({ index: 1 });
   await page
     .getByRole("button", { name: "Change booking", exact: true })
+    .click();
+  const confirmation = page.getByRole("dialog", {
+    name: "Change this booking?",
+    exact: true,
+  });
+  await expect(confirmation).toContainText(originalTime);
+  await expect(confirmation).toContainText("Replacement time");
+  await confirmation
+    .getByRole("button", { name: "Keep booking", exact: true })
+    .click();
+  await expect(confirmation).toHaveCount(0);
+  await expect(page.locator(".meeting-current-time")).toHaveText(originalTime);
+  await page
+    .getByRole("button", { name: "Change booking", exact: true })
+    .click();
+  await confirmation
+    .getByRole("button", { name: "Confirm change", exact: true })
     .click();
   await expect(
     page
       .getByRole("status")
       .filter({ hasText: "Your booking was changed on the server." }),
   ).toBeVisible();
+  await downloadCalendar(page);
+  await capture(page, "tala-meetings-desktop-qa.png");
   await chooseView(page, "evidence");
   await fillEvidence(page);
   await chooseView(page, "progress");
@@ -489,11 +574,50 @@ test("student registration, booking changes, private file persistence and mobile
   await page
     .getByRole("button", { name: "Cancel booking", exact: true })
     .click();
+  const cancellation = page.getByRole("dialog", {
+    name: "Cancel this booking?",
+    exact: true,
+  });
+  const confirmationViolations = (
+    await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze()
+  ).violations;
+  expect(confirmationViolations.map(({ id }) => id)).toEqual([]);
+  await capture(page, "tala-meeting-confirmation-mobile-qa.png");
+  await cancellation
+    .getByRole("button", { name: "Keep booking", exact: true })
+    .click();
+  await expect(cancellation).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Cancel booking", exact: true }),
+  ).toBeEnabled();
+  await page
+    .getByRole("button", { name: "Cancel booking", exact: true })
+    .click();
+  await cancellation
+    .getByRole("button", { name: "Confirm cancellation", exact: true })
+    .click();
   await expect(
     page
       .getByRole("status")
       .filter({ hasText: "Your booking was cancelled on the server." }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Cancelled", exact: true }).click();
+  await expect(page.locator(".meeting-history-list")).toContainText(
+    "Cancelled",
+  );
+  await page
+    .getByLabel("Search booking history", { exact: true })
+    .fill("no synthetic booking matches this");
+  await expect(
+    page.getByText("No bookings match your search.", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Clear search", exact: true }).click();
+  await expect(page.locator(".meeting-history-list")).toContainText(
+    "Cancelled",
+  );
+  await capture(page, "tala-meetings-mobile-qa.png");
 });
 
 test("lost auth responses and rejected upload drafts recover safely, while linked parent access stays read-only", async ({
@@ -509,7 +633,7 @@ test("lost auth responses and rejected upload drafts recover safely, while linke
       status: 409,
       contentType: "application/json",
       body: JSON.stringify({
-        error: { code: "CONFLICT", message: "Synthetic rejected intent" },
+        error: { code: "STORAGE_FULL", message: "Synthetic storage limit" },
       }),
     }),
   );
@@ -583,6 +707,7 @@ test("lost auth responses and rejected upload drafts recover safely, while linke
   await expect(
     page.getByRole("button", { name: "Cancel booking", exact: true }),
   ).toBeDisabled();
+  await downloadCalendar(page, studentUid);
   await chooseView(page, "evidence");
   await expect(page.getByLabel("Evidence title", { exact: true })).toHaveCount(
     0,
@@ -591,12 +716,23 @@ test("lost auth responses and rejected upload drafts recover safely, while linke
     page.getByRole("button", { name: "Submit evidence", exact: true }),
   ).toHaveCount(0);
   await downloadEvidence(page);
+  await application.operator.revokeFamily({ studentUid, parentUid });
+  await chooseView(page, "meetings");
+  let revokedDownloads = 0;
+  page.on("download", () => {
+    revokedDownloads++;
+  });
+  await page
+    .getByRole("button", { name: "Download calendar", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("permission");
+  expect(revokedDownloads).toBe(0);
+  await expect(
+    page.getByRole("button", { name: "Download calendar", exact: true }),
+  ).toHaveCount(0);
   await page.goto("/#/two-factor");
   await expect(
-    page.getByText(
-      "Multi-factor authentication and recovery are not connected",
-      { exact: false },
-    ),
+    page.getByRole("heading", { name: "Account security", exact: true }),
   ).toBeVisible();
   await page.goto("/#/payment");
   await expect(
@@ -870,4 +1006,308 @@ test("operator review, availability controls and learning summaries lead to a pr
   await page.keyboard.press("Escape");
   await expect(history).toHaveCount(0);
   expect(new URL(page.url()).hash).toContain("view=evidence");
+});
+
+test("account security changes real credentials, recovers a lost response and ends other sessions", async ({
+  page,
+  browser,
+}) => {
+  const account = await register(page);
+  const otherContext = await browser.newContext({
+    baseURL: "http://127.0.0.1:5180",
+  });
+  await otherContext.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (
+      ["127.0.0.1", "localhost"].includes(url.hostname) ||
+      ["blob:", "data:"].includes(url.protocol)
+    )
+      await route.continue();
+    else {
+      unexpectedHosts.push(url.hostname);
+      await route.abort();
+    }
+  });
+  try {
+    const other = await otherContext.newPage();
+    await other.goto("/#/login");
+    await login(other, account);
+    await page
+      .getByRole("link", { name: "Account security", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Account security", exact: true }),
+    ).toBeVisible();
+    const list = page.getByRole("list", {
+      name: "Your active TALA sessions",
+      exact: true,
+    });
+    await expect(list.locator("li")).toHaveCount(2);
+    const current = page.getByLabel("Current password", { exact: true });
+    const next = page.getByLabel("New password", { exact: true });
+    const confirm = page.getByLabel("Confirm new password", { exact: true });
+    const changed = `Changed-synthetic-${randomUUID()}`;
+    await page
+      .getByRole("button", { name: "Change password", exact: true })
+      .click();
+    await expect(current).toBeFocused();
+    await expect(current).toHaveAttribute("aria-invalid", "true");
+    await current.fill("Wrong synthetic current password");
+    await next.fill(changed);
+    await confirm.fill("Different synthetic confirmation");
+    await page
+      .getByRole("button", { name: "Change password", exact: true })
+      .click();
+    await expect(confirm).toBeFocused();
+    await confirm.fill(changed);
+    await page
+      .getByRole("button", { name: "Show current password", exact: true })
+      .click();
+    await expect(current).toHaveAttribute("type", "text");
+    await page
+      .getByRole("button", { name: "Hide current password", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Change password", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText(
+      "current password was not accepted",
+    );
+    await expect(current).toHaveValue("");
+    await expect(next).toHaveValue("");
+    await expect(confirm).toHaveValue("");
+    await current.fill(account.password);
+    await next.fill(changed);
+    await confirm.fill(changed);
+    await page.route("**/api/account/password", async (route) => {
+      const saved = await route.fetch();
+      expect(saved.ok()).toBe(true);
+      await route.abort("connectionfailed");
+    });
+    await page
+      .getByRole("button", { name: "Change password", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Check password change", exact: true }),
+    ).toBeVisible();
+    await expect(current).toHaveValue("");
+    await expect(next).toHaveValue("");
+    await page.unroute("**/api/account/password");
+    await page
+      .getByRole("button", { name: "Check password change", exact: true })
+      .click();
+    await expect(
+      page.getByRole("status").filter({ hasText: "Password change confirmed" }),
+    ).toBeVisible();
+    await expect(list.locator("li")).toHaveCount(1);
+    await other
+      .getByRole("button", { name: "Refresh records", exact: true })
+      .click();
+    await expect(
+      other.getByRole("heading", { name: "Welcome back.", exact: true }),
+    ).toBeVisible();
+    await login(other, { ...account, password: changed });
+    await page
+      .getByRole("button", { name: "Refresh sessions", exact: true })
+      .click();
+    await expect(list.locator("li")).toHaveCount(2);
+    await page
+      .getByRole("button", { name: "Sign out other sessions", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Keep signed in", exact: true }),
+    ).toBeFocused();
+    await page
+      .getByRole("button", { name: "Keep signed in", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", {
+        name: "Sign out other sessions",
+        exact: true,
+      }),
+    ).toBeFocused();
+    await expect(list.locator("li")).toHaveCount(2);
+    await page
+      .getByRole("button", { name: "Sign out other sessions", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Confirm sign out others", exact: true })
+      .click();
+    await expect(list.locator("li")).toHaveCount(1);
+    await capture(page, "tala-account-desktop-qa.png");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await capture(page, "tala-account-mobile-qa.png");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+          .analyze()
+      ).violations.map(({ id }) => id),
+    ).toEqual([]);
+  } finally {
+    await otherContext.close();
+  }
+});
+
+test("unfinished Evidence survives refresh and recovers submitted or missing-file results without duplicate records", async ({
+  page,
+}) => {
+  await register(page);
+  await publishTimes();
+  await book(page);
+  await chooseView(page, "evidence");
+  await fillEvidence(page);
+  await page.route("**/api/evidence/uploads/*/submit", (route) =>
+    route.abort("connectionfailed"),
+  );
+  await page
+    .getByRole("button", { name: "Submit evidence", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("could not be reached");
+  await page.unroute("**/api/evidence/uploads/*/submit");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  const uploads = page.getByRole("list", {
+    name: "Your unfinished Evidence uploads",
+    exact: true,
+  });
+  await expect(
+    uploads.getByRole("heading", {
+      name: "Synthetic persisted reflection",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(uploads.getByText("File saved", { exact: true })).toBeVisible();
+  await capture(page, "tala-recovery-desktop-qa.png");
+  await page.route("**/api/evidence/uploads/*/submit", async (route) => {
+    const saved = await route.fetch();
+    expect(saved.ok()).toBe(true);
+    await route.abort("connectionfailed");
+  });
+  await uploads
+    .getByRole("button", { name: "Finish submission", exact: true })
+    .click();
+  await expect(
+    uploads.getByRole("button", { name: "Check saved result", exact: true }),
+  ).toBeVisible();
+  await page.unroute("**/api/evidence/uploads/*/submit");
+  await uploads
+    .getByRole("button", { name: "Check saved result", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Synthetic persisted reflection",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("No unfinished uploads to continue.", { exact: true }),
+  ).toBeVisible();
+  await fillEvidence(page);
+  await page
+    .getByLabel("Evidence title", { exact: true })
+    .fill("Second synthetic recovery reflection");
+  let missingId = "";
+  await page.route("**/api/evidence/uploads/*/submit", async (route) => {
+    missingId = new URL(route.request().url()).pathname.split("/").at(-2) ?? "";
+    await route.abort("connectionfailed");
+  });
+  await page
+    .getByRole("button", { name: "Submit evidence", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("could not be reached");
+  await page.unroute("**/api/evidence/uploads/*/submit");
+  expect(missingId).not.toBe("");
+  await application.dropUnsubmittedFile(missingId);
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  await expect(
+    uploads.getByRole("heading", {
+      name: "Second synthetic recovery reflection",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await uploads
+    .getByRole("button", { name: "Finish submission", exact: true })
+    .click();
+  const original = uploads.getByLabel(
+    "Choose original file for Second synthetic recovery reflection",
+    { exact: true },
+  );
+  await expect(original).toBeVisible();
+  await expect(uploads.getByRole("alert")).toContainText(
+    "Choose the original file",
+  );
+  await uploads
+    .getByRole("button", { name: "Cancel unfinished upload", exact: true })
+    .click();
+  await expect(
+    uploads.getByRole("button", { name: "Keep upload", exact: true }),
+  ).toBeFocused();
+  await uploads
+    .getByRole("button", { name: "Keep upload", exact: true })
+    .click();
+  await expect(
+    uploads.getByRole("button", {
+      name: "Cancel unfinished upload",
+      exact: true,
+    }),
+  ).toBeFocused();
+  await original.setInputFiles({
+    name: "wrong.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.alloc(evidenceBytes.length, 120),
+  });
+  await uploads
+    .getByRole("button", { name: "Upload and submit", exact: true })
+    .click();
+  await expect(uploads.getByRole("alert")).toContainText("checksum");
+  await original.setInputFiles({
+    name: "synthetic-reflection.txt",
+    mimeType: "text/plain",
+    buffer: evidenceBytes,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await capture(page, "tala-recovery-mobile-qa.png");
+  await expect(
+    page
+      .getByRole("navigation", { name: "Workspace sections", exact: true })
+      .getByRole("button", { name: "Evidence", exact: true }),
+  ).toBeInViewport({ ratio: 0.99 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze()
+    ).violations.map(({ id }) => id),
+  ).toEqual([]);
+  await uploads
+    .getByRole("button", { name: "Upload and submit", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Second synthetic recovery reflection",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("No unfinished uploads to continue.", { exact: true }),
+  ).toBeVisible();
+  await chooseView(page, "progress");
+  await expect(
+    page
+      .locator(".product-stats > div")
+      .filter({ hasText: "Evidence submitted" })
+      .locator("dd"),
+  ).toHaveText("2");
 });

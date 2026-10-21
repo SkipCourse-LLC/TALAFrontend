@@ -21,4 +21,10 @@ export type {
   LearningRecord as ApiLearningRecord,
   ManagedSlot as ApiManagedSlot,
   Availability as ApiAvailability,
+  AccountSession as ApiAccountSession,
+  AccountSessions as ApiAccountSessions,
+  PasswordChangeReceipt as ApiPasswordChangeReceipt,
+  PasswordChangeResult as ApiPasswordChangeResult,
+  PendingUpload as ApiPendingUpload,
+  PendingUploads as ApiPendingUploads,
 } from "./types";

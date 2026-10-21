@@ -6,9 +6,47 @@ const { TextDecoder } = require("node:util");
 const { transaction } = require("./database.cjs");
 const { fail, object, text, identifier, requestId, hash } = require("./security.cjs");
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const OWNER_STORAGE_BYTES = 100 * 1024 * 1024;
+const INSTANCE_STORAGE_BYTES = 2 * 1024 * 1024 * 1024;
 const iso = (value) => new Date(value).toISOString();
 const userDTO = (row) => ({ uid: row.uid, name: row.name, email: row.email, role: row.role, emailVerified: row.email_verified === 1 });
 function createServices(db, dataDir) {
+  // Recheck under the write fence, after waiting for another local process.
+  // The non-enumerable session reference is added only by actorFor(req).
+  function currentWriter(actor) {
+    const current = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(actor.uid);
+    const session = typeof actor.sessionTokenHash === "string" && db.prepare("SELECT uid FROM sessions WHERE token_hash=? AND expires_at>?").get(actor.sessionTokenHash, Date.now());
+    if (!current || !session || session.uid !== actor.uid || current.password_hash !== actor.password_hash) fail(401, "AUTH_REQUIRED", "Your security session changed. Sign in again before continuing.");
+    if (current.role !== actor.role) fail(403, "FORBIDDEN", "Your account permissions changed. Refresh before continuing.");
+  }
+  function storedFile(filename, row) {
+    let descriptor;
+    try {
+      const stat = fs.lstatSync(filename);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== row.size || stat.size > MAX_FILE_BYTES) fail(409, "INTEGRITY_ERROR", "The private file changed and needs review.");
+      descriptor = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
+      const opened = fs.fstatSync(descriptor);
+      if (!opened.isFile() || opened.size !== row.size || opened.ino !== stat.ino || opened.dev !== stat.dev) fail(409, "INTEGRITY_ERROR", "The private file changed and needs review.");
+      const bytes = Buffer.alloc(row.size);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const count = fs.readSync(descriptor, bytes, offset, bytes.length - offset, null);
+        if (!count) fail(409, "INTEGRITY_ERROR", "The private file is incomplete.");
+        offset += count;
+      }
+      const final = fs.fstatSync(descriptor);
+      if (final.size !== row.size || final.mtimeMs !== opened.mtimeMs || hash(bytes) !== row.sha256) fail(409, "INTEGRITY_ERROR", "The private file checksum changed and needs review.");
+      return bytes;
+    } finally { if (descriptor !== undefined) fs.closeSync(descriptor); }
+  }
+  function storageCapacity(ownerUid, size, includePending) {
+    const owner = db.prepare("SELECT count(*) AS n,coalesce(sum(size),0) AS bytes FROM evidence WHERE owner_uid=?").get(ownerUid);
+    const total = db.prepare("SELECT count(*) AS n,coalesce(sum(size),0) AS bytes FROM evidence").get();
+    const pending = includePending ? db.prepare("SELECT count(*) AS n,coalesce(sum(size),0) AS bytes FROM uploads WHERE owner_uid=? AND status IN ('pending','uploaded')").get(ownerUid) : { n: 0, bytes: 0 };
+    const pendingTotal = includePending ? db.prepare("SELECT count(*) AS n,coalesce(sum(size),0) AS bytes FROM uploads WHERE status IN ('pending','uploaded')").get() : { n: 0, bytes: 0 };
+    if (owner.bytes + pending.bytes + size > OWNER_STORAGE_BYTES || total.bytes + pendingTotal.bytes + size > INSTANCE_STORAGE_BYTES || owner.n + pending.n >= 1000 || total.n + pendingTotal.n >= 20000)
+      fail(409, "STORAGE_FULL", "Saved Evidence storage is full. Ask an authorized operator to review storage and retention before adding files.");
+  }
   const getAppointment = (id) => db.prepare("SELECT a.*,s.starts_at,s.ends_at FROM appointments a JOIN slots s ON s.id=a.slot_id WHERE a.id=?").get(id);
   const appointmentDTO = (row) => ({ id: row.id, ownerUid: row.owner_uid, slotId: row.slot_id, startsAt: iso(row.starts_at), endsAt: iso(row.ends_at), status: row.status, meetingIntegration: "unavailable", updatedAt: iso(row.updated_at) });
   function evidenceDTO(row) {
@@ -64,6 +102,7 @@ function createServices(db, dataDir) {
   function operation(actor, kind, id, input, fn) {
     requestId(id);
     return transaction(db, () => {
+      currentWriter(actor);
       const fingerprint = hash(JSON.stringify(input));
       const previous = db.prepare("SELECT * FROM operations WHERE uid=? AND kind=? AND request_id=?").get(actor.uid, kind, id);
       if (previous) {
@@ -109,8 +148,9 @@ function createServices(db, dataDir) {
     requireWriter(actor);
     if (db.prepare("SELECT upload_id FROM upload_revisions WHERE upload_id=?").get(row.id) && (actor.role !== "student" || actor.uid !== row.owner_uid)) fail(403, "FORBIDDEN", "Only the student can change their own revision upload.");
   }
-  function cleanupExpired(ownerUid, limit = 25) {
+  function cleanupExpired(ownerUid, limit = 25, actor) {
     return transaction(db, () => {
+      if (actor) { currentWriter(actor); authorize(actor, ownerUid); }
       const params = [Date.now(), ...(ownerUid ? [ownerUid] : []), limit];
       const rows = db.prepare(`SELECT u.* FROM uploads u WHERE u.expires_at<=? AND u.status IN ('pending','uploaded','failed')
         ${ownerUid ? "AND u.owner_uid=?" : ""} AND NOT EXISTS(SELECT 1 FROM evidence e WHERE e.id=u.id)
@@ -130,15 +170,24 @@ function createServices(db, dataDir) {
     authorize,
     workspace(actor, studentUid) {
       const owner = authorize(actor, studentUid || actor.uid);
-      transaction(db, () => expire(owner));
+      return transaction(db, () => {
+      currentWriter(actor);
+      authorize(actor, owner);
+      expire(owner);
       const slots = db.prepare("SELECT s.* FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at>? AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') ORDER BY s.starts_at LIMIT 50").all(Date.now()).map(slotDTO);
       const rows = db.prepare("SELECT a.*,s.starts_at,s.ends_at FROM appointments a JOIN slots s ON s.id=a.slot_id WHERE a.owner_uid=? ORDER BY s.starts_at DESC,a.id DESC LIMIT 100").all(owner);
-      return { slots, appointments: rows.map(appointmentDTO), activeAppointments: rows.filter((row) => row.status === "reserved").map(appointmentDTO), evidence: db.prepare("SELECT * FROM evidence WHERE owner_uid=? ORDER BY submitted_at DESC,id DESC LIMIT 100").all(owner).map(evidenceDTO), progress: progress(owner) };
+      const active = db.prepare("SELECT a.*,s.starts_at,s.ends_at FROM appointments a JOIN slots s ON s.id=a.slot_id WHERE a.owner_uid=? AND a.status='reserved' ORDER BY s.starts_at,a.id LIMIT 1").all(owner);
+      return { slots, appointments: rows.map(appointmentDTO), activeAppointments: active.map(appointmentDTO), evidence: db.prepare("SELECT * FROM evidence WHERE owner_uid=? ORDER BY submitted_at DESC,id DESC LIMIT 100").all(owner).map(evidenceDTO), progress: progress(owner) };
+      });
     },
     updateProfile(actor, input) {
       object(input, ["name"]);
-      db.prepare("UPDATE users SET name=? WHERE uid=?").run(text(input.name, "display name", 80), actor.uid);
+      const name = text(input.name, "display name", 80);
+      return transaction(db, () => {
+      currentWriter(actor);
+      db.prepare("UPDATE users SET name=? WHERE uid=?").run(name, actor.uid);
       return userDTO(db.prepare("SELECT * FROM users WHERE uid=?").get(actor.uid));
+      });
     },
     availability(actor, input) {
       requireOperator(actor); object(input, ["startsAt", "endsAt", "label", "requestId"]);
@@ -162,7 +211,10 @@ function createServices(db, dataDir) {
       const slotId = identifier(input.slotId);
       const old = replacesId ? ownedAppointment(actor, replacesId) : null;
       const owner = authorize(actor, old?.owner_uid || input.studentUid || actor.uid);
+      if (db.prepare("SELECT role FROM users WHERE uid=?").get(owner)?.role !== "student") fail(403, "FORBIDDEN", "Meeting reservations require an existing student account.");
       const result = operation(actor, replacesId ? "reschedule" : "reserve", input.requestId, [owner, slotId, replacesId || null], () => {
+        authorize(actor, owner);
+        if (db.prepare("SELECT role FROM users WHERE uid=?").get(owner)?.role !== "student") fail(403, "FORBIDDEN", "Meeting reservations require an existing student account.");
         expire(owner);
         const slot = db.prepare("SELECT s.* FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE s.id=? AND state.status='published'").get(slotId);
         if (!slot || slot.starts_at <= Date.now() || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(slotId)) fail(409, "CONFLICT", "This meeting time is no longer available.");
@@ -182,6 +234,7 @@ function createServices(db, dataDir) {
       object(input, ["requestId"]);
       const booking = ownedAppointment(actor, id);
       return operation(actor, "cancel-booking", input.requestId, [booking.id], () => {
+        authorize(actor, booking.owner_uid);
         expire(booking.owner_uid);
         const current = getAppointment(booking.id);
         if (current.status === "ended") fail(409, "CONFLICT", "An ended meeting cannot be cancelled.");
@@ -200,12 +253,14 @@ function createServices(db, dataDir) {
       if (!["text/plain", "application/pdf"].includes(input.contentType)) fail(415, "UNSUPPORTED_TYPE", "Upload a UTF-8 text file or PDF.");
       if (!Number.isSafeInteger(input.size) || input.size < 1 || input.size > MAX_FILE_BYTES) fail(413, "TOO_LARGE", "Evidence files must be between one byte and 5 MiB.");
       if (typeof input.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.sha256)) fail(400, "INVALID_INPUT", "The file checksum is invalid.");
-      cleanupExpired(booking.owner_uid);
+      cleanupExpired(booking.owner_uid, 25, actor);
       const fingerprint = [booking.owner_uid, booking.id, title, input.contentType, input.size, input.sha256];
       if (revisesId) fingerprint.push(revisesId);
       const created = operation(actor, "upload-intent", input.requestId, fingerprint, () => {
+        authorize(actor, booking.owner_uid);
         if (getAppointment(booking.id).status === "cancelled") fail(409, "CONFLICT", "Choose a non-cancelled booking before submitting evidence.");
         const predecessor = revisesId ? revisionPredecessor(actor, revisesId, booking) : null;
+        storageCapacity(booking.owner_uid, input.size, true);
         const pending = db.prepare("SELECT count(*) AS n,coalesce(sum(size),0) AS bytes FROM uploads WHERE owner_uid=? AND status IN ('pending','uploaded')").get(booking.owner_uid);
         const total = db.prepare("SELECT coalesce(sum(size),0) AS bytes FROM uploads WHERE status IN ('pending','uploaded')").get();
         if (pending.n >= 10 || pending.bytes + input.size > 50 * 1024 * 1024 || total.bytes + input.size > 500 * 1024 * 1024) fail(429, "RATE_LIMITED", "Unsubmitted upload storage is full. Cancel unused uploads or ask an operator to clean expired uploads.");
@@ -225,7 +280,13 @@ function createServices(db, dataDir) {
       authorize(actor, row.owner_uid);
       return evidenceDTO(row);
     },
+    pendingUploads(actor) {
+      if (actor.role === "parent") fail(403, "FORBIDDEN", "Unsubmitted upload details are private to the student and authorized operators.");
+      const rows = db.prepare("SELECT u.*,r.predecessor_id FROM uploads u LEFT JOIN upload_revisions r ON r.upload_id=u.id WHERE u.owner_uid=? AND u.status IN ('pending','uploaded') AND u.expires_at>? ORDER BY u.created_at,u.id LIMIT 10").all(actor.uid, Date.now());
+      return { uploads: rows.map((row) => ({ uploadId: row.id, title: row.title, appointmentId: row.appointment_id, contentType: row.content_type, size: row.size, sha256: row.sha256, status: row.status, expiresAt: iso(row.expires_at), ...(row.predecessor_id ? { revisesEvidenceId: row.predecessor_id } : {}) })) };
+    },
     uploadStatus(actor, id) {
+      if (actor.role === "parent") fail(403, "FORBIDDEN", "Unsubmitted upload details are private to the student and authorized operators.");
       const row = upload(actor, id);
       let status = row.status;
       if (status === "uploaded") {
@@ -237,8 +298,7 @@ function createServices(db, dataDir) {
         const existing = fs.existsSync(staging) ? staging : fs.existsSync(privateFile) ? privateFile : null;
         if (!existing) status = "pending";
         else {
-          const stat = fs.lstatSync(existing);
-          if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== row.size || stat.size > MAX_FILE_BYTES || hash(fs.readFileSync(existing)) !== row.sha256) fail(409, "INTEGRITY_ERROR", "The stored upload changed. Cancel it and start a new upload.");
+          storedFile(existing, row);
         }
       }
       return { uploadId: row.id, status, sha256: row.sha256, size: row.size, contentType: row.content_type };
@@ -246,6 +306,7 @@ function createServices(db, dataDir) {
     writeUpload(actor, id, contentType, bytes) {
       requireWriter(actor);
       return transaction(db, () => {
+        currentWriter(actor);
         const row = upload(actor, id);
         requireUploadWriter(actor, row);
         if (!["pending", "uploaded"].includes(row.status)) fail(409, "CONFLICT", "This upload is closed. Start a new upload.");
@@ -260,7 +321,7 @@ function createServices(db, dataDir) {
           try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
         } catch (error) {
           if (error.code !== "EEXIST") throw error;
-          if (hash(fs.readFileSync(file)) !== row.sha256) fail(409, "INTEGRITY_ERROR", "The stored upload changed. Start a new upload.");
+          storedFile(file, row);
         }
         db.prepare("UPDATE uploads SET status='uploaded' WHERE id=?").run(row.id);
         return services.uploadStatus(actor, row.id);
@@ -276,6 +337,7 @@ function createServices(db, dataDir) {
         requireUploadWriter(actor, row);
         const previous = db.prepare("SELECT * FROM evidence WHERE id=?").get(row.id);
         if (previous) return { evidence: evidenceDTO(previous), progress: progress(row.owner_uid) };
+        storageCapacity(row.owner_uid, row.size, false);
         if (row.status !== "uploaded") fail(409, "CONFLICT", "Finish uploading this file before submitting it.");
         if (row.expires_at <= Date.now()) fail(410, "EXPIRED", "This upload expired. Start a new upload.");
         if (getAppointment(row.appointment_id).status === "cancelled") fail(409, "CONFLICT", "This booking was cancelled. Choose a non-cancelled booking.");
@@ -285,10 +347,7 @@ function createServices(db, dataDir) {
         const source = path.join(dataDir, "uploads", `${row.id}.bin`), destination = path.join(dataDir, "evidence", `${row.id}.bin`);
         const selected = fs.existsSync(source) ? source : destination;
         if (!fs.existsSync(selected)) fail(409, "CONFLICT", "The file upload is incomplete. Upload the original file again.");
-        const stat = fs.statSync(selected);
-        if (stat.size !== row.size || stat.size > MAX_FILE_BYTES) fail(409, "INTEGRITY_ERROR", "The private file changed and needs review.");
-        const bytes = fs.readFileSync(selected);
-        if (hash(bytes) !== row.sha256) fail(409, "INTEGRITY_ERROR", "The private file checksum changed and needs review.");
+        const bytes = storedFile(selected, row);
         validateContent(bytes, row.content_type);
         if (selected === source) {
           fs.renameSync(source, destination);
@@ -304,10 +363,11 @@ function createServices(db, dataDir) {
       const current = db.prepare("SELECT * FROM evidence WHERE id=?").get(result.evidence.id);
       return { evidence: evidenceDTO(current), progress: progress(current.owner_uid) };
     },
-    cleanupExpired(actor) { requireWriter(actor); return cleanupExpired(actor.uid); },
+    cleanupExpired(actor) { requireWriter(actor); return cleanupExpired(actor.uid, 25, actor); },
     cancelUpload(actor, id) {
       requireWriter(actor);
       return transaction(db, () => {
+        currentWriter(actor);
         const row = upload(actor, id);
         requireUploadWriter(actor, row);
         if (row.status === "submitted" || db.prepare("SELECT id FROM evidence WHERE id=?").get(row.id)) fail(409, "CONFLICT", "Submitted evidence cannot be cancelled or deleted.");
@@ -322,10 +382,7 @@ function createServices(db, dataDir) {
       authorize(actor, row.owner_uid);
       const filename = path.join(dataDir, "evidence", `${row.id}.bin`);
       if (!fs.existsSync(filename)) fail(404, "NOT_FOUND", "The private file is unavailable. Its record has been preserved.");
-      const stat = fs.lstatSync(filename);
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== row.size || stat.size > MAX_FILE_BYTES) fail(409, "INTEGRITY_ERROR", "The private file changed and needs review.");
-      const bytes = fs.readFileSync(filename);
-      if (hash(bytes) !== row.sha256) fail(409, "INTEGRITY_ERROR", "The private file checksum changed and needs review.");
+      const bytes = storedFile(filename, row);
       validateContent(bytes, row.content_type);
       return { bytes, contentType: row.content_type, sha256: row.sha256, filename: `evidence-${row.id.slice(0, 16)}.${row.content_type === "application/pdf" ? "pdf" : "txt"}` };
     },
@@ -414,7 +471,7 @@ function createServices(db, dataDir) {
     linkFamily(input) {
       const studentUid = identifier(input.studentUid), parentUid = identifier(input.parentUid), reference = text(input.consentReference, "consent reference", 120);
       return transaction(db, () => {
-        if (db.prepare("SELECT role FROM users WHERE uid=?").get(studentUid)?.role !== "student" || db.prepare("SELECT role FROM users WHERE uid=?").get(parentUid)?.role !== "parent") fail(400, "INVALID_INPUT", "Choose an existing student and parent account.");
+        if (db.prepare("SELECT role FROM users WHERE uid=? AND disabled=0").get(studentUid)?.role !== "student" || db.prepare("SELECT role FROM users WHERE uid=? AND disabled=0").get(parentUid)?.role !== "parent") fail(400, "INVALID_INPUT", "Choose an existing active student and parent account.");
         const existing = db.prepare("SELECT id FROM family_links WHERE student_uid=? AND parent_uid=?").get(studentUid, parentUid);
         const id = existing?.id || randomUUID();
         db.prepare("INSERT INTO family_links(id,student_uid,parent_uid,consent_reference,recorded_at,status) VALUES(?,?,?,?,?,'active') ON CONFLICT(student_uid,parent_uid) DO UPDATE SET consent_reference=excluded.consent_reference,recorded_at=excluded.recorded_at,status='active'").run(id, studentUid, parentUid, reference, Date.now());

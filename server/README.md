@@ -29,3 +29,19 @@ The automatic snapshot contains the database, not a second copy of the private u
 `npm --prefix server run check` checks runtime syntax. `npm --prefix server test` runs isolated synthetic HTTP, permissions, file-lifecycle, concurrency and migration fixtures. Tests use temporary directories and do not migrate the actual runtime.
 
 This launcher deliberately refuses production mode. Reviewed HTTPS hosting, account recovery/email delivery, secure MFA, verified guardian consent, data retention and operational backups remain release requirements. No email is currently sent; `emailVerified` remains false. Zoom, AI analysis and real payment are unavailable and are never reported as successful integrations. Do not use real student, medical or payment data for local validation.
+
+## Explicit private backups
+
+The local backup tool snapshots committed SQLite data and copies the matching private Evidence and unfinished-upload bytes while holding the server's write fence. Prefer stopping the API or a local maintenance window: large copies can exceed the API's five-second database wait and cause in-flight writes to fail safely. It verifies database relationships, file sizes and SHA-256 checksums. It never uploads anything and never overwrites an existing directory. Evaluate it with invented data first:
+
+```sh
+node server/backup.cjs create --dataDir /private/path/to/runtime --outputDir /private/path/tala-backup-review
+node server/backup.cjs verify --directory /private/path/tala-backup-review
+node server/backup.cjs restore --directory /private/path/tala-backup-review --outputDir /private/path/tala-backup-restored
+```
+
+Choose an existing private parent directory and a **new** output directory starting with `tala-backup-`; these names are ignored by Git. The tool rejects nested destinations, symlinks, inconsistent files, unsupported schema versions and production mode. Files use 0600 and directories use 0700. Backups contain sensitive accounts, password hashes and private records: local filesystem permissions are not encryption or a hosted backup service. Checksums detect corruption; an unsigned manifest does not prove a backup's origin. Use only trusted protected local copies.
+
+Restore only creates a separate copy. It clears every restored session, requiring sign-in again, and leaves the source runtime and backup unchanged. **Passwords, roles, family permissions and records return to their snapshot values**; review subsequent security changes and approved relationships before selecting a restored runtime with `TALA_DATA_DIR`. This is not an automatic production recovery procedure.
+
+Saved Evidence is capped at 100 MiB / 1,000 versions per owner and 2 GiB / 20,000 versions per local instance; unfinished reservations count when creating an upload and saved totals are checked again on submission. These are logical application limits, not a cap on database logs, backups or total disk consumption. Full storage refuses new submissions without deleting existing records. Retention and any approved quota increase need operator review. Up to four file bodies are accepted concurrently. Unexpired unfinished uploads can be recovered from the student's Evidence view; a missing file must be reselected and match its original checksum. Parents cannot view upload drafts.

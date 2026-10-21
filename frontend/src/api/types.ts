@@ -11,6 +11,30 @@ export interface SessionState {
   session: User | null;
   csrfToken: string;
 }
+export interface AccountSession {
+  id: string;
+  current: boolean;
+  createdAt: string;
+  expiresAt: string;
+}
+export interface AccountSessions {
+  sessions: AccountSession[];
+  hasMore: boolean;
+}
+export interface SessionRevocation {
+  revokedSessionCount: number;
+  currentSessionRevoked: false;
+}
+export interface PasswordChangeReceipt {
+  status: "completed";
+  changedAt: string;
+  revokedSessionCount: number;
+}
+export interface PasswordChangeResult {
+  user: User;
+  changedAt: string;
+  revokedSessionCount: number;
+}
 export interface Slot {
   id: string;
   startsAt: string;
@@ -83,6 +107,20 @@ export interface UploadStatus {
   sha256: string;
   size: number;
   contentType: EvidenceContentType;
+}
+export interface PendingUpload {
+  uploadId: string;
+  title: string;
+  appointmentId: string;
+  contentType: EvidenceContentType;
+  size: number;
+  sha256: string;
+  status: "pending" | "uploaded";
+  expiresAt: string;
+  revisesEvidenceId?: string;
+}
+export interface PendingUploads {
+  uploads: PendingUpload[];
 }
 export interface LearningOutcome {
   id: string;

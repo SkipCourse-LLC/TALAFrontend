@@ -1,5 +1,6 @@
 import { TalaApiError } from "./errors";
 import type {
+  AccountSessions,
   Appointment,
   Availability,
   Evidence,
@@ -9,8 +10,11 @@ import type {
   LearningRecords,
   ManagedSlot,
   Operations,
+  PasswordChangeReceipt,
+  PendingUploads,
   Progress,
   SessionState,
+  SessionRevocation,
   Slot,
   UploadIntent,
   UploadStatus,
@@ -89,6 +93,60 @@ export function session(raw: unknown): SessionState {
   return {
     session: value.session === null ? null : user(value.session),
     csrfToken,
+  };
+}
+export function accountSessions(raw: unknown): AccountSessions {
+  const value = object(raw);
+  if (typeof value.hasMore !== "boolean")
+    throw new TalaApiError("INVALID_RESPONSE");
+  const sessions = array(value.sessions, 100).map((rawSession) => {
+    const saved = object(rawSession);
+    const sessionId = id(saved.id);
+    const createdAt = instant(saved.createdAt),
+      expiresAt = instant(saved.expiresAt);
+    if (
+      !/^session_[a-zA-Z0-9_-]{43}$/.test(sessionId) ||
+      typeof saved.current !== "boolean" ||
+      Date.parse(expiresAt) <= Date.parse(createdAt)
+    )
+      throw new TalaApiError("INVALID_RESPONSE");
+    return { id: sessionId, current: saved.current, createdAt, expiresAt };
+  });
+  if (
+    sessions.filter((saved) => saved.current).length !== 1 ||
+    new Set(sessions.map((saved) => saved.id)).size !== sessions.length
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { sessions, hasMore: value.hasMore };
+}
+export function sessionRevocation(raw: unknown): SessionRevocation {
+  const value = object(raw);
+  if (value.currentSessionRevoked !== false)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    revokedSessionCount: count(value.revokedSessionCount),
+    currentSessionRevoked: false,
+  };
+}
+export function passwordChangeReceipt(raw: unknown): PasswordChangeReceipt {
+  const value = object(raw);
+  if (value.status !== "completed") throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    status: "completed",
+    changedAt: instant(value.changedAt),
+    revokedSessionCount: count(value.revokedSessionCount),
+  };
+}
+export function passwordChangeSession(raw: unknown) {
+  const value = object(raw),
+    saved = session(raw);
+  if (!saved.session || value.passwordChanged !== true)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    session: saved.session,
+    csrfToken: saved.csrfToken,
+    changedAt: instant(value.changedAt),
+    revokedSessionCount: count(value.revokedSessionCount),
   };
 }
 export function slot(raw: unknown): Slot {
@@ -269,6 +327,31 @@ export function uploadStatus(raw: unknown, expectedId: string): UploadStatus {
     size,
     contentType: contentType(value.contentType),
   };
+}
+export function pendingUploads(raw: unknown): PendingUploads {
+  const value = object(raw);
+  const uploads = array(value.uploads, 10).map((rawUpload) => {
+    const saved = object(rawUpload),
+      size = count(saved.size, MAX_FILE_BYTES);
+    if (!size || (saved.status !== "pending" && saved.status !== "uploaded"))
+      throw new TalaApiError("INVALID_RESPONSE");
+    return {
+      uploadId: id(saved.uploadId),
+      title: text(saved.title, 120),
+      appointmentId: id(saved.appointmentId),
+      contentType: contentType(saved.contentType),
+      size,
+      sha256: hash(saved.sha256),
+      status: saved.status as "pending" | "uploaded",
+      expiresAt: instant(saved.expiresAt),
+      ...(saved.revisesEvidenceId === undefined
+        ? {}
+        : { revisesEvidenceId: id(saved.revisesEvidenceId) }),
+    };
+  });
+  if (new Set(uploads.map((upload) => upload.uploadId)).size !== uploads.length)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { uploads };
 }
 export function learningRecord(raw: unknown): LearningRecord {
   const value = object(raw);

@@ -70,6 +70,9 @@ server/**/*.sqlite-*
 server/**/*.db
 server/**/*.db-*
 
+# Explicit local backup/restore copies include private records and sessions.
+tala-backup-*/
+
 # OS and editor temporary files
 .DS_Store
 Thumbs.db

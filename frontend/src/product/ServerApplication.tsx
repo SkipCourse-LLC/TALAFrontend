@@ -12,19 +12,25 @@ import type { ApiUser } from "../api";
 import { ServerAccessPage } from "./ServerAccessPage";
 import { ServerWorkspace } from "./ServerWorkspace";
 import { OperatorWorkspace } from "./OperatorWorkspace";
+import { AccountSecurityPage } from "./AccountSecurityPage";
 import "./product.css";
 
 function IndependentRouteFocus() {
   const { pathname } = useLocation();
   useEffect(() => {
-    if (pathname !== "/dashboard") return;
-    document.title = "Your workspace | TALA";
+    if (pathname !== "/dashboard" && pathname !== "/two-factor") return;
+    document.title =
+      pathname === "/two-factor"
+        ? "Account security | TALA"
+        : "Your workspace | TALA";
     window.scrollTo({ top: 0, behavior: "instant" });
     document.getElementById("main-content")?.focus({ preventScroll: true });
   }, [pathname]);
   // Workspace panels manage their own focus. Public routes retain the existing
   // shared behavior without changing the other application's navigation.
-  return pathname === "/dashboard" ? null : <RouteFocus />;
+  return pathname === "/dashboard" || pathname === "/two-factor" ? null : (
+    <RouteFocus />
+  );
 }
 
 export function ServerApplication() {
@@ -180,21 +186,13 @@ export function ServerApplication() {
             path="two-factor"
             element={
               user ? (
-                <section className="container state-panel">
-                  <h1>Account security</h1>
-                  <p>
-                    Password authentication uses a server-managed session.
-                    Multi-factor authentication and recovery are not connected
-                    to this independent server yet.
-                  </p>
-                  <p>
-                    Email ownership has not been verified. No verification or
-                    reset email is sent without a configured provider.
-                  </p>
-                  <Link className="button" to="/dashboard">
-                    Back to my workspace
-                  </Link>
-                </section>
+                <AccountSecurityPage
+                  key={user.uid}
+                  user={user}
+                  onSessionChanged={authenticated}
+                  onExpired={expired}
+                  onLogout={logout}
+                />
               ) : (
                 <Navigate to="/login" replace />
               )

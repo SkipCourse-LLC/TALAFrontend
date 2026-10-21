@@ -15,12 +15,17 @@ import type {
   ApiLearningRecords,
   ApiUploadIntent,
   ApiEvidence,
+  ApiAppointment,
+  Slot as ApiSlot,
 } from "../api";
 import { meetingTime } from "./format";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
 import type { WorkspaceView } from "./workspaceViews";
 import { StudentOverview } from "./StudentOverview";
 import { EvidenceHistoryDialog } from "./EvidenceHistoryDialog";
+import { PendingUploadsPanel } from "./PendingUploadsPanel";
+import { MeetingPanel } from "./MeetingPanel";
+import { buildBookingCalendar, meetingChangeIsCurrent } from "./meetingHelpers";
 import "./studentWorkspace.css";
 
 export function ServerWorkspace({
@@ -273,10 +278,11 @@ function LearningWorkspace({
   const [learningError, setLearningError] = useState("");
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [mutationBusy, setBusy] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const busy = mutationBusy || recoveryBusy;
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [slotId, setSlotId] = useState("");
   const [appointmentId, setAppointmentId] = useState("");
   const [title, setTitle] = useState("");
   const [revisesId, setRevisesId] = useState("");
@@ -293,6 +299,33 @@ function LearningWorkspace({
   const requestIds = useRef(new Map<string, string>());
   const urls = useRef(new Set<string>());
   const mutationError = useRef<HTMLParagraphElement>(null);
+  const sectionNavigation = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const navigation = sectionNavigation.current;
+    if (!navigation) return;
+    const revealCurrent = () => {
+      const selected = navigation.querySelector<HTMLElement>(
+        "[aria-current='page']",
+      );
+      if (!selected) return;
+      const viewport = navigation.getBoundingClientRect();
+      const button = selected.getBoundingClientRect();
+      const offset =
+        button.left < viewport.left + 8
+          ? button.left - viewport.left - 8
+          : button.right > viewport.right - 8
+            ? button.right - viewport.right + 8
+            : 0;
+      if (offset) navigation.scrollBy({ left: offset, behavior: "instant" });
+    };
+    const frame = requestAnimationFrame(revealCurrent);
+    const resize = new ResizeObserver(revealCurrent);
+    resize.observe(navigation);
+    return () => {
+      cancelAnimationFrame(frame);
+      resize.disconnect();
+    };
+  }, [view]);
   function navigateView(next: WorkspaceView) {
     setSearchParams((previous) => {
       const params = new URLSearchParams(previous);
@@ -436,7 +469,7 @@ function LearningWorkspace({
     success: string,
     reload = true,
   ) {
-    if (running.current) return;
+    if (running.current || recoveryBusy) return false;
     running.current = true;
     setBusy(true);
     setError("");
@@ -445,25 +478,29 @@ function LearningWorkspace({
     controllerRef.current = controller;
     try {
       await action(controller.signal, requestId(key));
-      if (!active.current || controller.signal.aborted) return;
+      if (!active.current || controller.signal.aborted) return false;
       requestIds.current.delete(key);
       setNotice(success);
       if (reload) refresh();
+      return true;
     } catch (failure) {
       if (active.current && !controller.signal.aborted) report(failure);
+      return false;
     } finally {
       running.current = false;
       if (active.current) setBusy(false);
     }
   }
-  const activeBooking = workspace?.activeAppointments[0];
-  const selectedSlot = workspace?.slots.some((slot) => slot.id === slotId)
-    ? slotId
-    : "";
-  const evidenceAppointments =
-    workspace?.appointments.filter(
-      (appointment) => appointment.status !== "cancelled",
-    ) ?? [];
+  const evidenceAppointments = [
+    ...new Map(
+      [
+        ...(workspace?.activeAppointments ?? []),
+        ...(workspace?.appointments ?? []),
+      ]
+        .filter((appointment) => appointment.status !== "cancelled")
+        .map((appointment) => [appointment.id, appointment]),
+    ).values(),
+  ];
   const revisionCandidates =
     workspace?.evidence.filter(
       (item) =>
@@ -542,6 +579,7 @@ function LearningWorkspace({
             "CONFLICT",
             "NOT_FOUND",
             "EXPIRED",
+            "STORAGE_FULL",
           ].includes(failure.code)
         )
           setDraftResetAllowed(true);
@@ -597,6 +635,102 @@ function LearningWorkspace({
       if (fileInput.current) fileInput.current.value = "";
     }
   }
+  function saveMeeting(slot: ApiSlot, previous?: ApiAppointment) {
+    return run(
+      `book:${previous?.id ?? "new"}:${slot.id}`,
+      async (signal, id) => {
+        if (previous) {
+          if (
+            !meetingChangeIsCurrent(
+              { kind: "reschedule", booking: previous, replacement: slot },
+              workspace,
+              Date.now(),
+            )
+          )
+            throw new TalaApiError("CONFLICT");
+          await talaApi.rescheduleAppointment(
+            previous.id,
+            { slotId: slot.id, requestId: id },
+            signal,
+          );
+        } else {
+          if (
+            !workspace?.slots.some(
+              (candidate) =>
+                candidate.id === slot.id &&
+                candidate.startsAt === slot.startsAt &&
+                candidate.endsAt === slot.endsAt,
+            )
+          )
+            throw new TalaApiError("CONFLICT");
+          await talaApi.reserveAppointment(
+            { slotId: slot.id, studentUid, requestId: id },
+            signal,
+          );
+        }
+      },
+      previous
+        ? "Your booking was changed on the server."
+        : "Your booking was saved to the server.",
+    );
+  }
+  function cancelMeeting(booking: ApiAppointment) {
+    return run(
+      `cancel:${booking.id}`,
+      async (signal, id) => {
+        if (
+          !meetingChangeIsCurrent(
+            { kind: "cancel", booking },
+            workspace,
+            Date.now(),
+          )
+        )
+          throw new TalaApiError("CONFLICT");
+        await talaApi.cancelAppointment(booking.id, { requestId: id }, signal);
+      },
+      "Your booking was cancelled on the server.",
+    );
+  }
+  function downloadMeetingCalendar(booking: ApiAppointment) {
+    return run(
+      `calendar:${booking.id}`,
+      async (signal) => {
+        // Re-read through the authenticated service before exporting even a
+        // previously visible booking; revoked family links must fail closed.
+        const latest = await talaApi.getWorkspace(studentUid, signal);
+        if (signal.aborted || !active.current) return;
+        setWorkspace(latest);
+        setLoadError("");
+        const saved = [
+          ...latest.activeAppointments,
+          ...latest.appointments,
+        ].find((item) => item.id === booking.id);
+        if (!saved || saved.status === "cancelled")
+          throw new TalaApiError("CONFLICT");
+        const calendar = buildBookingCalendar(
+          saved,
+          Intl.DateTimeFormat().resolvedOptions().timeZone,
+        );
+        const url = URL.createObjectURL(
+          new Blob([calendar.content], { type: "text/calendar;charset=utf-8" }),
+        );
+        urls.current.add(url);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = calendar.filename;
+        anchor.hidden = true;
+        document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => {
+          URL.revokeObjectURL(url);
+          urls.current.delete(url);
+        }, 30_000);
+      },
+      "Private calendar file prepared. Personal calendar changes do not sync automatically.",
+      false,
+    );
+  }
   return (
     <>
       {readOnly && (
@@ -605,7 +739,11 @@ function LearningWorkspace({
           files. The student manages bookings and submissions.
         </p>
       )}
-      <nav className="product-section-nav" aria-label="Workspace sections">
+      <nav
+        ref={sectionNavigation}
+        className="product-section-nav"
+        aria-label="Workspace sections"
+      >
         {workspaceViews.map(({ id, label }) => (
           <button
             key={id}
@@ -680,152 +818,23 @@ function LearningWorkspace({
       )}
       <div className="product-grid student-focused-content">
         <div className="product-main">
-          <section
-            id="meetings"
-            className="product-card"
-            aria-labelledby="meetings-heading"
-            hidden={view !== "meetings"}
-          >
-            <h2 id="meetings-heading" tabIndex={-1}>
-              Meetings
-            </h2>
-            <p>
-              Choose an available time, then find your reservation here. Live
-              meeting links are not connected yet.
-            </p>
-            {!workspace ? (
-              <p>
-                {loading
-                  ? "Loading available times…"
-                  : "Connect to the server to view availability."}
-              </p>
-            ) : (
-              <>
-                {activeBooking && (
-                  <div className="product-saved">
-                    <h3>Your current booking</h3>
-                    <p>
-                      {meetingTime(
-                        activeBooking.startsAt,
-                        activeBooking.endsAt,
-                      )}
-                    </p>
-                    <p>Reserved · No live meeting link available.</p>
-                    <button
-                      className="button button-secondary"
-                      disabled={readOnly || busy || loading}
-                      onClick={() =>
-                        void run(
-                          `cancel:${activeBooking.id}`,
-                          async (signal, id) => {
-                            await talaApi.cancelAppointment(
-                              activeBooking.id,
-                              { requestId: id },
-                              signal,
-                            );
-                          },
-                          "Your booking was cancelled on the server.",
-                        )
-                      }
-                    >
-                      Cancel booking
-                    </button>
-                  </div>
-                )}
-                {workspace.slots.length ? (
-                  <form
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void run(
-                        `book:${activeBooking?.id ?? "new"}:${selectedSlot}`,
-                        async (signal, id) => {
-                          if (!selectedSlot)
-                            throw new TalaApiError("INVALID_INPUT");
-                          if (activeBooking)
-                            await talaApi.rescheduleAppointment(
-                              activeBooking.id,
-                              { slotId: selectedSlot, requestId: id },
-                              signal,
-                            );
-                          else
-                            await talaApi.reserveAppointment(
-                              {
-                                slotId: selectedSlot,
-                                studentUid,
-                                requestId: id,
-                              },
-                              signal,
-                            );
-                        },
-                        activeBooking
-                          ? "Your booking was changed on the server."
-                          : "Your booking was saved to the server.",
-                      );
-                    }}
-                  >
-                    <div className="form-field">
-                      <label htmlFor="meeting-slot">
-                        Available meeting time
-                      </label>
-                      <select
-                        id="meeting-slot"
-                        required
-                        value={selectedSlot}
-                        disabled={readOnly || busy || loading}
-                        onChange={(event) => setSlotId(event.target.value)}
-                      >
-                        <option value="">Choose a time</option>
-                        {workspace.slots.map((slot) => (
-                          <option key={slot.id} value={slot.id}>
-                            {slot.label} ·{" "}
-                            {meetingTime(slot.startsAt, slot.endsAt)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      className="button"
-                      disabled={readOnly || busy || loading || !selectedSlot}
-                    >
-                      {busy
-                        ? "Saving…"
-                        : activeBooking
-                          ? "Change booking"
-                          : "Book meeting"}
-                    </button>
-                  </form>
-                ) : (
-                  <p>
-                    No meeting times are available. Ask your TALA operator to
-                    publish availability, then refresh this page.
-                  </p>
-                )}
-                <details>
-                  <summary>Booking history</summary>
-                  <ul className="product-list">
-                    {workspace.appointments.map((appointment) => (
-                      <li key={appointment.id}>
-                        <p>
-                          {meetingTime(
-                            appointment.startsAt,
-                            appointment.endsAt,
-                          )}
-                        </p>
-                        <strong>
-                          {appointment.status === "ended"
-                            ? "Scheduled period ended · attendance unconfirmed"
-                            : appointment.status}
-                        </strong>
-                      </li>
-                    ))}
-                  </ul>
-                  {!workspace.appointments.length && (
-                    <p>You have no bookings yet.</p>
-                  )}
-                </details>
-              </>
-            )}
-          </section>
+          <MeetingPanel
+            workspace={workspace}
+            visible={view === "meetings"}
+            clockActive={view === "meetings" || view === "overview"}
+            readOnly={readOnly}
+            loading={loading}
+            busy={busy}
+            stale={Boolean(loadError)}
+            mutationError={error}
+            evidenceDraftBookingId={
+              pending?.appointmentId ?? (file ? selectedAppointment : undefined)
+            }
+            onRefresh={refresh}
+            onBook={saveMeeting}
+            onCancel={cancelMeeting}
+            onCalendar={downloadMeetingCalendar}
+          />
           <section
             id="learning-records"
             className="product-card"
@@ -1117,6 +1126,15 @@ function LearningWorkspace({
               <p>
                 Book a meeting first to attach evidence to your learning record.
               </p>
+            )}
+            {!readOnly && (
+              <PendingUploadsPanel
+                disabled={mutationBusy || loading}
+                excludeUploadId={pending?.intent?.uploadId}
+                onChanged={refresh}
+                onExpired={onExpired}
+                onBusyChange={setRecoveryBusy}
+              />
             )}
             <div className="student-documents-heading">
               <h3>Submitted documents</h3>

@@ -1,0 +1,220 @@
+.pending-uploads {
+  --pending-line: #d9deda;
+  --pending-ink: #1d1d1f;
+  --pending-muted: #626268;
+  --pending-accent: var(--color-accent, #174139);
+  border-top: 1px solid var(--pending-line);
+  padding-top: 28px;
+  margin-top: 32px;
+  color: var(--pending-ink);
+}
+.pending-uploads-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 18px;
+}
+.pending-uploads-heading h3 {
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  margin: 0 0 10px;
+}
+.pending-uploads-heading p {
+  color: var(--pending-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  max-width: 58ch;
+  margin: 0;
+}
+.pending-uploads-text-button {
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--pending-accent);
+  background: none;
+  border: 0;
+  min-height: 44px;
+  padding: 8px 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-align: left;
+}
+.pending-uploads-heading > button {
+  flex-shrink: 0;
+}
+.pending-uploads-list {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+}
+.pending-uploads-list > li {
+  border-top: 1px solid var(--pending-line);
+  padding-block: 22px;
+}
+.pending-uploads-document {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.pending-uploads-document > div {
+  min-width: 0;
+}
+.pending-uploads-document h4 {
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.45;
+  margin: 0 0 6px;
+  overflow-wrap: anywhere;
+}
+.pending-uploads-document p {
+  color: var(--pending-muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+  margin: 0;
+}
+.pending-uploads-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: #edf2ef;
+  color: #315b48;
+  font-weight: 600;
+  font-size: 0.76rem;
+}
+.pending-uploads-help {
+  color: var(--pending-muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+  margin: 10px 0 0;
+}
+.pending-uploads-file {
+  margin-top: 20px;
+}
+.pending-uploads-file > label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.pending-uploads-file > input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  border: 1px solid #c6ccc8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px;
+  color: var(--pending-ink);
+  font: inherit;
+  font-size: 0.88rem;
+}
+.pending-uploads-file input::file-selector-button {
+  border: 0;
+  border-radius: 6px;
+  background: #edf2ef;
+  color: var(--pending-accent);
+  padding: 9px 12px;
+  margin-right: 12px;
+  font: inherit;
+  cursor: pointer;
+}
+.pending-uploads-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 20px;
+}
+.pending-uploads-actions > .button {
+  min-height: 46px;
+  padding: 11px 18px;
+}
+.pending-uploads-error {
+  color: #7d3528;
+  background: #fff1ec;
+  border: 1px solid #e8cabd;
+  border-radius: 10px;
+  padding: 14px 16px;
+  line-height: 1.6;
+  font-size: 0.9rem;
+  margin-top: 18px;
+}
+.pending-uploads-error > p {
+  margin: 0;
+}
+.pending-uploads-notice {
+  background: #eaf2ed;
+  color: #23563d;
+  padding: 14px 16px;
+  margin-block: 20px 0;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.pending-uploads-status {
+  margin: 0;
+}
+.pending-uploads-empty {
+  color: var(--pending-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 22px 0 0;
+}
+.pending-uploads-confirmation,
+.pending-uploads-recovery {
+  margin-top: 20px;
+  padding: 18px;
+  background: #f5f5f7;
+  border-radius: 10px;
+}
+.pending-uploads-confirmation h4 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+.pending-uploads-confirmation p,
+.pending-uploads-recovery p {
+  color: var(--pending-muted);
+  font-size: 0.88rem;
+  line-height: 1.65;
+  margin: 0;
+}
+.pending-uploads-recovery > .button {
+  margin-top: 14px;
+}
+.pending-uploads :is(button, input):focus-visible {
+  outline: 3px solid var(--pending-accent);
+  outline-offset: 4px;
+}
+.pending-uploads :is(button, input):disabled {
+  cursor: not-allowed;
+}
+@media (max-width: 600px) {
+  .pending-uploads-heading {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pending-uploads-heading > button {
+    align-self: start;
+  }
+  .pending-uploads-actions {
+    gap: 10px;
+  }
+  .pending-uploads-confirmation .pending-uploads-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pending-uploads * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

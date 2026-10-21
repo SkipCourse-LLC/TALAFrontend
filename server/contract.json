@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "basePath": "/api",
   "defaultOrigin": "http://127.0.0.1:8787",
   "security": {
@@ -34,7 +34,8 @@
       "UNSUPPORTED_TYPE",
       "INTEGRITY_ERROR",
       "INTEGRATION_UNAVAILABLE",
-      "INTERNAL_ERROR"
+      "INTERNAL_ERROR",
+      "STORAGE_FULL"
     ]
   },
   "types": {
@@ -114,6 +115,32 @@
       "isAvailable": "boolean",
       "status": "available|reserved|withdrawn",
       "canWithdraw": "boolean; true only for unbooked published future slots"
+    },
+    "AccountSession": {
+      "id": "session_ followed by 43 base64url characters; non-authenticating server-derived handle, never the cookie or stored hash",
+      "current": "boolean",
+      "createdAt": "ISO UTC",
+      "expiresAt": "ISO UTC"
+    },
+    "SessionRevocation": {
+      "revokedSessionCount": "nonnegative integer; count at first successful operation",
+      "currentSessionRevoked": false
+    },
+    "PasswordChangeReceipt": {
+      "status": "completed",
+      "changedAt": "ISO UTC",
+      "revokedSessionCount": "nonnegative integer; other active sessions revoked"
+    },
+    "PendingUpload": {
+      "uploadId": "UUID",
+      "title": "string",
+      "appointmentId": "UUID",
+      "contentType": "text/plain|application/pdf",
+      "size": "integer<=5242880",
+      "sha256": "64 lowercase hex",
+      "status": "pending|uploaded",
+      "expiresAt": "ISO UTC",
+      "revisesEvidenceId": "optional UUID"
     }
   },
   "routes": [
@@ -123,7 +150,7 @@
       "response": {
         "application": "tala-independent-server",
         "version": 1,
-        "contractVersion": 2,
+        "contractVersion": 3,
         "schemaVersion": 2,
         "status": "ok",
         "authentication": "local-server",
@@ -378,9 +405,62 @@
       "method": "GET",
       "path": "/evidence/:id",
       "response": "Evidence; current owner, linked read-only parent or operator only"
+    },
+    {
+      "method": "GET",
+      "path": "/account/sessions",
+      "response": {
+        "sessions": "AccountSession[] newest100; current session always included",
+        "hasMore": "boolean"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/account/sessions/revoke",
+      "body": {
+        "sessionId": "AccountSession.id belonging to this user",
+        "requestId": "unique string"
+      },
+      "response": "SessionRevocation; rejects the current session with CONFLICT, use explicit logout"
+    },
+    {
+      "method": "POST",
+      "path": "/account/sessions/revoke-others",
+      "body": {
+        "requestId": "unique string"
+      },
+      "response": "SessionRevocation; idempotent replay does not revoke sessions created after the initial operation"
+    },
+    {
+      "method": "POST",
+      "path": "/account/password",
+      "body": {
+        "currentPassword": "current password",
+        "newPassword": "different password, 12..128 characters",
+        "requestId": "unique string"
+      },
+      "response": {
+        "session": "User",
+        "csrfToken": "new CSRF token",
+        "passwordChanged": true,
+        "changedAt": "ISO UTC",
+        "revokedSessionCount": "other active sessions revoked"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/account/password-changes/:requestId",
+      "response": "PasswordChangeReceipt; only the same authenticated UID and the replacement current session can read it; otherwise NOT_FOUND"
+    },
+    {
+      "method": "GET",
+      "path": "/evidence/uploads",
+      "response": {
+        "uploads": "PendingUpload[]; own current UID only, nonexpired, newest10; parents forbidden; no automatic cleanup/write"
+      }
     }
   ],
-  "factory": "createApplication({dataDir,allowedOrigins,sessionTtlMs?}) returns {server,db,operator,close}; no socket is opened until server.listen()",
+  "factory": "createApplication({dataDir,allowedOrigins,sessionTtlMs?,downloadTtlMs?}) returns {server,db,operator,close}; downloadTtlMs is test-factory-only integer100..30000, defaults30000, no environment override. No socket is opened until server.listen()",
   "operator": "application.operator.promote(email); application.operator.addAvailability({startsAt,endsAt,label?}); application.operator.linkFamily({studentUid,parentUid,consentReference}); CLI exposes explicit local operator actions only. No accounts or availability are auto-seeded. operator.revokeFamily({studentUid,parentUid}) revokes read access without deleting history; operator.cleanupExpired() closes at most100 expired unsubmitted uploads per explicit maintenance call.",
   "limits": {
     "fileBytes": 5242880,
@@ -395,10 +475,20 @@
     "sessions": "server-side persistent hashes, 12 hour authenticated / 1 hour anonymous",
     "unsubmittedUploadsPerAccount": 10,
     "unsubmittedUploadBytesPerAccount": 52428800,
-    "unsubmittedUploadBytesGlobal": 524288000
+    "unsubmittedUploadBytesGlobal": 524288000,
+    "passwordChanges": "6 attempts per account and 20 per client IP per 15 minutes; password validation and hashing remain memory bounded",
+    "activeBinaryUploads": 4,
+    "activePrivateDownloads": 4,
+    "privateDownloadDeadlineMs": 30000,
+    "evidenceBytesPerAccount": 104857600,
+    "evidenceVersionsPerAccount": 1000,
+    "evidenceBytesPerInstance": 2147483648,
+    "evidenceVersionsPerInstance": 20000
   },
   "schemaVersion": 2,
   "availabilityPolicy": "Publish times must be ISO 8601 with explicit Z/UTC offset. Withdrawal is transactionally fenced against reservations. Times on a slot are immutable. Publishing an exactly matching withdrawn start/end reactivates its same ID; any changed time uses a new ID. Old cancelled bookings retain original times.",
   "revisionPolicy": "Only a student can revise their own latest needs_revision Evidence for the same booking. Upload captures the current reviewVersion server-side. Final submit rechecks that review and atomically commits a single successor; concurrent or stale revisions conflict. Earlier evidence bytes, review and identifiers remain immutable. Superseded evidence cannot be reviewed again. Counters count all versions, manual review is not academic credit.",
-  "localDatabaseMigration": "Schema1 to2 is additive and local-only. A consistent VACUUM INTO backup with 0600 permissions is verified before migration. Three new tables: availability_state(slot_id,status,updated_at,updated_by); upload_revisions(upload_id,predecessor_id,expected_review_version); evidence_revisions(evidence_id,predecessor_id UNIQUE,root_id,revision_number). Existing slots backfill as published; other rows and file bytes are untouched. New databases start at schema2 with no seed data. Future schemas fail closed."
+  "localDatabaseMigration": "Schema1 to2 is additive and local-only. A consistent VACUUM INTO backup with 0600 permissions is verified before migration. Three new tables: availability_state(slot_id,status,updated_at,updated_by); upload_revisions(upload_id,predecessor_id,expected_review_version); evidence_revisions(evidence_id,predecessor_id UNIQUE,root_id,revision_number). Existing slots backfill as published; other rows and file bytes are untouched. New databases start at schema2 with no seed data. Future schemas fail closed.",
+  "accountSecurityPolicy": "Password changes require the current password, per-account and per-IP rate limits, fresh CSRF/session/disabled-account/password checks after each asynchronous hash, and one transaction for credential update, all-session revocation, replacement session and completion receipt. No plaintext or fast password-derived idempotency digest is stored. Session handles grant no authentication and expose neither cookie nor database session hash. Current-session revocation uses logout. After a lost password-change response, bootstrap GET /session and query the completion receipt before claiming success; if the replacement cookie was lost, reauthenticate with the new password. A receipt never restores authentication. No email delivery or MFA is implied.",
+  "storageQuotaPolicy": "Logical Evidence quotas include pending intents at creation, with committed storage rechecked at final submit. They bound 100 MiB/1000 versions per owner and 2 GiB/20000 versions per instance, and fail with STORAGE_FULL. They are not a physical disk quota for database history, backup directories or unrelated/orphan files. No submitted Evidence is automatically deleted."
 }

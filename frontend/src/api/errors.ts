@@ -20,6 +20,7 @@ export type TalaApiErrorCode =
   | "TOO_LARGE"
   | "UNSUPPORTED_TYPE"
   | "INTEGRITY_ERROR"
+  | "STORAGE_FULL"
   | "INTEGRATION_UNAVAILABLE"
   | "INTERNAL_ERROR";
 
@@ -52,6 +53,8 @@ const messages: Record<TalaApiErrorCode, string> = {
   UNSUPPORTED_TYPE: "Choose a supported text or PDF file.",
   INTEGRITY_ERROR:
     "The file did not match its saved checksum. Choose the original file and retry.",
+  STORAGE_FULL:
+    "Evidence storage is full. Contact an authorized operator before uploading more files. Your saved documents have been kept.",
   INTEGRATION_UNAVAILABLE:
     "This integration is not connected. No external action was confirmed.",
   INTERNAL_ERROR:

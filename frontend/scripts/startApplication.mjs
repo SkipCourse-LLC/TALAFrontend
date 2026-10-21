@@ -49,7 +49,7 @@ async function healthy() {
     return (
       value?.application === "tala-independent-server" &&
       value.version === 1 &&
-      value.contractVersion === 2 &&
+      value.contractVersion === 3 &&
       value.schemaVersion === 2 &&
       value.status === "ok" &&
       value.authentication === "local-server"
