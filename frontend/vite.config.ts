@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
     resolveFirebaseConfiguration(environment, "localhost");
   } else if (
     environment.VITE_BACKEND_MODE &&
-    environment.VITE_BACKEND_MODE !== "demo"
+    !["demo", "api"].includes(environment.VITE_BACKEND_MODE)
   ) {
     resolveFirebaseConfiguration(environment, "localhost");
   }
@@ -24,6 +24,16 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     // Relative assets + HashRouter work under both root and project subpaths.
     base: "./",
+    server: {
+      proxy: {
+        "/api": { target: "http://127.0.0.1:8787", changeOrigin: false },
+      },
+    },
+    preview: {
+      proxy: {
+        "/api": { target: "http://127.0.0.1:8787", changeOrigin: false },
+      },
+    },
     build: {
       rolldownOptions: {
         output: {

@@ -43,7 +43,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    env: { VITE_DEMO_TOOLS: "true" },
+    env: {
+      VITE_BACKEND_MODE: "demo",
+      VITE_DEMO_MODE: "true",
+      VITE_DEMO_TOOLS: "true",
+    },
     command: "npm run build && npm run preview -- --port 4173 --strictPort",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: false,

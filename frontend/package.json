@@ -4,16 +4,19 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": "^22.13.0 || >=24"
+    "node": ">=24"
   },
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
+    "dev": "node scripts/startApplication.mjs",
+    "dev:app": "node scripts/startApplication.mjs",
+    "dev:demo": "node scripts/startApplication.mjs --demo",
     "dev:firebase": "node scripts/firebase-dev.mjs",
     "dev:test-cloud": "vite --mode firebase-test --host 127.0.0.1 --port 5177 --strictPort",
     "build:test-cloud": "npm run typecheck && vite build --mode firebase-test",
     "test:firebase-core": "playwright test -c src/backend/firebaseCore.config.ts",
     "test:firebase-browser": "playwright test -c tests/firebaseIntegration.config.ts",
     "test:cloud-boundary": "playwright test -c tests/firebaseCloudArchitecture.config.ts",
+    "test:api-client": "playwright test -c src/api/apiUnit.config.ts",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint . --max-warnings 0",

@@ -26,10 +26,27 @@ const FirebaseApplication = lazy(() =>
     default: module.FirebaseApplication,
   })),
 );
+const ServerApplication = lazy(() =>
+  import("./product/ServerApplication").then((module) => ({
+    default: module.ServerApplication,
+  })),
+);
 
 export default function App() {
-  const mode = import.meta.env.VITE_BACKEND_MODE;
-  if (!mode || mode === "demo") return <DemoApplication />;
+  const mode = import.meta.env.VITE_BACKEND_MODE || "api";
+  if (mode === "demo") return <DemoApplication />;
+  if (mode === "api")
+    return (
+      <Suspense
+        fallback={
+          <div className="container state-panel" role="status">
+            Connecting to your TALA server…
+          </div>
+        }
+      >
+        <ServerApplication />
+      </Suspense>
+    );
   if (
     mode !== "firebase" &&
     mode !== "firebase-emulator" &&

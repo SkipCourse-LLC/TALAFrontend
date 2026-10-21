@@ -1,0 +1,341 @@
+{
+  "version": 1,
+  "basePath": "/api",
+  "defaultOrigin": "http://127.0.0.1:8787",
+  "security": {
+    "cookie": "tala_session",
+    "csrfHeader": "X-CSRF-Token",
+    "mutatingOriginRequired": true,
+    "authentication": "opaque HttpOnly SameSite=Strict cookie; never localStorage",
+    "emailVerification": "unavailable until an email provider is configured; basic owner-only workflows do not require email verification",
+    "parentAccess": "READ-ONLY: linked parents can read workspace, learning and private evidence files through current server-owned consent links. Parent accounts cannot book, change bookings, upload, submit, cancel uploads or acknowledge summaries. Only students acknowledge their own summaries. Link-only consent does not grant delegated write authority.",
+    "expectedActorHeader": "X-TALA-User, when provided, must exactly match the cookie-authenticated UID; it never grants identity or permissions."
+  },
+  "errors": {
+    "shape": {
+      "error": {
+        "code": "UPPER_SNAKE_CASE",
+        "message": "safe human-readable message"
+      }
+    },
+    "codes": [
+      "INVALID_INPUT",
+      "AUTH_REQUIRED",
+      "FORBIDDEN",
+      "CSRF_INVALID",
+      "ORIGIN_DENIED",
+      "INVALID_CREDENTIALS",
+      "ACCOUNT_EXISTS",
+      "RATE_LIMITED",
+      "NOT_FOUND",
+      "CONFLICT",
+      "EXPIRED",
+      "TOO_LARGE",
+      "UNSUPPORTED_TYPE",
+      "INTEGRITY_ERROR",
+      "INTEGRATION_UNAVAILABLE",
+      "INTERNAL_ERROR"
+    ]
+  },
+  "types": {
+    "User": {
+      "uid": "UUID",
+      "name": "string",
+      "email": "string",
+      "role": "student|parent|operator",
+      "emailVerified": false
+    },
+    "Session": {
+      "session": "User|null",
+      "csrfToken": "string"
+    },
+    "Slot": {
+      "id": "UUID",
+      "startsAt": "ISO UTC",
+      "endsAt": "ISO UTC",
+      "label": "string",
+      "isAvailable": true
+    },
+    "Appointment": {
+      "id": "UUID",
+      "ownerUid": "UUID",
+      "slotId": "UUID",
+      "startsAt": "ISO UTC",
+      "endsAt": "ISO UTC",
+      "status": "reserved|cancelled|ended",
+      "meetingIntegration": "unavailable",
+      "updatedAt": "ISO UTC"
+    },
+    "Evidence": {
+      "id": "UUID",
+      "ownerUid": "UUID",
+      "appointmentId": "UUID",
+      "title": "string",
+      "contentType": "text/plain|application/pdf",
+      "size": "integer<=5242880",
+      "sha256": "64 lowercase hex",
+      "status": "submitted",
+      "reviewStatus": "not_reviewed|reviewed|needs_revision",
+      "submittedAt": "ISO UTC",
+      "reviewNote": "optional string",
+      "reviewedAt": "optional ISO UTC"
+    },
+    "Progress": {
+      "submittedEvidenceCount": "integer",
+      "assessedEvidenceCount": 0,
+      "acknowledgedOutcomeCount": "integer",
+      "masteryStatus": "unavailable",
+      "reviewedEvidenceCount": "integer, manual review only; never academic credit"
+    },
+    "UploadIntent": {
+      "uploadId": "UUID",
+      "sha256": "64 lowercase hex",
+      "expiresAt": "ISO UTC",
+      "maxBytes": 5242880
+    },
+    "UploadStatus": {
+      "uploadId": "UUID",
+      "status": "pending|uploaded|submitted|cancelled|failed",
+      "sha256": "64 lowercase hex",
+      "size": "integer",
+      "contentType": "text/plain|application/pdf"
+    }
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/session",
+      "response": "Session; creates anonymous CSRF session when needed"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/register",
+      "body": {
+        "name": "string",
+        "email": "string",
+        "password": "12..128 characters",
+        "accountType": "student|parent"
+      },
+      "response": "Session; rotates cookie and CSRF token"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "body": {
+        "email": "string",
+        "password": "string"
+      },
+      "response": "Session; rotates cookie and CSRF token"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "body": {},
+      "response": "Session with null session; rotates anonymous cookie/CSRF token"
+    },
+    {
+      "method": "PATCH",
+      "path": "/profile",
+      "body": {
+        "name": "string"
+      },
+      "response": "User"
+    },
+    {
+      "method": "GET",
+      "path": "/workspace",
+      "response": {
+        "slots": "Slot[]",
+        "appointments": "Appointment[] newest 100",
+        "activeAppointments": "Appointment[]",
+        "evidence": "Evidence[] newest 100",
+        "progress": "Progress"
+      },
+      "query": {
+        "studentUid": "optional child UID; parent must have a current operator-recorded active consent link"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/availability",
+      "operatorOnly": true,
+      "body": {
+        "startsAt": "ISO UTC",
+        "endsAt": "ISO UTC",
+        "label": "optional string",
+        "requestId": "unique string"
+      },
+      "response": "Slot"
+    },
+    {
+      "method": "POST",
+      "path": "/appointments",
+      "body": {
+        "slotId": "UUID",
+        "requestId": "unique string",
+        "studentUid": "optional authorized linked child UID"
+      },
+      "response": "Appointment"
+    },
+    {
+      "method": "POST",
+      "path": "/appointments/:id/reschedule",
+      "body": {
+        "slotId": "UUID",
+        "requestId": "unique string"
+      },
+      "response": "Appointment; atomically cancels old booking"
+    },
+    {
+      "method": "POST",
+      "path": "/appointments/:id/cancel",
+      "body": {
+        "requestId": "unique string"
+      },
+      "response": "Appointment"
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/uploads",
+      "body": {
+        "appointmentId": "UUID",
+        "title": "string",
+        "contentType": "text/plain|application/pdf",
+        "size": "integer",
+        "sha256": "64 lowercase hex",
+        "requestId": "unique string",
+        "studentUid": "optional authorized linked child UID (owner also checked via appointment)"
+      },
+      "response": "UploadIntent"
+    },
+    {
+      "method": "GET",
+      "path": "/evidence/uploads/:id",
+      "response": "UploadStatus"
+    },
+    {
+      "method": "PUT",
+      "path": "/evidence/uploads/:id/content",
+      "body": "raw file bytes; Content-Type must equal the intent MIME; CSRF header still required",
+      "response": "UploadStatus"
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/uploads/:id/submit",
+      "body": {
+        "requestId": "unique string"
+      },
+      "response": {
+        "evidence": "Evidence",
+        "progress": "Progress"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/uploads/:id/cancel",
+      "body": {},
+      "response": {
+        "uploadId": "UUID",
+        "status": "cancelled"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/evidence/:id/content",
+      "response": "raw attachment bytes; Content-Type, Content-Disposition, Content-Length, X-Content-SHA256; no public URL"
+    },
+    {
+      "method": "GET",
+      "path": "/learning",
+      "response": {
+        "records": "published record DTO compatible with the existing UI: {id,appointmentId,status:'published',attendance:'not_recorded',outcomes:[{id,summary,status:'published',source:'staff',publishedAt}],acknowledgedOutcomeIds,updatedAt}",
+        "integrations": {
+          "zoom": "unavailable",
+          "ai": "unavailable"
+        }
+      },
+      "query": {
+        "studentUid": "optional child UID; parent must have a current operator-recorded active consent link"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/outcomes",
+      "operatorOnly": true,
+      "body": {
+        "appointmentId": "UUID",
+        "outcomes": "[{id,summary}]",
+        "requestId": "unique string"
+      },
+      "response": "published learning record; meeting period must have ended; never certifies attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/outcomes/:id/acknowledge",
+      "body": {
+        "outcomeId": "string",
+        "requestId": "unique string"
+      },
+      "response": {
+        "recordId": "UUID",
+        "outcomeId": "string",
+        "acknowledgedAt": "ISO UTC",
+        "progress": "Progress"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/family",
+      "response": {
+        "relationships": "[{id,studentUid,parentUid,status:'active',consent:'recorded',permissions:['read']}]",
+        "linkedProfiles": "[{uid,role,name}]"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/operations",
+      "operatorOnly": true,
+      "response": {
+        "appointments": "(Appointment & {studentUid,studentName})[] newest100",
+        "evidence": "(Evidence & {studentUid,studentName})[] newest100"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/:id/review",
+      "operatorOnly": true,
+      "body": {
+        "status": "reviewed|needs_revision",
+        "note": "string 1..1000",
+        "requestId": "unique string"
+      },
+      "response": "Evidence; manual review only, no AI/grade/mastery"
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/uploads/cleanup",
+      "body": {},
+      "response": {
+        "removed": "number of expired unsubmitted intents closed and private files checked/removed; never submitted Evidence",
+        "hasMore": "boolean; at most25 per owner call"
+      }
+    }
+  ],
+  "factory": "createApplication({dataDir,allowedOrigins,sessionTtlMs?}) returns {server,db,operator,close}; no socket is opened until server.listen()",
+  "operator": "application.operator.promote(email); application.operator.addAvailability({startsAt,endsAt,label?}); application.operator.linkFamily({studentUid,parentUid,consentReference}); CLI exposes explicit local operator actions only. No accounts or availability are auto-seeded. operator.revokeFamily({studentUid,parentUid}) revokes read access without deleting history; operator.cleanupExpired() closes at most100 expired unsubmitted uploads per explicit maintenance call.",
+  "limits": {
+    "fileBytes": 5242880,
+    "jsonBodyBytes": 65536,
+    "requestIdCharacters": "16..128",
+    "passwordScrypt": {
+      "N": 131072,
+      "r": 8,
+      "p": 1,
+      "maxmem": 268435456
+    },
+    "sessions": "server-side persistent hashes, 12 hour authenticated / 1 hour anonymous",
+    "unsubmittedUploadsPerAccount": 10,
+    "unsubmittedUploadBytesPerAccount": 52428800,
+    "unsubmittedUploadBytesGlobal": 524288000
+  }
+}

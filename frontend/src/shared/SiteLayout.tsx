@@ -8,7 +8,7 @@ export function SiteLayout({
   backend,
 }: {
   session: { name: string; email: string } | null;
-  backend?: "firebase-emulator" | "firebase-test" | "firebase";
+  backend?: "api" | "firebase-emulator" | "firebase-test" | "firebase";
 }) {
   const location = useLocation();
   return (
@@ -24,7 +24,9 @@ export function SiteLayout({
         Skip to content
       </a>
       <div className="preview-banner">
-        {backend === "firebase-emulator" ? (
+        {backend === "api" ? (
+          "TALA · Independent local server · Records are saved to your server."
+        ) : backend === "firebase-emulator" ? (
           "TALA · Local Firebase integration · Synthetic test accounts and files only. No live meetings or charges."
         ) : backend === "firebase-test" ? (
           "TALA · Approved Firebase test cloud · Synthetic accounts and files only. No real meetings or charges."
@@ -61,17 +63,21 @@ export function SiteLayout({
           <div className="footer-note">
             <p>Your learning. Your next step.</p>
             <small>
-              {backend
-                ? "Authentication uses Firebase. Meeting, evidence and payment services require an approved environment and team integration."
-                : "This frontend preview brings enrollment and learning together. School decisions, billing and live services are not connected."}
+              {backend === "api"
+                ? "Accounts, bookings and documents use the TALA server. Email delivery, live meeting links and payments require connected providers."
+                : backend
+                  ? "Authentication uses Firebase. Meeting, evidence and payment services require an approved environment and team integration."
+                  : "This frontend preview brings enrollment and learning together. School decisions, billing and live services are not connected."}
             </small>
           </div>
         </div>
         <div className="container footer-bottom">
           <span>
-            {backend
-              ? "TALA-Hub · Backend integration"
-              : "TALA-Hub · Frontend product preview"}
+            {backend === "api"
+              ? "TALA-Hub · Independent server"
+              : backend
+                ? "TALA-Hub · Backend integration"
+                : "TALA-Hub · Frontend product preview"}
           </span>
           <span>Built for different ways to learn.</span>
         </div>

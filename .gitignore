@@ -62,6 +62,14 @@ backend/.persistence-fixture.json
 backend/.firebase/
 firebase-export-*/
 
+# Independent backend records, opaque sessions, private uploads and SQLite data.
+server/.runtime/
+server/.data/
+server/**/*.sqlite
+server/**/*.sqlite-*
+server/**/*.db
+server/**/*.db-*
+
 # OS and editor temporary files
 .DS_Store
 Thumbs.db
