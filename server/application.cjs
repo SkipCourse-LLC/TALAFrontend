@@ -139,6 +139,10 @@ function createApplication(options = {}) {
       if (changing) mutation(req);
       if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 4, schemaVersion: 2, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
       if (req.method === "GET" && route === "/api/session") {
+        // A cross-site top-level navigation omits SameSite=Strict cookies but
+        // can still accept Set-Cookie. Do not overwrite a signed-in browser
+        // with an anonymous session when it follows an external link here.
+        if (req.headers["sec-fetch-site"] === "cross-site") fail(403, "ORIGIN_DENIED", "This application origin is not authorized.");
         const existing = currentSession(req);
         if (existing) return json(res, { session: existing.user ? userDTO(existing.user) : null, csrfToken: existing.csrf_token });
         rate(req, "session", 200);
