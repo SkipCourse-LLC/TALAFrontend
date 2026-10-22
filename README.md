@@ -23,14 +23,16 @@ Create an account on the site, then promote it:
 node server/operator.cjs promote --email you@example.test
 ```
 
-Sign out and back in to open the operator workspace, where you publish meeting times and review bookings and uploads.
+Sign out and back in to open the operator workspace, where you publish meeting times, review bookings and uploads, and follow up contact requests.
 
 ## What works today
 
 | Area | Status |
 | --- | --- |
 | Accounts, password sign-in, sessions | Real, through the local API |
-| Admin meeting availability (add, withdraw) | Real |
+| Admin meeting availability (add, edit, withdraw) | Real |
+| Open meeting times for parents without an account (`/schedule`) | Real, read-only |
+| "Contact me" requests (`/contact`) and the admin request list | Real, through the local API |
 | Booking, rescheduling and cancelling meetings | Real, for signed-in students |
 | Evidence uploads and staff review | Real |
 | Parent read-only access to a linked student | Real, once an admin links them |
@@ -41,7 +43,8 @@ Sign out and back in to open the operator workspace, where you publish meeting t
 
 ```text
 frontend/          the website
-  src/public-site/   home, about, programs and contact pages
+  src/public-site/   home, about, programs and community pages
+  src/onboarding/    Contact me form and public open times
   src/product/       the signed-in app: meetings, workspaces, operator tools
   src/api/           client for the local API
   src/authentication/ sign-in, plus the demo two-factor flow
@@ -51,6 +54,7 @@ frontend/          the website
   src/dashboard/     demo student dashboard
   src/shared/        layout, header, form controls and styles
 server/            the local API (see server/README.md)
+docs/              onboarding flow map; sign-in and data model proposal
 legacy/            the original one-page site
 ```
 
@@ -62,6 +66,7 @@ npm run lint --prefix frontend
 npm run build --prefix frontend
 npm test --prefix server
 npm run test:product --prefix frontend
+npm run test:onboarding --prefix frontend
 ```
 
 ## Deployment
