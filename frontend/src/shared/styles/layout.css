@@ -231,17 +231,69 @@
   }
 }
 @media (min-width: 961px) {
-  /* Nav links start where the page content starts, or just after the logo
-     when the window is too narrow for that. */
+  /* The logo sits at the page edge. The nav spans the content column, its
+     links spread evenly from the first to Community Login; when the window
+     is too narrow, it starts just after the logo instead. */
   .nav-row {
+    --content-inset: calc((100% - var(--container)) / 2);
     display: grid;
     grid-template-columns:
-      minmax(max-content, calc((100% - var(--container)) / 2))
-      minmax(0, 1fr);
+      minmax(max-content, var(--content-inset))
+      minmax(0, 1fr)
+      minmax(0, var(--content-inset));
     gap: 0;
   }
   .brand {
     margin-right: 32px;
+  }
+  .primary-nav {
+    justify-content: space-between;
+  }
+  .nav-actions {
+    margin-left: 0;
+  }
+  .nav-hub-link {
+    position: relative;
+    padding: 0;
+    color: inherit;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    font-weight: inherit;
+  }
+  .nav-hub-link:hover,
+  .nav-hub-link.active {
+    background: none;
+  }
+  .nav-hub-link::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: calc(50% + 0.35em + 8px);
+    border-top: 2px solid var(--color-orange);
+  }
+  .nav-hub-link:hover::after,
+  .nav-hub-link:focus-visible::after {
+    animation: nav-underline-sweep 450ms ease-in-out;
+  }
+}
+/* Wipe the underline out to the right, then draw it back in from the left. */
+@keyframes nav-underline-sweep {
+  0% {
+    transform: scaleX(1);
+    transform-origin: right;
+  }
+  50% {
+    transform: scaleX(0);
+    transform-origin: right;
+  }
+  50.1% {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  100% {
+    transform: scaleX(1);
+    transform-origin: left;
   }
 }
 @media (max-width: 600px) {
