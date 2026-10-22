@@ -7,7 +7,6 @@ type Props = InputHTMLAttributes<HTMLInputElement> & {
   hint?: ReactNode;
 };
 
-/** Shared label, hint and validation semantics for registration and login. */
 export function TextField({ id, label, error, hint, ...input }: Props) {
   const description =
     [error && `${id}-error`, hint && `${id}-hint`].filter(Boolean).join(" ") ||

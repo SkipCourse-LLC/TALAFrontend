@@ -1,57 +1,38 @@
 # TALA Frontend
 
-The website and student hub for Tucson Adaptive Learning Academy (TALA). A React and TypeScript app built with Vite, plus a small Node.js API with a SQLite database for local development.
+Website and student hub for Tucson Adaptive Learning Academy. React + TypeScript (Vite), with a local Node.js/SQLite API for development.
 
-## Run it locally
+## Run
 
-Requires Node.js 24 or newer.
+Node.js 24+.
 
 ```sh
 npm ci --prefix frontend
 npm run dev --prefix frontend
 ```
 
-This starts the API on `127.0.0.1:8787` and the site on <http://127.0.0.1:5173>, with live reload. Data is saved to `server/.runtime/`, which Git ignores.
+Site: <http://127.0.0.1:5173>. API: `127.0.0.1:8787`. Data: `server/.runtime/` (git-ignored).
+Sample data, no API: `npm run dev:demo --prefix frontend`.
 
-To click through every screen with sample data and no API, run `npm run dev:demo --prefix frontend` instead.
+**Admin:** register on the site, then `node server/operator.cjs promote --email you@example.test` and sign in again.
 
-### Admin access
+## Status
 
-Create an account on the site, then promote it:
+| Real (local API) | Demo only | Not connected |
+| --- | --- | --- |
+| Accounts and sessions, meeting availability, booking, Evidence uploads and review, parent read access | Two-factor, payment, class schedule, enrollment wizard | Email, Zoom, payments, SkipCourse backend |
 
-```sh
-node server/operator.cjs promote --email you@example.test
-```
-
-Sign out and back in to open the operator workspace, where you publish meeting times and review bookings and uploads.
-
-## What works today
-
-| Area | Status |
-| --- | --- |
-| Accounts, password sign-in, sessions | Real, through the local API |
-| Admin meeting availability (add, withdraw) | Real |
-| Booking, rescheduling and cancelling meetings | Real, for signed-in students |
-| Evidence uploads and staff review | Real |
-| Parent read-only access to a linked student | Real, once an admin links them |
-| Two-factor sign-in, payment, class schedule, enrollment wizard | Demo screens with sample data |
-| Email, Zoom, payments, SkipCourse backend | Not connected |
-
-## Project layout
+## Layout
 
 ```text
-frontend/          the website
-  src/public-site/   home, about, programs and contact pages
-  src/product/       the signed-in app: meetings, workspaces, operator tools
-  src/api/           client for the local API
-  src/authentication/ sign-in, plus the demo two-factor flow
-  src/registration/  demo enrollment wizard
-  src/payment/       demo payment and approval screens
-  src/classes/       demo class schedule
-  src/dashboard/     demo student dashboard
-  src/shared/        layout, header, form controls and styles
-server/            the local API (see server/README.md)
-legacy/            the original one-page site
+frontend/src/
+  public-site/   public pages
+  product/       signed-in app and admin tools
+  api/           API client
+  shared/        layout, header, form controls, styles
+  authentication/ registration/ payment/ classes/ dashboard/   demo screens
+server/          local API (see server/README.md)
+legacy/          original one-page site
 ```
 
 ## Checks
@@ -61,15 +42,10 @@ npm run typecheck --prefix frontend
 npm run lint --prefix frontend
 npm run build --prefix frontend
 npm test --prefix server
-npm run test:product --prefix frontend
 ```
 
-## Deployment
+## Deploy
 
-The site is hosted on Firebase Hosting in the `skip-class-slsru4` project, target `tala` (site `tucsonala`, domain `talaedu.com`). `npm run build:hosting --prefix frontend` builds the site into `public/`, which is the folder `firebase.json` serves.
+Firebase Hosting, project `skip-class-slsru4`, target `tala` (`talaedu.com`). `npm run build:hosting --prefix frontend` builds into `public/`. The deploy workflow runs only when started from the Actions tab. Hosting is static, so sign-in and booking need a hosted backend first.
 
-The **Deploy to Firebase Hosting (tala)** workflow runs only when started by hand from the Actions tab. Hosting serves static files only. The local API does not run there, so sign-in and booking need a hosted backend before they work on the live site.
-
-## Data and privacy
-
-The site handles information about children, families and health needs. Use invented accounts and files when testing, and never commit the `server/.runtime/` data, backups or real student records.
+Use invented data only. Never commit `server/.runtime/` or real student records.

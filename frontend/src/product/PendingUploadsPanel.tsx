@@ -176,9 +176,7 @@ export function PendingUploadsPanel({
     const request = new AbortController();
     mutation.current = request;
     try {
-      // Cancellation is an explicit cleanup request, including corrupt staging
-      // files. The server rechecks ownership and refuses submitted Evidence;
-      // reading/validating the corrupt file first would prevent safe cleanup.
+      // Cancel without reading the file so corrupt uploads can still be cleaned up; the server checks ownership.
       if (work === "cancel") {
         await talaApi.cancelEvidenceUpload(upload.uploadId, request.signal);
         if (active.current && !request.signal.aborted)

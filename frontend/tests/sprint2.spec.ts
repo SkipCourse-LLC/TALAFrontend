@@ -475,5 +475,5 @@ test("SCRUM-46: leaving registration during submission cancels its redirect", as
   ).toBeVisible();
 });
 
-// Authentication tests handle ephemeral enrollment secrets; do not record traces.
+// These tests see one-time secrets; don't record traces.
 test.use({ trace: "off", screenshot: "off" });

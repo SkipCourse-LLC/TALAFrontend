@@ -67,8 +67,7 @@ function LoginPageContent({
     request.current = controller;
     setPendingSource(source);
     setQuickError("");
-    // Capture identity and destination before awaiting; later UI changes cannot
-    // turn the same response into a different role or family.
+    // Capture these before awaiting so later UI changes can't alter the result.
     const chosenRole = role;
     const chosenParentView = parentView;
     const destination = state?.fromPayment

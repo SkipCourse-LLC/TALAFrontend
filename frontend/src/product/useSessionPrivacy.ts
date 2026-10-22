@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiUser } from "../api";
 import { safeTalaApiError, talaApi } from "../api";
 
-/** Same-origin notifications contain no UID, cookie, password or profile data. */
+/** Cross-tab notifications carry no account data. */
 export function useSessionPrivacy({
   user,
   ready,
@@ -86,8 +86,7 @@ export function useSessionPrivacy({
           expectedIntent !== intent.current
         )
           return;
-        // A later cookie-change signal supersedes this in-flight snapshot.
-        // Keep private content hidden until the queued fresh check completes.
+        // A newer cookie change supersedes this check; stay hidden until it finishes.
         if (queued.current) return;
         if (signature !== familySignature.current) {
           familySignature.current = signature;
@@ -123,7 +122,6 @@ export function useSessionPrivacy({
           return;
         if (queued.current) return;
         setError(safeTalaApiError(failure).message);
-        // A network failure cannot authorize showing a previous account's cache.
         if (latest.current.user) {
           concealed.current = true;
           setBlocked(true);
@@ -153,8 +151,7 @@ export function useSessionPrivacy({
     focus.current = null;
   }, []);
   const changedHere = useCallback(() => {
-    // A successful mutation may have been sent before a different tab changed
-    // the cookie. Its delayed body cannot cancel an ongoing privacy check.
+    // A late mutation response can't cancel a privacy check started after another tab changed the cookie.
     const verify = concealed.current || request.current !== null;
     invalidate();
     setChecking(false);
@@ -194,7 +191,6 @@ export function useSessionPrivacy({
     window.addEventListener("focus", focused);
     window.addEventListener("pageshow", pageshow);
     document.addEventListener("visibilitychange", visibility);
-    // Expiry is also checked in a visible, idle tab without clearing its forms.
     const timer = window.setInterval(() => {
       if (latest.current.user && document.visibilityState === "visible")
         void check(false);

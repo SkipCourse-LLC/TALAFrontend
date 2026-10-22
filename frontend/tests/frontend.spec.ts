@@ -854,7 +854,6 @@ test("private funding, waiting list and registered parent retain the correct stu
   await expect(
     page.getByRole("button", { name: "Reading together added" }),
   ).toBeDisabled();
-  // A catalog filter must never hide a joined class in the personal calendar.
   await page.getByLabel("Class format").selectOption("In-Person");
   await page.getByRole("link", { name: "View personal calendar" }).click();
   await expect(page.locator(".schedule-list")).toContainText(
@@ -867,5 +866,5 @@ test("private funding, waiting list and registered parent retain the correct stu
   await page.getByRole("button", { name: "Sign out" }).click();
 });
 
-// Authentication tests handle ephemeral enrollment secrets; do not record traces.
+// These tests see one-time secrets; don't record traces.
 test.use({ trace: "off", screenshot: "off" });

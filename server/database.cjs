@@ -33,12 +33,10 @@ function backupBeforeMigration(db, dataDir, version) {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   fs.chmodSync(directory, 0o700);
   const filename = path.join(directory, `tala-v${version}-${Date.now()}-${randomUUID()}.sqlite`);
-  // An empty 0600 destination prevents a permissions window during VACUUM.
   fs.closeSync(fs.openSync(filename, "wx", 0o600));
   let completed = false;
   try {
-    // SQLite includes committed WAL content in this consistent snapshot. Never
-    // copy only the main file, and never run VACUUM inside the migration tx.
+    // VACUUM INTO includes committed WAL; never copy the main file alone or VACUUM inside the migration.
     db.prepare("VACUUM INTO ?").run(filename);
     const snapshot = new DatabaseSync(filename, { readOnly: true, allowExtension: false });
     try {

@@ -1,4 +1,3 @@
-/** Independent TALA server contracts. These types do not grant authorization. */
 export type AccountRole = "student" | "parent" | "operator";
 export interface User {
   uid: string;

@@ -4,7 +4,6 @@ import { safeTalaApiError, TalaApiError } from "../api";
 export type StudentPage<T> = { items: T[]; nextCursor: string | null };
 type SavedPage<T> = StudentPage<T> & { key: string; loaded: boolean };
 
-/** A failed page never discards already loaded rows or advances its cursor. */
 export function useStudentPage<T extends { id: string }>({
   pageKey,
   revision,
@@ -41,8 +40,7 @@ export function useStudentPage<T extends { id: string }>({
     nextRequest.current = null;
     if (!enabled) return () => request.abort();
     firstRequest.current = request;
-    // State is changed only in the async continuation; this also prevents a
-    // previous filter's rows appearing under a newly selected filter.
+    // Update state only after the request so old filter rows never show under a new filter.
     const start = window.setTimeout(() => {
       if (!request.signal.aborted) {
         setLoading(true);

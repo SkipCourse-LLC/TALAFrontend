@@ -37,15 +37,13 @@ function createApplication(options = {}) {
     const opaque = token(), csrfToken = token(), ttl = user ? sessionTtl : 3600000;
     let responseUser;
     transaction(db, () => {
-      // Acquiring SQLite's writer lock can wait for another local process.
-      // Values read before that wait cannot authorize the replacement session.
+      // Re-read after acquiring the writer lock; earlier reads can't authorize the new session.
       if (req.method !== "GET") {
         mutation(req);
         if (req.headers["x-tala-user"] !== undefined) actorFor(req);
       }
       const previous = currentSession(req), now = Date.now();
-      // Registration creates the account under the same writer fence as the
-      // session. A session-write failure must not reserve an unusable email.
+      // Create the account in the same transaction so a failed session write doesn't reserve the email.
       responseUser = typeof user === "function" ? user() : user;
       if (responseUser) {
         const fresh = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(responseUser.uid);
@@ -139,9 +137,7 @@ function createApplication(options = {}) {
       if (changing) mutation(req);
       if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 4, schemaVersion: 2, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
       if (req.method === "GET" && route === "/api/session") {
-        // A cross-site top-level navigation omits SameSite=Strict cookies but
-        // can still accept Set-Cookie. Do not overwrite a signed-in browser
-        // with an anonymous session when it follows an external link here.
+        // Cross-site navigations omit SameSite=Strict cookies; don't replace a signed-in session.
         if (req.headers["sec-fetch-site"] === "cross-site") fail(403, "ORIGIN_DENIED", "This application origin is not authorized.");
         const existing = currentSession(req);
         if (existing) return json(res, { session: existing.user ? userDTO(existing.user) : null, csrfToken: existing.csrf_token });
@@ -238,8 +234,7 @@ function createApplication(options = {}) {
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)\/content$/))) {
         if (downloads >= 4) fail(429, "RATE_LIMITED", "Too many file downloads. Try again shortly.");
         downloads += 1;
-        // requestTimeout bounds incoming requests, not a client that stops
-        // reading a response. An absolute deadline also defeats slow drips.
+        // requestTimeout doesn't cover slow readers; enforce an absolute deadline.
         const deadline = setTimeout(() => res.destroy(), downloadTtl);
         deadline.unref();
         let released = false;

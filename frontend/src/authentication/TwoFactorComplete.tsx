@@ -2,7 +2,6 @@ import type { Ref } from "react";
 import { Link } from "react-router-dom";
 import type { TwoFactorSignup } from "./twoFactorService";
 
-// The receipt contains public demo identity fields, never setup keys or codes.
 export function TwoFactorComplete({
   receipt,
   heading,

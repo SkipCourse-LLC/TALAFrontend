@@ -1,5 +1,4 @@
 "use strict";
-// Explicit, local-only operator tooling. No HTTP route exposes a backup.
 const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
@@ -58,8 +57,7 @@ function readManifest(filename) {
   const original = fs.lstatSync(filename);
   if (!original.isFile() || original.isSymbolicLink() || original.size < 1 || original.size > maximum)
     refuse("The backup manifest must be a bounded regular file.");
-  // A path can be replaced after lstat. Nonblocking/no-follow open prevents a
-  // substituted FIFO or symlink from hanging the command or redirecting reads.
+  // Open without following links or blocking, since the path can change after lstat.
   const fd = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
     const before = fs.fstatSync(fd);
@@ -86,7 +84,6 @@ function readManifest(filename) {
   } finally { fs.closeSync(fd); }
 }
 function copyPrivate(source, target, expectedSize) {
-  // Open the original with O_NOFOLLOW; exclusive target creation cannot replace a file.
   const original = fs.lstatSync(source);
   if (!original.isFile() || original.isSymbolicLink()) refuse("Only regular private files can be copied.");
   const input = fs.openSync(source, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
@@ -158,8 +155,7 @@ function createLocalBackup({ dataDir, outputDir }) {
   let target, reader, locked = false, complete = false;
   try {
     checkDatabase(writer);
-    // All HTTP file writes/renames and deletes hold this same SQLite write
-    // fence. A second read-only connection can snapshot committed WAL pages.
+    // HTTP file writes hold this write lock; a read-only connection snapshots committed WAL.
     writer.exec("BEGIN IMMEDIATE"); locked = true;
     target = newDirectory(outputDir, source); prepareChildren(target);
     reader = openExisting(path.join(source, "tala.sqlite"), true);
@@ -232,7 +228,6 @@ function restoreLocalBackup({ directory: input, outputDir }) {
     }
     db = openExisting(path.join(target, "tala.sqlite"), false);
     checkDatabase(db);
-    // Restoring history must never resurrect an old authenticated session.
     db.exec("DELETE FROM sessions; PRAGMA wal_checkpoint(TRUNCATE)");
     db.close(); db = undefined;
     flushTree(target); complete = true;
@@ -253,7 +248,7 @@ if (require.main === module) {
     if (!allowed[command] || Object.keys(input).some((key) => !allowed[command].includes(key)) || allowed[command].some((key) => !input[key])) refuse("Commands: create --dataDir DIR --outputDir NEW_DIR; verify --directory BACKUP; restore --directory BACKUP --outputDir NEW_DIR.");
     console.log(JSON.stringify(({ create: createLocalBackup, verify: verifyLocalBackup, restore: restoreLocalBackup })[command](input)));
   } catch {
-    // Errors from fs/SQLite may embed private filesystem or record details.
+    // fs and SQLite errors may include private paths or records.
     console.error("Local backup operation failed. Source and existing destinations were not overwritten. Check the paths, permissions, database schema and private file checksums.");
     process.exitCode = 1;
   }

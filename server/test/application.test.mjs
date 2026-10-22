@@ -560,8 +560,7 @@ test(
         ),
       );
       assert.equal(uploaded.status, "uploaded");
-      // Simulate a local crash that loses only this test's staging file after
-      // its uploaded marker committed. Recovery must re-check actual bytes.
+      // Simulate a crash that loses the staged file after its marker committed.
       await rm(join(context.dataDir, "uploads", `${intent.uploadId}.bin`));
       const missing = accepted(
         await student.client.request(
@@ -1121,7 +1120,6 @@ test(
         [409],
       );
 
-      // A different owned booking is still not a valid target for this revision.
       context.application.db
         .prepare("UPDATE slots SET starts_at=?,ends_at=? WHERE id=?")
         .run(Date.now() - 3_600_000, Date.now() - 1_800_000, slot.id);
@@ -1220,7 +1218,6 @@ test(
         [409],
       );
 
-      // A newly changed staff review invalidates an already-uploaded draft.
       const childReview = accepted(
         await reviewer.client.request(`/api/evidence/${successor.id}/review`, {
           method: "POST",

@@ -61,7 +61,6 @@ test("2FA setup methods, account information and local authenticator provisionin
     pixels.height,
   );
   expect(Boolean(decoded)).toBe(true);
-  // A malformed provisioning URI must not enter a parser error or assertion.
   const matches = { secret: false, issuer: false, label: false };
   try {
     const scanned = URI.parse(decoded!.data);
@@ -69,7 +68,7 @@ test("2FA setup methods, account information and local authenticator provisionin
     matches.issuer = scanned.issuer === "TALA Hub Demo";
     matches.label = scanned.label === "taylor@example.com";
   } catch {
-    // Report only the failed checks, never the URI or parser diagnostics.
+    // Report failed checks only, never the URI.
   }
   expect(matches.secret).toBe(true);
   expect(matches.issuer).toBe(true);
@@ -178,5 +177,5 @@ test("Authenticator accepts a scanned code, rejects expired codes and never stor
     .toBe(true);
 });
 
-// Authentication tests handle ephemeral enrollment secrets; do not record traces.
+// These tests see one-time secrets; don't record traces.
 test.use({ trace: "off", screenshot: "off" });

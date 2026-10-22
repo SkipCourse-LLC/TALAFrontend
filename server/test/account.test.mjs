@@ -132,9 +132,7 @@ test("password changes atomically rotate the current cookie, revoke other sessio
     assertNoPrivateLocation(changed);
     assert.equal((await other.request("/api/workspace")).status, 401);
     assert.equal((await stale.request("/api/workspace")).status, 401);
-    // Simulate losing the response body after the browser received Set-Cookie:
-    // the old nonce must fail, bootstrap restores it, and only the receipt is
-    // evidence that this specific password request committed.
+    // Lose the response after Set-Cookie; only the receipt proves the change committed.
     owner.client.csrfToken = oldCsrf;
     assert.equal((await owner.client.request("/api/account/password", { method: "POST", json: payload })).status, 403);
     await owner.client.bootstrap();
@@ -169,8 +167,7 @@ test("session revocation or account disable during asynchronous password verific
       const owner = await register(fixture.url), revoker = await login(fixture.url, owner.account);
       const before = fixture.application.db.prepare("SELECT password_hash FROM users WHERE uid=?").get(owner.user.uid).password_hash;
       const accountKey = digest(`account-password-change\0${owner.user.uid}`);
-      // Occupy the same bounded crypto queue so the HTTP handler certainly
-      // awaits verification while the isolated security state changes.
+      // Fill the crypto queue so the handler is still verifying when state changes.
       const blocking = hashPassword(`Synthetic-queue-${randomUUID()}`);
       const pending = owner.client.request("/api/account/password", { method: "POST", json: { currentPassword: owner.account.password, newPassword: `Must-not-save-${randomUUID()}`, requestId: randomUUID() } });
       await waitUntil(() => Boolean(fixture.application.db.prepare("SELECT key FROM rate_limits WHERE key=?").get(accountKey)));
@@ -255,9 +252,7 @@ test("a login waiting for a SQLite writer cannot revive authentication with a pa
     const loginClient = new SyntheticHttpClient(fixture.url, origin);
     await loginClient.bootstrap();
     const replacement = await hashPassword(`Synthetic-external-replacement-${randomUUID()}`);
-    // A separate operator/API process can own the SQLite writer while the HTTP
-    // server verifies a password. WAL reads still see the prior committed user.
-    // The transaction that finally rotates the cookie must reread that user.
+    // Another process holds the writer during verification; the rotation must reread the user.
     const script = `
       const { DatabaseSync } = require('node:sqlite');
       let input = '';
@@ -322,10 +317,7 @@ test("slow private downloads have an absolute deadline and cannot retain every f
     ok(await owner.client.request(`/api/evidence/uploads/${intent.uploadId}/submit`, { method: "POST", json: { requestId: randomUUID() } }));
     const route = `/api/evidence/${intent.uploadId}/content`;
     let observed = 0, closedBeforeFinish = 0;
-    // OS receive buffers may absorb the whole 5 MiB even when a client pauses.
-    // Inject a blocked response writer for these four marked requests so the
-    // absolute deadline is deterministic across platforms. Authentication,
-    // private-file reads, response headers and slot accounting remain real.
+    // Block the response writer so the deadline test is deterministic across OSes.
     fixture.application.server.prependListener("request", (req, res) => {
       if (req.url !== route || req.headers["x-synthetic-slow"] !== "true") return;
       res.end = function holdSyntheticResponse() { this.flushHeaders(); return this; };

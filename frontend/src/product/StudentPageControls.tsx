@@ -29,8 +29,7 @@ export function StudentPageControls({
   const activator = useRef<HTMLElement | null>(null);
   const requested = useRef(false);
   useEffect(() => {
-    // A first-page refresh or changed filter is unrelated to an earlier click.
-    // Do not move focus away from search fields when that new query completes.
+    // Don't steal focus from search fields after a refresh or filter change.
     if (loading) {
       requested.current = false;
       return;

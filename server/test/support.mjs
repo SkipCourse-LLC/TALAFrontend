@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-/** A cookie jar for isolated HTTP tests; authentication values are never logged. */
+/** Cookie jar for HTTP tests. */
 export class SyntheticHttpClient {
   constructor(baseUrl, origin = "http://127.0.0.1:5173") {
     const url = new URL(baseUrl);

@@ -92,7 +92,6 @@ function PaymentFormContent({
     const validation = paymentDraftError(draft, service.environment);
     setError(validation);
     if (validation) {
-      // Field focus gives context, while the alert announces the same validation.
       requestAnimationFrame(() =>
         form.current
           ?.querySelector<HTMLElement>(

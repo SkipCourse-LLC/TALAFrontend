@@ -7,7 +7,7 @@ const sessionKey = "tala.frontend-demo.session";
 const unavailable = async (): Promise<never> => {
   throw new AuthError("UNAVAILABLE");
 };
-// Demo sign-in only. Without the demo, login fails instead of guessing an endpoint.
+// Demo sign-in only; without the demo, login fails closed.
 export const authService: AuthAdapter = demoEnabled
   ? demoAuthAdapter
   : { login: unavailable };
@@ -51,16 +51,12 @@ export function readDemoSession(): DemoSession | null {
             : undefined,
       };
     }
-  } catch {
-    /* Storage may be disabled. An in-memory demo still works. */
-  }
+  } catch {}
   return null;
 }
 export function saveDemoSession(session: DemoSession | null): void {
   try {
     if (session) sessionStorage.setItem(sessionKey, JSON.stringify(session));
     else sessionStorage.removeItem(sessionKey);
-  } catch {
-    /* No persistence when the browser blocks sessionStorage. */
-  }
+  } catch {}
 }

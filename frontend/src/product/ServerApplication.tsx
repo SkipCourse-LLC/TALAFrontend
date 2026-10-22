@@ -30,14 +30,11 @@ function IndependentRouteFocus() {
     window.scrollTo({ top: 0, behavior: "instant" });
     document.getElementById("main-content")?.focus({ preventScroll: true });
   }, [pathname]);
-  // Workspace panels manage their own focus. Public routes retain the existing
-  // shared behavior without changing the other application's navigation.
   return pathname === "/dashboard" || pathname === "/two-factor" ? null : (
     <RouteFocus />
   );
 }
 
-/** Keep in-memory forms/files through internal links, scoped to this identity. */
 function WorkspaceKeeper({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const visible = pathname === "/dashboard";
@@ -122,9 +119,7 @@ export function ServerApplication() {
     [changedHere],
   );
   const profileSaved = useCallback((next: ApiUser) => {
-    // A profile response is not a new authentication event. A delayed response
-    // may update this identity's name, but never restore a hidden session or
-    // replace trusted role/email fields with a previous request's snapshot.
+    // Profile responses may update the name only, never restore a session or role.
     setUser((current) =>
       current?.uid === next.uid ? { ...current, name: next.name } : current,
     );

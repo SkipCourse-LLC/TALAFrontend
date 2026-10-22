@@ -77,8 +77,7 @@ function useOperatorPage<T extends { id: string }>(
       request.abort();
       more.current?.abort();
     };
-    // Cached first pages still own any later Load more request. Keep cleanup
-    // registered on a panel return, even when no first-page fetch is needed.
+    // Keep cleanup registered on return so a pending Load more can still be cancelled.
     if (!enabled || completed.current === `${key}:${attempt}`) return cleanup;
     void load(undefined, request.signal)
       .then((page) => {

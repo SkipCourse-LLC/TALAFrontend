@@ -839,8 +839,7 @@ function LearningWorkspace({
     return run(
       `calendar:${booking.id}`,
       async (signal) => {
-        // Re-read through the authenticated service before exporting even a
-        // previously visible booking; revoked family links must fail closed.
+        // Re-read before exporting so revoked family access fails closed.
         await exportPrivateFile(async (readSignal) => {
           const saved = await talaApi.getAppointment(booking.id, readSignal);
           if (saved.status === "cancelled") throw new TalaApiError("CONFLICT");

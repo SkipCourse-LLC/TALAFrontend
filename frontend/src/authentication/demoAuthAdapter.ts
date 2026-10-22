@@ -35,7 +35,6 @@ export const demoAuthAdapter: AuthAdapter = {
     await demoDelay(650, signal);
     signal?.throwIfAborted();
     if (simulateError) throw new AuthError("SIGN_IN_FAILED");
-    // No identity verification. This creates only a frontend demo session.
     return identity;
   },
 };

@@ -7,7 +7,6 @@ import { createApplication } from "../application.cjs";
 import { runtimeRevision, dataScope } from "../runtimeIdentity.cjs";
 import { test } from "node:test";
 
-// All instances and copied source fixtures are generated under a temp prefix.
 test("health binds local reuse to the selected private directory without exposing its path", async () => {
   const directory = await mkdtemp(join(tmpdir(), "tala-runtime-identity-"));
   const app = createApplication({ dataDir: directory });

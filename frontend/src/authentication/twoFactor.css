@@ -1,4 +1,3 @@
-/* Authenticator UI also works in isolation with the product theme as fallback. */
 .two-factor-page {
   --tf-ink: #1d1d1f;
   --tf-accent: #174139;

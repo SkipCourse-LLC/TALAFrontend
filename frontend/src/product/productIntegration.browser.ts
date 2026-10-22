@@ -216,8 +216,7 @@ async function register(
     .fill(account.password);
   if (loseSavedResponse)
     await page.route("**/api/auth/register", async (route) => {
-      // Complete the real server write/cookie rotation, then lose its browser
-      // response. Recovery must inspect the saved session, not register twice.
+      // Lose the response after the server committed; recovery must not register twice.
       const saved = await route.fetch();
       expect(saved.ok()).toBe(true);
       await route.abort("connectionfailed");
@@ -1682,8 +1681,7 @@ test("session privacy revalidates after a delayed password body instead of reusi
       .getByRole("button", { name: "Change password", exact: true })
       .click();
     await passwordReady;
-    // Adopt the server's newly rotated cookie in the second tab, then hold the
-    // first tab's current GET before ending that same shared session.
+    // Rotate the cookie in tab two while tab one's GET is held.
     await other.reload();
     await expect(
       other.getByRole("heading", {

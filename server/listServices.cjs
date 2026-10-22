@@ -9,8 +9,7 @@ const cursorError = () => fail(400, "INVALID_INPUT", CURSOR_MESSAGE);
 function createListServices(db, helpers) {
   const { authorize, requireOperator, currentWriter, evidenceDTO, appointmentDTO, slotDTO, managedSlotDTO, recordDTO } = helpers;
   function read(actor, action) {
-    // One DEFERRED snapshot covers credentials, relationships, filters and rows.
-    // No GET performs lifecycle cleanup or holds the SQLite writer fence.
+    // One read snapshot per request; GETs never take the writer lock.
     db.exec("BEGIN");
     try {
       currentWriter(actor);

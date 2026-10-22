@@ -1,5 +1,4 @@
-// Explicit opt-in browser regression: node --test server/test/sessionNavigation.browser.mjs
-// It uses random loopback ports and a disposable SQLite database, never .runtime.
+// Opt-in: node --test server/test/sessionNavigation.browser.mjs
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";

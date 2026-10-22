@@ -178,7 +178,6 @@ test("the schema-v1 upgrade preserves existing synthetic sessions, ownership and
     await application.close();
     application = undefined;
 
-    // Refuse an unknown newer format without changing its record contents.
     const future = new DatabaseSync(filename);
     future.exec("PRAGMA user_version=999");
     future.close();

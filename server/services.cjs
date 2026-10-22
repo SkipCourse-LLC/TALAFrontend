@@ -12,8 +12,7 @@ const INSTANCE_STORAGE_BYTES = 2 * 1024 * 1024 * 1024;
 const iso = (value) => new Date(value).toISOString();
 const userDTO = (row) => ({ uid: row.uid, name: row.name, email: row.email, role: row.role, emailVerified: row.email_verified === 1 });
 function createServices(db, dataDir) {
-  // Recheck under the write fence, after waiting for another local process.
-  // The non-enumerable session reference is added only by actorFor(req).
+  // Recheck under the write lock, since another process may have changed the session.
   function currentWriter(actor) {
     const current = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(actor.uid);
     const session = typeof actor.sessionTokenHash === "string" && db.prepare("SELECT uid FROM sessions WHERE token_hash=? AND expires_at>?").get(actor.sessionTokenHash, Date.now());
@@ -58,13 +57,11 @@ function createServices(db, dataDir) {
       previous = stagingArtifact(file);
       try { storedFile(file, row); syncDirectory(directory); return; }
       catch (error) {
-        // Only an explicit checksum-bound retry of an uncommitted pending
-        // upload may replace a remnant from an interrupted older writer.
+        // Only a checksum-bound retry may replace leftovers from an interrupted write.
         if (row.status !== "pending" || error.code !== "INTEGRITY_ERROR") throw error;
       }
     } else if (fs.existsSync(promoted)) {
-      // A prior submit can have renamed the private bytes before its SQLite
-      // transaction failed. Preserve that exact verified artifact for retry.
+      // A failed submit may have renamed the bytes already; keep them for the retry.
       storedFile(promoted, row); syncDirectory(path.dirname(promoted)); return;
     }
     let descriptor, created;
@@ -88,8 +85,7 @@ function createServices(db, dataDir) {
       syncDirectory(directory);
     } finally {
       if (descriptor !== undefined) fs.closeSync(descriptor);
-      // This is only the bounded scratch file for this explicit PUT. A crash
-      // can leave it behind; the next PUT/cancel/expired cleanup handles it.
+      // Scratch file for this PUT; cleanup handles crash leftovers.
       if (created && fs.existsSync(partial) && sameArtifact(created, fs.lstatSync(partial))) fs.rmSync(partial, { force: true });
     }
   }
@@ -176,8 +172,7 @@ function createServices(db, dataDir) {
     const [, year, month, day, hour, minute, second, , offsetHour, offsetMinute] = parts;
     const leap = Number(year) % 4 === 0 && (Number(year) % 100 !== 0 || Number(year) % 400 === 0);
     const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    // Date.parse normalizes February 29 in a non-leap year and 24:00 into
-    // another date. Reject those inputs instead of silently moving a meeting.
+    // Date.parse silently rolls Feb 29 and 24:00 into other dates; reject them.
     if (Number(month) < 1 || Number(month) > 12 || Number(day) < 1 || Number(day) > days[Number(month) - 1] || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59 || Number(offsetHour || 0) > 23 || Number(offsetMinute || 0) > 59) return NaN;
     return Date.parse(value);
   }
@@ -189,8 +184,7 @@ function createServices(db, dataDir) {
     const previous = db.prepare("SELECT * FROM slots WHERE starts_at=? AND ends_at=?").get(starts, ends);
     if (previous) {
       if (db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(previous.id)) fail(409, "CONFLICT", "This meeting time already has a booking.");
-      // Reactivation preserves the original ID, times and label. Cancelled
-      // appointments still point to the same historical meeting definition.
+      // Reactivate the existing slot so past appointments keep pointing at it.
       db.prepare("UPDATE availability_state SET status='published',updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actorUid, previous.id);
       return slotDTO(previous);
     }
@@ -221,8 +215,7 @@ function createServices(db, dataDir) {
         AND NOT EXISTS(SELECT 1 FROM operations o WHERE o.uid=u.owner_uid AND o.kind='expired-cleanup' AND o.request_id=u.id)
         ORDER BY u.expires_at,u.id LIMIT ?`).all(...params);
       for (const row of rows) {
-        // The same SQLite write transaction fences submit/cancel across processes.
-        // A submitted evidence row is never selected or removed.
+        // The write transaction fences submit and cancel; submitted Evidence is never removed.
         db.prepare("UPDATE uploads SET status='failed' WHERE id=?").run(row.id);
         for (const directory of ["uploads", "evidence"]) fs.rmSync(path.join(dataDir, directory, `${row.id}.bin`), { force: true });
         fs.rmSync(path.join(dataDir, "uploads", `${row.id}.part`), { force: true });
@@ -359,9 +352,7 @@ function createServices(db, dataDir) {
       if (status === "uploaded") {
         const staging = path.join(dataDir, "uploads", `${row.id}.bin`);
         const privateFile = path.join(dataDir, "evidence", `${row.id}.bin`);
-        // A crash may leave the committed uploaded marker without a file, or
-        // leave a private rename awaiting SQLite commit. Recover the former
-        // through the same checksum-bound PUT; preserve the latter for submit.
+        // After a crash: re-upload a missing file via PUT; keep a committed rename for submit.
         const existing = fs.existsSync(staging) ? staging : fs.existsSync(privateFile) ? privateFile : null;
         if (!existing) status = "pending";
         else {
@@ -412,7 +403,6 @@ function createServices(db, dataDir) {
           fs.renameSync(source, destination);
         }
         fs.rmSync(path.join(dataDir, "uploads", `${row.id}.part`), { force: true });
-        // Also fsync a recovered rename before committing its database row.
         syncDirectory(path.dirname(source));
         syncDirectory(path.dirname(destination));
         const now = Date.now();

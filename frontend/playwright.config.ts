@@ -5,7 +5,6 @@ process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
-  // Allow browser scheduling delays on local machines; assertions still auto-wait.
   expect: { timeout: 10000 },
   forbidOnly: !!process.env.CI,
   retries: 0,

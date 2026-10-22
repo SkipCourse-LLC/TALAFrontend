@@ -1,6 +1,5 @@
 "use strict";
-// A plain Node child avoids Playwright's TypeScript loader intercepting the
-// native node:sqlite module. Fixture actions exist only over the parent's IPC.
+// A plain Node child keeps Playwright's TS loader away from node:sqlite.
 const path = require("node:path");
 const fs = require("node:fs");
 const { randomUUID, createHash } = require("node:crypto");

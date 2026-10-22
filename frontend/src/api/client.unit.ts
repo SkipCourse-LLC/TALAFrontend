@@ -269,7 +269,6 @@ test("authenticated GET requests bind the displayed actor to the shared server c
       if (input === "/api/session") return Response.json(session());
       requested = true;
       expect(new Headers(init?.headers).get("X-TALA-User")).toBe(learner.uid);
-      // The real server compares this UI intent with its current cookie session.
       return Response.json(
         {
           error: {

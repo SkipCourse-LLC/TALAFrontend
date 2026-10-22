@@ -271,8 +271,7 @@ function AuthenticatorDetails({
             aria-expanded={keyVisible}
             aria-controls="two-factor-key-content"
             onClick={() => {
-              // Clipboard permission can outlive this interaction. Ignore its
-              // feedback so a late failure cannot reveal a key the user hid.
+              // Ignore late clipboard results so they can't reveal a hidden key.
               copyRequest.current += 1;
               copyingRef.current = false;
               setCopying(false);

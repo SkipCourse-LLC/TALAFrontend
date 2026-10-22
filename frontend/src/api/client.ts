@@ -105,8 +105,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       if (signal?.aborted) throw new TalaApiError("CANCELLED");
       if (!bootstrap || bootstrap.version !== revision) {
         const version = revision;
-        // Shared bootstrap is not owned by one component's AbortSignal:
-        // StrictMode cleanup must not cancel the remount's initialization.
+        // Shared bootstrap: StrictMode cleanup must not cancel the remount's init.
         const next = {
           version,
           promise: transport
@@ -123,9 +122,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       }
       const pending = bootstrap;
       await waitForCaller(pending.promise, signal);
-      // A completed auth mutation may have rotated the cookie while this GET
-      // was in flight. Its stale response cannot validate cached actor data;
-      // join/start a GET under the current revision instead.
+      // An auth change may have rotated the cookie mid-request; refetch instead of trusting this response.
       if (pending.version === revision) return actor ?? null;
     }
   }
@@ -163,9 +160,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       result = await action(current, bound, json);
     } catch (failure) {
       if (failure instanceof TalaApiError && failure.code === "CSRF_INVALID") {
-        // Another tab can rotate a shared cookie while this instance retains
-        // its old nonce. Keep the intended actor; only an explicit next attempt
-        // may bootstrap a fresh nonce. Never replay the failed mutation here.
+        // Another tab may have rotated the cookie; never replay the failed mutation.
         csrfToken = "";
       }
       throw failure;
@@ -211,8 +206,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         },
         decode.session,
       );
-      // A newer explicit session read can reflect a different tab's cookie.
-      // Neither an old success nor its error handler may roll that read back.
+      // A newer session read wins; don't roll it back.
       if (revision !== version || sessionSnapshot !== expectedSnapshot)
         throw new TalaApiError("AUTH_REQUIRED");
       revision++;
@@ -222,8 +216,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       if (attempted) {
         revision++;
         csrfToken = "";
-        // Only an explicit getSession() may adopt a possibly changed cookie.
-        // Stale UI must retain its intended account after response loss.
+        // Only getSession() may adopt a changed cookie.
         if (sessionSnapshot === expectedSnapshot) actor = intendedActor;
       }
       throw error;
@@ -392,9 +385,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       } catch (failure) {
         if (attempted) {
           revision++;
-          // A committed password change can rotate the cookie before its body is
-          // received. Restore its nonce explicitly; retain the intended actor so
-          // another tab's cookie never silently authorizes stale UI operations.
+          // A password change can rotate the cookie before the body arrives; restore its nonce.
           csrfToken = "";
         }
         throw failure;
@@ -430,9 +421,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
           return value;
         },
       );
-      // A delayed profile response must not overwrite a newer session snapshot
-      // before authenticated() has checked its intended identity. Only the
-      // display name changed; role/email belong to the latest session response.
+      // Only the display name changed; role and email come from the latest session.
       if (!actor || actor.uid !== value.uid)
         throw new TalaApiError("AUTH_REQUIRED");
       actor = { ...actor, name: value.name };

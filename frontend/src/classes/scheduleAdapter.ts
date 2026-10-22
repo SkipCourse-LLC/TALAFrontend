@@ -60,7 +60,6 @@ export interface MockScheduleOptions {
   storage?: Pick<Storage, "getItem" | "setItem"> | null;
   wait?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
 }
-// Local demo selections are not school bookings or a real scheduling API.
 export function createMockScheduleService(
   options: MockScheduleOptions = {},
 ): ScheduleService {
@@ -97,9 +96,7 @@ export function createMockScheduleService(
             ),
           ),
         ];
-    } catch {
-      /* A blocked or malformed store falls back to this module's memory. */
-    }
+    } catch {}
     return [];
   }
   return {
@@ -148,9 +145,7 @@ export function createMockScheduleService(
             `tala.demo.classes.${student}`,
             JSON.stringify(next),
           );
-        } catch {
-          /* Keep the in-memory demo usable. */
-        }
+        } catch {}
         return [...next];
       } finally {
         signal.removeEventListener("abort", release);

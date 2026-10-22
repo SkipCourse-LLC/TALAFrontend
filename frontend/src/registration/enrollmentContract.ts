@@ -35,7 +35,6 @@ export interface EnrollmentDraft {
   funding: string;
   fundingAcknowledged: boolean;
 }
-// Frontend context only. No credential, document or payment instrument is retained.
 export interface EnrollmentReceipt {
   parentName: string;
   parentEmail: string;
@@ -146,8 +145,7 @@ export function createMockEnrollmentService(
     async submit(draft, simulateError, signal) {
       signal?.throwIfAborted();
       if (options.enabled === false) throw new EnrollmentError("UNAVAILABLE");
-      // Capture allowlisted fields before waiting; later caller mutations and
-      // unknown extra properties cannot enter the completed receipt.
+      // Copy allowlisted fields before awaiting so caller changes can't leak into the receipt.
       const snapshot: EnrollmentDraft = {
         parentName: draft.parentName,
         parentEmail: draft.parentEmail,

@@ -16,7 +16,7 @@ const samples: Record<
   },
 };
 
-// Public, fixed demonstration values; never read from a user or sent to a service.
+// Fixed demo values; never user input.
 const demoCard = Object.freeze({
   number: "4242 4242 4242 4242",
   name: "Alex Sample",
@@ -34,8 +34,6 @@ const demoBilling = Object.freeze({
   phone: "(202) 555-0100",
 });
 
-// These are description-list values, not inputs: the demo cannot accept,
-// store or submit personal or financial information.
 function SampleField({
   field,
   label,
@@ -359,8 +357,7 @@ export function SamplePaymentMethodChooser({
                 controls[next]?.focus();
               }
             }
-            // Modal radios belong to the surrounding checkout form. Enter
-            // must never implicitly submit that form while choosing a sample.
+            // Enter in these radios must not submit the surrounding checkout form.
             if (
               event.key === "Enter" &&
               !(event.target instanceof HTMLButtonElement)
@@ -373,7 +370,7 @@ export function SamplePaymentMethodChooser({
             close();
           }}
           onClose={(event) => {
-            // A queued close event must not dismiss a newly reopened dialog.
+            // Ignore a close event queued before the dialog reopened.
             if (
               event.currentTarget !== dialog.current ||
               event.currentTarget.open

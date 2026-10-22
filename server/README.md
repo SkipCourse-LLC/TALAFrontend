@@ -1,18 +1,10 @@
 # TALA local API
 
-A Node.js 24 HTTP server using only built-in modules (HTTP, SQLite, crypto). It listens on `127.0.0.1:8787` and refuses to run in production mode.
+Node.js 24, built-in modules only. Listens on `127.0.0.1:8787`; refuses production mode. Started by `npm run dev --prefix frontend`, or alone with `npm --prefix server start`.
 
-```sh
-npm --prefix server start
-```
-
-`npm run dev --prefix frontend` starts it together with the site. Data lives in `server/.runtime/` unless `TALA_DATA_DIR` points elsewhere. Never commit that folder or any backup of it.
-
-Every endpoint and type is listed in [contract.json](contract.json) (contract v4, database schema v2). Lists are paged with `nextCursor`, and every page re-checks the caller's session, role and family access.
+Data: `server/.runtime/`, or `TALA_DATA_DIR`. Endpoints and types: [contract.json](contract.json).
 
 ## Operator commands
-
-These act on existing accounts in the local database only.
 
 ```sh
 node server/operator.cjs promote --email existing@example.test
@@ -22,10 +14,6 @@ node server/operator.cjs revoke-family --studentUid STUDENT_UID --parentUid PARE
 node server/operator.cjs cleanup-expired
 ```
 
-- **Availability:** withdrawing an unbooked future time keeps its ID and booking history. Re-publishing the same interval restores it.
-- **Family links:** a link records consent but does not verify guardianship.
-- **Cleanup:** `cleanup-expired` closes up to 100 expired, unsubmitted uploads per run. It never removes submitted Evidence.
-
 ## Backups
 
 ```sh
@@ -34,19 +22,13 @@ node server/backup.cjs verify --directory /path/tala-backup-review
 node server/backup.cjs restore --directory /path/tala-backup-review --outputDir /path/tala-backup-restored
 ```
 
-- **Folders:** output folders must be new and start with `tala-backup-`. Restore always writes a separate copy and never overwrites anything.
-- **Sessions:** a restore signs everyone out, and passwords, roles and family links return to their backed-up values.
-- **When to run:** stop the API first if you can, because large copies can time out writes in progress.
+Output folders must be new and named `tala-backup-*`. Restore writes a separate copy and signs everyone out. Stop the API first for large backups.
 
-## Schema upgrades
-
-The server snapshots the database to `<dataDir>/backups/` before upgrading schema 1 to 2. A failed snapshot or migration stops startup. To roll back, restore that snapshot into a separate folder along with the matching `uploads` and `evidence` files, then point `TALA_DATA_DIR` at it.
+Before a schema upgrade, the server snapshots the database to `<dataDir>/backups/`.
 
 ## Limits
 
-- **Uploads:** text or PDF files up to 5 MiB.
-- **Storage caps:** 100 MiB and 1,000 versions per owner; 2 GiB and 20,000 versions per instance.
-- **Not available:** email, password recovery, two-factor sign-in, Zoom and payments.
+Text or PDF uploads up to 5 MiB. Per owner: 100 MiB, 1,000 versions. Per instance: 2 GiB, 20,000 versions.
 
 ## Tests
 
@@ -54,5 +36,3 @@ The server snapshots the database to `<dataDir>/backups/` before upgrading schem
 npm --prefix server run check
 npm --prefix server test
 ```
-
-Tests use temporary folders and never touch `server/.runtime/`.

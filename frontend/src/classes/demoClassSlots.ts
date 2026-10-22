@@ -1,4 +1,4 @@
-// Fictional classes for the sponsor walkthrough, not live school availability.
+// Sample classes for the demo.
 export const demoClassSlots = [
   {
     id: "science-monday",
