@@ -104,7 +104,7 @@ export function ServerAccessPage({
     }
   }
   return (
-    <section className="auth-layout container">
+    <section className="auth-layout auth-layout-centered container">
       <div className="auth-panel">
         <h1>{register ? "Create your TALA account" : "Welcome back."}</h1>
         <p>
@@ -228,20 +228,6 @@ export function ServerAccessPage({
           </p>
         )}
       </div>
-      <aside className="auth-aside">
-        <h2>One account. Your learning, saved.</h2>
-        <p>
-          Your password is processed by the server. The browser uses a private
-          session cookie; selecting a role does not grant staff or
-          student-record access.
-        </p>
-        {accountType === "parent" && register && (
-          <p>
-            A parent account can access a student only after an authorized
-            operator records the relationship and consent.
-          </p>
-        )}
-      </aside>
     </section>
   );
 }

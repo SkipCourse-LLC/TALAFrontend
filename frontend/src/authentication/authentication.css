@@ -6,6 +6,10 @@
   align-items: start;
   max-width: 1080px;
 }
+.auth-layout-centered {
+  grid-template-columns: minmax(0, 520px);
+  justify-content: center;
+}
 .auth-panel {
   width: 100%;
   min-width: 0;

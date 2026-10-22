@@ -14,12 +14,29 @@
   background: var(--color-surface);
   border-bottom: var(--border-panel);
 }
+/* The header spans the page; its side padding matches the .container gutters. */
 .nav-row {
   min-height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 40px;
+  padding-inline: 40px;
+}
+@media (max-width: 1050px) {
+  .nav-row {
+    padding-inline: 28px;
+  }
+}
+@media (max-width: 850px) {
+  .nav-row {
+    padding-inline: 20px;
+  }
+}
+@media (max-width: 360px) {
+  .nav-row {
+    padding-inline: 16px;
+  }
 }
 .brand {
   display: inline-flex;
@@ -211,6 +228,20 @@
     min-height: 48px;
     white-space: normal;
     text-align: center;
+  }
+}
+@media (min-width: 961px) {
+  /* Nav links start where the page content starts, or just after the logo
+     when the window is too narrow for that. */
+  .nav-row {
+    display: grid;
+    grid-template-columns:
+      minmax(max-content, calc((100% - var(--container)) / 2))
+      minmax(0, 1fr);
+    gap: 0;
+  }
+  .brand {
+    margin-right: 32px;
   }
 }
 @media (max-width: 600px) {

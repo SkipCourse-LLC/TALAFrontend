@@ -44,7 +44,7 @@ export function SiteHeader({
         }
       }}
     >
-      <div className="container nav-row">
+      <div className="nav-row">
         <Brand />
         <button
           ref={toggle}
