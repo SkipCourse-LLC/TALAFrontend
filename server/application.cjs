@@ -137,7 +137,7 @@ function createApplication(options = {}) {
       const route = url.pathname;
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 4, schemaVersion: 2, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 5, schemaVersion: 2, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
       if (req.method === "GET" && route === "/api/session") {
         // A cross-site top-level navigation omits SameSite=Strict cookies but
         // can still accept Set-Cookie. Do not overwrite a signed-in browser
@@ -181,6 +181,11 @@ function createApplication(options = {}) {
         if (req.headers["x-tala-user"] !== undefined) actorFor(req);
         return json(res, rotate(req, res, null));
       }
+      if (req.method === "GET" && route === "/api/public/open-times") {
+        rate(req, "public-open-times", 300);
+        if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "The public calendar does not accept filters.");
+        return json(res, services.publicOpenTimes());
+      }
       const actor = actorFor(req);
       let match;
       if (req.method === "GET" && route === "/api/account/sessions") {
@@ -217,6 +222,7 @@ function createApplication(options = {}) {
       if (req.method === "GET" && route === "/api/availability") return json(res, lists.availability(actor, url.searchParams));
       if (req.method === "POST" && route === "/api/availability") return json(res, await perform(req, (fresh, input) => services.availability(fresh, input)), 201);
       if (req.method === "POST" && route === "/api/appointments") return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input)), 201);
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/availability\/([^/]+)$/))) return json(res, await perform(req, (fresh, input) => services.updateAvailability(fresh, match[1], input)));
       if (req.method === "POST" && (match = route.match(/^\/api\/availability\/([^/]+)\/withdraw$/))) return json(res, await perform(req, (fresh, input) => services.withdrawAvailability(fresh, match[1], input)));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/reschedule$/))) return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input, match[1])));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/cancel$/))) return json(res, await perform(req, (fresh, input) => services.cancelBooking(fresh, match[1], input)));

@@ -9,6 +9,9 @@ const { fail, object, text, paragraph, identifier, requestId, hash } = require("
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const OWNER_STORAGE_BYTES = 100 * 1024 * 1024;
 const INSTANCE_STORAGE_BYTES = 2 * 1024 * 1024 * 1024;
+// Tucson does not observe daylight saving time, so this zone has one offset.
+const SCHOOL_TIME_ZONE = "America/Phoenix";
+const PUBLIC_CALENDAR_DAYS = 90;
 const iso = (value) => new Date(value).toISOString();
 const userDTO = (row) => ({ uid: row.uid, name: row.name, email: row.email, role: row.role, emailVerified: row.email_verified === 1 });
 function createServices(db, dataDir) {
@@ -181,9 +184,13 @@ function createServices(db, dataDir) {
     if (Number(month) < 1 || Number(month) > 12 || Number(day) < 1 || Number(day) > days[Number(month) - 1] || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59 || Number(offsetHour || 0) > 23 || Number(offsetMinute || 0) > 59) return NaN;
     return Date.parse(value);
   }
-  function addAvailability(input, actorUid = null) {
+  function meetingRange(input) {
     const starts = zonedTimestamp(input.startsAt), ends = zonedTimestamp(input.endsAt);
     if (!Number.isFinite(starts) || !Number.isFinite(ends) || starts <= Date.now() || ends - starts < 15 * 60000 || ends - starts > 4 * 3600000) fail(400, "INVALID_INPUT", "Publish a valid future calendar date with an explicit timezone, lasting 15 minutes to 4 hours.");
+    return { starts, ends };
+  }
+  function addAvailability(input, actorUid = null) {
+    const { starts, ends } = meetingRange(input);
     const label = input.label ? text(input.label, "meeting label", 100) : "Advising meeting";
     if (db.prepare("SELECT s.id FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at<? AND s.ends_at>?").get(ends, starts)) fail(409, "CONFLICT", "This availability overlaps a published meeting time.");
     const previous = db.prepare("SELECT * FROM slots WHERE starts_at=? AND ends_at=?").get(starts, ends);
@@ -270,6 +277,32 @@ function createServices(db, dataDir) {
         return { id };
       });
       return managedSlotDTO(db.prepare("SELECT * FROM slots WHERE id=?").get(id));
+    },
+    updateAvailability(actor, id, input) {
+      requireOperator(actor); object(input, ["startsAt", "endsAt", "label", "requestId"]); identifier(id);
+      const saved = operation(actor, "update-availability", input.requestId, [id, input.startsAt, input.endsAt, input.label || ""], () => {
+        const slot = db.prepare("SELECT s.*,state.status AS state FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE s.id=?").get(id);
+        if (!slot) fail(404, "NOT_FOUND", "This meeting time is unavailable.");
+        if (slot.state !== "published" || slot.starts_at <= Date.now() || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(id)) fail(409, "CONFLICT", "Only unbooked, published future meeting times can be edited.");
+        const { starts, ends } = meetingRange(input);
+        const label = input.label ? text(input.label, "meeting label", 100) : slot.label;
+        if (starts === slot.starts_at && ends === slot.ends_at) {
+          db.prepare("UPDATE slots SET label=? WHERE id=?").run(label, id);
+          db.prepare("UPDATE availability_state SET updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actor.uid, id);
+          return { id };
+        }
+        // Times on a slot are immutable because cancelled bookings keep pointing
+        // at it. Retire this interval and publish the new one in one transaction.
+        db.prepare("UPDATE availability_state SET status='withdrawn',updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actor.uid, id);
+        return { id: addAvailability({ startsAt: input.startsAt, endsAt: input.endsAt, label }, actor.uid).id };
+      });
+      return managedSlotDTO(db.prepare("SELECT * FROM slots WHERE id=?").get(saved.id));
+    },
+    publicOpenTimes() {
+      const now = Date.now();
+      const rows = db.prepare("SELECT s.id,s.starts_at,s.ends_at FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at>? AND s.starts_at<=? AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') ORDER BY s.starts_at,s.id LIMIT 101").all(now, now + PUBLIC_CALENDAR_DAYS * 86400000);
+      // Labels, booking state and staff fields stay private to the admin view.
+      return { times: rows.slice(0, 100).map((row) => ({ id: row.id, startsAt: iso(row.starts_at), endsAt: iso(row.ends_at) })), hasMore: rows.length > 100, timeZone: SCHOOL_TIME_ZONE };
     },
     reserve(actor, input, replacesId) {
       requireWriter(actor);

@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "basePath": "/api",
   "defaultOrigin": "http://127.0.0.1:8787",
   "security": {
@@ -9,7 +9,8 @@
     "authentication": "opaque HttpOnly SameSite=Strict cookie; never localStorage",
     "emailVerification": "unavailable until an email provider is configured; basic owner-only workflows do not require email verification",
     "parentAccess": "READ-ONLY: linked parents can read workspace, learning and private evidence files through current server-owned consent links. Parent accounts cannot book, change bookings, upload, submit, cancel uploads or acknowledge summaries. Only students acknowledge their own summaries. Link-only consent does not grant delegated write authority.",
-    "expectedActorHeader": "X-TALA-User, when provided, must exactly match the cookie-authenticated UID; it never grants identity or permissions."
+    "expectedActorHeader": "X-TALA-User, when provided, must exactly match the cookie-authenticated UID; it never grants identity or permissions.",
+    "publicEndpoints": "GET /public/open-times works without signing in and never returns staff-only data."
   },
   "errors": {
     "shape": {
@@ -146,6 +147,11 @@
     "ResourcePage": {
       "items": "resource DTO[] maximum50",
       "nextCursor": "opaque scoped keyset cursor or null; never an authentication credential"
+    },
+    "OpenTime": {
+      "id": "UUID",
+      "startsAt": "ISO UTC",
+      "endsAt": "ISO UTC"
     }
   },
   "routes": [
@@ -155,7 +161,7 @@
       "response": {
         "application": "tala-independent-server",
         "version": 1,
-        "contractVersion": 4,
+        "contractVersion": 5,
         "schemaVersion": 2,
         "runtimeRevision": "SHA-256 of source captured at process startup; local reuse compatibility only, not authentication",
         "instanceScope": "SHA-256 of selected absolute data directory; no private path or records are exposed",
@@ -418,6 +424,30 @@
       "response": "ManagedSlot; only future unbooked published slots; never deletes booking history"
     },
     {
+      "method": "PATCH",
+      "path": "/availability/:id",
+      "operatorOnly": true,
+      "body": {
+        "startsAt": "ISO UTC",
+        "endsAt": "ISO UTC",
+        "label": "optional string; omitted keeps the current label",
+        "requestId": "unique string"
+      },
+      "response": "ManagedSlot; only unbooked published future slots. A label-only edit keeps the ID. New times withdraw this slot and publish the new interval in one transaction, so the response ID can differ."
+    },
+    {
+      "method": "GET",
+      "path": "/public/open-times",
+      "public": true,
+      "query": {},
+      "response": {
+        "times": "OpenTime[] future published unreserved times within 90 days, ascending, at most100",
+        "hasMore": "boolean",
+        "timeZone": "America/Phoenix"
+      },
+      "notes": "No account needed. Rate limited per client. Labels, booking state and staff fields are never included. Any query parameter returns INVALID_INPUT."
+    },
+    {
       "method": "GET",
       "path": "/evidence/:id",
       "response": "Evidence; current owner, linked read-only parent or operator only"
@@ -591,10 +621,11 @@
     "learningPageItemsDefault": 20,
     "learningPageItemsMaximum": 25,
     "pageCursorCharacters": 2048,
-    "listSearchCharacters": 80
+    "listSearchCharacters": 80,
+    "publicCalendarReadsPerClient": "300 per 15 minutes"
   },
   "schemaVersion": 2,
-  "availabilityPolicy": "Publish times must be ISO 8601 with explicit Z/UTC offset. Withdrawal is transactionally fenced against reservations. Times on a slot are immutable. Publishing an exactly matching withdrawn start/end reactivates its same ID; any changed time uses a new ID. Old cancelled bookings retain original times.",
+  "availabilityPolicy": "Publish times must be ISO 8601 with explicit Z/UTC offset. Withdrawal and editing are transactionally fenced against reservations; only unbooked published future slots can be withdrawn or edited. Times on a slot are immutable: an edit that changes times withdraws the slot and publishes the new interval (new ID) atomically, while a label-only edit keeps the ID. Publishing an exactly matching withdrawn start/end reactivates its same ID; any changed time uses a new ID. Old cancelled bookings retain original times. The public calendar shows only future published unreserved times.",
   "revisionPolicy": "Only a student can revise their own latest needs_revision Evidence for the same booking. Upload captures the current reviewVersion server-side. Final submit rechecks that review and atomically commits a single successor; concurrent or stale revisions conflict. Earlier evidence bytes, review and identifiers remain immutable. Superseded evidence cannot be reviewed again. Counters count all versions, manual review is not academic credit.",
   "localDatabaseMigration": "Schema1 to2 is additive and local-only. A consistent VACUUM INTO backup with 0600 permissions is verified before migration. Three new tables: availability_state(slot_id,status,updated_at,updated_by); upload_revisions(upload_id,predecessor_id,expected_review_version); evidence_revisions(evidence_id,predecessor_id UNIQUE,root_id,revision_number). Existing slots backfill as published; other rows and file bytes are untouched. New databases start at schema2 with no seed data. Future schemas fail closed.",
   "accountSecurityPolicy": "Password changes require the current password, per-account and per-IP rate limits, fresh CSRF/session/disabled-account/password checks after each asynchronous hash, and one transaction for credential update, all-session revocation, replacement session and completion receipt. No plaintext or fast password-derived idempotency digest is stored. Session handles grant no authentication and expose neither cookie nor database session hash. Current-session revocation uses logout. After a lost password-change response, bootstrap GET /session and query the completion receipt before claiming success; if the replacement cookie was lost, reauthenticate with the new password. A receipt never restores authentication. No email delivery or MFA is implied.",

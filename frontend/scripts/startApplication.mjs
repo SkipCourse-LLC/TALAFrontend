@@ -84,7 +84,7 @@ async function healthy() {
     return (
       value?.application === "tala-independent-server" &&
       value.version === 1 &&
-      value.contractVersion === 4 &&
+      value.contractVersion === 5 &&
       value.schemaVersion === 2 &&
       value.runtimeRevision === runtimeIdentity.runtimeRevision &&
       value.instanceScope === expectedScope &&
