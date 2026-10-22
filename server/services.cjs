@@ -5,6 +5,7 @@ const { randomUUID } = require("node:crypto");
 const { TextDecoder } = require("node:util");
 const { transaction } = require("./database.cjs");
 const { createListServices } = require("./listServices.cjs");
+const { createContactRequestServices } = require("./contactRequests.cjs");
 const { fail, object, text, paragraph, identifier, requestId, hash } = require("./security.cjs");
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const OWNER_STORAGE_BYTES = 100 * 1024 * 1024;
@@ -576,7 +577,8 @@ function createServices(db, dataDir) {
     },
   };
   const lists = createListServices(db, { authorize, requireOperator, currentWriter, evidenceDTO, appointmentDTO, slotDTO, managedSlotDTO, recordDTO });
-  return { services, operator, lists };
+  const contactRequests = createContactRequestServices(db, { operation, requireOperator, lists });
+  return { services, operator, lists, contactRequests };
 }
 function validateContent(bytes, type) {
   if (type === "application/pdf") {

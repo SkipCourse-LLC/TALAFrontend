@@ -8,7 +8,12 @@ npm --prefix server start
 
 `npm run dev --prefix frontend` starts it together with the site. Data lives in `server/.runtime/` unless `TALA_DATA_DIR` points elsewhere. Never commit that folder or any backup of it.
 
-Every endpoint and type is listed in [contract.json](contract.json) (contract v4, database schema v2). Lists are paged with `nextCursor`, and every page re-checks the caller's session, role and family access.
+Every endpoint and type is listed in [contract.json](contract.json) (contract v5, database schema v3). Lists are paged with `nextCursor`, and every page re-checks the caller's session, role and family access.
+
+Two endpoints work without an account, for parents who have not signed up yet:
+
+- `GET /api/public/open-times` lists future, published, unbooked meeting times. It never includes labels or booking details.
+- `POST /api/contact-requests` stores a "Contact me" request. It needs the anonymous session's CSRF token, is rate limited, and returns only a receipt. Only operators can list requests (`GET /api/operations/contact-requests`), and nothing returns a request to the person who sent it. Contact details are never logged.
 
 ## Operator commands
 
@@ -22,7 +27,7 @@ node server/operator.cjs revoke-family --studentUid STUDENT_UID --parentUid PARE
 node server/operator.cjs cleanup-expired
 ```
 
-- **Availability:** withdrawing an unbooked future time keeps its ID and booking history. Re-publishing the same interval restores it.
+- **Availability:** withdrawing an unbooked future time keeps its ID and booking history. Re-publishing the same interval restores it. Operators can also edit an unbooked future time in the workspace; changing its times publishes it under a new ID.
 - **Family links:** a link records consent but does not verify guardianship.
 - **Cleanup:** `cleanup-expired` closes up to 100 expired, unsubmitted uploads per run. It never removes submitted Evidence.
 
@@ -40,7 +45,7 @@ node server/backup.cjs restore --directory /path/tala-backup-review --outputDir 
 
 ## Schema upgrades
 
-The server snapshots the database to `<dataDir>/backups/` before upgrading schema 1 to 2. A failed snapshot or migration stops startup. To roll back, restore that snapshot into a separate folder along with the matching `uploads` and `evidence` files, then point `TALA_DATA_DIR` at it.
+The server snapshots the database to `<dataDir>/backups/` before any schema upgrade (1 or 2 to 3). A failed snapshot or migration stops startup. Schema 3 only adds the `contact_requests` table. To roll back, restore that snapshot into a separate folder along with the matching `uploads` and `evidence` files, then point `TALA_DATA_DIR` at it.
 
 ## Limits
 

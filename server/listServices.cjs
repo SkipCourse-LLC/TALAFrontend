@@ -161,7 +161,7 @@ function createListServices(db, helpers) {
     });
   }
   return {
-    read,
+    read, page, query, choice,
     evidence: (actor, params) => evidence(actor, params, false),
     operatorEvidence: (actor, params) => evidence(actor, params, true),
     appointments: (actor, params) => appointments(actor, params, false),

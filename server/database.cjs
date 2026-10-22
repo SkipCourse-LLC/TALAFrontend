@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const EXTENSIONS = `
   CREATE TABLE IF NOT EXISTS availability_state (
     slot_id TEXT PRIMARY KEY REFERENCES slots(id),
@@ -26,6 +26,16 @@ const EXTENSIONS = `
   CREATE INDEX IF NOT EXISTS evidence_revision_root ON evidence_revisions(root_id,revision_number);
   INSERT OR IGNORE INTO availability_state(slot_id,status,updated_at,updated_by)
     SELECT id,'published',created_at,NULL FROM slots;
+  CREATE TABLE IF NOT EXISTS contact_requests (
+    id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL,
+    parent_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL,
+    preferred_method TEXT NOT NULL CHECK(preferred_method IN ('email','phone','text')),
+    availability_json TEXT NOT NULL, notes TEXT,
+    status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','contacted','closed')),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, updated_by TEXT REFERENCES users(uid)
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS contact_requests_created ON contact_requests(created_at DESC,id DESC);
+  CREATE INDEX IF NOT EXISTS contact_requests_fingerprint ON contact_requests(fingerprint,created_at);
 `;
 
 function backupBeforeMigration(db, dataDir, version) {
@@ -71,7 +81,7 @@ function openDatabase(dataDir) {
   if (version === 0 && db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").get()) { db.close(); throw new Error("This database has an unrecognized schema. No migration was performed."); }
   try {
     db.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;");
-    if (version === 1) backupBeforeMigration(db, dataDir, version);
+    if (version >= 1 && version < SCHEMA_VERSION) backupBeforeMigration(db, dataDir, version);
     if (version < SCHEMA_VERSION) transaction(db, () => {
       if (db.prepare("PRAGMA user_version").get().user_version !== version) throw new Error("The database changed during startup. Stop other local instances and retry.");
       db.exec(`

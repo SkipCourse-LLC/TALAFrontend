@@ -112,7 +112,7 @@ test("the schema-v1 upgrade preserves existing synthetic sessions, ownership and
     });
     assert.equal(
       application.db.prepare("PRAGMA user_version").get().user_version,
-      2,
+      3,
     );
     assert.deepEqual(
       application.db.prepare("PRAGMA foreign_key_check").all(),
@@ -206,6 +206,103 @@ test("the schema-v1 upgrade preserves existing synthetic sessions, ownership and
     );
   } finally {
     await application?.close();
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("the schema-v2 upgrade backs up first and adds contact requests without changing existing rows", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "tala-migration-v2-test-"));
+  let application;
+  try {
+    application = createApplication({ dataDir });
+    const slot = application.operator.addAvailability({
+      startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+      endsAt: new Date(Date.now() + 88_200_000).toISOString(),
+      label: "Synthetic schema-v2 time",
+    });
+    await application.close();
+    application = undefined;
+    // A schema-v2 database is the current layout without the new table.
+    const filename = join(dataDir, "tala.sqlite");
+    const old = new DatabaseSync(filename);
+    try {
+      old.exec("DROP TABLE contact_requests; PRAGMA user_version=2;");
+    } finally {
+      old.close();
+    }
+
+    application = createApplication({ dataDir });
+    assert.equal(
+      application.db.prepare("PRAGMA user_version").get().user_version,
+      3,
+    );
+    assert.equal(
+      application.db.prepare("SELECT label FROM slots WHERE id=?").get(slot.id)
+        .label,
+      "Synthetic schema-v2 time",
+    );
+    assert.equal(
+      application.db.prepare("SELECT count(*) AS n FROM contact_requests").get()
+        .n,
+      0,
+    );
+    const backups = (await readdir(join(dataDir, "backups"))).filter((name) =>
+      /^tala-v2-.*\.sqlite$/.test(name),
+    );
+    assert.equal(backups.length, 1, "A verified snapshot precedes the upgrade");
+    const backup = new DatabaseSync(join(dataDir, "backups", backups[0]), {
+      readOnly: true,
+    });
+    try {
+      assert.equal(backup.prepare("PRAGMA user_version").get().user_version, 2);
+      assert.equal(
+        backup
+          .prepare("SELECT name FROM sqlite_master WHERE name='contact_requests'")
+          .get(),
+        undefined,
+      );
+    } finally {
+      backup.close();
+    }
+    await application.close();
+    application = createApplication({ dataDir });
+    assert.equal(
+      (await readdir(join(dataDir, "backups"))).length,
+      1,
+      "An up-to-date database starts without another snapshot",
+    );
+  } finally {
+    await application?.close();
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("health, contract.json and the database agree on the contract and schema versions", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "tala-version-test-"));
+  const application = createApplication({ dataDir });
+  try {
+    const contract = JSON.parse(
+      await readFile(new URL("../contract.json", import.meta.url), "utf8"),
+    );
+    await new Promise((resolve) =>
+      application.server.listen(0, "127.0.0.1", resolve),
+    );
+    const health = await (
+      await fetch(`http://127.0.0.1:${application.server.address().port}/api/health`)
+    ).json();
+    assert.equal(health.contractVersion, contract.version);
+    assert.equal(health.schemaVersion, contract.schemaVersion);
+    assert.deepEqual(
+      contract.routes.find((route) => route.path === "/health").response
+        .schemaVersion,
+      contract.schemaVersion,
+    );
+    assert.equal(
+      application.db.prepare("PRAGMA user_version").get().user_version,
+      contract.schemaVersion,
+    );
+  } finally {
+    await application.close();
     await rm(dataDir, { recursive: true, force: true });
   }
 });

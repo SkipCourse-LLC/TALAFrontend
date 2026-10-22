@@ -5,7 +5,8 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const SCHEMA = 2;
+// Schema 3 only adds contact_requests, so schema 2 backups stay restorable.
+const SCHEMAS = [2, 3];
 const MAX_FILE = 5 * 1024 * 1024;
 function refuse(message) { throw new Error(message); }
 function localOnly() {
@@ -108,7 +109,8 @@ function copyPrivate(source, target, expectedSize) {
   } finally { if (output !== undefined) fs.closeSync(output); fs.closeSync(input); }
 }
 function checkDatabase(db) {
-  if (db.prepare("PRAGMA user_version").get().user_version !== SCHEMA) refuse("This backup tool requires database schema 2. No migration was performed.");
+  const version = db.prepare("PRAGMA user_version").get().user_version;
+  if (!SCHEMAS.includes(version)) refuse("This backup tool requires database schema 2 or 3. No migration was performed.");
   if (db.prepare("PRAGMA quick_check").get().quick_check !== "ok" || db.prepare("PRAGMA foreign_key_check").get()) refuse("The database failed its consistency check.");
   if (db.prepare("SELECT name FROM sqlite_master WHERE type IN ('trigger','view') LIMIT 1").get()) refuse("This schema does not use triggers or views. Review unsupported database objects before backup or restore.");
   if (db.prepare(`SELECT u.id FROM uploads u LEFT JOIN evidence e ON e.id=u.id
@@ -117,6 +119,7 @@ function checkDatabase(db) {
         OR u.appointment_id!=e.appointment_id OR u.content_type!=e.content_type
         OR u.size!=e.size OR u.sha256!=e.sha256 OR u.title!=e.title)) LIMIT 1`).get())
     refuse("Submitted Evidence and upload records are inconsistent. No backup or restore was accepted.");
+  return version;
 }
 function openExisting(filename, readOnly) {
   const stat = fs.lstatSync(filename);
@@ -157,7 +160,7 @@ function createLocalBackup({ dataDir, outputDir }) {
   const writer = openExisting(path.join(source, "tala.sqlite"), false);
   let target, reader, locked = false, complete = false;
   try {
-    checkDatabase(writer);
+    const schemaVersion = checkDatabase(writer);
     // All HTTP file writes/renames and deletes hold this same SQLite write
     // fence. A second read-only connection can snapshot committed WAL pages.
     writer.exec("BEGIN IMMEDIATE"); locked = true;
@@ -174,7 +177,7 @@ function createLocalBackup({ dataDir, outputDir }) {
       if (copied.sha256 !== file.sha256 || copied.size !== file.size) refuse("A copied file failed verification.");
     }
     const createdAt = new Date().toISOString();
-    const manifest = { format: "tala-local-backup", version: 1, schemaVersion: SCHEMA, createdAt,
+    const manifest = { format: "tala-local-backup", version: 1, schemaVersion, createdAt,
       files: [{ path: "tala.sqlite", ...digestFile(path.join(target, "tala.sqlite")) }, ...files] };
     fs.writeFileSync(path.join(target, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { flag: "wx", mode: 0o600 });
     for (const file of ["tala.sqlite", "manifest.json"]) {
@@ -198,7 +201,7 @@ function inspectLocalBackup(input) {
   for (const child of ["uploads", "evidence"]) directory(path.join(root, child));
   const manifestPath = path.join(root, "manifest.json");
   const manifest = readManifest(manifestPath);
-  if (manifest?.format !== "tala-local-backup" || manifest.version !== 1 || manifest.schemaVersion !== SCHEMA || !Array.isArray(manifest.files) || !manifest.files.length) refuse("Unsupported backup manifest.");
+  if (manifest?.format !== "tala-local-backup" || manifest.version !== 1 || !SCHEMAS.includes(manifest.schemaVersion) || !Array.isArray(manifest.files) || !manifest.files.length) refuse("Unsupported backup manifest.");
   const entries = new Map();
   for (const file of manifest.files) {
     if (!file || typeof file.path !== "string" || !/^(tala\.sqlite|(?:uploads|evidence)\/[A-Za-z0-9_-]{1,128}\.bin)$/.test(file.path) || entries.has(file.path) || !Number.isSafeInteger(file.size) || file.size < 0 || !/^[a-f0-9]{64}$/.test(file.sha256)) refuse("The backup manifest contains an invalid file entry.");
@@ -209,7 +212,7 @@ function inspectLocalBackup(input) {
   if (!entries.has("tala.sqlite")) refuse("The backup database is missing.");
   const db = openExisting(path.join(root, "tala.sqlite"), true);
   try {
-    checkDatabase(db);
+    if (checkDatabase(db) !== manifest.schemaVersion) refuse("The backup manifest does not match its database schema.");
     const files = expectedFiles(db, root);
     if (files.length + 1 !== entries.size || files.some((file) => !entries.has(file.path))) refuse("The backup file list does not match its database.");
   } finally { db.close(); }

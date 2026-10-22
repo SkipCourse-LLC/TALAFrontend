@@ -25,7 +25,7 @@ test("launcher refuses a different data scope or loaded revision without stoppin
   }
   const directory = await mkdtemp(join(tmpdir(), "tala-launcher-identity-"));
   const expectedData = join(directory, "chosen-runtime");
-  let value = { application: "tala-independent-server", version: 1, contractVersion: 5, schemaVersion: 2, status: "ok", authentication: "local-server", runtimeRevision, instanceScope: dataScope(join(directory, "another-runtime")) };
+  let value = { application: "tala-independent-server", version: 1, contractVersion: 5, schemaVersion: 3, status: "ok", authentication: "local-server", runtimeRevision, instanceScope: dataScope(join(directory, "another-runtime")) };
   const mock = createServer((request, response) => {
     assert.equal(request.url, "/api/health");
     response.setHeader("Content-Type", "application/json");
