@@ -9,6 +9,8 @@ import { AboutPage } from "../public-site/AboutPage";
 import { ProgramsPage } from "../public-site/ProgramsPage";
 import { CommunityPage } from "../public-site/CommunityPage";
 import { NotFoundPage } from "../public-site/NotFoundPage";
+import { ContactRequestPage } from "../onboarding/ContactRequestPage";
+import { OpenTimesPage } from "../onboarding/OpenTimesPage";
 import { talaApi, safeTalaApiError } from "../api";
 import type { ApiUser } from "../api";
 import { ServerAccessPage } from "./ServerAccessPage";
@@ -282,10 +284,8 @@ export function ServerApplication() {
               <Route path="about" element={<AboutPage />} />
               <Route path="learn-more" element={<AboutPage />} />
               <Route path="programs" element={<ProgramsPage />} />
-              <Route
-                path="contact"
-                element={<CommunityPage kind="contact" />}
-              />
+              <Route path="contact" element={<ContactRequestPage />} />
+              <Route path="schedule" element={<OpenTimesPage />} />
               <Route path="events" element={<CommunityPage kind="events" />} />
               <Route
                 path="two-factor"

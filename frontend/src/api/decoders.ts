@@ -3,6 +3,11 @@ import type {
   AccountSessions,
   Appointment,
   Availability,
+  ContactMethod,
+  ContactRequest,
+  ContactRequestReceipt,
+  ContactRequestStatus,
+  ContactWindow,
   CursorPage,
   Evidence,
   EvidenceContentType,
@@ -10,6 +15,7 @@ import type {
   LearningRecord,
   LearningRecords,
   ManagedSlot,
+  OpenTimes,
   Operations,
   OperatorAppointment,
   OperatorEvidence,
@@ -23,6 +29,7 @@ import type {
   UploadIntent,
   UploadStatus,
   User,
+  Weekday,
   Workspace,
 } from "./types";
 
@@ -564,5 +571,78 @@ export function operations(raw: unknown): Operations {
         studentName: text(record.studentName, 80),
       };
     }),
+  };
+}
+export function openTimes(raw: unknown): OpenTimes {
+  const value = object(raw);
+  if (typeof value.hasMore !== "boolean")
+    throw new TalaApiError("INVALID_RESPONSE");
+  const times = array(value.times, 100).map((item) => {
+    const time = object(item);
+    const startsAt = instant(time.startsAt),
+      endsAt = instant(time.endsAt);
+    if (Date.parse(endsAt) <= Date.parse(startsAt))
+      throw new TalaApiError("INVALID_RESPONSE");
+    return { id: id(time.id), startsAt, endsAt };
+  });
+  if (new Set(times.map((time) => time.id)).size !== times.length)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { times, hasMore: value.hasMore, timeZone: text(value.timeZone, 64) };
+}
+const weekdays = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+function contactWindow(raw: unknown): ContactWindow {
+  const value = object(raw);
+  const clock = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  if (
+    !weekdays.includes(String(value.day)) ||
+    typeof value.startTime !== "string" ||
+    typeof value.endTime !== "string" ||
+    !clock.test(value.startTime) ||
+    !clock.test(value.endTime) ||
+    value.startTime >= value.endTime
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    day: value.day as Weekday,
+    startTime: value.startTime,
+    endTime: value.endTime,
+  };
+}
+export function contactRequestReceipt(raw: unknown): ContactRequestReceipt {
+  const value = object(raw);
+  if (value.status !== "received") throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    id: id(value.id),
+    status: "received",
+    receivedAt: instant(value.receivedAt),
+  };
+}
+export function contactRequest(raw: unknown): ContactRequest {
+  const value = object(raw);
+  if (
+    !["email", "phone", "text"].includes(String(value.preferredMethod)) ||
+    !["new", "contacted", "closed"].includes(String(value.status))
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    id: id(value.id),
+    parentName: text(value.parentName, 80),
+    email: text(value.email, 254),
+    phone: text(value.phone, 30),
+    preferredMethod: value.preferredMethod as ContactMethod,
+    availability: array(value.availability, 21).map(contactWindow),
+    timeZone: text(value.timeZone, 64),
+    ...(value.notes === undefined ? {} : { notes: text(value.notes, 1000) }),
+    status: value.status as ContactRequestStatus,
+    receivedAt: instant(value.receivedAt),
+    updatedAt: instant(value.updatedAt),
   };
 }

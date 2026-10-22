@@ -95,3 +95,55 @@ export function assertNoPrivateLocation(value) {
     "Public DTOs must not expose private locations or authentication storage",
   );
 }
+
+/** Start an isolated application on an ephemeral loopback port. */
+export async function startIsolatedApplication(
+  createApplication,
+  { prefix = "tala-http-test-", origin = "http://127.0.0.1:5173" } = {},
+) {
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dataDir = await mkdtemp(join(tmpdir(), prefix));
+  const application = createApplication({ dataDir, allowedOrigins: [origin] });
+  await new Promise((resolve, reject) => {
+    application.server.once("error", reject);
+    application.server.listen(0, "127.0.0.1", resolve);
+  });
+  return {
+    application,
+    dataDir,
+    url: `http://127.0.0.1:${application.server.address().port}`,
+    async close() {
+      try {
+        await application.close();
+      } finally {
+        await rm(dataDir, { recursive: true, force: true });
+      }
+    },
+  };
+}
+
+/** Register a synthetic account; optionally promote it to operator. */
+export async function registerSyntheticAccount(
+  context,
+  accountType = "student",
+  { operator = false } = {},
+) {
+  const client = new SyntheticHttpClient(context.url);
+  await client.bootstrap();
+  const suffix = crypto.randomUUID();
+  const account = {
+    name: `Synthetic ${accountType}`,
+    email: `${suffix}@example.test`,
+    password: `Synthetic-only-${suffix}`,
+    accountType,
+  };
+  const response = await client.request("/api/auth/register", {
+    method: "POST",
+    json: account,
+  });
+  assert.equal(response.status, 201, "Synthetic registration should succeed");
+  if (operator) context.application.operator.promote(account.email);
+  return { client, account, user: response.json.session };
+}

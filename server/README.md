@@ -2,7 +2,9 @@
 
 Node.js 24, built-in modules only. Listens on `127.0.0.1:8787`; refuses production mode. Started by `npm run dev --prefix frontend`, or alone with `npm --prefix server start`.
 
-Data: `server/.runtime/`, or `TALA_DATA_DIR`. Endpoints and types: [contract.json](contract.json).
+Data: `server/.runtime/`, or `TALA_DATA_DIR`. Endpoints and types: [contract.json](contract.json) (contract v5, schema v3).
+
+No account needed: `GET /api/public/open-times` (future, unbooked meeting times only) and `POST /api/contact-requests` (rate limited, returns a receipt). Only operators can list contact requests; contact details are never logged.
 
 ## Operator commands
 

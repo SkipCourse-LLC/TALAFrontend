@@ -20,18 +20,20 @@ Sample data, no API: `npm run dev:demo --prefix frontend`.
 
 | Real (local API) | Demo only | Not connected |
 | --- | --- | --- |
-| Accounts and sessions, meeting availability, booking, Evidence uploads and review, parent read access | Two-factor, payment, class schedule, enrollment wizard | Email, Zoom, payments, SkipCourse backend |
+| Accounts and sessions; meeting availability (add, edit, withdraw); public open times (`/schedule`); Contact me requests (`/contact`) and the admin request list; student booking; Evidence uploads and review; parent read access | Two-factor, payment, class schedule, enrollment wizard | Email, Zoom, payments, SkipCourse backend |
 
 ## Layout
 
 ```text
 frontend/src/
   public-site/   public pages
+  onboarding/    Contact me form, public open times
   product/       signed-in app and admin tools
   api/           API client
   shared/        layout, header, form controls, styles
   authentication/ registration/ payment/ classes/ dashboard/   demo screens
 server/          local API (see server/README.md)
+docs/            onboarding flow map; sign-in and data model proposal
 legacy/          original one-page site
 ```
 
@@ -42,6 +44,7 @@ npm run typecheck --prefix frontend
 npm run lint --prefix frontend
 npm run build --prefix frontend
 npm test --prefix server
+npm run test:onboarding --prefix frontend
 ```
 
 ## Deploy

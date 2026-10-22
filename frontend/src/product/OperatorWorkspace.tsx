@@ -10,11 +10,12 @@ import type {
   ApiUser,
 } from "../api";
 import { meetingTime } from "./format";
-import { parseLocalMeetingTime } from "./meetingHelpers";
+import { localMeetingInput, parseLocalMeetingTime } from "./meetingHelpers";
+import { ContactRequestsPanel } from "./ContactRequestsPanel";
 import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
 import "./operator.css";
 
-type Panel = "review" | "meetings" | "learning";
+type Panel = "review" | "meetings" | "learning" | "requests";
 type ReviewFilter = "not_reviewed" | "needs_revision" | "reviewed" | "all";
 type ReviewDraft = {
   status: "reviewed" | "needs_revision";
@@ -25,6 +26,7 @@ const panels: Array<{ id: Panel; label: string }> = [
   { id: "review", label: "Review evidence" },
   { id: "meetings", label: "Meetings" },
   { id: "learning", label: "Learning summaries" },
+  { id: "requests", label: "Contact requests" },
 ];
 const reviewLabel = {
   not_reviewed: "Awaiting review",
@@ -285,6 +287,8 @@ export function OperatorWorkspace({
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [label, setLabel] = useState("");
+  const [editingSlot, setEditingSlot] = useState<ApiManagedSlot | null>(null);
+  const editorHeading = useRef<HTMLHeadingElement>(null);
   const [appointmentId, setAppointmentId] = useState("");
   const [summaryDrafts, setSummaryDrafts] = useState<Record<string, string>>(
     {},
@@ -440,7 +444,9 @@ export function OperatorWorkspace({
         : [evidencePage]
       : panel === "meetings"
         ? [availabilityPage, bookingsPage]
-        : [endedPage, recordsPage];
+        : panel === "learning"
+          ? [endedPage, recordsPage]
+          : [];
   const loading = relevantPages.some((page) => page.loading);
   const loadError = relevantPages
     .map((page) => page.error)
@@ -1100,28 +1106,49 @@ export function OperatorWorkspace({
                     </div>
                     <p>{meetingTime(slot.startsAt, slot.endsAt)}</p>
                     {slot.canWithdraw ? (
-                      <button
-                        type="button"
-                        className="operator-text-button"
-                        disabled={blocked}
-                        onClick={() =>
-                          void run(
-                            `withdraw:${slot.id}`,
-                            async (signal, requestId) => {
-                              await talaApi.withdrawAvailability(
-                                slot.id,
-                                { requestId },
-                                signal,
-                              );
-                            },
-                            "Meeting time withdrawn. Existing bookings were kept.",
-                          )
-                        }
-                      >
-                        {busy === `withdraw:${slot.id}`
-                          ? "Withdrawing…"
-                          : "Withdraw time"}
-                      </button>
+                      <div className="operator-slot-actions">
+                        <button
+                          type="button"
+                          className="operator-text-button"
+                          disabled={blocked}
+                          aria-label={`Edit ${meetingTime(slot.startsAt, slot.endsAt)}`}
+                          onClick={() => {
+                            setEditingSlot(slot);
+                            setStartsAt(localMeetingInput(slot.startsAt));
+                            setEndsAt(localMeetingInput(slot.endsAt));
+                            setLabel(slot.label);
+                            setMessage("");
+                            setError("");
+                            requestAnimationFrame(() =>
+                              editorHeading.current?.focus(),
+                            );
+                          }}
+                        >
+                          Edit time
+                        </button>
+                        <button
+                          type="button"
+                          className="operator-text-button"
+                          disabled={blocked}
+                          onClick={() =>
+                            void run(
+                              `withdraw:${slot.id}`,
+                              async (signal, requestId) => {
+                                await talaApi.withdrawAvailability(
+                                  slot.id,
+                                  { requestId },
+                                  signal,
+                                );
+                              },
+                              "Meeting time withdrawn. Existing bookings were kept.",
+                            )
+                          }
+                        >
+                          {busy === `withdraw:${slot.id}`
+                            ? "Withdrawing…"
+                            : "Withdraw time"}
+                        </button>
+                      </div>
                     ) : slot.status === "withdrawn" ? (
                       <button
                         type="button"
@@ -1219,7 +1246,16 @@ export function OperatorWorkspace({
             </details>
           </div>
           <div className="operator-editor">
-            <h3>Publish a meeting time</h3>
+            <h3 ref={editorHeading} tabIndex={-1}>
+              {editingSlot ? "Edit meeting time" : "Publish a meeting time"}
+            </h3>
+            {editingSlot && (
+              <p className="operator-field-help">
+                Editing {meetingTime(editingSlot.startsAt, editingSlot.endsAt)}.
+                Changing the times gives it a new ID. Booked and past times
+                cannot be edited.
+              </p>
+            )}
             <p className="operator-field-help" id="operator-time-zone-help">
               Device time zone: {deviceTimeZone}. Choose 15 minutes to 4 hours;
               published times cannot overlap. Times skipped or repeated when
@@ -1229,8 +1265,9 @@ export function OperatorWorkspace({
             <form
               onSubmit={(event) => {
                 event.preventDefault();
+                const editing = editingSlot;
                 void run(
-                  `availability:${startsAt}:${endsAt}:${label.trim()}`,
+                  `${editing ? `edit:${editing.id}` : "availability"}:${startsAt}:${endsAt}:${label.trim()}`,
                   async (signal, id) => {
                     const start = parseLocalMeetingTime(startsAt),
                       end = parseLocalMeetingTime(endsAt);
@@ -1242,22 +1279,27 @@ export function OperatorWorkspace({
                       end.getTime() - start.getTime() > 4 * 60 * 60_000
                     )
                       throw new TalaApiError("INVALID_INPUT");
-                    await talaApi.addAvailability(
-                      {
-                        startsAt: start.toISOString(),
-                        endsAt: end.toISOString(),
-                        label: label.trim() || undefined,
-                        requestId: id,
-                      },
-                      signal,
-                    );
+                    const input = {
+                      startsAt: start.toISOString(),
+                      endsAt: end.toISOString(),
+                      label: label.trim() || undefined,
+                      requestId: id,
+                    };
+                    if (editing)
+                      await talaApi.updateAvailability(
+                        editing.id,
+                        input,
+                        signal,
+                      );
+                    else await talaApi.addAvailability(input, signal);
                     if (active.current && !signal.aborted) {
                       setStartsAt("");
                       setEndsAt("");
                       setLabel("");
+                      setEditingSlot(null);
                     }
                   },
-                  "Meeting time published.",
+                  editing ? "Meeting time updated." : "Meeting time published.",
                 );
               }}
             >
@@ -1297,12 +1339,30 @@ export function OperatorWorkspace({
                 <button className="button">
                   {busy?.startsWith("availability:")
                     ? "Publishing…"
-                    : "Publish availability"}
+                    : busy?.startsWith("edit:")
+                      ? "Saving…"
+                      : editingSlot
+                        ? "Save changes"
+                        : "Publish availability"}
                 </button>
+                {editingSlot && (
+                  <button
+                    type="button"
+                    className="button button-outline"
+                    onClick={() => {
+                      setEditingSlot(null);
+                      setStartsAt("");
+                      setEndsAt("");
+                      setLabel("");
+                    }}
+                  >
+                    Cancel editing
+                  </button>
+                )}
                 <p className="operator-field-help">
-                  To change a published time, withdraw it and publish a new
-                  time. Publishing the same withdrawn time again keeps its
-                  original title and history.
+                  Use Edit time on an available time to change it. Publishing
+                  the same withdrawn time again keeps its original title and
+                  history.
                 </p>
               </fieldset>
             </form>
@@ -1583,6 +1643,20 @@ export function OperatorWorkspace({
             )}
           </div>
         </div>
+      </section>
+
+      <section
+        id="operator-panel-requests"
+        role="tabpanel"
+        aria-labelledby="operator-tab-requests"
+        hidden={panel !== "requests"}
+        className="operator-panel"
+      >
+        <ContactRequestsPanel
+          active={panel === "requests"}
+          attempt={attempt}
+          onExpired={onExpired}
+        />
       </section>
       <footer className="operator-footer">
         <p>

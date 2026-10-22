@@ -4,7 +4,7 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 
 // Capture once so a running process never reports source it didn't load.
-const files = ["accountServices.cjs", "application.cjs", "contract.json", "database.cjs", "index.cjs", "listServices.cjs", "runtimeIdentity.cjs", "security.cjs", "services.cjs"];
+const files = ["accountServices.cjs", "application.cjs", "contactRequests.cjs", "contract.json", "database.cjs", "index.cjs", "listServices.cjs", "runtimeIdentity.cjs", "security.cjs", "services.cjs"];
 function currentRevision() {
   const digest = createHash("sha256").update("tala-runtime-source-v1\0");
   for (const filename of files) digest.update(filename).update("\0").update(fs.readFileSync(path.join(__dirname, filename))).update("\0");

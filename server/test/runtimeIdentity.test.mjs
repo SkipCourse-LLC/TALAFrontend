@@ -28,7 +28,7 @@ test("health binds local reuse to the selected private directory without exposin
 test("a loaded source revision cannot change when files on disk are edited", async () => {
   const directory = await mkdtemp(join(tmpdir(), "tala-runtime-source-"));
   try {
-    const files = ["accountServices.cjs", "application.cjs", "contract.json", "database.cjs", "index.cjs", "listServices.cjs", "security.cjs", "services.cjs"];
+    const files = ["accountServices.cjs", "application.cjs", "contactRequests.cjs", "contract.json", "database.cjs", "index.cjs", "listServices.cjs", "security.cjs", "services.cjs"];
     for (const file of files) await writeFile(join(directory, file), "Synthetic source fixture only.\n");
     await copyFile(new URL("../runtimeIdentity.cjs", import.meta.url), join(directory, "runtimeIdentity.cjs"));
     const probe = spawnSync(process.execPath, ["-e", `const fs = require('node:fs'); const identity = require('./runtimeIdentity.cjs'); const before = identity.runtimeRevision; identity.assertCurrentRevision(); fs.appendFileSync('services.cjs', 'Synthetic security patch.'); let refused = false; try { identity.assertCurrentRevision(); } catch { refused = true; } const cached = require('./runtimeIdentity.cjs').runtimeRevision; const child = require('node:child_process').spawnSync(process.execPath, ['-e', "process.stdout.write(require('./runtimeIdentity.cjs').runtimeRevision)"], { encoding: 'utf8' }); process.stdout.write(JSON.stringify({before,cached,refused,updated:child.stdout,exit:child.status}));`], { cwd: directory, encoding: "utf8" });
@@ -46,7 +46,7 @@ test("both server entry points reject source edits during business-module loadin
   for (const entry of ["application.cjs", "index.cjs"]) {
     const directory = await mkdtemp(join(tmpdir(), "tala-runtime-load-order-"));
     try {
-      for (const file of ["accountServices.cjs", "application.cjs", "contract.json", "database.cjs", "index.cjs", "listServices.cjs", "security.cjs", "services.cjs"]) await writeFile(join(directory, file), "module.exports = {};\n");
+      for (const file of ["accountServices.cjs", "application.cjs", "contactRequests.cjs", "contract.json", "database.cjs", "index.cjs", "listServices.cjs", "security.cjs", "services.cjs"]) await writeFile(join(directory, file), "module.exports = {};\n");
       await copyFile(new URL("../runtimeIdentity.cjs", import.meta.url), join(directory, "runtimeIdentity.cjs"));
       await copyFile(new URL(`../${entry}`, import.meta.url), join(directory, entry));
       const changingModule = entry === "application.cjs" ? "services.cjs" : "application.cjs";
