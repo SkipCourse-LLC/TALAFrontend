@@ -11,10 +11,11 @@ import type {
 } from "../api";
 import { meetingTime } from "./format";
 import { localMeetingInput, parseLocalMeetingTime } from "./meetingHelpers";
+import { ContactRequestsPanel } from "./ContactRequestsPanel";
 import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
 import "./operator.css";
 
-type Panel = "review" | "meetings" | "learning";
+type Panel = "review" | "meetings" | "learning" | "requests";
 type ReviewFilter = "not_reviewed" | "needs_revision" | "reviewed" | "all";
 type ReviewDraft = {
   status: "reviewed" | "needs_revision";
@@ -25,6 +26,7 @@ const panels: Array<{ id: Panel; label: string }> = [
   { id: "review", label: "Review evidence" },
   { id: "meetings", label: "Meetings" },
   { id: "learning", label: "Learning summaries" },
+  { id: "requests", label: "Contact requests" },
 ];
 const reviewLabel = {
   not_reviewed: "Awaiting review",
@@ -443,7 +445,9 @@ export function OperatorWorkspace({
         : [evidencePage]
       : panel === "meetings"
         ? [availabilityPage, bookingsPage]
-        : [endedPage, recordsPage];
+        : panel === "learning"
+          ? [endedPage, recordsPage]
+          : [];
   const loading = relevantPages.some((page) => page.loading);
   const loadError = relevantPages
     .map((page) => page.error)
@@ -1640,6 +1644,20 @@ export function OperatorWorkspace({
             )}
           </div>
         </div>
+      </section>
+
+      <section
+        id="operator-panel-requests"
+        role="tabpanel"
+        aria-labelledby="operator-tab-requests"
+        hidden={panel !== "requests"}
+        className="operator-panel"
+      >
+        <ContactRequestsPanel
+          active={panel === "requests"}
+          attempt={attempt}
+          onExpired={onExpired}
+        />
       </section>
       <footer className="operator-footer">
         <p>
