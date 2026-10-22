@@ -1,0 +1,604 @@
+{
+  "version": 4,
+  "basePath": "/api",
+  "defaultOrigin": "http://127.0.0.1:8787",
+  "security": {
+    "cookie": "tala_session",
+    "csrfHeader": "X-CSRF-Token",
+    "mutatingOriginRequired": true,
+    "authentication": "opaque HttpOnly SameSite=Strict cookie; never localStorage",
+    "emailVerification": "unavailable until an email provider is configured; basic owner-only workflows do not require email verification",
+    "parentAccess": "READ-ONLY: linked parents can read workspace, learning and private evidence files through current server-owned consent links. Parent accounts cannot book, change bookings, upload, submit, cancel uploads or acknowledge summaries. Only students acknowledge their own summaries. Link-only consent does not grant delegated write authority.",
+    "expectedActorHeader": "X-TALA-User, when provided, must exactly match the cookie-authenticated UID; it never grants identity or permissions."
+  },
+  "errors": {
+    "shape": {
+      "error": {
+        "code": "UPPER_SNAKE_CASE",
+        "message": "safe human-readable message"
+      }
+    },
+    "codes": [
+      "INVALID_INPUT",
+      "AUTH_REQUIRED",
+      "FORBIDDEN",
+      "CSRF_INVALID",
+      "ORIGIN_DENIED",
+      "INVALID_CREDENTIALS",
+      "ACCOUNT_EXISTS",
+      "RATE_LIMITED",
+      "NOT_FOUND",
+      "CONFLICT",
+      "EXPIRED",
+      "TOO_LARGE",
+      "UNSUPPORTED_TYPE",
+      "INTEGRITY_ERROR",
+      "INTEGRATION_UNAVAILABLE",
+      "INTERNAL_ERROR",
+      "STORAGE_FULL"
+    ]
+  },
+  "types": {
+    "User": {
+      "uid": "UUID",
+      "name": "string",
+      "email": "string",
+      "role": "student|parent|operator",
+      "emailVerified": false
+    },
+    "Session": {
+      "session": "User|null",
+      "csrfToken": "string"
+    },
+    "Slot": {
+      "id": "UUID",
+      "startsAt": "ISO UTC",
+      "endsAt": "ISO UTC",
+      "label": "string",
+      "isAvailable": true
+    },
+    "Appointment": {
+      "id": "UUID",
+      "ownerUid": "UUID",
+      "slotId": "UUID",
+      "startsAt": "ISO UTC",
+      "endsAt": "ISO UTC",
+      "status": "reserved|cancelled|ended",
+      "meetingIntegration": "unavailable",
+      "updatedAt": "ISO UTC",
+      "learningRecordId": "optional UUID on paginated appointment views/detail when a real published summary exists"
+    },
+    "Evidence": {
+      "id": "UUID",
+      "ownerUid": "UUID",
+      "appointmentId": "UUID",
+      "title": "string",
+      "contentType": "text/plain|application/pdf",
+      "size": "integer<=5242880",
+      "sha256": "64 lowercase hex",
+      "status": "submitted",
+      "reviewStatus": "not_reviewed|reviewed|needs_revision",
+      "submittedAt": "ISO UTC",
+      "reviewNote": "optional string",
+      "reviewedAt": "optional ISO UTC",
+      "revisionNumber": "integer>=1",
+      "rootEvidenceId": "UUID; original evidence ID",
+      "reviewVersion": "nonnegative integer; 0 before first review, monotonic thereafter",
+      "revisesEvidenceId": "optional UUID; immediate predecessor",
+      "supersededByEvidenceId": "optional UUID; committed immediate successor"
+    },
+    "Progress": {
+      "submittedEvidenceCount": "integer",
+      "assessedEvidenceCount": 0,
+      "acknowledgedOutcomeCount": "integer",
+      "masteryStatus": "unavailable",
+      "reviewedEvidenceCount": "integer, manual review only; never academic credit",
+      "revisionSubmissionCount": "integer; submitted revisions, also included in submittedEvidenceCount"
+    },
+    "UploadIntent": {
+      "uploadId": "UUID",
+      "sha256": "64 lowercase hex",
+      "expiresAt": "ISO UTC",
+      "maxBytes": 5242880
+    },
+    "UploadStatus": {
+      "uploadId": "UUID",
+      "status": "pending|uploaded|submitted|cancelled|failed",
+      "sha256": "64 lowercase hex",
+      "size": "integer",
+      "contentType": "text/plain|application/pdf"
+    },
+    "ManagedSlot": {
+      "id": "UUID",
+      "startsAt": "ISO UTC",
+      "endsAt": "ISO UTC",
+      "label": "string",
+      "isAvailable": "boolean",
+      "status": "available|reserved|withdrawn",
+      "canWithdraw": "boolean; true only for unbooked published future slots"
+    },
+    "AccountSession": {
+      "id": "session_ followed by 43 base64url characters; non-authenticating server-derived handle, never the cookie or stored hash",
+      "current": "boolean",
+      "createdAt": "ISO UTC",
+      "expiresAt": "ISO UTC"
+    },
+    "SessionRevocation": {
+      "revokedSessionCount": "nonnegative integer; count at first successful operation",
+      "currentSessionRevoked": false
+    },
+    "PasswordChangeReceipt": {
+      "status": "completed",
+      "changedAt": "ISO UTC",
+      "revokedSessionCount": "nonnegative integer; other active sessions revoked"
+    },
+    "PendingUpload": {
+      "uploadId": "UUID",
+      "title": "string",
+      "appointmentId": "UUID",
+      "contentType": "text/plain|application/pdf",
+      "size": "integer<=5242880",
+      "sha256": "64 lowercase hex",
+      "status": "pending|uploaded",
+      "expiresAt": "ISO UTC",
+      "revisesEvidenceId": "optional UUID"
+    },
+    "ResourcePage": {
+      "items": "resource DTO[] maximum50",
+      "nextCursor": "opaque scoped keyset cursor or null; never an authentication credential"
+    }
+  },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "response": {
+        "application": "tala-independent-server",
+        "version": 1,
+        "contractVersion": 4,
+        "schemaVersion": 2,
+        "runtimeRevision": "SHA-256 of source captured at process startup; local reuse compatibility only, not authentication",
+        "instanceScope": "SHA-256 of selected absolute data directory; no private path or records are exposed",
+        "status": "ok",
+        "authentication": "local-server",
+        "emailDelivery": "unavailable",
+        "zoom": "unavailable",
+        "ai": "unavailable",
+        "payment": "unavailable"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/session",
+      "response": "Session; creates anonymous CSRF session when needed"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/register",
+      "body": {
+        "name": "string",
+        "email": "string",
+        "password": "12..128 characters",
+        "accountType": "student|parent"
+      },
+      "response": "Session; rotates cookie and CSRF token"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "body": {
+        "email": "string",
+        "password": "string"
+      },
+      "response": "Session; rotates cookie and CSRF token"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "body": {},
+      "response": "Session with null session; rotates anonymous cookie/CSRF token"
+    },
+    {
+      "method": "PATCH",
+      "path": "/profile",
+      "body": {
+        "name": "string"
+      },
+      "response": "User"
+    },
+    {
+      "method": "GET",
+      "path": "/workspace",
+      "response": {
+        "slots": "Slot[]",
+        "appointments": "Appointment[] newest 100",
+        "activeAppointments": "Appointment[]",
+        "evidence": "Evidence[] newest 100",
+        "progress": "Progress"
+      },
+      "query": {
+        "studentUid": "optional child UID; parent must have a current operator-recorded active consent link"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/availability",
+      "operatorOnly": true,
+      "body": {
+        "startsAt": "ISO UTC",
+        "endsAt": "ISO UTC",
+        "label": "optional string",
+        "requestId": "unique string"
+      },
+      "response": "Slot"
+    },
+    {
+      "method": "POST",
+      "path": "/appointments",
+      "body": {
+        "slotId": "UUID",
+        "requestId": "unique string",
+        "studentUid": "optional existing student UID; operator authorization required when acting for another account; parents are read-only"
+      },
+      "response": "Appointment"
+    },
+    {
+      "method": "POST",
+      "path": "/appointments/:id/reschedule",
+      "body": {
+        "slotId": "UUID",
+        "requestId": "unique string"
+      },
+      "response": "Appointment; atomically cancels old booking"
+    },
+    {
+      "method": "POST",
+      "path": "/appointments/:id/cancel",
+      "body": {
+        "requestId": "unique string"
+      },
+      "response": "Appointment"
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/uploads",
+      "body": {
+        "appointmentId": "UUID",
+        "title": "string",
+        "contentType": "text/plain|application/pdf",
+        "size": "integer",
+        "sha256": "64 lowercase hex",
+        "requestId": "unique string",
+        "studentUid": "optional existing student UID matching appointment owner; parents are read-only; linked revisions require the student owner",
+        "revisesEvidenceId": "optional UUID; own same-booking latest needs_revision Evidence; student-only revision"
+      },
+      "response": "UploadIntent"
+    },
+    {
+      "method": "GET",
+      "path": "/evidence/uploads/:id",
+      "response": "UploadStatus",
+      "notes": "Unsubmitted pending/uploaded intents past expiresAt return 410 EXPIRED before reading file bytes. Submitted and cancelled status remains recoverable after the original deadline; explicit cancellation and cleanup remain available."
+    },
+    {
+      "method": "PUT",
+      "path": "/evidence/uploads/:id/content",
+      "body": "raw file bytes; Content-Type must equal the intent MIME; CSRF header still required",
+      "response": "UploadStatus"
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/uploads/:id/submit",
+      "body": {
+        "requestId": "unique string"
+      },
+      "response": {
+        "evidence": "Evidence",
+        "progress": "Progress"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/uploads/:id/cancel",
+      "body": {},
+      "response": {
+        "uploadId": "UUID",
+        "status": "cancelled"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/evidence/:id/content",
+      "response": "raw attachment bytes; Content-Type, Content-Disposition, Content-Length, X-Content-SHA256; no public URL"
+    },
+    {
+      "method": "GET",
+      "path": "/learning",
+      "response": {
+        "records": "LearningRecord[] newest20 by default, hard maximum25 per page",
+        "integrations": {
+          "zoom": "unavailable",
+          "ai": "unavailable"
+        },
+        "nextCursor": "string|null"
+      },
+      "query": {
+        "studentUid": "optional child UID; parent must have a current operator-recorded active consent link",
+        "limit": "optional integer1..25, default20",
+        "cursor": "optional scoped keyset cursor"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/outcomes",
+      "operatorOnly": true,
+      "body": {
+        "appointmentId": "UUID",
+        "outcomes": "[{id,summary}]",
+        "requestId": "unique string"
+      },
+      "response": "published learning record; meeting period must have ended; never certifies attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/outcomes/:id/acknowledge",
+      "body": {
+        "outcomeId": "string",
+        "requestId": "unique string"
+      },
+      "response": {
+        "recordId": "UUID",
+        "outcomeId": "string",
+        "acknowledgedAt": "ISO UTC",
+        "progress": "Progress"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/family",
+      "response": {
+        "relationships": "[{id,studentUid,parentUid,status:'active',consent:'recorded',permissions:['read']}]",
+        "linkedProfiles": "[{uid,role,name}]"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/operations",
+      "operatorOnly": true,
+      "response": {
+        "appointments": "(Appointment & {studentUid,studentName})[] newest100",
+        "evidence": "(Evidence & {studentUid,studentName})[] newest100",
+        "availability": "ManagedSlot[] future100, includes withdrawn and reserved",
+        "availabilityHasMore": "boolean",
+        "learningRecords": "(LearningRecord & {studentUid,studentName})[] newest20 summary; use /operations/learning for all pages"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/:id/review",
+      "operatorOnly": true,
+      "body": {
+        "status": "reviewed|needs_revision",
+        "note": "string 1..1000",
+        "requestId": "unique string",
+        "expectedReviewVersion": "required nonnegative integer from Evidence.reviewVersion; stale or superseded reviews return CONFLICT"
+      },
+      "response": "Evidence; manual review only, no AI/grade/mastery"
+    },
+    {
+      "method": "POST",
+      "path": "/evidence/uploads/cleanup",
+      "body": {},
+      "response": {
+        "removed": "number of expired unsubmitted intents closed and private files checked/removed; never submitted Evidence",
+        "hasMore": "boolean; at most25 per owner call"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/availability",
+      "operatorOnly": true,
+      "response": {
+        "slots": "ManagedSlot[] future50 per page",
+        "hasMore": "boolean; same as nextCursor!==null",
+        "nextCursor": "string|null"
+      },
+      "query": {
+        "status": "all|available|reserved|withdrawn, defaultall",
+        "cursor": "optional scoped keyset cursor"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/availability/:id/withdraw",
+      "operatorOnly": true,
+      "body": {
+        "requestId": "unique string"
+      },
+      "response": "ManagedSlot; only future unbooked published slots; never deletes booking history"
+    },
+    {
+      "method": "GET",
+      "path": "/evidence/:id",
+      "response": "Evidence; current owner, linked read-only parent or operator only"
+    },
+    {
+      "method": "GET",
+      "path": "/account/sessions",
+      "response": {
+        "sessions": "AccountSession[] newest100; current session always included",
+        "hasMore": "boolean"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/account/sessions/revoke",
+      "body": {
+        "sessionId": "AccountSession.id belonging to this user",
+        "requestId": "unique string"
+      },
+      "response": "SessionRevocation; rejects the current session with CONFLICT, use explicit logout"
+    },
+    {
+      "method": "POST",
+      "path": "/account/sessions/revoke-others",
+      "body": {
+        "requestId": "unique string"
+      },
+      "response": "SessionRevocation; idempotent replay does not revoke sessions created after the initial operation"
+    },
+    {
+      "method": "POST",
+      "path": "/account/password",
+      "body": {
+        "currentPassword": "current password",
+        "newPassword": "different password, 12..128 characters",
+        "requestId": "unique string"
+      },
+      "response": {
+        "session": "User",
+        "csrfToken": "new CSRF token",
+        "passwordChanged": true,
+        "changedAt": "ISO UTC",
+        "revokedSessionCount": "other active sessions revoked"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/account/password-changes/:requestId",
+      "response": "PasswordChangeReceipt; only the same authenticated UID and the replacement current session can read it; otherwise NOT_FOUND"
+    },
+    {
+      "method": "GET",
+      "path": "/evidence/uploads",
+      "response": {
+        "uploads": "PendingUpload[]; own current UID only, nonexpired, newest10; parents forbidden; no automatic cleanup/write"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/evidence",
+      "query": {
+        "studentUid": "optional current-authorized target student UID",
+        "reviewStatus": "all|not_reviewed|reviewed|needs_revision, defaultall",
+        "currentOnly": "true|false, defaultfalse; true excludes every superseded version",
+        "rootEvidenceId": "optional original evidence UUID; fetches its version chain within the authorized target",
+        "q": "optional trimmed literal text up to80 characters; owner searches title; operator searches title or student name",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Evidence>; current owner or active linked parent/authorized operator"
+    },
+    {
+      "method": "GET",
+      "path": "/operations/evidence",
+      "operatorOnly": true,
+      "query": {
+        "studentUid": "optional current-authorized target student UID",
+        "reviewStatus": "all|not_reviewed|reviewed|needs_revision, defaultall",
+        "currentOnly": "true|false, defaultfalse; true excludes every superseded version",
+        "rootEvidenceId": "optional original evidence UUID; fetches its version chain within the authorized target",
+        "q": "optional trimmed literal text up to80 characters; owner searches title; operator searches title or student name",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Evidence & {studentUid,studentName}>"
+    },
+    {
+      "method": "GET",
+      "path": "/appointments",
+      "query": {
+        "studentUid": "optional authorized target student UID",
+        "status": "all|reserved|cancelled|ended, defaultall",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Appointment>; period-ended status is derived at page read without claiming attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/appointments/:id",
+      "response": "Appointment, including learningRecordId when published; actual owner authorization is checked independently of loaded pages"
+    },
+    {
+      "method": "GET",
+      "path": "/operations/appointments",
+      "operatorOnly": true,
+      "query": {
+        "studentUid": "optional filter",
+        "status": "all|reserved|cancelled|ended, defaultended",
+        "publication": "all|published|unpublished, defaultunpublished",
+        "q": "optional literal student name or meeting label, up to80 characters",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Appointment & {studentUid,studentName}>; learningRecordId identifies actual published records without loading all summaries"
+    },
+    {
+      "method": "GET",
+      "path": "/available-times",
+      "query": {
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<Slot>; all authenticated roles; only future published unreserved times, ascending"
+    },
+    {
+      "method": "GET",
+      "path": "/operations/learning",
+      "operatorOnly": true,
+      "query": {
+        "studentUid": "optional filter",
+        "q": "optional literal student name or published summary text, up to80 characters",
+        "limit": "optional integer1..25, default20",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": {
+        "records": "(LearningRecord & {studentUid,studentName})[]",
+        "integrations": {
+          "zoom": "unavailable",
+          "ai": "unavailable"
+        },
+        "nextCursor": "string|null"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/learning/:id",
+      "response": "LearningRecord; actual owner/active linked parent/operator authorization; no fake absence when an ID falls outside loaded pages"
+    }
+  ],
+  "factory": "createApplication({dataDir,allowedOrigins,sessionTtlMs?,downloadTtlMs?}) returns {server,db,operator,close}; downloadTtlMs is test-factory-only integer100..30000, defaults30000, no environment override. No socket is opened until server.listen()",
+  "operator": "application.operator.promote(email); application.operator.addAvailability({startsAt,endsAt,label?}); application.operator.linkFamily({studentUid,parentUid,consentReference}); CLI exposes explicit local operator actions only. No accounts or availability are auto-seeded. operator.revokeFamily({studentUid,parentUid}) revokes read access without deleting history; operator.cleanupExpired() closes at most100 expired unsubmitted uploads per explicit maintenance call.",
+  "limits": {
+    "fileBytes": 5242880,
+    "jsonBodyBytes": 65536,
+    "requestIdCharacters": "16..128",
+    "passwordScrypt": {
+      "N": 131072,
+      "r": 8,
+      "p": 1,
+      "maxmem": 268435456
+    },
+    "sessions": "server-side persistent hashes, 12 hour authenticated / 1 hour anonymous",
+    "unsubmittedUploadsPerAccount": 10,
+    "unsubmittedUploadBytesPerAccount": 52428800,
+    "unsubmittedUploadBytesGlobal": 524288000,
+    "passwordChanges": "6 attempts per account and 20 per client IP per 15 minutes; password validation and hashing remain memory bounded",
+    "activeBinaryUploads": 4,
+    "activePrivateDownloads": 4,
+    "privateDownloadDeadlineMs": 30000,
+    "evidenceBytesPerAccount": 104857600,
+    "evidenceVersionsPerAccount": 1000,
+    "evidenceBytesPerInstance": 2147483648,
+    "evidenceVersionsPerInstance": 20000,
+    "resourcePageItems": 50,
+    "learningPageItemsDefault": 20,
+    "learningPageItemsMaximum": 25,
+    "pageCursorCharacters": 2048,
+    "listSearchCharacters": 80
+  },
+  "schemaVersion": 2,
+  "availabilityPolicy": "Publish times must be ISO 8601 with explicit Z/UTC offset. Withdrawal is transactionally fenced against reservations. Times on a slot are immutable. Publishing an exactly matching withdrawn start/end reactivates its same ID; any changed time uses a new ID. Old cancelled bookings retain original times.",
+  "revisionPolicy": "Only a student can revise their own latest needs_revision Evidence for the same booking. Upload captures the current reviewVersion server-side. Final submit rechecks that review and atomically commits a single successor; concurrent or stale revisions conflict. Earlier evidence bytes, review and identifiers remain immutable. Superseded evidence cannot be reviewed again. Counters count all versions, manual review is not academic credit.",
+  "localDatabaseMigration": "Schema1 to2 is additive and local-only. A consistent VACUUM INTO backup with 0600 permissions is verified before migration. Three new tables: availability_state(slot_id,status,updated_at,updated_by); upload_revisions(upload_id,predecessor_id,expected_review_version); evidence_revisions(evidence_id,predecessor_id UNIQUE,root_id,revision_number). Existing slots backfill as published; other rows and file bytes are untouched. New databases start at schema2 with no seed data. Future schemas fail closed.",
+  "accountSecurityPolicy": "Password changes require the current password, per-account and per-IP rate limits, fresh CSRF/session/disabled-account/password checks after each asynchronous hash, and one transaction for credential update, all-session revocation, replacement session and completion receipt. No plaintext or fast password-derived idempotency digest is stored. Session handles grant no authentication and expose neither cookie nor database session hash. Current-session revocation uses logout. After a lost password-change response, bootstrap GET /session and query the completion receipt before claiming success; if the replacement cookie was lost, reauthenticate with the new password. A receipt never restores authentication. No email delivery or MFA is implied.",
+  "storageQuotaPolicy": "Logical Evidence quotas include pending intents at creation, with committed storage rechecked at final submit. They bound 100 MiB/1000 versions per owner and 2 GiB/20000 versions per instance, and fail with STORAGE_FULL. They are not a physical disk quota for database history, backup directories or unrelated/orphan files. No submitted Evidence is automatically deleted.",
+  "paginationPolicy": "Each page uses a short DEFERRED read snapshot that rechecks the server session, account status, role and target relationship before querying. Filters are applied before LIMIT. Cursors use bounded base64url JSON with a domain-separated HMAC, bound to actor UID, authorized target UID, resource and canonical filters; they expose no password verifier and grant no authentication. Unknown/repeated parameters, tampered cursors or changed scopes return INVALID_INPUT. Historical pages sort (immutable time DESC,id DESC), available times sort ASC. No OFFSET or full-dataset preload is used. Changes to reviews, statuses or search results are live, not a cross-request immutable snapshot: reset pagination after edits or filter changes. /workspace and /operations remain bounded overview summaries, not complete histories.",
+  "privateReadPolicy": "Single Evidence records, unfinished-upload metadata, family access, operator overviews and account-security reads use the same short DEFERRED authorization snapshot as resource pages. Private files are authorized and integrity-checked before the download response starts; later permission revocation cannot recall bytes already sent. Every private download has an absolute thirty-second deadline."
+}

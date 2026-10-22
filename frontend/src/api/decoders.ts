@@ -1,0 +1,568 @@
+import { TalaApiError } from "./errors";
+import type {
+  AccountSessions,
+  Appointment,
+  Availability,
+  CursorPage,
+  Evidence,
+  EvidenceContentType,
+  FamilyLinks,
+  LearningRecord,
+  LearningRecords,
+  ManagedSlot,
+  Operations,
+  OperatorAppointment,
+  OperatorEvidence,
+  OperatorLearningRecords,
+  PasswordChangeReceipt,
+  PendingUploads,
+  Progress,
+  SessionState,
+  SessionRevocation,
+  Slot,
+  UploadIntent,
+  UploadStatus,
+  User,
+  Workspace,
+} from "./types";
+
+export const MAX_FILE_BYTES = 5 * 1024 * 1024;
+export function object(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return raw as Record<string, unknown>;
+}
+export function text(raw: unknown, max = 200, empty = false): string {
+  if (typeof raw !== "string" || raw.length > max || (!empty && !raw.trim()))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return raw;
+}
+export function id(raw: unknown): string {
+  const value = text(raw, 128);
+  if (!/^[a-zA-Z0-9_-]{1,128}$/.test(value))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return value;
+}
+export function instant(raw: unknown): string {
+  const value = text(raw, 40);
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(value) || !Number.isFinite(Date.parse(value)))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return new Date(value).toISOString();
+}
+export function count(raw: unknown, max = Number.MAX_SAFE_INTEGER): number {
+  if (
+    typeof raw !== "number" ||
+    !Number.isSafeInteger(raw) ||
+    raw < 0 ||
+    raw > max
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return raw;
+}
+export function array(raw: unknown, max = 500): unknown[] {
+  if (!Array.isArray(raw) || raw.length > max)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return raw;
+}
+export function contentType(raw: unknown): EvidenceContentType {
+  if (raw !== "text/plain" && raw !== "application/pdf")
+    throw new TalaApiError("INVALID_RESPONSE");
+  return raw;
+}
+export function hash(raw: unknown): string {
+  const value = text(raw, 64);
+  if (!/^[a-f0-9]{64}$/.test(value)) throw new TalaApiError("INVALID_RESPONSE");
+  return value;
+}
+export function user(raw: unknown): User {
+  const value = object(raw);
+  if (
+    !["student", "parent", "operator"].includes(String(value.role)) ||
+    typeof value.emailVerified !== "boolean"
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    uid: id(value.uid),
+    name: text(value.name, 80),
+    email: text(value.email, 254),
+    role: value.role as User["role"],
+    emailVerified: value.emailVerified,
+  };
+}
+export function session(raw: unknown): SessionState {
+  const value = object(raw);
+  const csrfToken = text(value.csrfToken, 512);
+  if (csrfToken.length < 32 || /[\r\n]/.test(csrfToken))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    session: value.session === null ? null : user(value.session),
+    csrfToken,
+  };
+}
+export function accountSessions(raw: unknown): AccountSessions {
+  const value = object(raw);
+  if (typeof value.hasMore !== "boolean")
+    throw new TalaApiError("INVALID_RESPONSE");
+  const sessions = array(value.sessions, 100).map((rawSession) => {
+    const saved = object(rawSession);
+    const sessionId = id(saved.id);
+    const createdAt = instant(saved.createdAt),
+      expiresAt = instant(saved.expiresAt);
+    if (
+      !/^session_[a-zA-Z0-9_-]{43}$/.test(sessionId) ||
+      typeof saved.current !== "boolean" ||
+      Date.parse(expiresAt) <= Date.parse(createdAt)
+    )
+      throw new TalaApiError("INVALID_RESPONSE");
+    return { id: sessionId, current: saved.current, createdAt, expiresAt };
+  });
+  if (
+    sessions.filter((saved) => saved.current).length !== 1 ||
+    new Set(sessions.map((saved) => saved.id)).size !== sessions.length
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { sessions, hasMore: value.hasMore };
+}
+export function sessionRevocation(raw: unknown): SessionRevocation {
+  const value = object(raw);
+  if (value.currentSessionRevoked !== false)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    revokedSessionCount: count(value.revokedSessionCount),
+    currentSessionRevoked: false,
+  };
+}
+export function passwordChangeReceipt(raw: unknown): PasswordChangeReceipt {
+  const value = object(raw);
+  if (value.status !== "completed") throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    status: "completed",
+    changedAt: instant(value.changedAt),
+    revokedSessionCount: count(value.revokedSessionCount),
+  };
+}
+export function passwordChangeSession(raw: unknown) {
+  const value = object(raw),
+    saved = session(raw);
+  if (!saved.session || value.passwordChanged !== true)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    session: saved.session,
+    csrfToken: saved.csrfToken,
+    changedAt: instant(value.changedAt),
+    revokedSessionCount: count(value.revokedSessionCount),
+  };
+}
+export function slot(raw: unknown): Slot {
+  const value = object(raw);
+  if (typeof value.isAvailable !== "boolean")
+    throw new TalaApiError("INVALID_RESPONSE");
+  const startsAt = instant(value.startsAt),
+    endsAt = instant(value.endsAt);
+  if (Date.parse(endsAt) <= Date.parse(startsAt))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    id: id(value.id),
+    startsAt,
+    endsAt,
+    label: text(value.label, 160, true),
+    isAvailable: value.isAvailable,
+  };
+}
+export function managedSlot(raw: unknown): ManagedSlot {
+  const value = object(raw),
+    saved = slot(raw);
+  if (
+    !["available", "reserved", "withdrawn"].includes(String(value.status)) ||
+    typeof value.canWithdraw !== "boolean" ||
+    (saved.isAvailable && value.status !== "available") ||
+    (value.canWithdraw && (!saved.isAvailable || value.status !== "available"))
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    ...saved,
+    status: value.status as ManagedSlot["status"],
+    canWithdraw: value.canWithdraw,
+  };
+}
+export function availability(raw: unknown): Availability {
+  const value = object(raw);
+  if (typeof value.hasMore !== "boolean")
+    throw new TalaApiError("INVALID_RESPONSE");
+  const nextCursor = cursor(value.nextCursor);
+  const slots = array(value.slots, 50).map(managedSlot);
+  if (
+    value.hasMore !== Boolean(nextCursor) ||
+    new Set(slots.map((item) => item.id)).size !== slots.length ||
+    (!slots.length && nextCursor)
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    slots,
+    hasMore: value.hasMore,
+    nextCursor,
+  };
+}
+export function cursor(raw: unknown): string | null {
+  if (raw === null) return null;
+  const value = text(raw, 2048);
+  if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(value))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return value;
+}
+export function cursorPage<T extends { id: string }>(
+  raw: unknown,
+  parser: (item: unknown) => T,
+  limit = 50,
+): CursorPage<T> {
+  const value = object(raw),
+    items = array(value.items, limit).map(parser),
+    nextCursor = cursor(value.nextCursor);
+  if (
+    new Set(items.map((item) => item.id)).size !== items.length ||
+    (!items.length && nextCursor)
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { items, nextCursor };
+}
+export function appointment(raw: unknown, expectedOwner?: string): Appointment {
+  const value = object(raw);
+  const ownerUid = id(value.ownerUid);
+  if (
+    (expectedOwner && ownerUid !== expectedOwner) ||
+    !["reserved", "cancelled", "ended"].includes(String(value.status)) ||
+    value.meetingIntegration !== "unavailable"
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  const startsAt = instant(value.startsAt),
+    endsAt = instant(value.endsAt);
+  if (Date.parse(endsAt) <= Date.parse(startsAt))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    id: id(value.id),
+    ownerUid,
+    slotId: id(value.slotId),
+    startsAt,
+    endsAt,
+    status: value.status as Appointment["status"],
+    meetingIntegration: "unavailable",
+    updatedAt: instant(value.updatedAt),
+    ...(value.learningRecordId === undefined
+      ? {}
+      : { learningRecordId: id(value.learningRecordId) }),
+  };
+}
+export function evidence(raw: unknown, expectedOwner?: string): Evidence {
+  const value = object(raw);
+  const ownerUid = id(value.ownerUid);
+  if (
+    (expectedOwner && ownerUid !== expectedOwner) ||
+    value.status !== "submitted" ||
+    !["not_reviewed", "reviewed", "needs_revision"].includes(
+      String(value.reviewStatus),
+    )
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  const size = count(value.size, MAX_FILE_BYTES);
+  if (!size) throw new TalaApiError("INVALID_RESPONSE");
+  const evidenceId = id(value.id),
+    rootEvidenceId = id(value.rootEvidenceId);
+  const revisionNumber = count(value.revisionNumber);
+  const revisesEvidenceId =
+    value.revisesEvidenceId === undefined
+      ? undefined
+      : id(value.revisesEvidenceId);
+  const supersededByEvidenceId =
+    value.supersededByEvidenceId === undefined
+      ? undefined
+      : id(value.supersededByEvidenceId);
+  if (
+    !revisionNumber ||
+    revisesEvidenceId === evidenceId ||
+    supersededByEvidenceId === evidenceId ||
+    (revisionNumber === 1 && rootEvidenceId !== evidenceId)
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    id: evidenceId,
+    ownerUid,
+    appointmentId: id(value.appointmentId),
+    title: text(value.title, 120),
+    contentType: contentType(value.contentType),
+    size,
+    sha256: hash(value.sha256),
+    status: "submitted",
+    reviewStatus: value.reviewStatus as Evidence["reviewStatus"],
+    submittedAt: instant(value.submittedAt),
+    revisionNumber,
+    rootEvidenceId,
+    reviewVersion: count(value.reviewVersion),
+    ...(revisesEvidenceId ? { revisesEvidenceId } : {}),
+    ...(supersededByEvidenceId ? { supersededByEvidenceId } : {}),
+    ...(value.reviewNote !== undefined
+      ? { reviewNote: text(value.reviewNote, 1000) }
+      : {}),
+    ...(value.reviewedAt !== undefined
+      ? { reviewedAt: instant(value.reviewedAt) }
+      : {}),
+  };
+}
+export function progress(raw: unknown): Progress {
+  const value = object(raw);
+  if (value.masteryStatus !== "unavailable")
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    submittedEvidenceCount: count(value.submittedEvidenceCount),
+    assessedEvidenceCount: count(value.assessedEvidenceCount),
+    reviewedEvidenceCount: count(value.reviewedEvidenceCount),
+    acknowledgedOutcomeCount: count(value.acknowledgedOutcomeCount),
+    revisionSubmissionCount: count(value.revisionSubmissionCount),
+    masteryStatus: "unavailable",
+  };
+}
+export function workspace(raw: unknown, ownerUid: string): Workspace {
+  const value = object(raw);
+  return {
+    slots: array(value.slots).map(slot),
+    appointments: array(value.appointments, 100).map((item) =>
+      appointment(item, ownerUid),
+    ),
+    activeAppointments: array(value.activeAppointments, 1).map((item) =>
+      appointment(item, ownerUid),
+    ),
+    evidence: array(value.evidence, 100).map((item) =>
+      evidence(item, ownerUid),
+    ),
+    progress: progress(value.progress),
+  };
+}
+export function uploadIntent(raw: unknown, expectedHash: string): UploadIntent {
+  const value = object(raw);
+  if (value.maxBytes !== MAX_FILE_BYTES || hash(value.sha256) !== expectedHash)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    uploadId: id(value.uploadId),
+    sha256: expectedHash,
+    expiresAt: instant(value.expiresAt),
+    maxBytes: MAX_FILE_BYTES,
+  };
+}
+export function uploadStatus(raw: unknown, expectedId: string): UploadStatus {
+  const value = object(raw);
+  if (
+    value.uploadId !== expectedId ||
+    !["pending", "uploaded", "submitted", "cancelled", "failed"].includes(
+      String(value.status),
+    )
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  const size = count(value.size, MAX_FILE_BYTES);
+  if (!size) throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    uploadId: expectedId,
+    status: value.status as UploadStatus["status"],
+    sha256: hash(value.sha256),
+    size,
+    contentType: contentType(value.contentType),
+  };
+}
+export function pendingUploads(raw: unknown): PendingUploads {
+  const value = object(raw);
+  const uploads = array(value.uploads, 10).map((rawUpload) => {
+    const saved = object(rawUpload),
+      size = count(saved.size, MAX_FILE_BYTES);
+    if (!size || (saved.status !== "pending" && saved.status !== "uploaded"))
+      throw new TalaApiError("INVALID_RESPONSE");
+    return {
+      uploadId: id(saved.uploadId),
+      title: text(saved.title, 120),
+      appointmentId: id(saved.appointmentId),
+      contentType: contentType(saved.contentType),
+      size,
+      sha256: hash(saved.sha256),
+      status: saved.status as "pending" | "uploaded",
+      expiresAt: instant(saved.expiresAt),
+      ...(saved.revisesEvidenceId === undefined
+        ? {}
+        : { revisesEvidenceId: id(saved.revisesEvidenceId) }),
+    };
+  });
+  if (new Set(uploads.map((upload) => upload.uploadId)).size !== uploads.length)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { uploads };
+}
+export function learningRecord(raw: unknown): LearningRecord {
+  const value = object(raw);
+  if (value.status !== "published" || value.attendance !== "not_recorded")
+    throw new TalaApiError("INVALID_RESPONSE");
+  const outcomes = array(value.outcomes, 30).map((rawOutcome) => {
+    const outcome = object(rawOutcome);
+    if (outcome.status !== "published" || outcome.source !== "staff")
+      throw new TalaApiError("INVALID_RESPONSE");
+    return {
+      id: id(outcome.id),
+      summary: text(outcome.summary, 2000),
+      status: "published" as const,
+      source: "staff" as const,
+      publishedAt: instant(outcome.publishedAt),
+    };
+  });
+  const acknowledgedOutcomeIds = array(value.acknowledgedOutcomeIds, 30).map(
+    id,
+  );
+  if (
+    new Set(outcomes.map((item) => item.id)).size !== outcomes.length ||
+    new Set(acknowledgedOutcomeIds).size !== acknowledgedOutcomeIds.length ||
+    acknowledgedOutcomeIds.some(
+      (key) => !outcomes.some((item) => item.id === key),
+    )
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    id: id(value.id),
+    appointmentId: id(value.appointmentId),
+    status: "published",
+    attendance: "not_recorded",
+    outcomes,
+    acknowledgedOutcomeIds,
+    updatedAt: instant(value.updatedAt),
+  };
+}
+export function learningRecords(raw: unknown): LearningRecords {
+  const value = object(raw),
+    integrations = object(value.integrations);
+  if (integrations.zoom !== "unavailable" || integrations.ai !== "unavailable")
+    throw new TalaApiError("INVALID_RESPONSE");
+  const records = array(value.records, 25).map(learningRecord),
+    nextCursor = cursor(value.nextCursor);
+  if (
+    new Set(records.map((record) => record.id)).size !== records.length ||
+    (!records.length && nextCursor)
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    records,
+    integrations: { zoom: "unavailable", ai: "unavailable" },
+    nextCursor,
+  };
+}
+export function operatorEvidence(raw: unknown): OperatorEvidence {
+  const value = object(raw),
+    saved = evidence(raw),
+    studentUid = id(value.studentUid);
+  if (saved.ownerUid !== studentUid) throw new TalaApiError("INVALID_RESPONSE");
+  return { ...saved, studentUid, studentName: text(value.studentName, 80) };
+}
+export function operatorAppointment(raw: unknown): OperatorAppointment {
+  const value = object(raw),
+    saved = appointment(raw),
+    studentUid = id(value.studentUid);
+  if (saved.ownerUid !== studentUid) throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    ...saved,
+    studentUid,
+    studentName: text(value.studentName, 80),
+    ...(value.learningRecordId === undefined
+      ? {}
+      : { learningRecordId: id(value.learningRecordId) }),
+  };
+}
+export function operatorLearningRecords(raw: unknown): OperatorLearningRecords {
+  const value = object(raw),
+    saved = learningRecords(raw);
+  return {
+    ...saved,
+    records: array(value.records, 25).map((record) => {
+      const row = object(record);
+      return {
+        ...learningRecord(record),
+        studentUid: id(row.studentUid),
+        studentName: text(row.studentName, 80),
+      };
+    }),
+  };
+}
+export function familyLinks(raw: unknown, currentUid: string): FamilyLinks {
+  const value = object(raw);
+  const relationships = array(value.relationships, 100).map((rawLink) => {
+    const link = object(rawLink);
+    const studentUid = id(link.studentUid),
+      parentUid = id(link.parentUid);
+    if (
+      (studentUid !== currentUid && parentUid !== currentUid) ||
+      studentUid === parentUid ||
+      link.status !== "active" ||
+      link.consent !== "recorded" ||
+      !Array.isArray(link.permissions) ||
+      link.permissions.length !== 1 ||
+      link.permissions[0] !== "read"
+    )
+      throw new TalaApiError("INVALID_RESPONSE");
+    return {
+      id: id(link.id),
+      studentUid,
+      parentUid,
+      status: "active" as const,
+      consent: "recorded" as const,
+      permissions: ["read"] as ["read"],
+    };
+  });
+  const linkedProfiles = array(value.linkedProfiles, 200).map((rawProfile) => {
+    const profile = object(rawProfile),
+      uid = id(profile.uid);
+    if (
+      !["student", "parent"].includes(String(profile.role)) ||
+      !relationships.some(
+        (link) => link.studentUid === uid || link.parentUid === uid,
+      )
+    )
+      throw new TalaApiError("INVALID_RESPONSE");
+    return {
+      uid,
+      role: profile.role as "student" | "parent",
+      name: text(profile.name, 80),
+    };
+  });
+  return { relationships, linkedProfiles };
+}
+export function operations(raw: unknown): Operations {
+  const value = object(raw);
+  if (typeof value.availabilityHasMore !== "boolean")
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    availability: array(value.availability, 100).map(managedSlot),
+    availabilityHasMore: value.availabilityHasMore,
+    learningRecords: array(value.learningRecords, 100).map((item) => {
+      const record = object(item);
+      return {
+        ...learningRecord(record),
+        studentUid: id(record.studentUid),
+        studentName: text(record.studentName, 80),
+      };
+    }),
+    appointments: array(value.appointments, 100).map((item) => {
+      const record = object(item);
+      const saved = appointment(record);
+      const studentUid = id(record.studentUid);
+      if (saved.ownerUid !== studentUid)
+        throw new TalaApiError("INVALID_RESPONSE");
+      return {
+        ...saved,
+        studentUid,
+        studentName: text(record.studentName, 80),
+      };
+    }),
+    evidence: array(value.evidence, 100).map((item) => {
+      const record = object(item);
+      const saved = evidence(record);
+      const studentUid = id(record.studentUid);
+      if (saved.ownerUid !== studentUid)
+        throw new TalaApiError("INVALID_RESPONSE");
+      return {
+        ...saved,
+        studentUid,
+        studentName: text(record.studentName, 80),
+      };
+    }),
+  };
+}

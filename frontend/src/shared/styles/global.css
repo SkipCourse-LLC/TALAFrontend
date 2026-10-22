@@ -1,0 +1,42 @@
+/* Explicit cascade: foundations, shared UI, then specific layouts. */
+@import "./base.css";
+@import "./shared.css";
+@import "./layout.css";
+@import "../../public-site/public.css";
+@import "./forms.css";
+@import "../../authentication/authentication.css";
+@import "../../dashboard/dashboard.css";
+@import "../../classes/classes.css";
+@import "../../dashboard/learning.css";
+@import "../../registration/registration.css";
+@import "../../payment/payment.css";
+
+/* Keep all motion optional, including future component transitions. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .button,
+  .nav-hub-link,
+  .menu-toggle {
+    background: ButtonFace;
+    color: ButtonText;
+    border-color: ButtonText;
+  }
+  .primary-nav a.active {
+    text-decoration: underline;
+    text-decoration-color: LinkText;
+  }
+  .notice,
+  .state-panel,
+  .demo-pill {
+    border: 1px solid CanvasText;
+  }
+}

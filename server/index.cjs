@@ -1,0 +1,11 @@
+"use strict";
+const { assertCurrentRevision } = require("./runtimeIdentity.cjs");
+const path = require("node:path");
+const { createApplication } = require("./application.cjs");
+assertCurrentRevision();
+const port = Number(process.env.TALA_SERVER_PORT || 8787);
+if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Choose a local server port between 1024 and 65535.");
+const app = createApplication({ dataDir: process.env.TALA_DATA_DIR || path.join(__dirname, ".runtime"), ...(process.env.TALA_ALLOWED_ORIGINS ? { allowedOrigins: process.env.TALA_ALLOWED_ORIGINS.split(",").map((value) => value.trim()) } : {}) });
+app.server.listen(port, "127.0.0.1", () => console.log(`TALA independent backend ready at http://127.0.0.1:${port}. No Firebase, email, Zoom, AI or payment connection is enabled.`));
+let stopping = false;
+for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { if (!stopping) { stopping = true; void app.close().then(() => { process.exitCode = 0; }).catch(() => { process.exitCode = 1; }); } });

@@ -1,0 +1,781 @@
+.product-workspace.student-workspace {
+  --student-surface: #ffffff;
+  --student-tint: #edf2ef;
+  --student-accent: #174139;
+  --student-ink: #1d1d1f;
+  --student-muted: #626268;
+  --student-line: #d2d2d7;
+  padding-top: 36px;
+}
+
+.student-workspace .meeting-panel-heading,
+.student-workspace .meeting-history-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 20px 32px;
+  flex-wrap: wrap;
+}
+.student-workspace .meeting-panel-heading h2 {
+  margin-bottom: 12px;
+}
+.student-workspace .meeting-panel-heading p,
+.student-workspace .meeting-history-heading p {
+  margin: 0;
+  max-width: 62ch;
+}
+.meeting-time-zone,
+.student-workspace .meeting-help {
+  color: var(--student-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.meeting-time-zone {
+  padding-top: 8px;
+}
+.student-workspace .meeting-booking-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 28px;
+  margin-block: 28px 40px;
+  align-items: start;
+}
+.student-workspace .meeting-current {
+  background: var(--student-tint);
+  border: 1px solid #dae4dd;
+  border-radius: 18px;
+  padding: 24px;
+  min-width: 0;
+}
+.student-workspace .meeting-current h3,
+.student-workspace .meeting-availability h3,
+.student-workspace .meeting-history h3 {
+  font-size: 1.2rem;
+  line-height: 1.4;
+  margin-block: 0 16px;
+}
+.meeting-booking-status,
+.meeting-history-status {
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--student-accent);
+  background: #ffffff;
+  padding: 4px 9px;
+  border-radius: 6px;
+}
+.student-workspace .meeting-current-time {
+  font-size: 1.35rem;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  margin-block: 16px;
+}
+.student-workspace .meeting-current > :last-child {
+  margin-bottom: 0;
+}
+.student-workspace .meeting-availability {
+  min-width: 0;
+  padding-top: 2px;
+}
+.student-workspace .meeting-availability .form-field {
+  margin-block: 0 20px;
+}
+.student-workspace .meeting-help {
+  margin-block: 10px 16px;
+}
+.student-workspace .meeting-text-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 4px;
+  color: var(--student-accent);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.student-workspace .meeting-text-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.student-workspace .meeting-empty {
+  padding-block: 12px;
+}
+.student-workspace .meeting-empty p {
+  margin-block: 0 12px;
+}
+.student-workspace .meeting-history {
+  border-top: 1px solid var(--student-line);
+  padding-top: 28px;
+}
+.student-workspace .meeting-history-heading h3 {
+  margin-bottom: 8px;
+}
+.student-workspace .meeting-history-heading .form-field {
+  min-width: min(100%, 260px);
+  margin: 0;
+}
+.student-workspace .meeting-history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 24px;
+}
+.student-workspace .meeting-history-filter {
+  min-height: 44px;
+  border: 1px solid var(--student-line);
+  border-radius: 10px;
+  padding: 9px 14px;
+  background: var(--student-surface);
+  color: var(--student-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.student-workspace .meeting-history-filter span {
+  margin-left: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.student-workspace .meeting-history-filter[aria-pressed="true"] {
+  border-color: var(--student-accent);
+  background: var(--student-tint);
+  color: var(--student-accent);
+  font-weight: 600;
+}
+.student-workspace .meeting-history-day h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-block: 24px 8px;
+}
+.student-workspace .meeting-history-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.student-workspace .meeting-history-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding-block: 20px;
+  border-bottom: 1px solid var(--student-line);
+}
+.student-workspace .meeting-history-list p {
+  margin-block: 0 10px;
+}
+.student-workspace .meeting-history-list .meeting-help {
+  margin-bottom: 0;
+}
+.student-workspace .meeting-history-status {
+  background: var(--student-tint);
+}
+.student-workspace .meeting-history-status[data-status="cancelled"],
+.student-workspace .meeting-history-status[data-status="past"] {
+  background: #f0f0f2;
+  color: #55565b;
+}
+.student-workspace .meeting-history-empty {
+  padding: 16px 0;
+  color: var(--student-muted);
+}
+.student-workspace .meeting-stale-note,
+.student-workspace .meeting-draft-warning {
+  border-left: 3px solid #8a641f;
+  padding: 12px 16px;
+  background: #faf5e9;
+  color: #5e461e;
+  border-radius: 0 8px 8px 0;
+}
+.student-workspace .meeting-confirmation {
+  width: min(640px, calc(100% - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  padding: clamp(22px, 4vw, 36px);
+  border: 1px solid var(--student-line);
+  border-radius: 22px;
+  color: var(--student-ink);
+  background: var(--student-surface);
+}
+.meeting-confirmation::backdrop {
+  background: rgba(15, 30, 26, 0.4);
+}
+.student-workspace .meeting-confirmation h2 {
+  font-size: 1.75rem;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  margin-bottom: 20px;
+}
+.student-workspace .meeting-confirmation > p {
+  max-width: 70ch;
+  line-height: 1.6;
+}
+.student-workspace .meeting-confirm-times {
+  margin-block: 24px;
+}
+.student-workspace .meeting-confirm-times > div {
+  padding: 16px 0;
+  border-block-end: 1px solid var(--student-line);
+}
+.student-workspace .meeting-confirm-times dt {
+  font-size: 0.875rem;
+  color: var(--student-muted);
+  margin-bottom: 8px;
+}
+.student-workspace .meeting-confirm-times dd {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+.student-workspace .meeting-confirm-actions {
+  margin-top: 24px;
+}
+@media (max-width: 720px) {
+  .student-workspace .meeting-booking-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .student-workspace .meeting-current {
+    padding: 20px;
+  }
+  .student-workspace .meeting-history-list > li {
+    flex-direction: column;
+    align-items: start;
+    gap: 8px;
+  }
+  .student-workspace .meeting-history-heading .form-field {
+    width: 100%;
+  }
+}
+.student-workspace [hidden] {
+  display: none !important;
+}
+.student-workspace .product-heading {
+  margin-bottom: 28px;
+}
+.student-workspace .product-heading h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  margin-bottom: 12px;
+  max-width: 22ch;
+}
+.student-workspace .product-heading p {
+  margin-top: 0;
+  max-width: 62ch;
+}
+.student-workspace-label {
+  color: var(--student-accent);
+  font-size: 0.94rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.student-workspace .student-account {
+  padding: 0 0 16px;
+  border: 0;
+  border-bottom: 1px solid var(--student-line);
+  border-radius: 0;
+  background: transparent;
+  margin-bottom: 12px;
+}
+.student-account > summary {
+  display: list-item;
+  width: fit-content;
+  min-height: 44px;
+  padding-block: 12px;
+}
+.student-account > p {
+  max-width: 65ch;
+}
+.student-workspace .product-section-nav {
+  gap: 4px;
+  padding: 8px 0;
+  margin: 12px 0 8px;
+  border-bottom: 1px solid var(--student-line);
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+}
+.student-workspace .product-section-nav .product-section-link {
+  position: relative;
+  border-radius: 10px;
+  padding: 12px 18px;
+  flex: 0 0 auto;
+  color: var(--student-muted);
+  text-decoration: none;
+  font-weight: 550;
+}
+.student-workspace
+  .product-section-nav
+  .product-section-link[aria-current="page"] {
+  background: var(--student-tint);
+  color: var(--student-accent);
+  font-weight: 650;
+}
+.student-workspace .product-section-nav .product-section-link:hover {
+  background: #e9ecea;
+  color: var(--student-accent);
+}
+.student-workspace .product-section-nav .product-section-link:focus-visible {
+  outline-offset: -3px;
+}
+.student-draft-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-left: 8px;
+}
+.student-workspace .student-workspace-toolbar {
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding-block: 12px 24px;
+}
+.student-workspace-toolbar > span {
+  font-size: 0.85rem;
+  color: var(--student-muted);
+}
+.student-workspace-toolbar .button {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 0.875rem;
+}
+.student-workspace .student-focused-content {
+  display: block;
+}
+.student-focused-content .product-main,
+.student-focused-content .product-side {
+  display: block;
+}
+.student-focused-content .product-card {
+  padding: clamp(24px, 4vw, 40px);
+  border-color: #e0e2e1;
+  border-radius: 24px;
+}
+.student-focused-content .product-card > p {
+  max-width: 76ch;
+}
+.student-focused-content .product-fields {
+  max-width: 690px;
+  gap: 20px;
+  margin-block: 24px;
+}
+.student-focused-content .product-fields .form-field {
+  margin-block: 0;
+}
+.student-focused-content .product-list {
+  margin-top: 16px;
+}
+.student-focused-content h2,
+.student-overview h2 {
+  scroll-margin-top: 24px;
+}
+.student-workspace .product-saved {
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 760px;
+}
+.student-workspace .product-saved > p {
+  max-width: 65ch;
+}
+.student-workspace .product-status,
+.student-workspace .product-error {
+  margin-block: 8px 20px;
+}
+.student-workspace .product-status:empty {
+  display: none;
+}
+.student-family-notice {
+  padding: 16px 20px;
+  background: var(--student-tint);
+  color: var(--student-accent);
+  border-radius: 12px;
+}
+.student-section-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 4px 0 24px;
+}
+.student-section-heading h2 {
+  font-size: 1.7rem;
+  margin-bottom: 8px;
+}
+.student-section-heading p {
+  margin-bottom: 0;
+}
+.student-connection {
+  white-space: nowrap;
+  color: var(--student-muted);
+  font-size: 0.82rem;
+  padding-top: 8px;
+}
+.student-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+  gap: 32px;
+  align-items: stretch;
+}
+.student-next-meeting {
+  background: var(--student-accent);
+  padding: clamp(28px, 4vw, 40px);
+  border-radius: 24px;
+  color: white;
+}
+.student-next-meeting h3 {
+  font-size: clamp(1.65rem, 3vw, 2.2rem);
+  color: white;
+  line-height: 1.2;
+  max-width: 20ch;
+  margin-bottom: 16px;
+}
+.student-next-meeting p {
+  color: #e2ede6;
+  max-width: 60ch;
+}
+.student-next-meeting .student-feature-label {
+  color: white;
+  font-size: 0.94rem;
+  font-weight: 550;
+  margin-bottom: 28px;
+}
+.student-next-meeting .student-meeting-time {
+  color: white;
+  font-weight: 600;
+  line-height: 1.7;
+}
+.student-next-meeting .button {
+  background: white;
+  color: var(--student-accent);
+  border: 1px solid white;
+}
+.student-next-meeting :focus-visible {
+  outline-color: white;
+}
+.student-activity-summary {
+  padding: 16px 0;
+}
+.student-activity-summary h3 {
+  font-size: 1.15rem;
+  margin: 0 0 20px;
+}
+.student-activity-summary dl {
+  margin: 0 0 16px;
+}
+.student-activity-summary dl > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-block: 18px;
+  border-bottom: 1px solid var(--student-line);
+}
+.student-activity-summary dt {
+  color: var(--student-muted);
+}
+.student-activity-summary dd {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--student-ink);
+}
+.student-text-action {
+  padding: 12px 0;
+  min-height: 44px;
+  color: var(--student-accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  font: inherit;
+  background: transparent;
+  border: 0;
+}
+.student-follow-ups {
+  margin-top: 36px;
+}
+.student-follow-ups > h3 {
+  font-size: 1.25rem;
+  margin-bottom: 12px;
+}
+.student-follow-up {
+  width: 100%;
+  padding: 24px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  border: 0;
+  border-top: 1px solid var(--student-line);
+  background: transparent;
+  text-align: left;
+}
+.student-follow-up > span:first-child {
+  display: grid;
+  gap: 8px;
+  max-width: 72ch;
+}
+.student-follow-up strong {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.student-follow-up span span {
+  color: var(--student-muted);
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+.student-follow-up-link {
+  color: var(--student-accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  flex-shrink: 0;
+}
+.student-service-details {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--student-line);
+  max-width: 85ch;
+}
+.student-service-details summary {
+  min-height: 44px;
+  padding-block: 12px;
+  color: var(--student-muted);
+  font-size: 0.9rem;
+}
+.student-service-details p {
+  font-size: 0.9rem;
+  max-width: 76ch;
+}
+.student-workspace .product-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-block: 28px;
+}
+.student-workspace .product-stats > div {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: start;
+  gap: 12px;
+  padding-block: 16px;
+}
+.student-workspace .product-stats dd {
+  font-size: 2.4rem;
+}
+.student-revision-notice {
+  padding: 20px;
+  background: #f8f1e2;
+  color: #5d420c;
+  border-radius: 12px;
+  margin-block: 20px;
+}
+.student-revision-notice p {
+  color: inherit;
+}
+.student-evidence-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--student-muted);
+  margin-block: 8px 12px;
+}
+.student-review-badge {
+  border-radius: 6px;
+  padding: 5px 9px;
+  background: var(--student-tint);
+  color: var(--student-accent);
+  font-weight: 600;
+}
+.student-review-badge[data-status="needs_revision"] {
+  background: #f8f1e2;
+  color: #5d420c;
+}
+.student-review-note {
+  margin-block: 16px;
+  padding-left: 18px;
+  border-left: 3px solid var(--student-line);
+}
+.student-review-note p {
+  max-width: 74ch;
+}
+.student-review-note p,
+.student-revision-notice p,
+.student-workspace .product-outcome > p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.student-documents-heading {
+  margin-top: 36px;
+}
+.student-documents-heading > h3 {
+  margin-bottom: 8px;
+}
+.student-documents-heading > p,
+.student-file-preview {
+  font-size: 0.875rem;
+  max-width: 72ch;
+}
+.student-document-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.6fr);
+  gap: 20px;
+  max-width: 760px;
+}
+.student-history-dialog {
+  width: min(760px, calc(100% - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #d2d2d7;
+  border-radius: 24px;
+  padding: clamp(24px, 4vw, 40px);
+  color: #1d1d1f;
+}
+.student-history-dialog::backdrop {
+  background: rgb(22 39 33 / 45%);
+}
+.student-history-dialog > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.student-history-dialog > header h2 {
+  margin: 0;
+  font-size: 1.65rem;
+}
+.student-history-dialog p {
+  max-width: 72ch;
+}
+.student-history-dialog .product-actions {
+  margin-top: 24px;
+}
+@media (max-width: 760px) {
+  .product-workspace.student-workspace {
+    padding-top: 24px;
+  }
+  .student-overview-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .student-activity-summary {
+    padding: 0;
+  }
+  .student-section-heading {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .student-next-meeting {
+    padding: 28px;
+  }
+  .student-workspace .product-heading {
+    gap: 16px;
+  }
+  .student-workspace .product-heading > .product-actions {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+  }
+  .student-workspace .product-heading > .product-actions > :is(button, a) {
+    width: auto;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .student-workspace .product-heading > .product-actions .button {
+    width: auto;
+    margin-left: auto;
+  }
+  .student-workspace .product-section-nav .product-section-link {
+    padding-inline: 14px;
+  }
+  .student-workspace .student-workspace-toolbar {
+    align-items: center;
+    flex-direction: row;
+  }
+  .student-workspace-toolbar > .button {
+    width: auto;
+  }
+  .student-workspace-toolbar > span {
+    width: 100%;
+  }
+  .student-follow-up {
+    align-items: start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .student-workspace .product-stats {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .student-workspace .product-stats > div {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .student-document-filters {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+.student-workspace .form-field input[type="file"] {
+  max-width: 100%;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.student-workspace .form-field input[type="file"]::file-selector-button {
+  min-height: 44px;
+  margin-right: 12px;
+  border: 1px solid #b8c8c2;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #edf3f0;
+  color: #173f37;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.student-workspace .student-page-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-color, #d8dedb);
+}
+
+.student-workspace .student-page-controls > p {
+  flex: 1 1 220px;
+  margin: 0;
+  color: var(--muted-color, #596960);
+  font-size: 0.875rem;
+}
+
+.student-workspace .student-page-controls > button {
+  min-height: 44px;
+}
+
+.student-workspace .student-page-error {
+  flex-basis: 100%;
+  padding: 14px 16px;
+  border: 1px solid #c9958a;
+  border-radius: 12px;
+  background: #fff7f4;
+  color: #743a2a;
+}
+
+.student-workspace .student-page-error > p {
+  margin: 0 0 12px;
+}
+
+@media (max-width: 540px) {
+  .student-workspace .student-page-controls > button {
+    width: 100%;
+  }
+}

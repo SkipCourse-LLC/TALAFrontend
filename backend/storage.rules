@@ -1,0 +1,38 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function localStudent(uid) {
+      return bucket == 'demo-tala-local.appspot.com'
+        && request.auth != null && request.auth.uid == uid
+        && request.auth.token.role == 'student'
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@example[.]test')
+        && firestore.get(/databases/(default)/documents/users/$(uid)).data.role == 'student';
+    }
+    function intent(uploadId) {
+      return firestore.get(/databases/(default)/documents/tala_local_uploads/$(uploadId));
+    }
+    match /tala-local-evidence/{uid}/{uploadId}/{filename} {
+      // Upload status and reads require the authenticated backend, never bearer URLs.
+      allow get: if false;
+      allow list: if false;
+      // Immutable object. Server validates content bytes before submission.
+      allow create: if localStudent(uid)
+        && resource == null
+        && filename in ['document.txt', 'document.pdf']
+        && request.resource.size > 0 && request.resource.size <= 5242880
+        && request.resource.contentType in ['text/plain', 'application/pdf']
+        && request.resource.metadata.keys().hasOnly(['sha256'])
+        && request.resource.metadata.sha256.matches('[a-f0-9]{64}')
+        && request.resource.metadata.sha256 == intent(uploadId).data.expectedSha256
+        && intent(uploadId).data.ownerUid == uid
+        && intent(uploadId).data.status == 'pending'
+        && intent(uploadId).data.expiresAt > request.time
+        && intent(uploadId).data.storagePath == 'tala-local-evidence/' + uid + '/' + uploadId + '/' + filename
+        && intent(uploadId).data.contentType == request.resource.contentType
+        && intent(uploadId).data.size == request.resource.size;
+      allow update, delete: if false;
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

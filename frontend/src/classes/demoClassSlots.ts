@@ -1,0 +1,43 @@
+// Fictional classes for the sponsor walkthrough, not live school availability.
+export const demoClassSlots = [
+  {
+    id: "science-monday",
+    title: "Everyday science lab",
+    day: "Monday",
+    start: "8:00 AM",
+    end: "10:00 AM",
+    mode: "In-Person",
+    status: "Available",
+    seats: 2,
+  },
+  {
+    id: "reading-tuesday",
+    title: "Reading together",
+    day: "Tuesday",
+    start: "10:00 AM",
+    end: "12:00 PM",
+    mode: "Online",
+    status: "Available",
+    seats: 3,
+  },
+  {
+    id: "art-wednesday",
+    title: "Creative studio",
+    day: "Wednesday",
+    start: "12:00 PM",
+    end: "2:00 PM",
+    mode: "In-Person",
+    status: "Full",
+    seats: 0,
+  },
+  {
+    id: "math-thursday",
+    title: "Math in daily life",
+    day: "Thursday",
+    start: "8:00 AM",
+    end: "10:00 AM",
+    mode: "Online",
+    status: "Waiting List",
+    seats: 0,
+  },
+] as const;
