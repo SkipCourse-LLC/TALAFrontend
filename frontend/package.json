@@ -10,12 +10,6 @@
     "dev": "node scripts/startApplication.mjs",
     "dev:app": "node scripts/startApplication.mjs",
     "dev:demo": "node scripts/startApplication.mjs --demo",
-    "dev:firebase": "node scripts/firebase-dev.mjs",
-    "dev:test-cloud": "vite --mode firebase-test --host 127.0.0.1 --port 5177 --strictPort",
-    "build:test-cloud": "npm run typecheck && vite build --mode firebase-test",
-    "test:firebase-core": "playwright test -c src/backend/firebaseCore.config.ts",
-    "test:firebase-browser": "playwright test -c tests/firebaseIntegration.config.ts",
-    "test:cloud-boundary": "playwright test -c tests/firebaseCloudArchitecture.config.ts",
     "test:api-client": "playwright test -c src/api/apiUnit.config.ts",
     "test:product": "playwright test -c src/product/productIntegration.config.ts",
     "test:product-pagination": "playwright test -c src/product/productPagination.config.ts",
@@ -30,15 +24,11 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/*.ts\" index.html package.json tsconfig.json vite.config.ts playwright.config.ts eslint.config.js"
   },
   "dependencies": {
-    "firebase": "12.19.0",
     "otpauth": "9.5.2",
     "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-router-dom": "7.18.4"
-  },
-  "overrides": {
-    "@grpc/grpc-js": "1.14.6"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

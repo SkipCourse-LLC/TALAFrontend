@@ -21,11 +21,6 @@ const StudentDashboard = lazy(() =>
 import { NotFoundPage } from "./public-site/NotFoundPage";
 import { readDemoSession, saveDemoSession } from "./authentication/authService";
 import type { DemoSession } from "./shared/services/serviceTypes";
-const FirebaseApplication = lazy(() =>
-  import("./backend/FirebaseApplication").then((module) => ({
-    default: module.FirebaseApplication,
-  })),
-);
 const ServerApplication = lazy(() =>
   import("./product/ServerApplication").then((module) => ({
     default: module.ServerApplication,
@@ -35,38 +30,22 @@ const ServerApplication = lazy(() =>
 export default function App() {
   const mode = import.meta.env.VITE_BACKEND_MODE || "api";
   if (mode === "demo") return <DemoApplication />;
-  if (mode === "api")
-    return (
-      <Suspense
-        fallback={
-          <div className="container state-panel" role="status">
-            Connecting to your TALA server…
-          </div>
-        }
-      >
-        <ServerApplication />
-      </Suspense>
-    );
-  if (
-    mode !== "firebase" &&
-    mode !== "firebase-emulator" &&
-    mode !== "firebase-test"
-  )
+  if (mode !== "api")
     return (
       <section className="container state-panel" role="alert">
         <h1>Backend configuration unavailable</h1>
-        <p>Use demo, firebase-emulator or an approved firebase environment.</p>
+        <p>Set VITE_BACKEND_MODE to api or demo.</p>
       </section>
     );
   return (
     <Suspense
       fallback={
         <div className="container state-panel" role="status">
-          Connecting to authentication…
+          Connecting to your TALA server…
         </div>
       }
     >
-      <FirebaseApplication />
+      <ServerApplication />
     </Suspense>
   );
 }

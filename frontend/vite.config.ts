@@ -1,52 +1,23 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
-import {
-  resolveFirebaseConfiguration,
-  validatePublicEnvironment,
-} from "./src/backend/firebaseConfiguration.ts";
+import { validatePublicEnvironment } from "./src/shared/publicEnvironment.ts";
+
+const BACKEND_MODES = ["api", "demo"];
 
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, process.cwd(), "VITE_");
   validatePublicEnvironment(environment);
-  if (mode === "firebase-test") {
-    if (environment.VITE_BACKEND_MODE !== "firebase-test")
-      throw new Error(
-        "Configure the approved Firebase test environment before starting this mode.",
-      );
-    resolveFirebaseConfiguration(environment, "localhost");
-  } else if (
-    environment.VITE_BACKEND_MODE &&
-    !["demo", "api"].includes(environment.VITE_BACKEND_MODE)
-  ) {
-    resolveFirebaseConfiguration(environment, "localhost");
-  }
+  const backend = environment.VITE_BACKEND_MODE;
+  if (backend && !BACKEND_MODES.includes(backend))
+    throw new Error(`VITE_BACKEND_MODE must be "api" or "demo".`);
+  const apiProxy = {
+    "/api": { target: "http://127.0.0.1:8787", changeOrigin: false },
+  };
   return {
     plugins: [react()],
     // Relative assets + HashRouter work under both root and project subpaths.
     base: "./",
-    server: {
-      proxy: {
-        "/api": { target: "http://127.0.0.1:8787", changeOrigin: false },
-      },
-    },
-    preview: {
-      proxy: {
-        "/api": { target: "http://127.0.0.1:8787", changeOrigin: false },
-      },
-    },
-    build: {
-      rolldownOptions: {
-        output: {
-          codeSplitting: {
-            groups: [
-              {
-                name: "firebase-firestore",
-                test: /node_modules\/@firebase\/firestore/,
-              },
-            ],
-          },
-        },
-      },
-    },
+    server: { proxy: apiProxy },
+    preview: { proxy: apiProxy },
   };
 });
