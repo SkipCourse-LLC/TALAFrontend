@@ -1,4 +1,3 @@
-/* Page frame shared by the public site and workspaces. */
 .preview-banner {
   padding: 9px 20px;
   background: #eef2ef;
@@ -14,29 +13,12 @@
   background: var(--color-surface);
   border-bottom: var(--border-panel);
 }
-/* The header spans the page; its side padding matches the .container gutters. */
 .nav-row {
   min-height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 40px;
-  padding-inline: 40px;
-}
-@media (max-width: 1050px) {
-  .nav-row {
-    padding-inline: 28px;
-  }
-}
-@media (max-width: 850px) {
-  .nav-row {
-    padding-inline: 20px;
-  }
-}
-@media (max-width: 360px) {
-  .nav-row {
-    padding-inline: 16px;
-  }
 }
 .brand {
   display: inline-flex;
@@ -231,26 +213,9 @@
   }
 }
 @media (min-width: 961px) {
-  /* The logo sits at the page edge. The nav spans the content column, its
-     links spread evenly from the first to Community Login; when the window
-     is too narrow, it starts just after the logo instead. */
-  .nav-row {
-    --content-inset: calc((100% - var(--container)) / 2);
-    display: grid;
-    grid-template-columns:
-      minmax(max-content, var(--content-inset))
-      minmax(0, 1fr)
-      minmax(0, var(--content-inset));
-    gap: 0;
-  }
-  .brand {
-    margin-right: 32px;
-  }
-  .primary-nav {
-    justify-content: space-between;
-  }
-  .nav-actions {
-    margin-left: 0;
+  /* Links sit in a group centered between the logo and Community Login. */
+  .primary-nav > a:first-child {
+    margin-left: auto;
   }
   .nav-hub-link {
     position: relative;
@@ -277,7 +242,6 @@
     animation: nav-underline-sweep 450ms ease-in-out;
   }
 }
-/* Wipe the underline out to the right, then draw it back in from the left. */
 @keyframes nav-underline-sweep {
   0% {
     transform: scaleX(1);

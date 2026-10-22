@@ -33,7 +33,7 @@ export function SiteHeader({
           event.target.closest("a")
         ) {
           setOpen(false);
-          // A current-page link does not remount the header or run route focus.
+          // Same-page links don't remount the header, so restore focus here.
           toggle.current?.focus();
         }
       }}
@@ -44,7 +44,7 @@ export function SiteHeader({
         }
       }}
     >
-      <div className="nav-row">
+      <div className="container nav-row">
         <Brand />
         <button
           ref={toggle}
