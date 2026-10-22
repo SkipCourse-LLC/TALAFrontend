@@ -1,0 +1,342 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Outlet } from "react-router-dom";
+import type { ReactNode } from "react";
+import { SiteLayout } from "../shared/SiteLayout";
+import { RouteFocus } from "../shared/RouteFocus";
+import { HomePage } from "../public-site/HomePage";
+import { AboutPage } from "../public-site/AboutPage";
+import { ProgramsPage } from "../public-site/ProgramsPage";
+import { CommunityPage } from "../public-site/CommunityPage";
+import { NotFoundPage } from "../public-site/NotFoundPage";
+import { ContactRequestPage } from "../onboarding/ContactRequestPage";
+import { OpenTimesPage } from "../onboarding/OpenTimesPage";
+import { talaApi, safeTalaApiError } from "../api";
+import type { ApiUser } from "../api";
+import { ServerAccessPage } from "./ServerAccessPage";
+import { ServerWorkspace } from "./ServerWorkspace";
+import { OperatorWorkspace } from "./OperatorWorkspace";
+import { AccountSecurityPage } from "./AccountSecurityPage";
+import { useSessionPrivacy } from "./useSessionPrivacy";
+import { WorkspaceVisibility } from "./workspaceVisibility";
+import "./product.css";
+
+function IndependentRouteFocus() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (pathname !== "/dashboard" && pathname !== "/two-factor") return;
+    document.title =
+      pathname === "/two-factor"
+        ? "Account security | TALA"
+        : "Your workspace | TALA";
+    window.scrollTo({ top: 0, behavior: "instant" });
+    document.getElementById("main-content")?.focus({ preventScroll: true });
+  }, [pathname]);
+  return pathname === "/dashboard" || pathname === "/two-factor" ? null : (
+    <RouteFocus />
+  );
+}
+
+function WorkspaceKeeper({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const visible = pathname === "/dashboard";
+  return (
+    <>
+      <div
+        hidden={!visible}
+        inert={!visible}
+        style={{ display: visible ? undefined : "none" }}
+      >
+        {children}
+      </div>
+      <Outlet />
+    </>
+  );
+}
+
+export function ServerApplication() {
+  const location = useLocation();
+  const [workspaceReturn, setWorkspaceReturn] = useState("/dashboard");
+  if (
+    location.pathname === "/dashboard" &&
+    workspaceReturn !== `/dashboard${location.search}`
+  )
+    setWorkspaceReturn(`/dashboard${location.search}`);
+  const [user, setUser] = useState<ApiUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const active = useRef(false);
+  const intent = useRef(0);
+  const loggingOut = useRef(false);
+  const restored = useCallback((next: ApiUser | null) => {
+    intent.current++;
+    setUser(next);
+  }, []);
+  const privacy = useSessionPrivacy({
+    user,
+    ready: !loading && !error,
+    intent,
+    onRestored: restored,
+  });
+  const { changedHere } = privacy;
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    const revision = ++intent.current;
+    void talaApi
+      .getSession(controller.signal)
+      .then((next) => {
+        if (active.current && revision === intent.current) {
+          setUser(next);
+          setError("");
+          setLoading(false);
+        }
+      })
+      .catch((failure) => {
+        if (
+          !controller.signal.aborted &&
+          active.current &&
+          revision === intent.current
+        ) {
+          setUser(null);
+          setError(safeTalaApiError(failure).message);
+          setLoading(false);
+        }
+      });
+    return () => controller.abort();
+  }, [attempt]);
+  const authenticated = useCallback(
+    (next: ApiUser) => {
+      intent.current++;
+      setUser(next);
+      setError("");
+      changedHere();
+    },
+    [changedHere],
+  );
+  const profileSaved = useCallback((next: ApiUser) => {
+    // Profile responses may update the name only, never restore a session or role.
+    setUser((current) =>
+      current?.uid === next.uid ? { ...current, name: next.name } : current,
+    );
+  }, []);
+  async function logout() {
+    if (loggingOut.current) return;
+    loggingOut.current = true;
+    intent.current++;
+    try {
+      await talaApi.logout();
+      if (active.current) {
+        setUser(null);
+        setError("");
+        changedHere();
+      }
+    } finally {
+      loggingOut.current = false;
+    }
+  }
+  const expired = useCallback(() => {
+    intent.current++;
+    setUser(null);
+    setAttempt((value) => value + 1);
+    changedHere();
+  }, [changedHere]);
+  if (loading)
+    return (
+      <div className="container state-panel" role="status">
+        Restoring your secure session…
+      </div>
+    );
+  // Without the API, public pages still render; only account pages show this.
+  const unavailable = error ? (
+    <section className="container state-panel" role="alert">
+      <h1>Accounts are not available yet</h1>
+      <p>{error}</p>
+      <button
+        className="button"
+        type="button"
+        onClick={() => {
+          setLoading(true);
+          setError("");
+          setAttempt((value) => value + 1);
+        }}
+      >
+        Retry connection
+      </button>
+    </section>
+  ) : null;
+  const workspace = user ? (
+    user.role === "operator" ? (
+      <OperatorWorkspace
+        key={`${user.uid}:${user.role}:${privacy.accessEpoch}`}
+        user={user}
+        onLogout={logout}
+        onExpired={expired}
+      />
+    ) : (
+      <ServerWorkspace
+        key={`${user.uid}:${user.role}:${privacy.accessEpoch}`}
+        user={user}
+        onLogout={logout}
+        onExpired={expired}
+        onProfileSaved={profileSaved}
+      />
+    )
+  ) : null;
+  return (
+    <>
+      {privacy.blocked && (
+        <section
+          className="container state-panel"
+          aria-busy={privacy.checking}
+          role={privacy.error ? "alert" : "status"}
+        >
+          <h1>
+            {!privacy.checking
+              ? "Confirm your session to continue"
+              : "Checking your secure session…"}
+          </h1>
+          {!privacy.checking && (
+            <>
+              {privacy.error && <p>{privacy.error}</p>}
+              <p>
+                Your records stay hidden until your current account is
+                confirmed. Unsent workspace drafts stay in this tab.
+              </p>
+              <button
+                className="button"
+                disabled={privacy.checking}
+                onClick={privacy.retry}
+              >
+                Retry session check
+              </button>
+            </>
+          )}
+        </section>
+      )}
+      <div
+        hidden={privacy.blocked}
+        inert={privacy.blocked}
+        style={{ display: privacy.blocked ? "none" : undefined }}
+      >
+        <Routes>
+          <Route element={<SiteLayout session={user} backend="api" />}>
+            <Route
+              element={
+                <WorkspaceKeeper>
+                  <WorkspaceVisibility
+                    value={
+                      !privacy.blocked && location.pathname === "/dashboard"
+                    }
+                  >
+                    {workspace}
+                  </WorkspaceVisibility>
+                </WorkspaceKeeper>
+              }
+            >
+              <Route
+                index
+                element={
+                  user ? <Navigate to="/dashboard" replace /> : <HomePage />
+                }
+              />
+              <Route
+                path="login"
+                element={
+                  user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    (unavailable ?? (
+                      <ServerAccessPage
+                        key="login"
+                        onAuthenticated={authenticated}
+                      />
+                    ))
+                  )
+                }
+              />
+              <Route
+                path="register"
+                element={
+                  user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    (unavailable ?? (
+                      <ServerAccessPage
+                        key="register"
+                        register
+                        onAuthenticated={authenticated}
+                      />
+                    ))
+                  )
+                }
+              />
+              <Route
+                path="dashboard"
+                element={
+                  user
+                    ? null
+                    : (unavailable ?? <Navigate to="/login" replace />)
+                }
+              />
+              <Route path="about" element={<AboutPage />} />
+              <Route path="learn-more" element={<AboutPage />} />
+              <Route path="programs" element={<ProgramsPage />} />
+              <Route path="contact" element={<ContactRequestPage />} />
+              <Route path="schedule" element={<OpenTimesPage />} />
+              <Route path="events" element={<CommunityPage kind="events" />} />
+              <Route
+                path="two-factor"
+                element={
+                  user ? (
+                    <AccountSecurityPage
+                      key={user.uid}
+                      user={user}
+                      onSessionChanged={authenticated}
+                      onExpired={expired}
+                      onLogout={logout}
+                      returnTo={workspaceReturn}
+                    />
+                  ) : (
+                    (unavailable ?? <Navigate to="/login" replace />)
+                  )
+                }
+              />
+              <Route
+                path="payment"
+                element={
+                  <section className="container state-panel">
+                    <h1>Payment service not connected</h1>
+                    <p>
+                      No payment provider or approved fee schedule is
+                      configured. No card details are collected and no payment
+                      can be made.
+                    </p>
+                    <Link
+                      className="button"
+                      to={user ? "/dashboard" : "/login"}
+                    >
+                      Back to your workspace
+                    </Link>
+                  </section>
+                }
+              />
+              <Route
+                path="enrollment-status"
+                element={<Navigate to="/payment" replace />}
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Route>
+        </Routes>
+        <IndependentRouteFocus />
+      </div>
+    </>
+  );
+}

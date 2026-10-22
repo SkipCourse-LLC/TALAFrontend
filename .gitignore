@@ -1,0 +1,73 @@
+# Installed dependencies
+node_modules/
+
+# Build output and tool caches
+/public/
+.firebase/
+dist/
+build/
+out/
+.next/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Local environment files; examples must contain placeholders only
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local credentials, authentication secrets and private keys
+.envrc
+.netrc
+.npmrc
+.pypirc
+.aws/
+.ssh/
+credentials
+credentials.*
+*-credentials.*
+*_credentials.*
+secrets
+secrets.*
+*-secrets.*
+*_secrets.*
+service-account*.json
+service_account*.json
+*serviceAccount*.json
+*.key
+*.pem
+*.p12
+*.pfx
+*.keystore
+id_rsa*
+id_ed25519*
+
+# Test output
+playwright-report/
+test-results/
+blob-report/
+
+# Local logs
+*.log
+
+# Independent backend records, opaque sessions, private uploads and SQLite data.
+server/.runtime/
+server/.data/
+server/**/*.sqlite
+server/**/*.sqlite-*
+server/**/*.db
+server/**/*.db-*
+
+# Explicit local backup/restore copies include private records and sessions.
+tala-backup-*/
+
+# OS and editor temporary files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
