@@ -230,3 +230,56 @@ export interface Operations {
     LearningRecord & { studentUid: string; studentName: string }
   >;
 }
+/** A public calendar time. Parents see no labels or booking details. */
+export interface OpenTime {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+}
+export interface OpenTimes {
+  times: OpenTime[];
+  hasMore: boolean;
+  timeZone: string;
+}
+export type Weekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+export type ContactMethod = "email" | "phone" | "text";
+export type ContactRequestStatus = "new" | "contacted" | "closed";
+export interface ContactWindow {
+  day: Weekday;
+  startTime: string;
+  endTime: string;
+}
+export interface ContactRequestInput {
+  parentName: string;
+  email: string;
+  phone: string;
+  preferredMethod: ContactMethod;
+  availability: ContactWindow[];
+  notes?: string;
+  requestId: string;
+}
+export interface ContactRequestReceipt {
+  id: string;
+  status: "received";
+  receivedAt: string;
+}
+export interface ContactRequest {
+  id: string;
+  parentName: string;
+  email: string;
+  phone: string;
+  preferredMethod: ContactMethod;
+  availability: ContactWindow[];
+  timeZone: string;
+  notes?: string;
+  status: ContactRequestStatus;
+  receivedAt: string;
+  updatedAt: string;
+}

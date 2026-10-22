@@ -6,6 +6,11 @@ import type {
   Appointment,
   AppointmentPageQuery,
   AvailabilityPageQuery,
+  ContactRequest,
+  ContactRequestInput,
+  ContactRequestReceipt,
+  ContactRequestStatus,
+  CursorPage,
   EvidencePageQuery,
   EvidenceContentType,
   EvidenceDownload,
@@ -13,6 +18,7 @@ import type {
   LearningPageQuery,
   OperatorAppointmentQuery,
   OperatorLearningQuery,
+  OpenTimes,
   SessionState,
   UploadIntent,
   UploadStatus,
@@ -580,6 +586,96 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
           saved.status !== "withdrawn" ||
           saved.canWithdraw
         )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    /** New times return a new slot ID; a label-only edit keeps the ID. */
+    updateAvailability(
+      slotId: string,
+      input: {
+        startsAt: string;
+        endsAt: string;
+        label?: string;
+        requestId: string;
+      },
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          `/api/availability/${inputId(slotId)}`,
+          "PATCH",
+          input,
+          signal,
+          decode.managedSlot,
+        );
+        if (
+          saved.status !== "available" ||
+          saved.startsAt !== new Date(input.startsAt).toISOString() ||
+          saved.endsAt !== new Date(input.endsAt).toISOString()
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    /** Public calendar for parents without an account. */
+    getPublicOpenTimes(signal?: AbortSignal): Promise<OpenTimes> {
+      return transport.json(
+        "/api/public/open-times",
+        { signal },
+        decode.openTimes,
+      );
+    },
+    /** Reuse the same requestId when retrying so a lost response is not sent twice. */
+    async submitContactRequest(
+      input: ContactRequestInput,
+      signal?: AbortSignal,
+    ): Promise<ContactRequestReceipt> {
+      try {
+        return await transport.json(
+          "/api/contact-requests",
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+            contentType: "application/json",
+            signal,
+          },
+          decode.contactRequestReceipt,
+        );
+      } catch (failure) {
+        // Another tab can rotate the anonymous cookie. The next explicit
+        // attempt bootstraps a fresh nonce; never replay automatically here.
+        if (failure instanceof TalaApiError && failure.code === "CSRF_INVALID")
+          csrfToken = "";
+        throw failure;
+      }
+    },
+    getContactRequestsPage(
+      query: { status?: "all" | ContactRequestStatus; cursor?: string } = {},
+      signal?: AbortSignal,
+    ): Promise<CursorPage<ContactRequest>> {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/operations/contact-requests${pageQuery(query)}`,
+          { signal },
+          (raw) => decode.cursorPage(raw, decode.contactRequest),
+        ),
+      );
+    },
+    setContactRequestStatus(
+      contactRequestId: string,
+      input: { status: ContactRequestStatus; requestId: string },
+      signal?: AbortSignal,
+    ): Promise<ContactRequest> {
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          `/api/operations/contact-requests/${inputId(contactRequestId)}/status`,
+          "POST",
+          input,
+          signal,
+          decode.contactRequest,
+        );
+        if (saved.id !== contactRequestId || saved.status !== input.status)
           throw new TalaApiError("INVALID_RESPONSE");
         return saved;
       });
