@@ -153,28 +153,24 @@ export function ServerApplication() {
         Restoring your secure session…
       </div>
     );
-  if (error)
-    return (
-      <section className="container state-panel" role="alert">
-        <h1>TALA server unavailable</h1>
-        <p>{error}</p>
-        <p>
-          Start the independent server and retry. This page does not fall back
-          to a sample account.
-        </p>
-        <button
-          className="button"
-          type="button"
-          onClick={() => {
-            setLoading(true);
-            setError("");
-            setAttempt((value) => value + 1);
-          }}
-        >
-          Retry connection
-        </button>
-      </section>
-    );
+  // Without the API, public pages still render; only account pages show this.
+  const unavailable = error ? (
+    <section className="container state-panel" role="alert">
+      <h1>Accounts are not available yet</h1>
+      <p>{error}</p>
+      <button
+        className="button"
+        type="button"
+        onClick={() => {
+          setLoading(true);
+          setError("");
+          setAttempt((value) => value + 1);
+        }}
+      >
+        Retry connection
+      </button>
+    </section>
+  ) : null;
   const workspace = user ? (
     user.role === "operator" ? (
       <OperatorWorkspace
@@ -256,10 +252,12 @@ export function ServerApplication() {
                   user ? (
                     <Navigate to="/dashboard" replace />
                   ) : (
-                    <ServerAccessPage
-                      key="login"
-                      onAuthenticated={authenticated}
-                    />
+                    (unavailable ?? (
+                      <ServerAccessPage
+                        key="login"
+                        onAuthenticated={authenticated}
+                      />
+                    ))
                   )
                 }
               />
@@ -269,17 +267,23 @@ export function ServerApplication() {
                   user ? (
                     <Navigate to="/dashboard" replace />
                   ) : (
-                    <ServerAccessPage
-                      key="register"
-                      register
-                      onAuthenticated={authenticated}
-                    />
+                    (unavailable ?? (
+                      <ServerAccessPage
+                        key="register"
+                        register
+                        onAuthenticated={authenticated}
+                      />
+                    ))
                   )
                 }
               />
               <Route
                 path="dashboard"
-                element={user ? null : <Navigate to="/login" replace />}
+                element={
+                  user
+                    ? null
+                    : (unavailable ?? <Navigate to="/login" replace />)
+                }
               />
               <Route path="about" element={<AboutPage />} />
               <Route path="learn-more" element={<AboutPage />} />
@@ -300,7 +304,7 @@ export function ServerApplication() {
                       returnTo={workspaceReturn}
                     />
                   ) : (
-                    <Navigate to="/login" replace />
+                    (unavailable ?? <Navigate to="/login" replace />)
                   )
                 }
               />

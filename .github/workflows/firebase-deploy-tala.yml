@@ -35,7 +35,7 @@ jobs:
           service_account: 'github-actions-deploy@skip-class-slsru4.iam.gserviceaccount.com'
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools
+        run: npm install -g firebase-tools@15.34.1
 
       - name: Deploy to Firebase Hosting (tala target)
         run: firebase deploy --only hosting:tala --project skip-class-slsru4 --non-interactive
