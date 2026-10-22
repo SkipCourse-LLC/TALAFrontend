@@ -9,9 +9,9 @@ import { ProgramsPage } from "./public-site/ProgramsPage";
 import { RegisterPage } from "./registration/RegisterPage";
 import { ApprovalPage } from "./payment/ApprovalPage";
 import { PaymentPage } from "./payment/PaymentPage";
-import { resetPaymentDemo } from "./payment/paymentService";
+import { resetPaymentDemo } from "./payment/paymentAdapter";
 import { TwoFactorPage } from "./authentication/TwoFactorPage";
-import type { EnrollmentReceipt } from "./registration/enrollmentService";
+import type { EnrollmentReceipt } from "./registration/enrollmentContract";
 import { LoginPage } from "./authentication/LoginPage";
 const StudentDashboard = lazy(() =>
   import("./dashboard/StudentDashboard").then((module) => ({

@@ -4,7 +4,7 @@
   gap: 20px;
 }
 .course-card {
-  border: 1px solid #d2d2d7;
+  border: 1px solid var(--color-line);
   border-radius: 22px;
   background: white;
   overflow: hidden;
@@ -18,7 +18,7 @@
   justify-content: center;
   gap: 25px;
   background: #e9efed;
-  color: #174139;
+  color: var(--color-accent);
 }
 .course-art.blue {
   background: #e9edf5;
@@ -30,7 +30,7 @@
 }
 .course-art.green {
   background: #e9efed;
-  color: #174139;
+  color: var(--color-accent);
 }
 .course-art .icon {
   width: 40px;
@@ -57,7 +57,7 @@
   color: #6e6e73;
 }
 .progress-label strong {
-  color: #174139;
+  color: var(--color-accent);
   font-variant-numeric: tabular-nums;
 }
 .course-card progress {
@@ -67,20 +67,20 @@
   border-radius: 10px;
   appearance: none;
   display: block;
-  accent-color: #174139;
+  accent-color: var(--color-accent);
   overflow: hidden;
 }
 .course-card progress::-webkit-progress-bar {
   background: #e9efed;
 }
 .course-card progress::-webkit-progress-value {
-  background: #174139;
+  background: var(--color-accent);
 }
 .course-card progress::-moz-progress-bar {
-  background: #174139;
+  background: var(--color-accent);
 }
 .course-details {
-  border-top: 1px solid #d2d2d7;
+  border-top: 1px solid var(--color-line);
   margin-top: 22px;
   padding-top: 8px;
 }
@@ -99,11 +99,11 @@
   padding-left: 20px;
 }
 .lesson-done {
-  color: #174139;
+  color: var(--color-accent);
   font-size: 0.8rem;
 }
 .project-list {
-  border: 1px solid #d2d2d7;
+  border: 1px solid var(--color-line);
   border-radius: 22px;
   padding-inline: 24px;
   background: white;
@@ -115,7 +115,7 @@
   padding-block: 26px;
 }
 .project-list article + article {
-  border-top: 1px solid #d2d2d7;
+  border-top: 1px solid var(--color-line);
 }
 .project-list article > div:nth-child(2) {
   min-width: 0;
@@ -125,7 +125,7 @@
   width: 48px;
   height: 48px;
   background: #e9efed;
-  color: #174139;
+  color: var(--color-accent);
   border-radius: 14px;
   display: grid;
   place-items: center;
@@ -156,7 +156,7 @@
   line-height: 1.5;
   padding: 6px 10px;
   background: #e9efed;
-  color: #174139;
+  color: var(--color-accent);
   border-radius: 20px;
   margin-top: 4px;
   flex-shrink: 0;

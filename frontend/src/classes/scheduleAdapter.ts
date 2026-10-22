@@ -1,3 +1,4 @@
+import { demoEnabled } from "../shared/services/demoConfig";
 import { demoClassSlots } from "./demoClassSlots";
 
 export type ClassSlot = (typeof demoClassSlots)[number];
@@ -154,3 +155,7 @@ export function createMockScheduleService(
     },
   };
 }
+
+export const scheduleService = createMockScheduleService({
+  enabled: demoEnabled,
+});

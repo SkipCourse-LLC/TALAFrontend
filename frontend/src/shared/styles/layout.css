@@ -74,7 +74,7 @@
 .nav-hub-link {
   padding: 8px 16px;
   color: var(--color-accent);
-  background: #edf2ef;
+  background: var(--color-green);
   border: 1px solid transparent;
   border-radius: 10px;
   font-weight: 600;

@@ -1,7 +1,7 @@
 import { TextField } from "../shared/TextField";
 import { RegistrationReview } from "./RegistrationReview";
-import { enrollmentOptions } from "./enrollmentService";
-import type { EnrollmentDraft, EnrollmentErrors } from "./enrollmentService";
+import { enrollmentOptions } from "./enrollmentContract";
+import type { EnrollmentDraft, EnrollmentErrors } from "./enrollmentContract";
 
 interface Props {
   draft: EnrollmentDraft;

@@ -1,6 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Auth pages show one-time setup secrets, so traces and failure screenshots stay off.
 process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
 export default defineConfig({
   testDir: "./tests",
@@ -12,6 +11,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://127.0.0.1:4173",
+    // Auth pages show one-time setup secrets, so traces and screenshots stay off.
     trace: "off",
     screenshot: "off",
     video: "off",

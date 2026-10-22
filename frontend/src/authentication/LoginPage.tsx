@@ -6,7 +6,7 @@ import { authErrorMessage, authService } from "./authService";
 import type { AuthValues } from "./formValidation";
 import { demoEnabled } from "../shared/services/demoConfig";
 import { sampleSession } from "../shared/services/demoData";
-import type { EnrollmentReceipt } from "../registration/enrollmentService";
+import type { EnrollmentReceipt } from "../registration/enrollmentContract";
 import type {
   CommunityRole,
   DemoSession,

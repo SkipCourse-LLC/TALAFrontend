@@ -176,6 +176,3 @@ test("Authenticator accepts a scanned code, rejects expired codes and never stor
     )
     .toBe(true);
 });
-
-// These tests see one-time secrets; don't record traces.
-test.use({ trace: "off", screenshot: "off" });

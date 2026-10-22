@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { useApproval } from "./useApproval";
 import { PaymentForm } from "./PaymentForm";
 import { PaymentLayout } from "./PaymentLayout";
-import { paymentService } from "./paymentService";
-import type { PaymentService, PaymentSession } from "./paymentService";
+import { paymentService } from "./paymentAdapter";
+import type { PaymentService, PaymentSession } from "./paymentAdapter";
 
 export function PaymentPage({
   session,

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { demoToolsEnabled } from "./paymentRuntime";
-import { paymentService } from "./paymentService";
+import { demoToolsEnabled } from "../shared/services/demoConfig";
+import { paymentService } from "./paymentAdapter";
 import {
   paymentDraftError,
   paymentErrorMessage,

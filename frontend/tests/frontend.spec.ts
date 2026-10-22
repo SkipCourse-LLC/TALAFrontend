@@ -865,6 +865,3 @@ test("private funding, waiting list and registered parent retain the correct stu
   });
   await page.getByRole("button", { name: "Sign out" }).click();
 });
-
-// These tests see one-time secrets; don't record traces.
-test.use({ trace: "off", screenshot: "off" });

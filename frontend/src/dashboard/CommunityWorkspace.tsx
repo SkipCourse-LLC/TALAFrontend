@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { DemoSession } from "../shared/services/serviceTypes";
-import type { EnrollmentReceipt } from "../registration/enrollmentService";
+import type { EnrollmentReceipt } from "../registration/enrollmentContract";
 import { sampleSession } from "../shared/services/demoData";
 import { Icon } from "../shared/Icon";
 

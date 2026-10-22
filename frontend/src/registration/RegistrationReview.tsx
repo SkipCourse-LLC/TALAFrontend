@@ -1,4 +1,4 @@
-import type { EnrollmentDraft } from "./enrollmentService";
+import type { EnrollmentDraft } from "./enrollmentContract";
 export function RegistrationReview({
   draft,
   onEdit,

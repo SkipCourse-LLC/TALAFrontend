@@ -8,7 +8,6 @@
   },
   "scripts": {
     "dev": "node scripts/startApplication.mjs",
-    "dev:app": "node scripts/startApplication.mjs",
     "dev:demo": "node scripts/startApplication.mjs --demo",
     "test:api-client": "playwright test -c src/api/apiUnit.config.ts",
     "test:product": "playwright test -c src/product/productIntegration.config.ts",

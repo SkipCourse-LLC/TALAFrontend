@@ -8,7 +8,7 @@ import {
   demoVerificationCode,
   TwoFactorError,
   twoFactorService,
-} from "./twoFactorService";
+} from "./twoFactorAdapter";
 import type {
   AuthenticatorSetup,
   TwoFactorChallenge,
@@ -16,7 +16,7 @@ import type {
   TwoFactorMethod,
   TwoFactorService,
   TwoFactorSignup,
-} from "./twoFactorService";
+} from "./twoFactorAdapter";
 import "./twoFactor.css";
 
 interface TwoFactorPageProps {

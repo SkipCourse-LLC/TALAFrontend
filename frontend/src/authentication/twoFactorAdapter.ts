@@ -1,3 +1,4 @@
+import { demoEnabled, demoToolsEnabled } from "../shared/services/demoConfig";
 import { Secret, TOTP } from "otpauth";
 import QRCode from "qrcode";
 
@@ -222,3 +223,8 @@ export function createMockTwoFactorService({
     },
   };
 }
+
+export const twoFactorService = createMockTwoFactorService({
+  enabled: demoEnabled,
+  allowFailureSimulation: demoToolsEnabled,
+});

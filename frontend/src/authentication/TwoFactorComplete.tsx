@@ -1,6 +1,6 @@
 import type { Ref } from "react";
 import { Link } from "react-router-dom";
-import type { TwoFactorSignup } from "./twoFactorService";
+import type { TwoFactorSignup } from "./twoFactorAdapter";
 
 export function TwoFactorComplete({
   receipt,

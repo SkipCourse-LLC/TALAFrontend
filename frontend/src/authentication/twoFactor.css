@@ -1,12 +1,12 @@
 .two-factor-page {
-  --tf-ink: #1d1d1f;
-  --tf-accent: #174139;
-  --tf-muted: #626268;
-  --tf-paper: #f5f5f7;
-  --tf-sage: #edf2ef;
-  --tf-line: #d2d2d7;
-  --tf-control-line: #86868b;
-  --tf-focus: #174139;
+  --tf-ink: var(--color-ink);
+  --tf-accent: var(--color-accent);
+  --tf-muted: var(--color-muted);
+  --tf-paper: var(--color-paper);
+  --tf-sage: var(--color-green);
+  --tf-line: var(--color-line);
+  --tf-control-line: var(--color-control-line);
+  --tf-focus: var(--color-accent);
   width: min(1100px, calc(100% - 80px));
   margin: 0 auto;
   padding: 44px 0 64px;
@@ -622,15 +622,6 @@
 @media (max-width: 360px) {
   .two-factor-page {
     width: calc(100% - 32px);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .two-factor-page *,
-  .two-factor-page *::before,
-  .two-factor-page *::after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
   }
 }
 @media (forced-colors: active) {

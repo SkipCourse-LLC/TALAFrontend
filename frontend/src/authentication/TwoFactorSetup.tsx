@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { AuthenticatorSetup, TwoFactorMethod } from "./twoFactorService";
+import type { AuthenticatorSetup, TwoFactorMethod } from "./twoFactorAdapter";
 
 export function TwoFactorSetup({
   prepared,

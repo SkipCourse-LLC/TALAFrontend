@@ -11,7 +11,7 @@ import { DashboardContent } from "./DashboardContent";
 import { CommunityWorkspace } from "./CommunityWorkspace";
 import { StudentAccountPanel } from "./StudentAccountPanel";
 import { StudentSchedule } from "../classes/StudentSchedule";
-import type { EnrollmentReceipt } from "../registration/enrollmentService";
+import type { EnrollmentReceipt } from "../registration/enrollmentContract";
 export function StudentDashboard({
   session,
   onLogout,

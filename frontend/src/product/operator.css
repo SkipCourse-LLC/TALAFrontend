@@ -1,7 +1,7 @@
 .operator-workspace {
-  --op-forest: var(--color-accent, #174139);
-  --op-paper: #f5f5f7;
-  --op-ink: #1d1d1f;
+  --op-forest: var(--color-accent);
+  --op-paper: var(--color-paper);
+  --op-ink: var(--color-ink);
   --op-muted: #616b67;
   --op-line: #dce2df;
   padding-block: 48px 64px;
@@ -585,12 +585,6 @@
   }
   .operator-bookings > li {
     flex-wrap: wrap;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .operator-workspace * {
-    scroll-behavior: auto;
-    transition: none;
   }
 }
 .operator-page-more {

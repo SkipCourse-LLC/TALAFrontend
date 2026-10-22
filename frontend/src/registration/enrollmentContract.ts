@@ -1,3 +1,4 @@
+import { demoEnabled } from "../shared/services/demoConfig";
 import { demoDelay } from "../shared/services/demoDelay";
 
 export const enrollmentSteps = [
@@ -183,3 +184,7 @@ export function createMockEnrollmentService(
     },
   };
 }
+
+export const enrollmentService = createMockEnrollmentService({
+  enabled: demoEnabled,
+});

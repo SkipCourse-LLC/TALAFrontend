@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { scheduleService, scheduleErrorMessage } from "./scheduleService";
-import type { ScheduleData, ScheduleService } from "./scheduleService";
+import { scheduleService, scheduleErrorMessage } from "./scheduleAdapter";
+import type { ScheduleData, ScheduleService } from "./scheduleAdapter";
 import type { DemoScenario } from "../shared/services/serviceTypes";
 
 export function useStudentSchedule(

@@ -1,14 +1,14 @@
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { PaymentLayout } from "./PaymentLayout";
-import { demoToolsEnabled } from "./paymentRuntime";
+import { demoToolsEnabled } from "../shared/services/demoConfig";
 import { useApproval } from "./useApproval";
-import { paymentService } from "./paymentService";
+import { paymentService } from "./paymentAdapter";
 import type {
   ApprovalStatus,
   PaymentService,
   PaymentSession,
-} from "./paymentService";
+} from "./paymentAdapter";
 
 const statuses: Record<
   ApprovalStatus,

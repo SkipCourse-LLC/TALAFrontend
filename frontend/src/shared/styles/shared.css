@@ -39,8 +39,8 @@
   border-color: white;
 }
 .button-light:hover {
-  background: #edf2ef;
-  border-color: #edf2ef;
+  background: var(--color-green);
+  border-color: var(--color-green);
 }
 .button-outline {
   background: white;
@@ -193,8 +193,8 @@
 }
 .demo-pill {
   display: inline-flex;
-  background: #edf2ef;
-  color: #174139;
+  background: var(--color-green);
+  color: var(--color-accent);
   border-radius: 30px;
   padding: 7px 13px;
   font-size: var(--text-small);

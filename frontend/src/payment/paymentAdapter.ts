@@ -1,3 +1,4 @@
+import { demoEnabled, demoToolsEnabled } from "../shared/services/demoConfig";
 // Demo view models; a real adapter must enforce authorization, idempotency and provider state.
 export interface PaymentSession {
   mode: "demo" | "live";
@@ -343,4 +344,18 @@ export function createMockPaymentAdapter(
       }
     },
   };
+}
+
+export const paymentService = createMockPaymentAdapter({
+  enabled: demoEnabled,
+  toolsEnabled: demoToolsEnabled,
+});
+export function resetPaymentDemo(): void {
+  paymentService.resetDemo?.();
+}
+export function selectApprovalDemo(
+  session: PaymentSession,
+  status: ApprovalStatus,
+): void {
+  paymentService.selectApprovalDemo?.(session, status);
 }

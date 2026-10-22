@@ -1,8 +1,8 @@
 .pending-uploads {
   --pending-line: #d9deda;
-  --pending-ink: #1d1d1f;
-  --pending-muted: #626268;
-  --pending-accent: var(--color-accent, #174139);
+  --pending-ink: var(--color-ink);
+  --pending-muted: var(--color-muted);
+  --pending-accent: var(--color-accent);
   border-top: 1px solid var(--pending-line);
   padding-top: 28px;
   margin-top: 32px;
@@ -80,7 +80,7 @@
   flex-shrink: 0;
   padding: 5px 9px;
   border-radius: 7px;
-  background: #edf2ef;
+  background: var(--color-green);
   color: #315b48;
   font-weight: 600;
   font-size: 0.76rem;
@@ -122,7 +122,7 @@
 .pending-uploads-file input::file-selector-button {
   border: 0;
   border-radius: 6px;
-  background: #edf2ef;
+  background: var(--color-green);
   color: var(--pending-accent);
   padding: 9px 12px;
   margin-right: 12px;
@@ -176,7 +176,7 @@
 .pending-uploads-recovery {
   margin-top: 20px;
   padding: 18px;
-  background: #f5f5f7;
+  background: var(--color-paper);
   border-radius: 10px;
 }
 .pending-uploads-confirmation h4 {
@@ -214,11 +214,5 @@
   .pending-uploads-confirmation .pending-uploads-actions {
     flex-direction: column;
     align-items: stretch;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .pending-uploads * {
-    transition: none !important;
-    animation: none !important;
   }
 }

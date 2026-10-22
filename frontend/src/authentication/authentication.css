@@ -179,11 +179,3 @@
     font-size: 2rem;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .auth-layout *,
-  .auth-layout *::before,
-  .auth-layout *::after {
-    animation-duration: 0.001ms !important;
-    transition-duration: 0.001ms !important;
-  }
-}
