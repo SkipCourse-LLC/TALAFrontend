@@ -44,10 +44,14 @@ function backupBeforeMigration(db, dataDir, version) {
     try {
       if (snapshot.prepare("PRAGMA user_version").get().user_version !== version || snapshot.prepare("PRAGMA quick_check").get().quick_check !== "ok") throw new Error("The pre-upgrade database backup could not be verified.");
     } finally { snapshot.close(); }
-    const file = fs.openSync(filename, "r");
+    // Windows only flushes handles opened for writing and cannot open a
+    // directory for fsync, so it relies on the file flush alone.
+    const file = fs.openSync(filename, "r+");
     try { fs.fsyncSync(file); } finally { fs.closeSync(file); }
-    const folder = fs.openSync(directory, "r");
-    try { fs.fsyncSync(folder); } finally { fs.closeSync(folder); }
+    if (process.platform !== "win32") {
+      const folder = fs.openSync(directory, "r");
+      try { fs.fsyncSync(folder); } finally { fs.closeSync(folder); }
+    }
     completed = true;
   } finally {
     if (!completed) fs.rmSync(filename, { force: true });
