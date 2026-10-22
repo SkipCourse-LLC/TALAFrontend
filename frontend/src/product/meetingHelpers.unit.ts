@@ -6,6 +6,7 @@ import {
   buildBookingCalendar,
   groupMeetingDays,
   meetingChangeIsCurrent,
+  localMeetingInput,
   meetingRange,
   parseLocalMeetingTime,
 } from "./meetingHelpers";
@@ -245,4 +246,17 @@ test("cancelled, malformed or injected calendar records are rejected", () => {
   expect(() =>
     buildBookingCalendar({ ...appointment, startsAt: "invalid" }, "UTC"),
   ).toThrow();
+});
+
+test("T3-46 an existing time fills the edit form with the same local minute it was published at", () => {
+  inDeviceTimeZone("America/Phoenix", () => {
+    expect(localMeetingInput("2027-01-05T17:30:00.000Z")).toBe(
+      "2027-01-05T10:30",
+    );
+    expect(
+      parseLocalMeetingTime(
+        localMeetingInput("2027-01-05T17:30:00.000Z"),
+      )?.toISOString(),
+    ).toBe("2027-01-05T17:30:00.000Z");
+  });
 });

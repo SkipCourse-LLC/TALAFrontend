@@ -54,6 +54,13 @@ export function parseLocalMeetingTime(value: string): Date | null {
   return match;
 }
 
+/** The datetime-local value for an instant, in the device time zone. */
+export function localMeetingInput(value: string): string {
+  const date = new Date(value);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function bookingPeriod(
   booking: ApiAppointment,
   now: number,
