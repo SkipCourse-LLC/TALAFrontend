@@ -213,34 +213,43 @@
   }
 }
 @media (min-width: 961px) {
-  /* Links sit in a group centered between the logo and Community Login. */
-  .primary-nav > a:first-child {
-    margin-left: auto;
+  .nav-row {
+    gap: 48px;
   }
-  .nav-hub-link {
-    position: relative;
-    padding: 0;
-    color: inherit;
-    background: none;
-    border: 0;
-    border-radius: 0;
-    font-weight: inherit;
+  .primary-nav {
+    gap: 32px;
+    font-size: 0.9375rem;
+    font-weight: 500;
   }
-  .nav-hub-link:hover,
-  .nav-hub-link.active {
-    background: none;
+  .primary-nav > a {
+    color: var(--color-muted);
   }
-  .nav-hub-link::after {
-    content: "";
-    position: absolute;
-    inset-inline: 0;
-    top: calc(50% + 0.35em + 8px);
-    border-top: 2px solid var(--color-accent-soft);
-    transition: border-color 150ms ease;
+  .primary-nav > a:hover,
+  .primary-nav > a.active {
+    color: var(--color-accent);
   }
-  .nav-hub-link:hover::after,
-  .nav-hub-link.active::after {
-    border-top-color: var(--color-accent);
+  .nav-actions > .nav-hub-link {
+    min-height: 40px;
+    padding: 0 16px;
+    background: var(--color-surface);
+    border-color: var(--color-line);
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease;
+  }
+  .nav-actions > .nav-hub-link:hover,
+  .nav-actions > .nav-hub-link.active {
+    background: var(--color-green);
+    border-color: var(--color-accent);
+  }
+}
+@media (min-width: 961px) and (max-width: 1100px) {
+  .nav-row {
+    gap: 32px;
+  }
+  .primary-nav {
+    gap: 20px;
+    font-size: 0.875rem;
   }
 }
 @media (max-width: 600px) {
