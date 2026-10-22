@@ -235,11 +235,12 @@
     position: absolute;
     inset-inline: 0;
     top: calc(50% + 0.35em + 8px);
-    border-top: 2px solid var(--color-orange);
+    border-top: 2px solid var(--color-accent-soft);
     transition: border-color 150ms ease;
   }
-  .nav-hub-link:hover::after {
-    border-top-color: var(--color-orange-strong);
+  .nav-hub-link:hover::after,
+  .nav-hub-link.active::after {
+    border-top-color: var(--color-accent);
   }
 }
 @media (max-width: 600px) {
