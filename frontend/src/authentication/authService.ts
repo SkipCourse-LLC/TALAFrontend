@@ -7,8 +7,7 @@ const sessionKey = "tala.frontend-demo.session";
 const unavailable = async (): Promise<never> => {
   throw new AuthError("UNAVAILABLE");
 };
-// NEEDS_CONFIRMATION: server-owned authentication + SkipCourse provisioning contract.
-// Fail closed: disabling the demo never falls through to a guessed endpoint.
+// Demo sign-in only. Without the demo, login fails instead of guessing an endpoint.
 export const authService: AuthAdapter = demoEnabled
   ? demoAuthAdapter
   : { login: unavailable };

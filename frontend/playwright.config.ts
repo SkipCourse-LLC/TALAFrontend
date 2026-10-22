@@ -1,7 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Authentication pages contain ephemeral setup material. Explicit visual
-// checks mask it; automatic traces and failure-page copies stay disabled.
+// Auth pages show one-time setup secrets, so traces and failure screenshots stay off.
 process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
 export default defineConfig({
   testDir: "./tests",

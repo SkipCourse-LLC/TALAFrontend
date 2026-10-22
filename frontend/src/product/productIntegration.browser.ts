@@ -912,12 +912,10 @@ test("operator review, availability controls and learning summaries lead to a pr
   await chooseView(page, "learning");
   await expect(page.getByText(summary, { exact: true })).toBeVisible();
   expect(
-    await page
-      .getByText(summary, { exact: true })
-      .evaluate((element) => ({
-        text: element.textContent,
-        whitespace: getComputedStyle(element).whiteSpace,
-      })),
+    await page.getByText(summary, { exact: true }).evaluate((element) => ({
+      text: element.textContent,
+      whitespace: getComputedStyle(element).whiteSpace,
+    })),
   ).toEqual({ text: summary, whitespace: "pre-wrap" });
   await page
     .getByRole("button", { name: "I have reviewed this summary", exact: true })

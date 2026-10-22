@@ -1,5 +1,5 @@
-// Owned SCRUM-48/49 view models, not an assumed backend API schema.
-// A real adapter must enforce server authorization, idempotency and provider state.
+// Demo view models, not a backend schema. A real adapter must enforce server
+// authorization, idempotency and provider state.
 export interface PaymentSession {
   mode: "demo" | "live";
   accountId?: string;

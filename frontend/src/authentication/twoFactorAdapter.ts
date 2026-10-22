@@ -1,8 +1,8 @@
 import { Secret, TOTP } from "otpauth";
 import QRCode from "qrcode";
 
-// SCRUM-46/47 contracts. The host supplies identity and handles the verified
-// callback; this module does not import login, registration or shared code.
+// The host supplies identity and handles the verified callback; this module
+// imports nothing from login, registration or shared code.
 export interface TwoFactorSignup {
   parentName: string;
   parentEmail: string;

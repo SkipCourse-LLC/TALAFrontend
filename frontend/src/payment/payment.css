@@ -1,4 +1,4 @@
-/* SCRUM-48/49 only. Every rule is scoped to the owned payment root. */
+/* Every rule is scoped to the payment root. */
 .payment-page {
   --pay-ink: #1d1d1f;
   --pay-accent: #174139;
@@ -562,7 +562,7 @@
   }
 }
 
-/* Apple-inspired checkout is scoped to SCRUM-48; approval keeps its styles. */
+/* Checkout styles; the approval page keeps its own. */
 .payment-page-checkout {
   --pay-ink: #1d1d1f;
   --pay-muted: #6e6e73;

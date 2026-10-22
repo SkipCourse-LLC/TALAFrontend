@@ -1,5 +1,5 @@
 import type { IconName } from "../shared/Icon";
-// Awaiting final content from Ayushi/Tina. No pricing, schedules or outcomes assumed.
+// Placeholder program copy until TALA supplies final content.
 export const programs: {
   id: string;
   title: string;

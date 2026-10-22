@@ -856,8 +856,7 @@ test(
         }),
         [409],
       );
-      // Advance only the generated test appointment's scheduled interval. An
-      // elapsed time is never claimed as real attendance or AI assessment.
+      // Move this test appointment's interval into the past.
       context.application.db
         .prepare("UPDATE slots SET starts_at=?,ends_at=? WHERE id=?")
         .run(Date.now() - 3_600_000, Date.now() - 1_800_000, slot.id);

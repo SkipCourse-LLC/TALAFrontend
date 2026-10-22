@@ -37,8 +37,7 @@ test("legacy private reads recheck actor permissions in the same snapshot as the
     writer = new DatabaseSync(join(dataDir, "tala.sqlite"), { timeout: 1000 });
     let armed = null;
     // A second SQLite connection performs the change immediately after the
-    // HTTP actor read. This is a deterministic inter-process scheduling fault,
-    // not a mocked authorization result or a production data change.
+    // HTTP actor read.
     app.db.prepare = (sql) => {
       const statement = originalPrepare(sql);
       if (sql === "SELECT * FROM users WHERE uid=? AND disabled=0") {

@@ -64,8 +64,7 @@ test("expired unfinished uploads consistently return EXPIRED while submitted evi
     assert.equal(activeCorruption.status, 409);
     assert.equal(activeCorruption.json.error.code, "INTEGRITY_ERROR", "The equal-size corrupted fixture must trigger the real file checksum check while active");
 
-    // Deterministic boundary fixture only: this does not claim a natural
-    // twenty-minute wait. All four rows belong to this disposable account.
+    // Backdate the rows instead of waiting twenty minutes.
     const past = Date.now() - 1_000;
     for (const id of [savedId, cancelledId, pendingId, uploadedId]) {
       app.db.prepare("UPDATE uploads SET expires_at=? WHERE id=? AND owner_uid=?").run(past, id, registered.json.session.uid);

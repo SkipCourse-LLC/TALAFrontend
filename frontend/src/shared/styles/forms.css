@@ -1,4 +1,4 @@
-/* Shared form controls and login layout. Responsive rules live with their owning styles. */
+/* Shared form controls and the login layout. */
 .form-field input,
 .form-field select {
   width: 100%;

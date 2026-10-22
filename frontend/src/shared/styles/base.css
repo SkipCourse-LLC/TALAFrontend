@@ -1,4 +1,4 @@
-/* Design tokens, typography, accessibility and document defaults. Responsive rules live with their owning styles. */
+/* Design tokens, typography and document defaults. */
 
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

@@ -1,70 +1,75 @@
-# TALA Hub
+# TALA Frontend
 
-TALA's React/TypeScript frontend with an independent Node.js HTTP API, SQLite database and private file storage. The default application does not use Firebase, Firebase Emulator, SkipCourse services or browser-only identity fixtures.
+The website and student hub for Tucson Adaptive Learning Academy (TALA). A React and TypeScript app built with Vite, plus a small Node.js API with a SQLite database for local development.
 
-## Install and run
+## Run it locally
 
-Use **Node.js 24 or newer**. The server uses built-in Node modules and needs no dependency installation.
+Requires Node.js 24 or newer.
 
 ```sh
 npm ci --prefix frontend
 npm run dev --prefix frontend
 ```
 
-Open **http://127.0.0.1:5173/#/register**. The launcher starts the API on `127.0.0.1:8787` and the website on `127.0.0.1:5173`. It reuses an API only after checking its TALA health identity, loaded source revision and selected data directory. An older process or another test database on that port is refused. Ctrl+C stops both new processes; an existing API is never stopped by the launcher.
+This starts the API on `127.0.0.1:8787` and the site on <http://127.0.0.1:5173>, with live reload. Data is saved to `server/.runtime/`, which Git ignores.
 
-The student workspace has separate Overview, Meetings, Learning records, Evidence and Progress views. The address preserves the selected view through refresh and browser navigation. Selected files stay in memory through internal workspace/account navigation; refreshing or closing the tab loses an unsent local file. Server-created unfinished uploads can be recovered separately. Files and credentials are not saved in browser storage.
+To click through every screen with sample data and no API, run `npm run dev:demo --prefix frontend` instead.
 
-Documents, booking history, availability and learning records support loading older pages. Document searches and staff review filters run on the server before pagination, so older unfinished work remains discoverable. Learning records use smaller bounded pages. Returning to a tab rechecks the current session and family access before revealing cached records; a failed check keeps them hidden with an explicit retry.
+### Admin access
 
-Account security supports changing the current password and viewing or ending your server sessions. Changing a password signs out all other sessions and rotates the current cookie. It requires the current password; email-based password recovery and MFA are still unavailable. Personal calendar exports come from saved reservations; later booking changes do not automatically update an imported calendar file.
-
-No `.env` file or cloud account is required. `frontend/.env.example` contains public placeholders only. The Vite development and preview servers forward `/api` to the local backend.
-
-## What is persistent
-
-Register a student or parent account and sign in using the server's password authentication. Passwords are hashed with scrypt; opaque session cookies are HttpOnly and SameSite, and mutations require a CSRF nonce. Passwords and session credentials are never stored in localStorage. Email delivery is not configured: the application does not claim email ownership verification or send fake verification messages.
-
-Profiles, accounts, sessions, appointments, Evidence metadata, staff-published outcomes, reviews and progress counts are stored in ignored `server/.runtime/tala.sqlite` by default (`TALA_DATA_DIR` can select another directory). Private files live under that runtime directory. Data survives refresh, logout/login and server restart. Stop the API cleanly before copying the whole runtime directory for a local backup. It is local disk persistence, with no cloud sync or hosted production backup.
-
-Operators publish actual availability; the product does not create fictional times or accounts. Students can book, reschedule or cancel available appointments, upload text/PDF Evidence up to 5 MiB, explicitly cancel unfinished uploads, and download their submitted files through an authenticated API. SHA-256, ownership, limits and submission idempotency are checked by the server. Staff can publish meeting outcomes and manually review Evidence. Reviewing Evidence is separate from automated assessment or academic mastery.
-
-Operators can withdraw unbooked future times without deleting reservation history. Evidence needing revision can receive one new version at a time; earlier files and review notes remain available in authorized document history. Review-version checks reject stale staff edits. Submission totals include all versions; revision counts do not represent grades or academic credit.
-
-The Evidence view can find unexpired unfinished server uploads after navigation or refresh. Finish an already-uploaded file, or reselect the exact original file when its bytes still need uploading. Saved Evidence storage has explicit local limits; no automatic retention deletes existing documents. [Private backup and separate-directory restore commands](server/README.md#explicit-private-backups) are available for local evaluation, without cloud deployment.
-
-The local schema v1→v2 upgrade creates and verifies a private SQLite backup before adding tables. See [server/README.md](server/README.md) for upgrade and separate-directory recovery instructions. The launcher rejects an incompatible older API instead of silently reusing it.
-
-Parent accounts can read a linked student's permitted records after an operator records an approved family connection. They cannot mutate student bookings, files or reviews. A stored connection is not proof of legal guardianship and does not authorize medical data or recordings.
-
-## Operator setup
-
-Create the intended account through the website first. An authorized local operator can then promote that existing account:
+Create an account on the site, then promote it:
 
 ```sh
-node server/operator.cjs promote --email existing@example.test
+node server/operator.cjs promote --email you@example.test
 ```
 
-Sign out and back in to open the operator workspace, where availability and learning outcomes can be published. No role selector grants operator access. The same CLI supports explicit `add-availability` and `link-family` operations; their accepted fields and all HTTP contracts are documented in [server/contract.json](server/contract.json). These commands change only the selected local database, not any team cloud project.
+Sign out and back in to open the operator workspace, where you publish meeting times and review bookings and uploads.
 
-## Limits before hosted production
+## What works today
 
-Zoom links and confirmed attendance, email delivery/recovery, production MFA, AI assessment and real payments are not connected. A saved reservation does not create a Zoom meeting; an elapsed meeting period does not confirm attendance. Staff outcomes, Evidence submissions and review counts are real saved records, without fabricated AI results or charges.
+| Area | Status |
+| --- | --- |
+| Accounts, password sign-in, sessions | Real, through the local API |
+| Admin meeting availability (add, withdraw) | Real |
+| Booking, rescheduling and cancelling meetings | Real, for signed-in students |
+| Evidence uploads and staff review | Real |
+| Parent read-only access to a linked student | Real, once an admin links them |
+| Two-factor sign-in, payment, class schedule, enrollment wizard | Demo screens with sample data |
+| Email, Zoom, payments, SkipCourse backend | Not connected |
 
-The server binds to loopback and refuses production mode until HTTPS hosting, secure cookie/proxy configuration, backup and retention procedures, recovery and sponsor-approved data/consent policies have been reviewed. Use invented accounts and files for evaluation. Do not introduce real minors' records, medical/disability details or recordings without approved scope and access controls.
+## Project layout
 
-## Focused checks and legacy previews
+```text
+frontend/          the website
+  src/public-site/   home, about, programs and contact pages
+  src/product/       the signed-in app: meetings, workspaces, operator tools
+  src/api/           client for the local API
+  src/authentication/ sign-in, plus the demo two-factor flow
+  src/registration/  demo enrollment wizard
+  src/payment/       demo payment and approval screens
+  src/classes/       demo class schedule
+  src/dashboard/     demo student dashboard
+  src/shared/        layout, header, form controls and styles
+server/            the local API (see server/README.md)
+legacy/            the original one-page site
+```
+
+## Checks
 
 ```sh
-npm run check --prefix server
-npm test --prefix server
-npm run test:api-client --prefix frontend
-npm run test:product --prefix frontend
-npm run test:product-pagination --prefix frontend
-npm run test:operator-paging --prefix frontend
 npm run typecheck --prefix frontend
 npm run lint --prefix frontend
 npm run build --prefix frontend
+npm test --prefix server
+npm run test:product --prefix frontend
 ```
 
-The earlier visual demo remains explicitly available with `npm run dev:demo --prefix frontend`; its identities, meeting availability and payments are fixtures. Existing Firebase commands and source remain opt-in legacy tooling, separate from the independent product. No Firebase configuration, production deployment, real payment or team branch integration is performed by the commands above.
+## Deployment
+
+The site is hosted on Firebase Hosting in the `skip-class-slsru4` project, target `tala` (site `tucsonala`, domain `talaedu.com`). `npm run build:hosting --prefix frontend` builds the site into `public/`, which is the folder `firebase.json` serves.
+
+The **Deploy to Firebase Hosting (tala)** workflow runs only when started by hand from the Actions tab. Hosting serves static files only. The local API does not run there, so sign-in and booking need a hosted backend before they work on the live site.
+
+## Data and privacy
+
+The site handles information about children, families and health needs. Use invented accounts and files when testing, and never commit the `server/.runtime/` data, backups or real student records.

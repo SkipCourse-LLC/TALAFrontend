@@ -2,7 +2,7 @@
   "name": "tala-independent-server",
   "private": true,
   "version": "0.1.0",
-  "description": "Local TALA HTTP server with private persistent SQLite data and no Firebase dependency.",
+  "description": "Local TALA API server backed by SQLite.",
   "engines": {
     "node": ">=24"
   },

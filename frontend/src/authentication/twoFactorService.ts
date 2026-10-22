@@ -1,8 +1,7 @@
 import { createMockTwoFactorService } from "./twoFactorAdapter";
 import { demoEnabled, demoToolsEnabled } from "./twoFactorRuntime";
 
-// Retain the existing module entry point for the host. A future adapter can be
-// supplied directly to TwoFactorPage without changing its presentation.
+// A real adapter can be passed straight to TwoFactorPage.
 export * from "./twoFactorAdapter";
 
 export const twoFactorService = createMockTwoFactorService({

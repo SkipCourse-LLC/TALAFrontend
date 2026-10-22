@@ -8,7 +8,7 @@ import type {
 
 export * from "./paymentAdapter";
 
-// Default fixture storage stays inside this module. No provider endpoint is assumed.
+// Demo fixtures only; no payment provider is connected.
 export const paymentService = createMockPaymentAdapter({
   enabled: demoEnabled,
   toolsEnabled: demoToolsEnabled,

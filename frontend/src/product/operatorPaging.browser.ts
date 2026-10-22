@@ -45,8 +45,7 @@ test("returning to a cached operator panel still aborts stale pagination when it
     )
       staleAborted = true;
   });
-  // Every API is synthetic and intercepted; this regression never reaches an
-  // existing local backend, its accounts, files or database.
+  // Every API call is intercepted, so this never touches a real backend.
   await page.route(
     (url) => url.pathname.startsWith("/api/"),
     async (route) => {
