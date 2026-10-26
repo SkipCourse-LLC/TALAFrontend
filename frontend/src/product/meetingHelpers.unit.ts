@@ -3,6 +3,8 @@ import type { ApiAppointment, ApiWorkspace, Slot } from "../api";
 import {
   availableMeetingSlots,
   bookingPeriod,
+  bookingDateLabel,
+  bookingHistoryDateRange,
   buildBookingCalendar,
   groupMeetingDays,
   meetingChangeIsCurrent,
@@ -20,6 +22,120 @@ function inDeviceTimeZone(timeZone: string, run: () => void) {
     else process.env.TZ = previous;
   }
 }
+
+test("booking history date bounds include the whole local Through day and support either optional bound", () => {
+  inDeviceTimeZone("America/Phoenix", () => {
+    expect(bookingHistoryDateRange("", "")).toEqual({
+      valid: true,
+      from: undefined,
+      to: undefined,
+    });
+    expect(bookingHistoryDateRange("2026-10-26", "")).toEqual({
+      valid: true,
+      from: "2026-10-26T07:00:00.000Z",
+      to: undefined,
+    });
+    expect(bookingHistoryDateRange("", "2026-10-26")).toEqual({
+      valid: true,
+      from: undefined,
+      to: "2026-10-27T07:00:00.000Z",
+    });
+    expect(bookingHistoryDateRange("2026-10-26", "2026-10-26")).toEqual({
+      valid: true,
+      from: "2026-10-26T07:00:00.000Z",
+      to: "2026-10-27T07:00:00.000Z",
+    });
+    expect(bookingDateLabel("2026-10-26", "en-US")).toBe("Oct 26, 2026");
+  });
+});
+
+test("booking history date bounds reject impossible, inverted and unsupported calendar limits", () => {
+  inDeviceTimeZone("UTC", () => {
+    for (const invalid of [
+      "0000-01-01",
+      "2026-02-29",
+      "2026-04-31",
+      "2026-1-01",
+      "2026-10-26T00:00:00Z",
+    ])
+      expect(bookingHistoryDateRange(invalid, "")).toMatchObject({
+        valid: false,
+        field: "from",
+      });
+    expect(bookingHistoryDateRange("2026-10-27", "2026-10-26")).toMatchObject({
+      valid: false,
+      field: "through",
+    });
+    expect(bookingHistoryDateRange("", "9999-12-31")).toMatchObject({
+      valid: false,
+      field: "through",
+    });
+    expect(bookingHistoryDateRange("0001-01-01", "0001-01-01")).toEqual({
+      valid: true,
+      from: "0001-01-01T00:00:00.000Z",
+      to: "0001-01-02T00:00:00.000Z",
+    });
+    expect(bookingHistoryDateRange("0099-12-31", "0099-12-31")).toEqual({
+      valid: true,
+      from: "0099-12-31T00:00:00.000Z",
+      to: "0100-01-01T00:00:00.000Z",
+    });
+    expect(bookingHistoryDateRange("9999-12-30", "9999-12-30")).toEqual({
+      valid: true,
+      from: "9999-12-30T00:00:00.000Z",
+      to: "9999-12-31T00:00:00.000Z",
+    });
+  });
+  inDeviceTimeZone("Asia/Tokyo", () => {
+    expect(bookingHistoryDateRange("0001-01-01", "")).toMatchObject({
+      valid: false,
+      field: "from",
+    });
+  });
+});
+
+test("booking history day boundaries follow local DST instead of adding 24 hours", () => {
+  inDeviceTimeZone("America/New_York", () => {
+    expect(bookingHistoryDateRange("2027-03-14", "2027-03-14")).toEqual({
+      valid: true,
+      from: "2027-03-14T05:00:00.000Z",
+      to: "2027-03-15T04:00:00.000Z",
+    });
+    expect(bookingHistoryDateRange("2027-11-07", "2027-11-07")).toEqual({
+      valid: true,
+      from: "2027-11-07T04:00:00.000Z",
+      to: "2027-11-08T05:00:00.000Z",
+    });
+  });
+  inDeviceTimeZone("Australia/Lord_Howe", () => {
+    expect(bookingHistoryDateRange("2027-10-03", "2027-10-03")).toEqual({
+      valid: true,
+      from: "2027-10-02T13:30:00.000Z",
+      to: "2027-10-03T13:00:00.000Z",
+    });
+  });
+});
+
+test("booking history boundaries tolerate a skipped midnight while rejecting a wholly skipped selected date", () => {
+  inDeviceTimeZone("America/Sao_Paulo", () => {
+    expect(bookingHistoryDateRange("2018-11-04", "2018-11-04")).toEqual({
+      valid: true,
+      from: "2018-11-04T03:00:00.000Z",
+      to: "2018-11-05T02:00:00.000Z",
+    });
+  });
+  inDeviceTimeZone("Pacific/Apia", () => {
+    expect(bookingHistoryDateRange("2011-12-30", "")).toMatchObject({
+      valid: false,
+      field: "from",
+    });
+    expect(bookingHistoryDateRange("2011-12-29", "2011-12-29")).toEqual({
+      valid: true,
+      from: "2011-12-29T10:00:00.000Z",
+      to: "2011-12-30T10:00:00.000Z",
+    });
+  });
+});
 
 test("a unique Phoenix local minute preserves its exact ISO instant and rejects impossible dates", () => {
   inDeviceTimeZone("America/Phoenix", () => {

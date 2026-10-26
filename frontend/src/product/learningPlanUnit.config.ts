@@ -3,6 +3,7 @@ export default defineConfig({
   testDir: ".",
   testMatch: [
     "learningPlanHelpers.unit.ts",
+    "learningPlanOrganizationHelpers.unit.ts",
     "workspaceUpdatesHelpers.unit.ts",
     "evidenceNoteHelpers.unit.ts",
     "evidenceTextPreviewHelpers.unit.ts",

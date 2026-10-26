@@ -17,11 +17,13 @@ The student workspace has separate Overview, Updates, Learning plan, Meetings, L
 
 Learning plans save up to 100 personal goals per student, with optional notes, calendar target dates and up to eight checklist steps per goal. Students can edit, complete or reopen a goal and connect up to 20 saved Evidence versions to it. Unlinking preserves the original files and review history. Saved goals survive refresh, logout and server restart. Parents may view their currently authorized linked student's plan but cannot change it. Version checks reject conflicting edits from another window; retrying the same operation does not create duplicate goals or links. Goal completion and checked steps are self-reported, with no academic credit or verified skill assessment.
 
+Plans can be searched across saved names, notes and checklist steps, and sorted by target date, latest update or name. Text and JSON exports re-read the full saved plan through the authenticated API; filters and unsent edits are excluded. Downloads contain private learning notes, omit account and record-ID fields, and do not include Evidence files or provide account restoration.
+
 Updates collect saved booking changes, published learning summaries and current manual Evidence feedback. Opening a record does not mark it as read; explicit read actions are saved on the server. Parents see the linked student's read status without changing it. This is an in-app view of saved records, with no email or push delivery. Older updates open their corresponding record directly, beyond the first history page.
 
 Before an upcoming meeting, students can save a preparation note, connect a personal goal and mark materials ready. Unsaved notes must be saved or explicitly discarded before rescheduling. Preparation stays with its original reservation after a change or cancellation. This planning state does not confirm meeting attendance. Progress brings together saved goals, checklist steps, Evidence and reviewed learning notes without inferring grades or mastery.
 
-Documents, booking history, availability and learning records support loading older pages. Document searches, learning-summary searches and staff review filters run on the server before pagination, so older work remains discoverable. Learning records use smaller bounded pages. Returning to a tab rechecks the current session and family access before revealing cached records; a failed check keeps them hidden with an explicit retry.
+Documents, booking history, availability and learning records support loading older pages. Document searches, learning-summary searches and staff review filters run on the server before pagination, so older work remains discoverable. Booking history also supports an inclusive local From/Through date range, applied to reservation start times before pagination and across daylight-saving boundaries. Learning records use smaller bounded pages. Returning to a tab rechecks the current session and family access before revealing cached records; a failed check keeps them hidden with an explicit retry.
 
 Account security supports changing the current password and viewing or ending your server sessions. Changing a password signs out all other sessions and rotates the current cookie. It requires the current password; email-based password recovery and MFA are still unavailable. Personal calendar exports come from saved reservations; later booking changes do not automatically update an imported calendar file.
 
@@ -74,6 +76,7 @@ npm run test:learning-plan --prefix frontend
 npm run test:learning-plan-unit --prefix frontend
 npm run test:workspace-updates --prefix frontend
 npm run test:learning-workflow --prefix frontend
+npm run test:learning-organization --prefix frontend
 npm run test:editor-recovery --prefix frontend
 npm run test:evidence-notes --prefix frontend
 npm run typecheck --prefix frontend

@@ -124,9 +124,16 @@ export interface EvidencePageQuery {
 export interface AppointmentPageQuery {
   studentUid?: string;
   status?: "all" | "reserved" | "cancelled" | "ended";
+  /** Appointment start at/after this explicit-zone instant. */
+  from?: string;
+  /** Appointment start before this explicit-zone instant. */
+  to?: string;
   cursor?: string;
 }
-export interface OperatorAppointmentQuery extends AppointmentPageQuery {
+export interface OperatorAppointmentQuery extends Omit<
+  AppointmentPageQuery,
+  "from" | "to"
+> {
   publication?: "all" | "published" | "unpublished";
   q?: string;
 }

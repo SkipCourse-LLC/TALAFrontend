@@ -87,6 +87,74 @@
   line-height: 1.6;
   max-width: 75ch;
 }
+.learning-plan-organization {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.45fr);
+  gap: 16px 24px;
+  margin-top: 22px;
+}
+.learning-plan-organization label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--plan-ink);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+.learning-plan-search-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+}
+.learning-plan-search-control > input,
+.learning-plan-sort-control > select {
+  min-width: 0;
+  min-height: 46px;
+  max-width: 100%;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #818d87;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--plan-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+.learning-plan-search-control > input {
+  flex: 1 1 200px;
+}
+.learning-plan .learning-plan-search-clear {
+  min-height: 44px;
+  padding: 8px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--plan-green);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.learning-plan-search > p {
+  margin: 8px 0 0;
+  color: var(--plan-muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.learning-plan-sort-control > select:focus-visible {
+  outline: 3px solid var(--plan-green);
+  outline-offset: 4px;
+}
+.learning-plan .learning-plan-results {
+  margin: 18px 0 10px;
+  color: var(--plan-muted);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+@media (max-width: 600px) {
+  .learning-plan-organization {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .learning-plan .learning-plan-link-notice {
   padding: 12px 16px;
   margin-block: 20px;
@@ -231,11 +299,6 @@
 .learning-plan .learning-plan-filter > span {
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
-}
-.learning-plan .learning-plan-sort {
-  color: var(--plan-muted);
-  font-size: 0.8125rem;
-  line-height: 1.6;
 }
 .learning-plan .learning-plan-limit {
   font-size: 0.875rem;

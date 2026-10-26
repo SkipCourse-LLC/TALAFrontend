@@ -230,3 +230,71 @@ test("student learning search reaches older summaries before LIMIT, treats wildc
     assert.equal((await f.parent.client.request(pathWith("/api/learning", { studentUid: f.student.user.uid, q: "needle" }))).status, 403);
   } finally { await f.close(); }
 });
+
+test("appointment date bounds precede keyset pagination, retain legacy cursor scope and recheck linked-parent access", { timeout: 30000 }, async () => {
+  const f = await fixture();
+  try {
+    const unbounded = ok(await f.student.client.request("/api/appointments"));
+    assert.equal(unbounded.items.length, 50); assert.equal(unbounded.items.some((item) => f.bookings.includes(item.id)), false, "The old target records begin beyond the initial unfiltered page");
+    const oldScope = createHash("sha256").update(JSON.stringify({ resource: "appointments", actor: f.student.user.uid, target: f.student.user.uid, filters: { status: "all", publication: "all", q: "" } })).digest("hex");
+    assert.equal(JSON.parse(Buffer.from(unbounded.nextCursor.split(".")[0], "base64url").toString("utf8")).s, oldScope, "Omitted date bounds preserve the pre-filter cursor scope");
+    const starts = f.app.db.prepare("SELECT s.starts_at FROM appointments a JOIN slots s ON s.id=a.slot_id WHERE a.id=?").get(f.bookings[0]).starts_at;
+    const from = new Date(starts).toISOString(), to = new Date(starts + 1).toISOString();
+    const first = ok(await f.student.client.request(pathWith("/api/appointments", { from, to })));
+    assert.equal(first.items.length, 50); assert.equal(typeof first.nextCursor, "string");
+    const matches = await all(f.student.client, "/api/appointments", { from, to });
+    assert.deepEqual(new Set(matches.map((item) => item.id)), new Set(f.bookings), "All 244 older matching records remain reachable across pages");
+    assert.equal(matches.every((item) => item.startsAt === from), true); assertNoPrivateLocation(matches);
+    const equivalentFrom = new Date(starts + 330 * 60_000).toISOString().replace("Z", "+05:30");
+    const equivalentTo = new Date(starts + 1 - 420 * 60_000).toISOString().replace("Z", "-07:00");
+    const next = ok(await f.student.client.request(pathWith("/api/appointments", { from: equivalentFrom, to: equivalentTo, cursor: first.nextCursor })));
+    assert.equal(next.items.length, 50); assert.equal(next.items.some((item) => first.items.some((prior) => prior.id === item.id)), false, "Equivalent offset bounds keep the same cursor and advance");
+    assert.equal((await all(f.student.client, "/api/appointments", { to })).length, 244, "The upper bound works without a lower bound");
+    assert.equal((await all(f.student.client, "/api/appointments", { from })).length, 377, "The lower bound works without an upper bound");
+    assert.deepEqual(ok(await f.student.client.request(pathWith("/api/appointments", { to: from }))), { items: [], nextCursor: null }, "An exact upper boundary excludes the matching startsAt");
+    assert.deepEqual(ok(await f.student.client.request(pathWith("/api/appointments", { from: to, to: new Date(starts + 2).toISOString() }))), { items: [], nextCursor: null });
+    const tampered = `${first.nextCursor.slice(0, -1)}${first.nextCursor.endsWith("A") ? "B" : "A"}`;
+    for (const query of [
+      { from, to, cursor: tampered },
+      { from: new Date(starts - 1).toISOString(), to, cursor: first.nextCursor },
+      { from, to: new Date(starts + 2).toISOString(), cursor: first.nextCursor },
+      { from, cursor: first.nextCursor }, { cursor: first.nextCursor },
+      { from, to, status: "ended", cursor: first.nextCursor },
+      { from, to, cursor: unbounded.nextCursor },
+    ]) assert.equal((await f.student.client.request(pathWith("/api/appointments", query))).status, 400, "Changed or tampered date cursor scopes must fail closed");
+    assert.equal((await f.foreign.client.request(pathWith("/api/appointments", { from, to, cursor: first.nextCursor }))).status, 400);
+    assert.equal((await f.foreign.client.request(pathWith("/api/appointments", { studentUid: f.student.user.uid, from, to }))).status, 403);
+    const parent = ok(await f.parent.client.request(pathWith("/api/appointments", { studentUid: f.student.user.uid, from, to })));
+    assert.deepEqual(parent.items, first.items); assert.equal(typeof parent.nextCursor, "string");
+    assert.equal((await f.parent.client.request(pathWith("/api/appointments", { studentUid: f.student.user.uid, from, to, cursor: first.nextCursor }))).status, 400, "A student's cursor does not authorize the parent's actor");
+    f.app.operator.revokeFamily({ studentUid: f.student.user.uid, parentUid: f.parent.user.uid });
+    assert.equal((await f.parent.client.request(pathWith("/api/appointments", { studentUid: f.student.user.uid, from, to, cursor: parent.nextCursor }))).status, 403, "Date filters cannot retain a revoked family permission");
+    assert.equal((await f.staff.client.request(pathWith("/api/operations/appointments", { from, to }))).status, 400, "Operator list parameters remain unchanged");
+  } finally { await f.close(); }
+});
+
+test("appointment bounds validate real explicit-zone instants and respect UTC midnight and daylight-saving offset boundaries", { timeout: 30000 }, async () => {
+  const f = await fixture();
+  try {
+    const instants = ["2027-03-14T06:59:59.999Z", "2027-03-14T07:00:00.000Z", "2027-03-14T07:59:59.999Z", "2027-03-14T08:00:00.000Z", "2027-11-07T05:30:00.000Z", "2027-11-07T06:30:00.000Z", "2027-01-01T00:00:00.000Z", "2027-01-01T00:00:00.001Z"];
+    const ids = instants.map((instant) => {
+      const slotId = randomUUID(), id = randomUUID(), starts = Date.parse(instant), now = Date.now();
+      f.app.db.prepare("INSERT INTO slots VALUES(?,?,?,?,?)").run(slotId, starts, starts + 1_800_000, "Synthetic explicit-zone boundary", now);
+      f.app.db.prepare("INSERT INTO availability_state VALUES(?,'published',?,NULL)").run(slotId, now);
+      f.app.db.prepare("INSERT INTO appointments VALUES(?,?,?,'ended',?,?)").run(id, f.student.user.uid, slotId, now, now);
+      return id;
+    });
+    const selected = async (from, to) => ok(await f.student.client.request(pathWith("/api/appointments", { status: "ended", from, to }))).items.map((item) => item.id);
+    assert.deepEqual(await selected("2027-03-14T03:00:00-04:00", "2027-03-14T04:00:00-04:00"), [ids[2], ids[1]], "A spring-forward day is filtered by explicit instants, not server-local civil hours");
+    assert.deepEqual(await selected("2027-03-14T07:00:00Z", "2027-03-14T08:00:00Z"), [ids[2], ids[1]]);
+    assert.deepEqual(await selected("2027-11-07T01:30:00-04:00", "2027-11-07T01:30:00-05:00"), [ids[4]], "Repeated fall-back wall times remain two different instants and the upper one is excluded");
+    assert.deepEqual(await selected("2026-12-31T17:00:00-07:00", "2027-01-01T00:00:00.001Z"), [ids[6]], "UTC midnight and millisecond-exclusive boundaries are exact");
+    for (const value of ["", "2027-03-14", "2027-03-14T07:00:00", "2027-02-29T00:00:00Z", "2028-02-30T00:00:00Z", "2027-04-31T00:00:00Z", "0000-01-01T00:00:00Z", "2027-13-01T00:00:00Z", "2027-01-00T00:00:00Z", "2027-01-01T24:00:00Z", "2027-01-01T00:60:00Z", "2027-01-01T00:00:60Z", "2027-01-01T00:00:00.1234Z", "2027-01-01 00:00:00Z", "2027-01-01T00:00:00z", "2027-01-01T00:00:00+24:00", "2027-01-01T00:00:00+05:60"]) {
+      for (const name of ["from", "to"]) assert.equal((await f.student.client.request(pathWith("/api/appointments", { [name]: value }))).status, 400, "Malformed date bounds must not normalize into a different time");
+    }
+    for (const [from, to] of [["2027-01-01T00:00:00Z", "2027-01-01T00:00:00Z"], ["2027-01-01T00:00:00Z", "2026-12-31T17:00:00-07:00"], ["2027-01-02T00:00:00Z", "2027-01-01T00:00:00Z"]]) assert.equal((await f.student.client.request(pathWith("/api/appointments", { from, to }))).status, 400);
+    for (const query of ["from=2027-01-01T00%3A00%3A00Z&from=2027-01-02T00%3A00%3A00Z", "to=2027-01-01T00%3A00%3A00Z&to=2027-01-02T00%3A00%3A00Z"]) assert.equal((await f.student.client.request(`/api/appointments?${query}`)).status, 400);
+    for (const valid of ["0001-01-01T00:00:00Z", "0004-02-29T00:00:00.0Z", "2000-02-29T00:00:00.100Z"]) assert.equal((await f.student.client.request(pathWith("/api/appointments", { to: valid }))).status, 200, "Years below100 and real leap days must remain valid without Date.UTC year rollover");
+    assert.equal((await f.student.client.request(pathWith("/api/appointments", { to: "0100-02-29T00:00:00Z" }))).status, 400, "Century leap rules are validated before Date.parse");
+  } finally { await f.close(); }
+});

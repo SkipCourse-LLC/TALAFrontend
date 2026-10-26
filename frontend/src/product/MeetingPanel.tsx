@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { talaApi } from "../api";
 import { useStudentPage } from "./useStudentPage";
 import { StudentPageControls } from "./StudentPageControls";
@@ -9,13 +10,23 @@ import {
   availableMeetingSlots,
   bookingPeriod,
   bookingStatusLabel,
+  bookingDateLabel,
+  bookingHistoryDateRange,
   groupMeetingDays,
   meetingChangeIsCurrent,
   meetingRange,
 } from "./meetingHelpers";
-import type { MeetingChange } from "./meetingHelpers";
+import type { BookingHistoryDateRange, MeetingChange } from "./meetingHelpers";
+import "./meetingDateRange.css";
 
 type HistoryFilter = "past" | "cancelled" | "upcoming";
+type AppliedHistoryDates = {
+  fromDate: string;
+  throughDate: string;
+  from?: string;
+  to?: string;
+  timeZone: string;
+};
 export function MeetingPanel({
   workspace,
   visible,
@@ -62,6 +73,20 @@ export function MeetingPanel({
   const [slotId, setSlotId] = useState("");
   const [filter, setFilter] = useState<HistoryFilter>("past");
   const [query, setQuery] = useState("");
+  const dateId = useId();
+  const [fromDate, setFromDate] = useState("");
+  const [throughDate, setThroughDate] = useState("");
+  const [appliedDates, setAppliedDates] = useState<AppliedHistoryDates>({
+    fromDate: "",
+    throughDate: "",
+    timeZone: "",
+  });
+  const [dateError, setDateError] = useState<{
+    field: "from" | "through";
+    message: string;
+  }>();
+  const fromInput = useRef<HTMLInputElement>(null);
+  const throughInput = useRef<HTMLInputElement>(null);
   const [change, setChange] = useState<MeetingChange | null>(null);
   const [attempted, setAttempted] = useState(false);
   const confirmRunning = useRef(false);
@@ -69,6 +94,13 @@ export function MeetingPanel({
   const refreshedBoundary = useRef("");
   const observedAt = useRef(now);
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const hasAppliedDates = Boolean(
+    appliedDates.fromDate || appliedDates.throughDate,
+  );
+  const datesChanged =
+    fromDate !== appliedDates.fromDate ||
+    throughDate !== appliedDates.throughDate ||
+    (hasAppliedDates && appliedDates.timeZone !== timeZone);
   const loadTimes = useCallback(
     (cursor: string | undefined, signal: AbortSignal) =>
       talaApi.getAvailableTimesPage({ cursor }, signal),
@@ -86,10 +118,12 @@ export function MeetingPanel({
                 ? "reserved"
                 : "cancelled",
           cursor,
+          from: appliedDates.from,
+          to: appliedDates.to,
         },
         signal,
       ),
-    [studentUid, filter],
+    [studentUid, filter, appliedDates.from, appliedDates.to],
   );
   const times = useStudentPage({
     pageKey: "available-times",
@@ -99,7 +133,12 @@ export function MeetingPanel({
     onFailure: onPageFailure,
   });
   const bookings = useStudentPage({
-    pageKey: `${studentUid ?? "self"}:${filter}`,
+    pageKey: JSON.stringify([
+      studentUid ?? "self",
+      filter,
+      appliedDates.from ?? "",
+      appliedDates.to ?? "",
+    ]),
     revision,
     enabled: Boolean(workspace),
     load: loadHistory,
@@ -186,6 +225,50 @@ export function MeetingPanel({
   );
   const historyDays = groupMeetingDays(history, timeZone);
   if (filter !== "upcoming") historyDays.reverse();
+  function applyDateRange(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const invalidNative = fromInput.current?.validity.badInput
+      ? "from"
+      : throughInput.current?.validity.badInput
+        ? "through"
+        : undefined;
+    const result: BookingHistoryDateRange = invalidNative
+      ? {
+          valid: false as const,
+          field: invalidNative,
+          message: `Choose a complete, valid ${invalidNative === "from" ? "From" : "Through"} date.`,
+        }
+      : bookingHistoryDateRange(fromDate, throughDate);
+    if (!result.valid) {
+      setDateError({ field: result.field, message: result.message });
+      requestAnimationFrame(() => {
+        if (!mounted.current || !visible || !workspaceVisible) return;
+        const input = result.field === "from" ? fromInput : throughInput;
+        input.current?.focus();
+      });
+      return;
+    }
+    setDateError(undefined);
+    setAppliedDates({
+      fromDate,
+      throughDate,
+      from: result.from,
+      to: result.to,
+      timeZone,
+    });
+  }
+  function clearDateRange() {
+    // Native date inputs can display a partial invalid date while value is
+    // already empty. Clear that browser-owned editing state explicitly.
+    if (fromInput.current) fromInput.current.value = "";
+    if (throughInput.current) throughInput.current.value = "";
+    setFromDate("");
+    setThroughDate("");
+    setDateError(undefined);
+    setAppliedDates({ fromDate: "", throughDate: "", timeZone: "" });
+    fromInput.current?.focus({ preventScroll: true });
+  }
   async function confirm() {
     if (
       !change ||
@@ -452,9 +535,117 @@ export function MeetingPanel({
               </div>
             </div>
             <p id="booking-history-search-help" className="meeting-help">
-              Searches the loaded bookings in this view. Load more bookings to
-              include earlier dates.
+              Searches only bookings already loaded for the selected status and
+              applied dates. Load more bookings to include additional results.
             </p>
+            <form
+              className="meeting-date-range"
+              aria-label="Booking history date range"
+              onSubmit={applyDateRange}
+              noValidate
+            >
+              <fieldset aria-describedby={`${dateId}-help`}>
+                <legend>Filter by meeting date</legend>
+                <p className="meeting-help" id={`${dateId}-help`}>
+                  Choose either or both dates. Includes the whole Through date
+                  in {timeZone}.
+                </p>
+                <div className="meeting-date-range-fields">
+                  <div className="form-field">
+                    <label htmlFor={`${dateId}-from`}>From date</label>
+                    <input
+                      id={`${dateId}-from`}
+                      ref={fromInput}
+                      type="date"
+                      min="0001-01-01"
+                      max="9999-12-31"
+                      value={fromDate}
+                      onChange={(event) => {
+                        setFromDate(event.target.value);
+                        setDateError(undefined);
+                      }}
+                      aria-invalid={dateError?.field === "from"}
+                      aria-describedby={
+                        dateError?.field === "from"
+                          ? `${dateId}-help ${dateId}-error`
+                          : `${dateId}-help`
+                      }
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor={`${dateId}-through`}>Through date</label>
+                    <input
+                      id={`${dateId}-through`}
+                      ref={throughInput}
+                      type="date"
+                      min="0001-01-01"
+                      max="9999-12-30"
+                      value={throughDate}
+                      onChange={(event) => {
+                        setThroughDate(event.target.value);
+                        setDateError(undefined);
+                      }}
+                      aria-invalid={dateError?.field === "through"}
+                      aria-describedby={
+                        dateError?.field === "through"
+                          ? `${dateId}-help ${dateId}-error`
+                          : `${dateId}-help`
+                      }
+                    />
+                  </div>
+                </div>
+                {dateError && (
+                  <p
+                    className="meeting-date-range-error"
+                    id={`${dateId}-error`}
+                    role="alert"
+                  >
+                    {dateError.message}
+                  </p>
+                )}
+                <div className="meeting-date-range-actions">
+                  <button
+                    type="submit"
+                    className="meeting-date-range-apply"
+                    disabled={busy}
+                  >
+                    Apply dates
+                  </button>
+                  {(fromDate ||
+                    throughDate ||
+                    hasAppliedDates ||
+                    dateError) && (
+                    <button
+                      type="button"
+                      className="meeting-text-action"
+                      disabled={busy}
+                      onClick={clearDateRange}
+                    >
+                      Clear dates
+                    </button>
+                  )}
+                </div>
+                <p
+                  className="meeting-date-range-applied"
+                  role="status"
+                  aria-atomic="true"
+                >
+                  {datesChanged && (
+                    <strong>Date changes are not applied yet.</strong>
+                  )}
+                  {appliedDates.fromDate && appliedDates.throughDate
+                    ? `Showing ${bookingDateLabel(appliedDates.fromDate)} through ${bookingDateLabel(appliedDates.throughDate)}.`
+                    : appliedDates.fromDate
+                      ? `Showing dates from ${bookingDateLabel(appliedDates.fromDate)}.`
+                      : appliedDates.throughDate
+                        ? `Showing dates through ${bookingDateLabel(appliedDates.throughDate)}.`
+                        : "Showing all dates."}
+                  {hasAppliedDates
+                    ? ` Dates use ${appliedDates.timeZone}.`
+                    : ""}
+                </p>
+              </fieldset>
+            </form>
             <div
               className="meeting-history-filters"
               role="group"
@@ -479,8 +670,9 @@ export function MeetingPanel({
               ))}
             </div>
             <p className="sr-only" role="status">
-              {history.length} {filter}{" "}
-              {history.length === 1 ? "booking" : "bookings"} found.
+              {bookings.loaded && !bookings.loading && !bookings.error
+                ? `${history.length} loaded ${filter} ${history.length === 1 ? "booking" : "bookings"} match this view.`
+                : ""}
             </p>
             {bookings.loading && !bookings.loaded ? (
               <p role="status">Loading booking history…</p>
@@ -547,16 +739,18 @@ export function MeetingPanel({
                   </ul>
                 </section>
               ))
-            ) : (
+            ) : bookings.loaded && !bookings.error ? (
               <div className="meeting-history-empty">
                 <p>
                   {query.trim()
-                    ? "No bookings match your search."
-                    : filter === "past"
-                      ? "No past scheduled meetings yet."
-                      : filter === "cancelled"
-                        ? "No cancelled bookings."
-                        : "No upcoming bookings."}
+                    ? "No loaded bookings match your search."
+                    : hasAppliedDates
+                      ? `No ${filter} bookings in this date range.`
+                      : filter === "past"
+                        ? "No past scheduled meetings yet."
+                        : filter === "cancelled"
+                          ? "No cancelled bookings."
+                          : "No upcoming bookings."}
                 </p>
                 {query.trim() && (
                   <button
@@ -568,7 +762,7 @@ export function MeetingPanel({
                   </button>
                 )}
               </div>
-            )}
+            ) : null}
             <StudentPageControls
               label="bookings"
               count={bookings.items.length}

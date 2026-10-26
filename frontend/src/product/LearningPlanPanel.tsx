@@ -4,7 +4,6 @@ import { newRequestId } from "../api";
 import type { LearningGoal, LearningGoalInput } from "../api";
 import {
   goalDueLabel,
-  sortLearningGoals,
   validGoalDate,
   validateGoalSteps,
   goalStepsChanged,
@@ -14,6 +13,9 @@ import type { EditableGoalStep } from "./learningPlanHelpers";
 import { GoalEvidencePanel } from "./GoalEvidencePanel";
 import { useLocalCalendarDay } from "./useLocalCalendarDay";
 import { hasTextControls, isWellFormedText } from "./unicodeText";
+import { LearningPlanExport } from "./LearningPlanExport";
+import { organizeLearningGoals } from "./learningPlanOrganizationHelpers";
+import type { GoalSort } from "./learningPlanOrganizationHelpers";
 import "./learningPlan.css";
 
 type GoalInput = LearningGoalInput;
@@ -67,6 +69,8 @@ export function LearningPlanPanel({
 }) {
   const baseId = useId();
   const [filter, setFilter] = useState<GoalFilter>("active");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<GoalSort>("target");
   const [editor, setEditor] = useState<Editor>();
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
@@ -89,6 +93,7 @@ export function LearningPlanPanel({
   const stepReturnTarget = useRef<HTMLInputElement | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const addStepButton = useRef<HTMLButtonElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
   const focusedGoal = useRef<string | undefined>(undefined);
   const dirtyListener = useRef(onDirtyChange);
   const locked = busy || pending !== undefined || associationBusy;
@@ -99,9 +104,13 @@ export function LearningPlanPanel({
   const activeCount =
     goals?.filter((goal) => goal.status === "active").length ?? 0;
   const completedCount = (goals?.length ?? 0) - activeCount;
-  const visible = sortLearningGoals(goals ?? []).filter(
-    (goal) => filter === "all" || goal.status === filter,
-  );
+  const visible = organizeLearningGoals(goals ?? [], filter, search, sort);
+  const filteredCount =
+    filter === "active"
+      ? activeCount
+      : filter === "completed"
+        ? completedCount
+        : (goals?.length ?? 0);
   const originalEditorGoal = editor?.kind === "edit" ? editor.goal : undefined;
   const editorChanged = Boolean(
     editor &&
@@ -185,6 +194,7 @@ export function LearningPlanPanel({
       // A direct goal link must also reveal completed goals. The next frame
       // waits for that list to render without touching an open editor draft.
       setFilter("all");
+      setSearch("");
       focusFrame = requestAnimationFrame(() => {
         if (!active.current) return;
         const target = document.getElementById(`learning-goal-${focusGoalId}`);
@@ -350,6 +360,10 @@ export function LearningPlanPanel({
           ? onCreate(input)
           : onUpdate(editor.goal, { ...input, status: editor.goal.status }),
       () => {
+        // A saved goal must remain discoverable even if its name changed or
+        // the editor was opened while browsing a different status/search.
+        setSearch("");
+        setFilter(editor.kind === "create" ? "active" : editor.goal.status);
         setMessage(
           editor.kind === "create"
             ? "Your goal was saved."
@@ -445,6 +459,12 @@ export function LearningPlanPanel({
         Personal goals are self-reported. Completing one does not award course
         credit or verify a skill.
       </p>
+      <LearningPlanExport
+        studentUid={studentUid}
+        disabled={unavailable}
+        visible={panelVisible}
+        onFailure={onFailure}
+      />
       {focusGoalId &&
         missingGoalId === focusGoalId &&
         !goals?.some((goal) => goal.id === focusGoalId) && (
@@ -741,6 +761,7 @@ export function LearningPlanPanel({
                     className="learning-plan-filter"
                     aria-pressed={filter === value}
                     aria-label={`${label} goals (${count})`}
+                    disabled={locked}
                     onClick={() => setFilter(value)}
                   >
                     {label}
@@ -749,12 +770,72 @@ export function LearningPlanPanel({
                 );
               })}
             </div>
-            <span className="learning-plan-sort">
-              {filter === "completed"
-                ? "Most recently completed first"
-                : "Nearest target date first"}
-            </span>
           </div>
+          <div className="learning-plan-organization">
+            <div className="learning-plan-search">
+              <label htmlFor={`${baseId}-search`}>Search learning goals</label>
+              <div className="learning-plan-search-control">
+                <input
+                  id={`${baseId}-search`}
+                  ref={searchInput}
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  maxLength={120}
+                  autoComplete="off"
+                  disabled={locked}
+                  aria-describedby={`${baseId}-search-help`}
+                />
+                {search.length > 0 && (
+                  <button
+                    className="learning-plan-search-clear"
+                    type="button"
+                    disabled={locked}
+                    onClick={() => {
+                      setSearch("");
+                      searchInput.current?.focus({ preventScroll: true });
+                    }}
+                  >
+                    Clear search
+                  </button>
+                )}
+              </div>
+              <p id={`${baseId}-search-help`}>
+                Search names, notes and checklist steps.
+              </p>
+            </div>
+            <div className="learning-plan-sort-control">
+              <label htmlFor={`${baseId}-sort`}>Sort goals</label>
+              <select
+                id={`${baseId}-sort`}
+                value={sort}
+                disabled={locked}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setSort(
+                    next === "title" || next === "updated" ? next : "target",
+                  );
+                }}
+              >
+                <option value="target">
+                  {filter === "completed"
+                    ? "Recently completed"
+                    : "Nearest target date"}
+                </option>
+                <option value="updated">Recently updated</option>
+                <option value="title">Goal name</option>
+              </select>
+            </div>
+          </div>
+          <p
+            className="learning-plan-results"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {visible.length} of {filteredCount}{" "}
+            {filteredCount === 1 ? "goal" : "goals"} shown.
+          </p>
           {full && !readOnly && (
             <p className="learning-plan-limit">
               All 100 goal spaces are in use. You can still edit, complete or
@@ -927,26 +1008,30 @@ export function LearningPlanPanel({
             !loading && (
               <div className="learning-plan-empty">
                 <h3>
-                  {goals.length === 0
-                    ? readOnly
-                      ? "No goals saved yet."
-                      : "Start with one small goal."
-                    : filter === "completed"
-                      ? "No completed goals yet."
-                      : "A little space for your next step."}
+                  {search.trim()
+                    ? "No goals match this search."
+                    : goals.length === 0
+                      ? readOnly
+                        ? "No goals saved yet."
+                        : "Start with one small goal."
+                      : filter === "completed"
+                        ? "No completed goals yet."
+                        : "A little space for your next step."}
                 </h3>
                 <p>
-                  {goals.length === 0
-                    ? readOnly
-                      ? "The student’s saved goals will appear here."
-                      : "Choose something you want to learn. Add a target date if it helps."
-                    : filter === "completed"
+                  {search.trim()
+                    ? "Search goal names, notes or steps. Clear the search or choose another status."
+                    : goals.length === 0
                       ? readOnly
-                        ? "Goals appear here when the student marks them complete."
-                        : "Goals appear here when you mark them complete."
-                      : readOnly
-                        ? "The student’s completed goals are saved in the Completed view."
-                        : "Your completed goals are saved in the Completed view."}
+                        ? "The student’s saved goals will appear here."
+                        : "Choose something you want to learn. Add a target date if it helps."
+                      : filter === "completed"
+                        ? readOnly
+                          ? "Goals appear here when the student marks them complete."
+                          : "Goals appear here when you mark them complete."
+                        : readOnly
+                          ? "The student’s completed goals are saved in the Completed view."
+                          : "Your completed goals are saved in the Completed view."}
                 </p>
               </div>
             )

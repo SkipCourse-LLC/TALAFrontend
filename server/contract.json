@@ -561,6 +561,8 @@
       "query": {
         "studentUid": "optional authorized target student UID",
         "status": "all|reserved|cancelled|ended, defaultall",
+        "from": "optional inclusive lower bound on startsAt; strict YYYY-MM-DDTHH:mm:ss[.1-3 digits](Z|+/-HH:mm), real civil date with year0001-9999; equivalent offsets canonicalize to the same instant",
+        "to": "optional exclusive upper bound on startsAt, same format as from; must be later than from when both are supplied; date bounds apply before pagination and are included in cursor scope",
         "cursor": "optional scoped keyset cursor"
       },
       "response": "ResourcePage<Appointment>; period-ended status is derived at page read without claiming attendance"
