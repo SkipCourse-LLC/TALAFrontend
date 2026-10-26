@@ -5,12 +5,16 @@ import * as decode from "./decoders";
 import type {
   Appointment,
   AppointmentPageQuery,
+  AppointmentPreparationInput,
   AvailabilityPageQuery,
   EvidencePageQuery,
   EvidenceContentType,
   EvidenceDownload,
   PasswordChangeResult,
   LearningPageQuery,
+  LearningGoal,
+  LearningGoalInput,
+  WorkspaceUpdatesQuery,
   OperatorAppointmentQuery,
   OperatorLearningQuery,
   SessionState,
@@ -44,6 +48,23 @@ function inputId(value: string): string {
   if (!/^[a-zA-Z0-9_-]{1,128}$/.test(value))
     throw new TalaApiError("INVALID_INPUT");
   return encodeURIComponent(value);
+}
+function matchesGoalInput(saved: LearningGoal, input: LearningGoalInput) {
+  return (
+    saved.title === input.title.trim() &&
+    saved.notes === input.notes.replace(/\r\n/g, "\n").trim() &&
+    saved.dueDate === input.dueDate &&
+    (input.steps === undefined ||
+      (saved.steps.length === input.steps.length &&
+        saved.steps.every((step, index) => {
+          const intended = input.steps![index]!;
+          return (
+            step.id === intended.id &&
+            step.title === intended.title.trim() &&
+            step.completed === intended.completed
+          );
+        })))
+  );
 }
 function waitForCaller<T>(
   pending: Promise<T>,
@@ -275,6 +296,213 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
   }
   return {
     getSession: loadSession,
+    getLearningGoals(studentUid?: string, signal?: AbortSignal) {
+      return authenticated(signal, async (current, transport) => {
+        const saved = await transport.json(
+          `/api/learning-goals${targetQuery(studentUid)}`,
+          { signal },
+          decode.learningGoals,
+        );
+        if (
+          saved.goals.some(
+            (goal) => goal.ownerUid !== (studentUid ?? current.uid),
+          )
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    createLearningGoal(
+      input: LearningGoalInput & { requestId: string },
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, async (current, _transport, json) => {
+        const saved = await json(
+          "/api/learning-goals",
+          "POST",
+          input,
+          signal,
+          decode.learningGoal,
+        );
+        if (
+          saved.ownerUid !== current.uid ||
+          saved.status !== "active" ||
+          saved.version !== 1 ||
+          !matchesGoalInput(saved, input)
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    updateLearningGoal(
+      goalId: string,
+      input: LearningGoalInput & {
+        status: LearningGoal["status"];
+        version: number;
+        requestId: string;
+      },
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, async (current, _transport, json) => {
+        const saved = await json(
+          `/api/learning-goals/${inputId(goalId)}`,
+          "PATCH",
+          input,
+          signal,
+          decode.learningGoal,
+        );
+        if (
+          saved.id !== goalId ||
+          saved.ownerUid !== current.uid ||
+          saved.version !== input.version + 1 ||
+          saved.status !== input.status ||
+          !matchesGoalInput(saved, input)
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    getLearningGoalEvidence(
+      goalId: string,
+      ownerUid: string,
+      signal?: AbortSignal,
+    ) {
+      inputId(ownerUid);
+      return authenticated(signal, async (_current, transport) => {
+        const saved = await transport.json(
+          `/api/learning-goals/${inputId(goalId)}/evidence`,
+          { signal },
+          decode.learningGoalEvidence,
+        );
+        if (saved.goalId !== goalId || saved.ownerUid !== ownerUid)
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    changeLearningGoalEvidence(
+      goalId: string,
+      input: {
+        evidenceId: string;
+        action: "link" | "unlink";
+        version: number;
+        requestId: string;
+      },
+      signal?: AbortSignal,
+    ) {
+      inputId(input.evidenceId);
+      return authenticated(signal, async (current, _transport, json) => {
+        const saved = await json(
+          `/api/learning-goals/${inputId(goalId)}/evidence`,
+          "POST",
+          input,
+          signal,
+          decode.learningGoal,
+        );
+        if (
+          saved.id !== goalId ||
+          saved.ownerUid !== current.uid ||
+          saved.version !== input.version + 1
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    getWorkspaceUpdates(
+      input: WorkspaceUpdatesQuery = {},
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, async (current, transport) => {
+        const saved = await transport.json(
+          `/api/updates${pageQuery(input)}`,
+          { signal },
+          decode.workspaceUpdatesPage,
+        );
+        if (
+          saved.ownerUid !== (input.studentUid ?? current.uid) ||
+          (input.filter === "unread" && saved.items.some((item) => item.read))
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    markWorkspaceUpdateRead(
+      updateId: string,
+      input: { requestId: string },
+      signal?: AbortSignal,
+    ) {
+      if (!/^update_[a-f0-9]{64}$/.test(updateId))
+        return Promise.reject(new TalaApiError("INVALID_INPUT"));
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          `/api/updates/${updateId}/read`,
+          "POST",
+          input,
+          signal,
+          decode.workspaceUpdateRead,
+        );
+        if (saved.id !== updateId) throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    markAllWorkspaceUpdatesRead(
+      input: { requestId: string },
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, (_current, _transport, json) =>
+        json(
+          "/api/updates/read-all",
+          "POST",
+          input,
+          signal,
+          decode.workspaceUpdatesReadAll,
+        ),
+      );
+    },
+    getAppointmentPreparation(
+      appointmentId: string,
+      ownerUid: string,
+      signal?: AbortSignal,
+    ) {
+      inputId(ownerUid);
+      return authenticated(signal, async (_current, transport) => {
+        const saved = await transport.json(
+          `/api/appointments/${inputId(appointmentId)}/preparation`,
+          { signal },
+          decode.appointmentPreparation,
+        );
+        if (
+          saved.appointmentId !== appointmentId ||
+          saved.ownerUid !== ownerUid
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    saveAppointmentPreparation(
+      appointmentId: string,
+      input: AppointmentPreparationInput,
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, async (current, _transport, json) => {
+        const saved = await json(
+          `/api/appointments/${inputId(appointmentId)}/preparation`,
+          "PATCH",
+          input,
+          signal,
+          decode.appointmentPreparation,
+        );
+        if (
+          saved.appointmentId !== appointmentId ||
+          saved.ownerUid !== current.uid ||
+          saved.version !== input.version + 1 ||
+          saved.note !== input.note.replace(/\r\n/g, "\n").trim() ||
+          saved.goalId !== input.goalId ||
+          saved.ready !== input.ready
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
     async register(
       input: {
         name: string;

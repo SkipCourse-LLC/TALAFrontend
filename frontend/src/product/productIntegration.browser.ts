@@ -474,7 +474,8 @@ test("student registration, booking changes, private file persistence and mobile
   await submitEvidence(page, false);
   await chooseView(page, "progress");
   const progress = page
-    .locator(".product-stats > div")
+    .getByRole("region", { name: "Saved learning work", exact: true })
+    .locator("dl > div")
     .filter({ hasText: "Evidence submitted" })
     .locator("dd");
   await expect(progress).toHaveText("1");
@@ -912,12 +913,10 @@ test("operator review, availability controls and learning summaries lead to a pr
   await chooseView(page, "learning");
   await expect(page.getByText(summary, { exact: true })).toBeVisible();
   expect(
-    await page
-      .getByText(summary, { exact: true })
-      .evaluate((element) => ({
-        text: element.textContent,
-        whitespace: getComputedStyle(element).whiteSpace,
-      })),
+    await page.getByText(summary, { exact: true }).evaluate((element) => ({
+      text: element.textContent,
+      whitespace: getComputedStyle(element).whiteSpace,
+    })),
   ).toEqual({ text: summary, whitespace: "pre-wrap" });
   await page
     .getByRole("button", { name: "I have reviewed this summary", exact: true })
@@ -965,25 +964,25 @@ test("operator review, availability controls and learning summaries lead to a pr
     revisedBytes,
   );
   await chooseView(page, "progress");
-  const stats = page.locator("#progress .product-stats");
+  const stats = page.getByRole("region", {
+    name: "Saved learning work",
+    exact: true,
+  });
   await expect(
     stats
-      .locator("div")
+      .locator("dl > div")
       .filter({ hasText: "Evidence submitted" })
       .locator("dd"),
   ).toHaveText("2");
   await expect(
     stats
-      .locator("div")
+      .locator("dl > div")
       .filter({ hasText: "Revisions submitted" })
       .locator("dd"),
   ).toHaveText("1");
   await expect(
-    stats
-      .locator("div")
-      .filter({ hasText: "Summaries acknowledged" })
-      .locator("dd"),
-  ).toHaveText("1");
+    page.getByText("1 learning note marked as reviewed.", { exact: true }),
+  ).toBeVisible();
   await chooseView(page, "evidence");
   await page
     .getByRole("button", {
@@ -1318,7 +1317,8 @@ test("unfinished Evidence survives refresh and recovers submitted or missing-fil
   await chooseView(page, "progress");
   await expect(
     page
-      .locator(".product-stats > div")
+      .getByRole("region", { name: "Saved learning work", exact: true })
+      .locator("dl > div")
       .filter({ hasText: "Evidence submitted" })
       .locator("dd"),
   ).toHaveText("2");

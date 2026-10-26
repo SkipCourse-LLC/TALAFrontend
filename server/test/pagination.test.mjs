@@ -197,3 +197,36 @@ test("cursors cannot cross users, resources or filters, and revoked parent links
     assert.equal((await f.student.client.request(pathWith("/api/evidence", { cursor }))).status, 401);
   } finally { await f.close(); }
 });
+
+test("student learning search reaches older summaries before LIMIT, treats wildcards literally and binds cursors to normalized query and family scope", { timeout: 30000 }, async () => {
+  const f = await fixture();
+  try {
+    const oldId = f.learningIds[0], oldSummary = "An archived literal %_\\ example and one clear needle.";
+    const outcomes = JSON.parse(f.app.db.prepare("SELECT outcomes_json FROM learning_records WHERE id=?").get(oldId).outcomes_json);
+    outcomes[0].summary = oldSummary;
+    f.app.db.prepare("UPDATE learning_records SET published_at=?,outcomes_json=? WHERE id=?").run(Date.now() - 7_200_000, JSON.stringify(outcomes), oldId);
+    const first = ok(await f.student.client.request("/api/learning?limit=25"));
+    assert.equal(first.records.length, 25); assert.equal(first.records.some((record) => record.id === oldId), false, "The target starts outside the initial bounded page");
+    const found = ok(await f.student.client.request(pathWith("/api/learning", { q: "  needle  ", limit: "25" })));
+    assert.deepEqual(found.records.map((record) => record.id), [oldId]); assert.equal(found.records[0].outcomes[0].summary, oldSummary); assert.equal(found.nextCursor, null);
+    for (const q of ["%", "_", "\\", "%_\\"]) {
+      const literal = ok(await f.student.client.request(pathWith("/api/learning", { q })));
+      assert.deepEqual(literal.records.map((record) => record.id), [oldId], "SQL wildcard and escape characters are literal substring content");
+    }
+    const broad = ok(await f.student.client.request(pathWith("/api/learning", { q: "  漢  ", limit: "25" })));
+    assert.equal(broad.records.length, 25); assert.equal(typeof broad.nextCursor, "string");
+    const next = ok(await f.student.client.request(pathWith("/api/learning", { q: "漢", limit: "25", cursor: broad.nextCursor })));
+    assert.equal(next.records.length, 25); assert.equal(next.records.some((record) => broad.records.some((prior) => prior.id === record.id)), false, "Whitespace normalization does not change the cursor query scope");
+    assert.equal((await f.student.client.request(pathWith("/api/learning", { q: "needle", limit: "25", cursor: broad.nextCursor }))).status, 400);
+    assert.equal((await f.student.client.request(pathWith("/api/learning", { limit: "25", cursor: broad.nextCursor }))).status, 400);
+    assert.equal((await f.student.client.request(pathWith("/api/learning", { q: "x".repeat(81) }))).status, 400);
+    assert.equal((await f.student.client.request("/api/learning?q=one&q=two")).status, 400);
+    assert.equal((await f.student.client.request(pathWith("/api/learning", { q: "bad\nquery" }))).status, 400);
+    const parent = ok(await f.parent.client.request(pathWith("/api/learning", { studentUid: f.student.user.uid, q: "%_\\" })));
+    assert.deepEqual(parent.records.map((record) => record.id), [oldId]);
+    assert.equal((await f.parent.client.request(pathWith("/api/learning", { studentUid: f.student.user.uid, q: "漢", limit: "25", cursor: broad.nextCursor }))).status, 400, "A child cursor does not authorize another actor");
+    assert.equal((await f.foreign.client.request(pathWith("/api/learning", { studentUid: f.student.user.uid, q: "needle" }))).status, 403);
+    f.app.operator.revokeFamily({ studentUid: f.student.user.uid, parentUid: f.parent.user.uid });
+    assert.equal((await f.parent.client.request(pathWith("/api/learning", { studentUid: f.student.user.uid, q: "needle" }))).status, 403);
+  } finally { await f.close(); }
+});

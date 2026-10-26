@@ -1,0 +1,67 @@
+.evidence-note {
+  min-width: 0;
+  margin: 0;
+}
+.evidence-note label {
+  display: block;
+  margin-bottom: 8px;
+  color: #1d1d1f;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.evidence-note .evidence-note-guidance {
+  margin: 0 0 14px;
+  max-width: 65ch;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #626268;
+}
+.evidence-note textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 180px;
+  padding: 14px 16px;
+  border: 1px solid #738a7e;
+  border-radius: 11px;
+  color: #1d1d1f;
+  background: #fff;
+  font: inherit;
+  line-height: 1.75;
+  resize: vertical;
+}
+.evidence-note textarea:focus-visible {
+  outline: 3px solid #174139;
+  outline-offset: 4px;
+  border-color: #174139;
+}
+.evidence-note textarea:disabled {
+  background: #f1f4f3;
+  color: #626268;
+  cursor: not-allowed;
+}
+.evidence-note textarea[aria-invalid="true"] {
+  border-color: #9d4138;
+}
+.evidence-note .evidence-note-error {
+  margin: 10px 0 0;
+  max-width: 65ch;
+  color: #812a25;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.evidence-note .evidence-note-count {
+  margin: 10px 0 0;
+  color: #626268;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .evidence-note textarea {
+    transition: none;
+  }
+}

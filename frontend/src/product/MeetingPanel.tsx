@@ -26,6 +26,7 @@ export function MeetingPanel({
   stale,
   mutationError,
   evidenceDraftBookingIds,
+  preparationDraftBookingIds,
   pendingUploadsKnown,
   studentUid,
   revision,
@@ -34,6 +35,7 @@ export function MeetingPanel({
   onBook,
   onCancel,
   onCalendar,
+  onDetails,
 }: {
   workspace?: ApiWorkspace;
   visible: boolean;
@@ -44,6 +46,7 @@ export function MeetingPanel({
   stale: boolean;
   mutationError: string;
   evidenceDraftBookingIds: ReadonlySet<string>;
+  preparationDraftBookingIds: ReadonlySet<string>;
   pendingUploadsKnown: boolean;
   studentUid?: string;
   revision: number;
@@ -52,6 +55,7 @@ export function MeetingPanel({
   onBook: (slot: ApiSlot, previous?: ApiAppointment) => Promise<boolean>;
   onCancel: (booking: ApiAppointment) => Promise<boolean>;
   onCalendar: (booking: ApiAppointment) => Promise<boolean>;
+  onDetails: (booking: ApiAppointment) => void;
 }) {
   const workspaceVisible = useWorkspaceVisible();
   const [now, setNow] = useState(Date.now);
@@ -188,6 +192,7 @@ export function MeetingPanel({
       blocked ||
       (!pendingUploadsKnown && !readOnly) ||
       evidenceDraftBookingIds.has(change.booking.id) ||
+      preparationDraftBookingIds.has(change.booking.id) ||
       confirmRunning.current ||
       !meetingChangeIsCurrent(change, confirmationWorkspace, now)
     )
@@ -282,6 +287,13 @@ export function MeetingPanel({
                       onClick={() => void onCalendar(booking)}
                     >
                       Download calendar
+                    </button>
+                    <button
+                      type="button"
+                      className="meeting-text-action"
+                      onClick={() => onDetails(booking)}
+                    >
+                      View reservation details
                     </button>
                   </div>
                   <p className="meeting-help">
@@ -509,17 +521,27 @@ export function MeetingPanel({
                             </p>
                           )}
                         </div>
-                        {item.status !== "cancelled" && (
+                        <div className="product-actions meeting-history-actions">
                           <button
                             type="button"
                             className="meeting-text-action"
-                            disabled={busy || loading || stale}
-                            aria-label={`Download calendar for ${meetingRange(item.startsAt, item.endsAt, timeZone)}`}
-                            onClick={() => void onCalendar(item)}
+                            aria-label={`View details for ${meetingRange(item.startsAt, item.endsAt, timeZone)}`}
+                            onClick={() => onDetails(item)}
                           >
-                            Download calendar
+                            View details
                           </button>
-                        )}
+                          {item.status !== "cancelled" && (
+                            <button
+                              type="button"
+                              className="meeting-text-action"
+                              disabled={busy || loading || stale}
+                              aria-label={`Download calendar for ${meetingRange(item.startsAt, item.endsAt, timeZone)}`}
+                              onClick={() => void onCalendar(item)}
+                            >
+                              Download calendar
+                            </button>
+                          )}
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -574,6 +596,7 @@ export function MeetingPanel({
             !pendingUploadsKnown ||
             evidenceDraftBookingIds.has(change.booking.id)
           }
+          preparationBlocked={preparationDraftBookingIds.has(change.booking.id)}
           error={
             attempted
               ? mutationError ||

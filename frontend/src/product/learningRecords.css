@@ -1,0 +1,192 @@
+.learning-records {
+  min-width: 0;
+}
+.learning-records .learning-records-header > p {
+  max-width: 64ch;
+  margin: 12px 0 0;
+  color: #56655f;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+.learning-records .learning-records-family {
+  border-left: 3px solid #b6cbbf;
+  padding-left: 14px;
+  margin-block: 20px;
+  color: #45594f;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+.learning-records .learning-records-search {
+  margin-block: 28px 24px;
+  max-width: 640px;
+  min-width: 0;
+}
+.learning-records-search > label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.learning-records-search-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.learning-records-search input {
+  min-width: 0;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #818d87;
+  border-radius: 9px;
+  padding: 11px 14px;
+  background: #fff;
+  color: #1d1d1f;
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.learning-records .learning-records-search > p {
+  margin: 8px 0 0;
+  color: #56655f;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.learning-records button {
+  min-height: 44px;
+  max-width: 100%;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.learning-records .learning-records-clear,
+.learning-records .learning-records-details {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #174139;
+  padding: 10px 4px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-color: #9db3a7;
+  font-weight: 600;
+}
+.learning-records .learning-records-clear {
+  padding-inline: 8px;
+}
+.learning-records .learning-records-list,
+.learning-records .learning-records-outcomes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.learning-records .learning-records-item {
+  padding-block: 24px;
+  border-top: 1px solid #d6dfda;
+}
+.learning-records-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px 24px;
+}
+.learning-records .learning-records-row-header h3 {
+  margin: 0;
+  color: #1d1d1f;
+  font-size: 1rem;
+  line-height: 1.6;
+  letter-spacing: -0.015em;
+}
+.learning-records .learning-records-row-header p {
+  margin: 5px 0 0;
+  color: #56655f;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.learning-records .learning-records-outcomes > li {
+  margin-top: 18px;
+}
+.learning-records .learning-records-summary {
+  max-width: 75ch;
+  margin: 0 0 16px;
+  color: #283b32;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.learning-records .learning-records-acknowledge {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid #b0c1b6;
+  border-radius: 9px;
+  padding: 10px 16px;
+  background: #fff;
+  color: #174139;
+  font-weight: 600;
+}
+.learning-records .learning-records-reviewed,
+.learning-records .learning-records-awaiting {
+  display: inline-block;
+  color: #496052;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.learning-records .learning-records-reviewed {
+  font-weight: 600;
+}
+.learning-records .learning-records-empty {
+  max-width: 56ch;
+  padding-block: 16px;
+  color: #56655f;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+}
+.learning-records :is(input, button, [tabindex]):focus-visible {
+  outline: 3px solid #174139;
+  outline-offset: 4px;
+}
+.learning-records button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+@media (hover: hover) {
+  .learning-records
+    :is(.learning-records-clear, .learning-records-details):hover {
+    background: #edf2ef;
+  }
+  .learning-records .learning-records-acknowledge:not(:disabled):hover {
+    background: #edf2ef;
+    border-color: #174139;
+  }
+}
+@media (max-width: 600px) {
+  .learning-records-row-header {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .learning-records .learning-records-details {
+    text-align: left;
+  }
+  .learning-records-search-control {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  .learning-records-search input {
+    flex-basis: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learning-records *,
+  .learning-records *::before,
+  .learning-records *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

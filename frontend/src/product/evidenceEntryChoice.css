@@ -1,0 +1,74 @@
+.evidence-entry-choice {
+  border: 0;
+  padding: 0;
+  margin: 4px 0 20px;
+  min-width: 0;
+}
+.evidence-entry-choice > legend {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.evidence-entry-options {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.evidence-entry-options > label {
+  display: flex;
+  flex: 1 1 200px;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  border: 1px solid #87968e;
+  border-radius: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  background: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+.evidence-entry-options > label:has(input:checked) {
+  background: #edf2ef;
+  border-color: #174139;
+  box-shadow: inset 0 0 0 1px #174139;
+}
+.evidence-entry-options input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin: 0;
+  accent-color: #174139;
+}
+.evidence-entry-options small {
+  display: block;
+  margin-top: 5px;
+  color: #626268;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+.evidence-entry-options label:has(input:focus-visible) {
+  outline: 3px solid #174139;
+  outline-offset: 4px;
+}
+.evidence-entry-choice:disabled label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.evidence-entry-confirm {
+  border-left: 3px solid #8c713d;
+  background: #faf6ed;
+  padding: 16px 18px;
+  margin-top: 16px;
+}
+.evidence-entry-confirm p {
+  font-size: 0.9rem;
+  color: #5d4b24;
+  line-height: 1.65;
+  margin: 0 0 12px;
+  max-width: 65ch;
+}
+.evidence-entry-confirm .button {
+  min-height: 44px;
+}

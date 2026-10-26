@@ -1,17 +1,25 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { talaApi, TalaApiError, safeTalaApiError } from "../api";
 import type { ApiEvidence } from "../api";
+import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
+import { EvidenceTextPreview } from "./EvidenceTextPreview";
 
 export function EvidenceHistoryDialog({
   evidenceId,
+  ownerUid,
+  readOnly,
   onNavigate,
   onClose,
   onExpired,
+  onFailure,
 }: {
   evidenceId: string;
+  ownerUid: string;
+  readOnly: boolean;
   onNavigate: (id: string) => void;
   onClose: () => void;
   onExpired: () => void;
+  onFailure: (failure: unknown) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const recordTitle = useRef<HTMLHeadingElement>(null);
@@ -20,9 +28,10 @@ export function EvidenceHistoryDialog({
   const [failure, setFailure] = useState<{ id: string; message: string }>();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const running = useRef(false);
   const downloadController = useRef<AbortController | null>(null);
-  const urls = useRef(new Set<string>());
+  const exportFile = usePrivateWorkspaceExport();
   useLayoutEffect(() => {
     active.current = true;
     const element = dialog.current;
@@ -30,13 +39,10 @@ export function EvidenceHistoryDialog({
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    const localUrls = urls.current;
     element?.showModal();
     return () => {
       active.current = false;
       downloadController.current?.abort();
-      localUrls.forEach(URL.revokeObjectURL);
-      localUrls.clear();
       element?.close();
       if (
         opener?.isConnected &&
@@ -51,6 +57,7 @@ export function EvidenceHistoryDialog({
     void talaApi
       .getEvidence(evidenceId, controller.signal)
       .then((value) => {
+        if (value.ownerUid !== ownerUid) throw new TalaApiError("FORBIDDEN");
         if (!controller.signal.aborted) {
           setRecord({ id: evidenceId, value });
           setFailure(undefined);
@@ -66,13 +73,21 @@ export function EvidenceHistoryDialog({
             id: evidenceId,
             message: safeTalaApiError(error).message,
           });
+          if (error instanceof TalaApiError && error.code === "FORBIDDEN")
+            onFailure(error);
+          else if (
+            readOnly &&
+            error instanceof TalaApiError &&
+            error.code === "NOT_FOUND"
+          )
+            onFailure(new TalaApiError("FORBIDDEN"));
         }
       });
     return () => {
       controller.abort();
       downloadController.current?.abort();
     };
-  }, [evidenceId, onExpired]);
+  }, [evidenceId, ownerUid, readOnly, onExpired, onFailure, attempt]);
   const evidence = record?.id === evidenceId ? record.value : undefined;
   useEffect(() => {
     if (record?.id === evidenceId) recordTitle.current?.focus();
@@ -86,29 +101,34 @@ export function EvidenceHistoryDialog({
     const controller = new AbortController();
     downloadController.current = controller;
     try {
-      const result = await talaApi.downloadEvidence(
-        evidence.id,
-        controller.signal,
-      );
+      await exportFile(async (signal) => {
+        const result = await talaApi.downloadEvidence(evidence.id, signal);
+        if (
+          result.sha256 !== evidence.sha256 ||
+          result.size !== evidence.size ||
+          result.contentType !== evidence.contentType
+        )
+          throw new TalaApiError("INTEGRITY_ERROR");
+        return { blob: result.blob, filename: result.filename };
+      }, controller.signal);
       if (!active.current || controller.signal.aborted) return;
-      const url = URL.createObjectURL(result.blob);
-      urls.current.add(url);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = result.filename;
-      anchor.click();
-      window.setTimeout(() => {
-        URL.revokeObjectURL(url);
-        urls.current.delete(url);
-      }, 1000);
       setMessage("Private download prepared.");
     } catch (error) {
       if (active.current && !controller.signal.aborted) {
         if (error instanceof TalaApiError && error.code === "AUTH_REQUIRED")
           onExpired();
         else {
-          if (error instanceof TalaApiError && error.code === "FORBIDDEN")
+          if (error instanceof TalaApiError && error.code === "FORBIDDEN") {
             setRecord(undefined);
+            onFailure(error);
+          } else if (
+            readOnly &&
+            error instanceof TalaApiError &&
+            error.code === "NOT_FOUND"
+          ) {
+            setRecord(undefined);
+            onFailure(new TalaApiError("FORBIDDEN"));
+          }
           setFailure({
             id: evidenceId,
             message: safeTalaApiError(error).message,
@@ -141,9 +161,20 @@ export function EvidenceHistoryDialog({
         </button>
       </header>
       {error && (
-        <p className="product-error" role="alert">
-          {error}
-        </p>
+        <div className="product-error" role="alert">
+          <p>{error}</p>
+          <button
+            className="button button-secondary"
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setFailure(undefined);
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Reload document
+          </button>
+        </div>
       )}
       {!evidence && !error && <p role="status">Loading document…</p>}
       {evidence && (
@@ -171,6 +202,11 @@ export function EvidenceHistoryDialog({
             Each version keeps its own file and review note. Submitting a
             revision does not overwrite earlier work.
           </p>
+          <EvidenceTextPreview
+            evidence={evidence}
+            readOnly={readOnly}
+            onFailure={onFailure}
+          />
           <div className="product-actions">
             <button
               className="button"

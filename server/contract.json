@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 6,
   "basePath": "/api",
   "defaultOrigin": "http://127.0.0.1:8787",
   "security": {
@@ -146,6 +146,58 @@
     "ResourcePage": {
       "items": "resource DTO[] maximum50",
       "nextCursor": "opaque scoped keyset cursor or null; never an authentication credential"
+    },
+    "LearningGoal": {
+      "id": "UUID",
+      "ownerUid": "authenticated student UUID",
+      "title": "trimmed plain string 1..120 characters",
+      "notes": "trimmed plain paragraphs 0..600 characters; CRLF normalizes to LF; no HTML interpretation",
+      "dueDate": "null or real civil YYYY-MM-DD in years 0001..9999; no timezone conversion",
+      "status": "active|completed",
+      "version": "safe integer>=1; increments by one on every new successful PATCH including same-value edits",
+      "createdAt": "ISO UTC",
+      "updatedAt": "ISO UTC; monotonic per goal",
+      "completedAt": "ISO UTC if completed; null if active; completion time retained during completed edits, reset by reopening",
+      "steps": "GoalStep[]; ordered, maximum8; omitted create defaults empty; omitted PATCH preserves existing",
+      "linkedEvidenceCount": "integer0..20; actual submitted Evidence versions linked by the student"
+    },
+    "GoalStep": {
+      "id": "identifier1..128 unique within goal",
+      "title": "trimmed plain string1..120",
+      "completed": "boolean; no automatic goal completion, credit or assessment"
+    },
+    "GoalEvidence": {
+      "goalId": "UUID",
+      "ownerUid": "goal student UID",
+      "evidence": "Evidence[] maximum20, latest link time descending,id descending; original versions retained",
+      "limit": 20
+    },
+    "WorkspaceUpdate": {
+      "id": "update_ followed by64lowercasehex; domain-separated SHA256 of ownerUID,sourcekind,resourceID and persistedversion",
+      "type": "appointment|learning|review",
+      "title": "plain context up to120characters",
+      "summary": "plain context up to300characters; no full private review note or external delivery claim",
+      "occurredAt": "ISO UTC from actual durable source record",
+      "read": "boolean; saved student read receipt for this event ID",
+      "target": {
+        "view": "meetings|learning|evidence",
+        "resourceId": "source appointment,learning-record orEvidenceID"
+      }
+    },
+    "WorkspaceUpdates": {
+      "ownerUid": "authorized student UID",
+      "items": "WorkspaceUpdate[] maximum25",
+      "nextCursor": "scoped signed keyset cursor|null",
+      "unreadCount": "nonnegative full current-event unread count, independent of page/filter"
+    },
+    "MeetingPreparation": {
+      "appointmentId": "UUID",
+      "ownerUid": "booking student UID",
+      "note": "trimmed plain paragraphs0..1000characters",
+      "goalId": "null|owned learning-goal UUID; active orcompleted",
+      "ready": "boolean self-report, notattendance oreligibility",
+      "version": "nonnegative safeinteger;0 whennot saved, incrementsone pernewPATCH",
+      "updatedAt": "null whenversion0, otherwiseISO UTC"
     }
   },
   "routes": [
@@ -155,8 +207,8 @@
       "response": {
         "application": "tala-independent-server",
         "version": 1,
-        "contractVersion": 4,
-        "schemaVersion": 2,
+        "contractVersion": 6,
+        "schemaVersion": 4,
         "runtimeRevision": "SHA-256 of source captured at process startup; local reuse compatibility only, not authentication",
         "instanceScope": "SHA-256 of selected absolute data directory; no private path or records are exposed",
         "status": "ok",
@@ -325,7 +377,8 @@
       "query": {
         "studentUid": "optional child UID; parent must have a current operator-recorded active consent link",
         "limit": "optional integer1..25, default20",
-        "cursor": "optional scoped keyset cursor"
+        "cursor": "optional scoped keyset cursor",
+        "q": "optional trimmed literal substring in published outcome summaries, max80characters; %,_ andbackslash escaped beforeSQL; applied beforepagination andboundtocursor"
       }
     },
     {
@@ -561,6 +614,110 @@
       "method": "GET",
       "path": "/learning/:id",
       "response": "LearningRecord; actual owner/active linked parent/operator authorization; no fake absence when an ID falls outside loaded pages"
+    },
+    {
+      "method": "GET",
+      "path": "/learning-goals",
+      "query": {
+        "studentUid": "optional for own student; required for linked parent; current active recorded consent checked on every read"
+      },
+      "response": {
+        "goals": "LearningGoal[] newest100 by createdAt DESC,id DESC",
+        "limit": 100
+      },
+      "notes": "Own students and current authorized read-only parents only. Operators cannot arbitrarily read learning goals."
+    },
+    {
+      "method": "POST",
+      "path": "/learning-goals",
+      "body": {
+        "title": "string 1..120",
+        "notes": "string 0..600",
+        "dueDate": "null|YYYY-MM-DD",
+        "requestId": "unique string",
+        "steps": "optional GoalStep[] maximum8"
+      },
+      "response": "LearningGoal, HTTP201; active version1, owner is authenticated student"
+    },
+    {
+      "method": "PATCH",
+      "path": "/learning-goals/:id",
+      "body": {
+        "title": "string 1..120",
+        "notes": "string 0..600",
+        "dueDate": "null|YYYY-MM-DD",
+        "status": "active|completed",
+        "version": "current safe integer>=1",
+        "requestId": "unique string",
+        "steps": "optional GoalStep[] maximum8; omission preserves existing steps, [] explicitly clears"
+      },
+      "response": "LearningGoal; own student only; version increments by one; stale version returns409CONFLICT"
+    },
+    {
+      "method": "GET",
+      "path": "/learning-goals/:id/evidence",
+      "response": "GoalEvidence; owner student or currently consent-linked read-only parent; no query parameters or arbitrary operator reads"
+    },
+    {
+      "method": "POST",
+      "path": "/learning-goals/:id/evidence",
+      "body": {
+        "evidenceId": "existing submitted own Evidence UUID",
+        "action": "link|unlink",
+        "version": "current goal version",
+        "requestId": "unique identifier16..128"
+      },
+      "response": "LearningGoal with version+1; only student owning both resources; maximum20links; never deletes or modifies Evidence/files/reviews"
+    },
+    {
+      "method": "GET",
+      "path": "/updates",
+      "query": {
+        "studentUid": "optional for own student; parent must select currently consent-linked student",
+        "filter": "all|unread,defaultall",
+        "cursor": "optional signed cursor bound actorUID,ownerUID,filter and current credential"
+      },
+      "response": "WorkspaceUpdates; operator arbitrary access forbidden; parent reads student receipt state"
+    },
+    {
+      "method": "POST",
+      "path": "/updates/:id/read",
+      "body": {
+        "requestId": "unique identifier16..128"
+      },
+      "response": {
+        "id": "same current updateID",
+        "read": true
+      },
+      "notes": "own student only; missing/superseded eventID404; exact matching successful request replay returns historical receipt even after source superseded"
+    },
+    {
+      "method": "POST",
+      "path": "/updates/read-all",
+      "body": {
+        "requestId": "unique identifier16..128"
+      },
+      "response": {
+        "markedCount": "number of then-current unread events atomically marked; exact replay keeps originalcount and doesnotmark later events"
+      },
+      "notes": "own student only; all current events across all pages, under writer/session fence"
+    },
+    {
+      "method": "GET",
+      "path": "/appointments/:id/preparation",
+      "response": "MeetingPreparation; absentrow returnsblank version0, noqueryparams, noGETwrites orclock expiry. Ownstudent orcurrentlinkedreadonlyparent, includinghistoricalbooking. Noarbitraryoperatorread."
+    },
+    {
+      "method": "PATCH",
+      "path": "/appointments/:id/preparation",
+      "body": {
+        "note": "plainparagraphstring0..1000",
+        "goalId": "null|own savedgoalUUID",
+        "ready": "boolean",
+        "version": "current nonnegative integer",
+        "requestId": "uniqueidentifier16..128"
+      },
+      "response": "MeetingPreparation version+1; ownstudent only,futurereservedbooking. Newstale/started/cancelledwrites409CONFLICT; missingforeigngoal404. Exactsuccessfulrequestreplayreturnsoriginalreceipt evenafterstart/cancellation, butstillrequiresfreshactor/session/role."
     }
   ],
   "factory": "createApplication({dataDir,allowedOrigins,sessionTtlMs?,downloadTtlMs?}) returns {server,db,operator,close}; downloadTtlMs is test-factory-only integer100..30000, defaults30000, no environment override. No socket is opened until server.listen()",
@@ -591,14 +748,22 @@
     "learningPageItemsDefault": 20,
     "learningPageItemsMaximum": 25,
     "pageCursorCharacters": 2048,
-    "listSearchCharacters": 80
+    "listSearchCharacters": 80,
+    "learningGoalsPerStudent": 100,
+    "learningGoalSteps": 8,
+    "linkedEvidencePerGoal": 20,
+    "workspaceUpdatePageItems": 25,
+    "meetingPreparationNoteCharacters": 1000
   },
-  "schemaVersion": 2,
+  "schemaVersion": 4,
   "availabilityPolicy": "Publish times must be ISO 8601 with explicit Z/UTC offset. Withdrawal is transactionally fenced against reservations. Times on a slot are immutable. Publishing an exactly matching withdrawn start/end reactivates its same ID; any changed time uses a new ID. Old cancelled bookings retain original times.",
   "revisionPolicy": "Only a student can revise their own latest needs_revision Evidence for the same booking. Upload captures the current reviewVersion server-side. Final submit rechecks that review and atomically commits a single successor; concurrent or stale revisions conflict. Earlier evidence bytes, review and identifiers remain immutable. Superseded evidence cannot be reviewed again. Counters count all versions, manual review is not academic credit.",
-  "localDatabaseMigration": "Schema1 to2 is additive and local-only. A consistent VACUUM INTO backup with 0600 permissions is verified before migration. Three new tables: availability_state(slot_id,status,updated_at,updated_by); upload_revisions(upload_id,predecessor_id,expected_review_version); evidence_revisions(evidence_id,predecessor_id UNIQUE,root_id,revision_number). Existing slots backfill as published; other rows and file bytes are untouched. New databases start at schema2 with no seed data. Future schemas fail closed.",
+  "localDatabaseMigration": "Schema 1/2/3 to 4 is additive and local-only. Before upgrading, a consistent VACUUM INTO snapshot with 0600permissions and foreign-key/quick checks is verified. Existing users,sessions,slots,Evidence,goals,operations and private file bytes are preserved. Schema1 receives its existing availability/revision tables; schema3 adds learning_goals; schema4 adds learning_goal_steps,learning_goal_evidence,workspace_update_reads, appointment_preparations and owner indexes. New empty databases start at schema4 with no seed data. Future schemas fail closed. Backup tooling verifies/restores schemas2,3,4 separately without implicit migration; starting a restored older local copy then performs the checked startup upgrade.",
   "accountSecurityPolicy": "Password changes require the current password, per-account and per-IP rate limits, fresh CSRF/session/disabled-account/password checks after each asynchronous hash, and one transaction for credential update, all-session revocation, replacement session and completion receipt. No plaintext or fast password-derived idempotency digest is stored. Session handles grant no authentication and expose neither cookie nor database session hash. Current-session revocation uses logout. After a lost password-change response, bootstrap GET /session and query the completion receipt before claiming success; if the replacement cookie was lost, reauthenticate with the new password. A receipt never restores authentication. No email delivery or MFA is implied.",
   "storageQuotaPolicy": "Logical Evidence quotas include pending intents at creation, with committed storage rechecked at final submit. They bound 100 MiB/1000 versions per owner and 2 GiB/20000 versions per instance, and fail with STORAGE_FULL. They are not a physical disk quota for database history, backup directories or unrelated/orphan files. No submitted Evidence is automatically deleted.",
   "paginationPolicy": "Each page uses a short DEFERRED read snapshot that rechecks the server session, account status, role and target relationship before querying. Filters are applied before LIMIT. Cursors use bounded base64url JSON with a domain-separated HMAC, bound to actor UID, authorized target UID, resource and canonical filters; they expose no password verifier and grant no authentication. Unknown/repeated parameters, tampered cursors or changed scopes return INVALID_INPUT. Historical pages sort (immutable time DESC,id DESC), available times sort ASC. No OFFSET or full-dataset preload is used. Changes to reviews, statuses or search results are live, not a cross-request immutable snapshot: reset pagination after edits or filter changes. /workspace and /operations remain bounded overview summaries, not complete histories.",
-  "privateReadPolicy": "Single Evidence records, unfinished-upload metadata, family access, operator overviews and account-security reads use the same short DEFERRED authorization snapshot as resource pages. Private files are authorized and integrity-checked before the download response starts; later permission revocation cannot recall bytes already sent. Every private download has an absolute thirty-second deadline."
+  "privateReadPolicy": "Single Evidence records, unfinished-upload metadata, family access, operator overviews and account-security reads use the same short DEFERRED authorization snapshot as resource pages. Private files are authorized and integrity-checked before the download response starts; later permission revocation cannot recall bytes already sent. Every private download has an absolute thirty-second deadline.",
+  "learningGoalPolicy": "Student-owned personal planning records, never verified school outcomes, AI assessment, grade or approval. Mutations recheck current session, role and CSRF under SQLite writer fence; parent reads require current enabled student and active recorded consent in the same read snapshot. Goal maximum100 across active/completed; no delete route. Full PATCH and Evidence link/unlink advance version exactlyonce for a new successful request, including no-op edits/duplicate links, with optimistic version checks and exact fingerprint receipts. Omitted optional steps preserve old-client data; [] explicitly clears and neither adding/completing/removing steps automatically completes the goal. Explicit link/unlink modifies only the association. Existing schema3 receipts are enriched with historically empty steps and count0 rather than mutable current state. New exact requestId retries return the originally committed DTO; changed bodies conflict. No browser token or data storage is needed.",
+  "workspaceUpdatesPolicy": "Live derived feed, not email/push delivery or an audit ledger: persisted booking creation plus its current cancellation event (reschedule creates a replacement reservation and cancels the original); one published learning-record event; only latest persisted manual review perEvidence. Elapsed meeting periods add no event and never certify attendance. Earlier superseded review events disappear; new request to mark absent event returns404, while exact replay of earlier successful receipt returns its committed result. EventIDs are bound to student,source and persistedversion. Read-only parents see student read state; only student can mark. Count covers entire current stream, pages25. Read-all uses one writer transaction to mark the full current unread snapshot; idempotent replay doesnotmark events created later. Queries reject unknown/repeatedparams; cursors are bounded HMAC-signed and scoped to actor,owner,filter and credentials. Parent consent/session/role rechecked on every read; no staff arbitraryfeedaccess.",
+  "meetingPreparationPolicy": "One private preparation record per existing appointment. Version0 is a read-only blank default, never an automatically inserted row. Saving requires student ownership of booking and optional goal, a future starts_at and reserved status rechecked under writer fence. Full optimistic version and operation fingerprint avoid overwrites/double submissions; exact historical receipts can be recovered after time/status changes but never authorize a new late write. Goal completion is not required and ready is only self-reported. Current linked parents may read historical preparation but cannot edit it; operators cannot arbitrarily read it. Rescheduling retains preparation on the cancelled original booking, newbooking starts blank, noauto-copy or delete. GET never expires booking or mutates records. No Zoom,attendance,assessment,payment orclinical data collection is implied."
 }

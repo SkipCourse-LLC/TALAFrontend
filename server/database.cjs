@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 4;
 const EXTENSIONS = `
   CREATE TABLE IF NOT EXISTS availability_state (
     slot_id TEXT PRIMARY KEY REFERENCES slots(id),
@@ -26,6 +26,45 @@ const EXTENSIONS = `
   CREATE INDEX IF NOT EXISTS evidence_revision_root ON evidence_revisions(root_id,revision_number);
   INSERT OR IGNORE INTO availability_state(slot_id,status,updated_at,updated_by)
     SELECT id,'published',created_at,NULL FROM slots;
+  CREATE TABLE IF NOT EXISTS learning_goals (
+    id TEXT PRIMARY KEY, owner_uid TEXT NOT NULL REFERENCES users(uid),
+    title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 120),
+    notes TEXT NOT NULL CHECK(length(notes)<=600),
+    due_date TEXT CHECK(due_date IS NULL OR (length(due_date)=10 AND due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+      AND due_date>='0001-01-01' AND due_date<='9999-12-31' AND date(due_date,'+0 days') IS NOT NULL AND due_date=date(due_date,'+0 days'))),
+    status TEXT NOT NULL CHECK(status IN ('active','completed')),
+    version INTEGER NOT NULL CHECK(version>=1),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL CHECK(updated_at>=created_at),
+    completed_at INTEGER,
+    CHECK((status='active' AND completed_at IS NULL) OR (status='completed' AND completed_at IS NOT NULL AND completed_at>=created_at AND completed_at<=updated_at))
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS learning_goals_owner ON learning_goals(owner_uid,created_at DESC,id DESC);
+  CREATE TABLE IF NOT EXISTS learning_goal_steps (
+    goal_id TEXT NOT NULL REFERENCES learning_goals(id), id TEXT NOT NULL,
+    position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 7),
+    title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 120),
+    completed INTEGER NOT NULL CHECK(completed IN (0,1)),
+    PRIMARY KEY(goal_id,id), UNIQUE(goal_id,position)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS learning_goal_evidence (
+    goal_id TEXT NOT NULL REFERENCES learning_goals(id),
+    evidence_id TEXT NOT NULL REFERENCES evidence(id), linked_at INTEGER NOT NULL,
+    PRIMARY KEY(goal_id,evidence_id)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS workspace_update_reads (
+    owner_uid TEXT NOT NULL REFERENCES users(uid), update_id TEXT NOT NULL,
+    read_at INTEGER NOT NULL, PRIMARY KEY(owner_uid,update_id)
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS workspace_update_reads_owner ON workspace_update_reads(owner_uid,read_at);
+  CREATE INDEX IF NOT EXISTS learning_records_owner ON learning_records(owner_uid,published_at DESC,id DESC);
+  CREATE TABLE IF NOT EXISTS appointment_preparations (
+    appointment_id TEXT PRIMARY KEY REFERENCES appointments(id),
+    owner_uid TEXT NOT NULL REFERENCES users(uid),
+    note TEXT NOT NULL CHECK(length(note)<=1000), goal_id TEXT REFERENCES learning_goals(id),
+    ready INTEGER NOT NULL CHECK(ready IN (0,1)), version INTEGER NOT NULL CHECK(version>=1),
+    updated_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS appointment_preparations_owner ON appointment_preparations(owner_uid,updated_at DESC);
 `;
 
 function backupBeforeMigration(db, dataDir, version) {
@@ -42,7 +81,7 @@ function backupBeforeMigration(db, dataDir, version) {
     db.prepare("VACUUM INTO ?").run(filename);
     const snapshot = new DatabaseSync(filename, { readOnly: true, allowExtension: false });
     try {
-      if (snapshot.prepare("PRAGMA user_version").get().user_version !== version || snapshot.prepare("PRAGMA quick_check").get().quick_check !== "ok") throw new Error("The pre-upgrade database backup could not be verified.");
+      if (snapshot.prepare("PRAGMA user_version").get().user_version !== version || snapshot.prepare("PRAGMA quick_check").get().quick_check !== "ok" || snapshot.prepare("PRAGMA foreign_key_check").get()) throw new Error("The pre-upgrade database backup could not be verified.");
     } finally { snapshot.close(); }
     const file = fs.openSync(filename, "r");
     try { fs.fsyncSync(file); } finally { fs.closeSync(file); }
@@ -67,7 +106,7 @@ function openDatabase(dataDir) {
   if (version === 0 && db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").get()) { db.close(); throw new Error("This database has an unrecognized schema. No migration was performed."); }
   try {
     db.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;");
-    if (version === 1) backupBeforeMigration(db, dataDir, version);
+    if (version > 0 && version < SCHEMA_VERSION) backupBeforeMigration(db, dataDir, version);
     if (version < SCHEMA_VERSION) transaction(db, () => {
       if (db.prepare("PRAGMA user_version").get().user_version !== version) throw new Error("The database changed during startup. Stop other local instances and retry.");
       db.exec(`

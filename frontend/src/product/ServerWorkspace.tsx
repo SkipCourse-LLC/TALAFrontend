@@ -16,13 +16,28 @@ import type {
   ApiEvidence,
   ApiAppointment,
   ApiPendingUpload,
+  LearningGoal,
+  LearningGoalInput,
   Slot as ApiSlot,
 } from "../api";
 import { meetingTime } from "./format";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
 import type { WorkspaceView } from "./workspaceViews";
 import { StudentOverview } from "./StudentOverview";
+import { LearningPlanPanel } from "./LearningPlanPanel";
+import { WorkspaceUpdates } from "./WorkspaceUpdates";
+import { WorkspaceResourceDialog } from "./WorkspaceResourceDialog";
+import { StudentProgress } from "./StudentProgress";
+import { MeetingPreparationPanel } from "./MeetingPreparationPanel";
+import { LearningRecordsPanel } from "./LearningRecordsPanel";
 import { EvidenceHistoryDialog } from "./EvidenceHistoryDialog";
+import { EvidenceEntryChoice } from "./EvidenceEntryChoice";
+import { EvidenceNoteComposer } from "./EvidenceNoteComposer";
+import { SignOutDialog } from "./SignOutDialog";
+import {
+  createEvidenceNoteFile,
+  evidenceNoteProblem,
+} from "./evidenceNoteHelpers";
 import { useWorkspaceVisible } from "./workspaceVisibility";
 import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
 import { PendingUploadsPanel } from "./PendingUploadsPanel";
@@ -43,6 +58,7 @@ export function ServerWorkspace({
   onExpired: () => void;
   onProfileSaved: (user: ApiUser) => void;
 }) {
+  const workspaceVisible = useWorkspaceVisible();
   const [family, setFamily] = useState<ApiFamilyLinks>();
   const [familyError, setFamilyError] = useState("");
   const [familyAttempt, setFamilyAttempt] = useState(0);
@@ -51,6 +67,8 @@ export function ServerWorkspace({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [unsentWork, setUnsentWork] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const running = useRef(false);
   const active = useRef(false);
   const request = useRef<AbortController | null>(null);
@@ -127,14 +145,18 @@ export function ServerWorkspace({
               : "Your learning workspace"}
           </p>
           <h1>Hello, {user.name}.</h1>
-          <p>A clear next step for your learning.</p>
         </div>
         <div className="product-actions">
           <Link to="/two-factor">Account security</Link>
           <button
             className="button button-secondary"
             disabled={busy}
-            onClick={() => void accountAction(() => onLogout())}
+            onClick={() => {
+              if (unsentWork) {
+                setError("");
+                setConfirmSignOut(true);
+              } else void accountAction(() => onLogout());
+            }}
           >
             Sign out
           </button>
@@ -244,8 +266,23 @@ export function ServerWorkspace({
         <LearningWorkspace
           key={`${user.uid}:${selectedUid}`}
           studentUid={selectedUid || undefined}
+          ownerUid={selectedUid || user.uid}
           readOnly={user.role === "parent"}
           onExpired={onExpired}
+          onDraftStateChange={setUnsentWork}
+        />
+      )}
+      {confirmSignOut && workspaceVisible && (
+        <SignOutDialog
+          busy={busy}
+          error={error}
+          onCancel={() => setConfirmSignOut(false)}
+          onConfirm={() =>
+            void accountAction(async () => {
+              await onLogout();
+              if (active.current) setConfirmSignOut(false);
+            })
+          }
         />
       )}
     </div>
@@ -265,12 +302,16 @@ type PendingUpload = {
 
 function LearningWorkspace({
   studentUid,
+  ownerUid,
   readOnly,
   onExpired,
+  onDraftStateChange,
 }: {
   studentUid?: string;
+  ownerUid: string;
   readOnly: boolean;
   onExpired: () => void;
+  onDraftStateChange: (dirty: boolean) => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const workspaceVisible = useWorkspaceVisible();
@@ -278,8 +319,21 @@ function LearningWorkspace({
   const view = readWorkspaceView(searchParams.get("view"));
   const previousView = useRef(view);
   const historyId = view === "evidence" ? searchParams.get("document") : null;
+  const detailId =
+    view === "learning"
+      ? searchParams.get("record")
+      : view === "meetings"
+        ? searchParams.get("booking")
+        : null;
   const [workspaceState, setWorkspace] = useState<ApiWorkspace>();
   const [loadError, setLoadError] = useState("");
+  const [goalError, setGoalError] = useState("");
+  const [goalSaveUncertain, setGoalSaveUncertain] = useState(false);
+  const [goalDraft, setGoalDraft] = useState(false);
+  const [unreadUpdates, setUnreadUpdates] = useState<number>();
+  const [preparationDrafts, setPreparationDrafts] = useState<
+    Record<string, boolean>
+  >({});
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [mutationBusy, setBusy] = useState(false);
@@ -300,6 +354,9 @@ function LearningWorkspace({
   const workspace = accessBlocked ? undefined : workspaceState;
   const authorizationEpoch = useRef(0);
   const [file, setFile] = useState<File | null>(null);
+  const [evidenceMode, setEvidenceMode] = useState<"file" | "note">("file");
+  const [reflection, setReflection] = useState("");
+  const [formatConfirming, setFormatConfirming] = useState(false);
   const [uploadStage, setUploadStage] = useState("");
   const [pending, setPending] = useState<PendingUpload | null>(null);
   const [draftResetAllowed, setDraftResetAllowed] = useState(false);
@@ -308,6 +365,15 @@ function LearningWorkspace({
   const running = useRef(false);
   const controllerRef = useRef<AbortController | null>(null);
   const requestIds = useRef(new Map<string, string>());
+  const accessBlockedRef = useRef(false);
+  const goalIntent = useRef(0);
+  const hasEvidenceDraft = Boolean(file || reflection.length || pending);
+  const hasUnsentWork =
+    hasEvidenceDraft || goalDraft || Object.keys(preparationDrafts).length > 0;
+  useEffect(() => {
+    onDraftStateChange(hasUnsentWork);
+  }, [hasUnsentWork, onDraftStateChange]);
+  useEffect(() => () => onDraftStateChange(false), [onDraftStateChange]);
   const mutationError = useRef<HTMLParagraphElement>(null);
   const sectionNavigation = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -341,6 +407,10 @@ function LearningWorkspace({
       const params = new URLSearchParams(previous);
       params.set("view", next);
       params.delete("document");
+      params.delete("record");
+      params.delete("booking");
+      params.delete("from");
+      params.delete("goal");
       return params;
     });
     if (next === view)
@@ -363,31 +433,68 @@ function LearningWorkspace({
       (previous) => {
         const params = new URLSearchParams(previous);
         params.delete("document");
+        if (params.get("from") === "updates") params.set("view", "updates");
+        params.delete("from");
         return params;
       },
       { replace: true },
+    );
+    requestAnimationFrame(() =>
+      document
+        .getElementById(
+          searchParams.get("from") === "updates"
+            ? "updates-heading"
+            : "evidence-heading",
+        )
+        ?.focus({ preventScroll: true }),
+    );
+  }
+  function closeResource() {
+    setSearchParams(
+      (previous) => {
+        const params = new URLSearchParams(previous);
+        params.delete("record");
+        params.delete("booking");
+        if (params.get("from") === "updates") params.set("view", "updates");
+        params.delete("from");
+        return params;
+      },
+      { replace: true },
+    );
+    requestAnimationFrame(() =>
+      document
+        .getElementById(
+          searchParams.get("from") === "updates"
+            ? "updates-heading"
+            : view === "learning"
+              ? "records-heading"
+              : "meetings-heading",
+        )
+        ?.focus({ preventScroll: true }),
     );
   }
   useEffect(() => {
     if (previousView.current === view) return;
     previousView.current = view;
+    // A direct record link opens its own native dialog and owns focus there.
+    if (detailId || historyId) return;
     const heading = document.getElementById(
       workspaceViews.find((item) => item.id === view)!.heading,
     );
     heading?.focus({ preventScroll: true });
     heading?.scrollIntoView({ block: "start" });
-  }, [view]);
+  }, [view, detailId, historyId]);
   useEffect(() => {
     if (error) mutationError.current?.focus();
   }, [error]);
   useEffect(() => {
-    if (!file && !pending) return;
+    if (!hasEvidenceDraft) return;
     const guard = (event: BeforeUnloadEvent) => {
       event.preventDefault();
     };
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
-  }, [file, pending]);
+  }, [hasEvidenceDraft]);
   useEffect(() => {
     active.current = true;
     return () => {
@@ -400,7 +507,12 @@ function LearningWorkspace({
       if (failure instanceof TalaApiError && failure.code === "AUTH_REQUIRED")
         onExpired();
       else {
-        if (failure instanceof TalaApiError && failure.code === "FORBIDDEN") {
+        if (
+          failure instanceof TalaApiError &&
+          (failure.code === "FORBIDDEN" ||
+            (Boolean(studentUid) && failure.code === "NOT_FOUND"))
+        ) {
+          accessBlockedRef.current = true;
           setWorkspace(undefined);
           authorizationEpoch.current++;
           setAccessBlocked(true);
@@ -411,7 +523,7 @@ function LearningWorkspace({
         setError(safeTalaApiError(failure).message);
       }
     },
-    [onExpired],
+    [onExpired, studentUid],
   );
   useEffect(() => {
     const controller = new AbortController();
@@ -430,8 +542,13 @@ function LearningWorkspace({
         if (failure instanceof TalaApiError && failure.code === "AUTH_REQUIRED")
           onExpired();
         else {
-          if (failure instanceof TalaApiError && failure.code === "FORBIDDEN") {
+          if (
+            failure instanceof TalaApiError &&
+            (failure.code === "FORBIDDEN" ||
+              (Boolean(studentUid) && failure.code === "NOT_FOUND"))
+          ) {
             authorizationEpoch.current++;
+            accessBlockedRef.current = true;
             setWorkspace(undefined);
             setAccessBlocked(true);
             setPinnedEvidence(undefined);
@@ -447,10 +564,22 @@ function LearningWorkspace({
     return () => controller.abort();
   }, [studentUid, revision, onExpired]);
   function refresh() {
-    if (accessBlocked) setWorkspace(undefined);
-    setAccessBlocked(false);
+    // Automatic refreshes must never reopen a scope that a concurrent request
+    // has already denied. Recovery requires an explicit authenticated re-read.
+    if (accessBlockedRef.current) return;
     setLoading(true);
     setRevision((value) => value + 1);
+  }
+  function retryWorkspace() {
+    if (accessBlockedRef.current) {
+      authorizationEpoch.current++;
+      accessBlockedRef.current = false;
+      setWorkspace(undefined);
+      setAccessBlocked(false);
+      setError("");
+      setLoadError("");
+    }
+    refresh();
   }
   function requestId(key: string) {
     const existing = requestIds.current.get(key);
@@ -463,6 +592,7 @@ function LearningWorkspace({
     (failure: unknown) => {
       const problem = safeTalaApiError(failure);
       if (problem.code === "AUTH_REQUIRED" || problem.code === "FORBIDDEN") {
+        accessBlockedRef.current = true;
         authorizationEpoch.current++;
         setAccessBlocked(true);
         setWorkspace(undefined);
@@ -473,6 +603,91 @@ function LearningWorkspace({
     },
     [report],
   );
+  const studentPageFailure = useCallback(
+    (failure: unknown) => {
+      if (
+        studentUid &&
+        failure instanceof TalaApiError &&
+        failure.code === "NOT_FOUND"
+      )
+        pageFailure(new TalaApiError("FORBIDDEN"));
+      else pageFailure(failure);
+    },
+    [studentUid, pageFailure],
+  );
+  const updatesChanged = useCallback(
+    (count: number) => setUnreadUpdates(count),
+    [],
+  );
+  const preparationChanged = useCallback((id: string, dirty: boolean) => {
+    setPreparationDrafts((previous) => {
+      if (Boolean(previous[id]) === dirty) return previous;
+      const next = { ...previous };
+      if (dirty) next[id] = true;
+      else delete next[id];
+      return next;
+    });
+  }, []);
+  function openUpdateResource(
+    next: "meetings" | "learning" | "evidence",
+    id: string,
+  ) {
+    setSearchParams((previous) => {
+      const params = new URLSearchParams(previous);
+      params.set("view", next);
+      params.delete("document");
+      params.delete("record");
+      params.delete("booking");
+      params.delete("goal");
+      params.set(
+        next === "evidence"
+          ? "document"
+          : next === "learning"
+            ? "record"
+            : "booking",
+        id,
+      );
+      params.set("from", "updates");
+      return params;
+    });
+  }
+  function openPlan(goalId?: string) {
+    setSearchParams((previous) => {
+      const params = new URLSearchParams(previous);
+      params.set("view", "plan");
+      params.delete("document");
+      params.delete("record");
+      params.delete("booking");
+      params.delete("from");
+      if (goalId) params.set("goal", goalId);
+      else params.delete("goal");
+      return params;
+    });
+  }
+  function openLearningDetails(id: string) {
+    setSearchParams((previous) => {
+      const params = new URLSearchParams(previous);
+      params.set("view", "learning");
+      params.set("record", id);
+      params.delete("document");
+      params.delete("booking");
+      params.delete("goal");
+      params.delete("from");
+      return params;
+    });
+  }
+  function openMeetingDetails(booking: ApiAppointment) {
+    setSearchParams((previous) => {
+      const params = new URLSearchParams(previous);
+      params.set("view", "meetings");
+      params.set("booking", booking.id);
+      params.delete("document");
+      params.delete("record");
+      params.delete("goal");
+      params.delete("from");
+      return params;
+    });
+  }
   useEffect(() => {
     const timer = window.setTimeout(
       () => setDocumentQuery(documentSearch.trim()),
@@ -481,6 +696,20 @@ function LearningWorkspace({
     return () => window.clearTimeout(timer);
   }, [documentSearch]);
   const pagesEnabled = Boolean(workspace) && !accessBlocked;
+  const loadGoals = useCallback(
+    async (_cursor: string | undefined, signal: AbortSignal) => {
+      const saved = await talaApi.getLearningGoals(studentUid, signal);
+      return { items: saved.goals, nextCursor: null };
+    },
+    [studentUid],
+  );
+  const goals = useStudentPage({
+    pageKey: `${studentUid ?? "self"}:learning-goals`,
+    revision,
+    enabled: pagesEnabled,
+    load: loadGoals,
+    onFailure: studentPageFailure,
+  });
   const loadEvidence = useCallback(
     (cursor: string | undefined, signal: AbortSignal) =>
       talaApi.getEvidencePage(
@@ -505,7 +734,7 @@ function LearningWorkspace({
     revision,
     enabled: pagesEnabled,
     load: loadEvidence,
-    onFailure: pageFailure,
+    onFailure: studentPageFailure,
   });
   const loadBookingOptions = useCallback(
     (cursor: string | undefined, signal: AbortSignal) =>
@@ -520,7 +749,7 @@ function LearningWorkspace({
     revision,
     enabled: pagesEnabled,
     load: loadBookingOptions,
-    onFailure: pageFailure,
+    onFailure: studentPageFailure,
   });
   const loadLearning = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
@@ -537,7 +766,7 @@ function LearningWorkspace({
     revision,
     enabled: pagesEnabled,
     load: loadLearning,
-    onFailure: pageFailure,
+    onFailure: studentPageFailure,
   });
   const learning = learningPages.loaded
     ? {
@@ -600,7 +829,8 @@ function LearningWorkspace({
     success: string,
     reload = true,
   ) {
-    if (running.current || recoveryBusy) return false;
+    if (running.current || recoveryBusy || accessBlockedRef.current)
+      return false;
     running.current = true;
     setBusy(true);
     setError("");
@@ -621,6 +851,101 @@ function LearningWorkspace({
       running.current = false;
       if (active.current) setBusy(false);
     }
+  }
+  async function saveGoal(
+    key: string,
+    action: (signal: AbortSignal, id: string) => Promise<LearningGoal>,
+    conflictMessage: string,
+  ) {
+    if (
+      readOnly ||
+      !pagesEnabled ||
+      running.current ||
+      recoveryBusy ||
+      accessBlockedRef.current
+    )
+      return false;
+    running.current = true;
+    setBusy(true);
+    setGoalError("");
+    setError("");
+    setNotice("");
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    try {
+      await action(controller.signal, requestId(key));
+      if (!active.current || controller.signal.aborted) return false;
+      requestIds.current.delete(key);
+      setGoalSaveUncertain(false);
+      refresh();
+      return true;
+    } catch (failure) {
+      if (active.current && !controller.signal.aborted) {
+        const problem = safeTalaApiError(failure);
+        setGoalSaveUncertain(
+          [
+            "NETWORK",
+            "UNAVAILABLE",
+            "INVALID_RESPONSE",
+            "INTERNAL_ERROR",
+          ].includes(problem.code),
+        );
+        if (["AUTH_REQUIRED", "FORBIDDEN"].includes(problem.code))
+          pageFailure(failure);
+        else {
+          setGoalError(
+            problem.code === "CONFLICT"
+              ? conflictMessage
+              : `${problem.message} Your draft has been kept. If the connection was interrupted, retry with the same details to confirm the save.`,
+          );
+          if (
+            [
+              "CONFLICT",
+              "NETWORK",
+              "UNAVAILABLE",
+              "INVALID_RESPONSE",
+              "INTERNAL_ERROR",
+            ].includes(problem.code)
+          )
+            goals.retry();
+        }
+      }
+      return false;
+    } finally {
+      running.current = false;
+      if (active.current) setBusy(false);
+    }
+  }
+  function createGoal(input: LearningGoalInput) {
+    return saveGoal(
+      `goal:create:${goalIntent.current}:${JSON.stringify(input)}`,
+      (signal, requestId) =>
+        talaApi.createLearningGoal({ ...input, requestId }, signal),
+      "This goal could not be added. Refresh goals to check whether it was already saved or the 100-goal limit was reached. Your draft has been kept.",
+    );
+  }
+  function updateGoal(
+    goal: LearningGoal,
+    input: LearningGoalInput & { status: LearningGoal["status"] },
+  ) {
+    return saveGoal(
+      `goal:update:${goal.id}:${goal.version}:${JSON.stringify(input)}`,
+      (signal, requestId) =>
+        talaApi.updateLearningGoal(
+          goal.id,
+          { ...input, version: goal.version, requestId },
+          signal,
+        ),
+      goal.status === input.status &&
+        input.steps !== undefined &&
+        input.title === goal.title &&
+        input.notes === goal.notes &&
+        input.dueDate === goal.dueDate
+        ? "This goal changed in another window. Review its refreshed steps before trying again."
+        : goal.status === input.status
+          ? "This goal changed in another window. Your draft has been kept. Cancel editing to open the latest version."
+          : "This goal changed in another window. Its latest version has been requested. Review it before changing its status again.",
+    );
   }
   const evidenceAppointments = [
     ...new Map(
@@ -666,9 +991,15 @@ function LearningWorkspace({
     (restoredUploads ?? []).map((item) => item.appointmentId),
   );
   if (pending?.appointmentId) blockedBookingIds.add(pending.appointmentId);
-  if (file && selectedAppointment) blockedBookingIds.add(selectedAppointment);
+  if (hasEvidenceDraft && selectedAppointment)
+    blockedBookingIds.add(selectedAppointment);
+  const preparationDraftBookingIds = new Set(Object.keys(preparationDrafts));
+  const meetingDraftBookingIds = new Set([
+    ...blockedBookingIds,
+    ...preparationDraftBookingIds,
+  ]);
   function chooseRevision(evidence: ApiEvidence) {
-    if (busy || pending || file || readOnly) return;
+    if (busy || hasEvidenceDraft || readOnly) return;
     setPinnedEvidence(evidence);
     setRevisesId(evidence.id);
     setAppointmentId(evidence.appointmentId);
@@ -729,15 +1060,20 @@ function LearningWorkspace({
   async function uploadEvidence(signal: AbortSignal) {
     let upload = pending;
     if (!upload) {
-      if (!file || !title.trim() || !selectedAppointment)
+      if (formatConfirming || !title.trim() || !selectedAppointment)
         throw new TalaApiError("INVALID_INPUT");
+      if (evidenceMode === "note" && evidenceNoteProblem(reflection))
+        throw new TalaApiError("INVALID_INPUT");
+      const sourceFile =
+        evidenceMode === "note" ? createEvidenceNoteFile(reflection) : file;
+      if (!sourceFile) throw new TalaApiError("INVALID_INPUT");
       if (revisionStale) throw new TalaApiError("CONFLICT");
-      validateEvidenceFile(file);
+      validateEvidenceFile(sourceFile);
       setUploadStage("Checking your file…");
-      const sha256 = await fingerprintEvidenceFile(file);
+      const sha256 = await fingerprintEvidenceFile(sourceFile);
       if (signal.aborted) return;
       upload = {
-        file,
+        file: sourceFile,
         title: title.trim(),
         appointmentId: selectedAppointment,
         sha256,
@@ -763,6 +1099,7 @@ function LearningWorkspace({
     if (active.current && !signal.aborted) {
       setPending(null);
       setFile(null);
+      setReflection("");
       setTitle("");
       setRevisesId("");
       setPinnedEvidence(undefined);
@@ -776,7 +1113,8 @@ function LearningWorkspace({
       async (signal, id) => {
         if (
           previous &&
-          (restoredUploads === undefined || blockedBookingIds.has(previous.id))
+          (restoredUploads === undefined ||
+            meetingDraftBookingIds.has(previous.id))
         )
           throw new TalaApiError("CONFLICT");
         if (previous) {
@@ -820,7 +1158,10 @@ function LearningWorkspace({
     return run(
       `cancel:${booking.id}`,
       async (signal, id) => {
-        if (restoredUploads === undefined || blockedBookingIds.has(booking.id))
+        if (
+          restoredUploads === undefined ||
+          meetingDraftBookingIds.has(booking.id)
+        )
           throw new TalaApiError("CONFLICT");
         if (
           !meetingChangeIsCurrent(
@@ -880,29 +1221,40 @@ function LearningWorkspace({
             className="product-section-link"
             aria-current={view === id ? "page" : undefined}
             aria-describedby={
-              id === "evidence" && (file || pending)
+              id === "evidence" && hasEvidenceDraft
                 ? "evidence-draft-hint"
                 : undefined
             }
             onClick={() => navigateView(id)}
           >
             {label}
-            {id === "evidence" && (file || pending) && (
+            {id === "updates" &&
+              !accessBlocked &&
+              unreadUpdates !== undefined &&
+              unreadUpdates > 0 && (
+                <span
+                  className="student-updates-count"
+                  aria-label={`${unreadUpdates} unread ${unreadUpdates === 1 ? "update" : "updates"}`}
+                >
+                  {unreadUpdates > 99 ? "99+" : unreadUpdates}
+                </span>
+              )}
+            {id === "evidence" && hasEvidenceDraft && (
               <span className="student-draft-dot" aria-hidden="true" />
             )}
           </button>
         ))}
       </nav>
-      {(file || pending) && (
+      {hasEvidenceDraft && (
         <span className="sr-only" id="evidence-draft-hint">
-          Your upload draft is kept while you switch sections.
+          Your Evidence draft is kept while you switch sections.
         </span>
       )}
       <div className="product-actions student-workspace-toolbar">
         <button
           className="button button-secondary"
           disabled={loading || busy}
-          onClick={refresh}
+          onClick={retryWorkspace}
         >
           {loading ? "Loading records…" : "Refresh records"}
         </button>
@@ -941,12 +1293,60 @@ function LearningWorkspace({
           workspace={workspace}
           learning={learning}
           loading={loading}
+          stale={Boolean(loadError)}
           readOnly={readOnly}
+          goals={goals.loaded ? goals.items : undefined}
+          goalsLoading={goals.loading}
+          goalsError={Boolean(goals.error)}
+          unreadUpdates={accessBlocked ? undefined : unreadUpdates}
           onNavigate={navigateView}
         />
       )}
       <div className="product-grid student-focused-content">
         <div className="product-main">
+          <div hidden={view !== "plan" || accessBlocked}>
+            <LearningPlanPanel
+              goals={goals.loaded ? goals.items : undefined}
+              loading={goals.loading || loading}
+              readOnly={readOnly}
+              error={goals.error || goalError}
+              busy={busy || accessBlocked}
+              uncertain={goalSaveUncertain}
+              onDirtyChange={setGoalDraft}
+              onRetry={() => {
+                setGoalError("");
+                goals.retry();
+              }}
+              onClearError={() => {
+                setGoalError("");
+                setGoalSaveUncertain(false);
+                goalIntent.current++;
+                for (const key of requestIds.current.keys())
+                  if (key.startsWith("goal:")) requestIds.current.delete(key);
+              }}
+              onCreate={createGoal}
+              onUpdate={updateGoal}
+              studentUid={studentUid}
+              visible={view === "plan" && workspaceVisible && !accessBlocked}
+              onChanged={refresh}
+              onFailure={pageFailure}
+              focusGoalId={
+                view === "plan"
+                  ? (searchParams.get("goal") ?? undefined)
+                  : undefined
+              }
+            />
+          </div>
+          <WorkspaceUpdates
+            studentUid={studentUid}
+            readOnly={readOnly}
+            visible={view === "updates" && workspaceVisible && !accessBlocked}
+            enabled={pagesEnabled}
+            revision={revision}
+            onFailure={studentPageFailure}
+            onNavigate={openUpdateResource}
+            onUnreadChange={updatesChanged}
+          />
           <MeetingPanel
             workspace={workspace}
             visible={view === "meetings"}
@@ -957,90 +1357,54 @@ function LearningWorkspace({
             stale={Boolean(loadError)}
             mutationError={error}
             evidenceDraftBookingIds={blockedBookingIds}
+            preparationDraftBookingIds={preparationDraftBookingIds}
             pendingUploadsKnown={readOnly || restoredUploads !== undefined}
             studentUid={studentUid}
             revision={revision}
-            onPageFailure={pageFailure}
+            onPageFailure={studentPageFailure}
             onRefresh={refresh}
             onBook={saveMeeting}
             onCancel={cancelMeeting}
             onCalendar={downloadMeetingCalendar}
+            onDetails={openMeetingDetails}
           />
-          <section
-            id="learning-records"
-            className="product-card"
-            aria-labelledby="records-heading"
-            hidden={view !== "learning"}
-          >
-            <h2 id="records-heading" tabIndex={-1}>
-              Learning records
-            </h2>
-            <p>
-              Read staff-published summaries and acknowledge that you have
-              reviewed them. Acknowledgement does not certify attendance or
-              academic mastery.
-            </p>
-            {!learning ? (
-              <p>
-                {learningPages.error
-                  ? "Learning records have not loaded. Use Retry learning records below."
-                  : "Loading learning records…"}
-              </p>
-            ) : !learning.records.length ? (
-              <p>No staff-published learning records yet.</p>
-            ) : (
-              <ul className="product-list">
-                {learning.records.map((record) => (
-                  <li key={record.id}>
-                    <h3>Staff learning summary</h3>
-                    <p>
-                      Published {new Date(record.updatedAt).toLocaleString()}
-                    </p>
-                    {record.outcomes.map((outcome) => (
-                      <div className="product-outcome" key={outcome.id}>
-                        <p>{outcome.summary}</p>
-                        {record.acknowledgedOutcomeIds.includes(outcome.id) ? (
-                          <strong>Reviewed by student</strong>
-                        ) : (
-                          <button
-                            className="button button-secondary"
-                            disabled={readOnly || busy}
-                            onClick={() =>
-                              void run(
-                                `ack:${record.id}:${outcome.id}`,
-                                async (signal, id) => {
-                                  await talaApi.acknowledgeOutcome(
-                                    record.id,
-                                    { outcomeId: outcome.id, requestId: id },
-                                    signal,
-                                  );
-                                },
-                                "Your acknowledgement was saved.",
-                              )
-                            }
-                          >
-                            I have reviewed this summary
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <StudentPageControls
-              label="learning records"
-              count={learningPages.items.length}
-              loaded={learningPages.loaded}
-              loading={learningPages.loading}
-              moreLoading={learningPages.moreLoading}
-              nextCursor={learningPages.nextCursor}
-              error={learningPages.error}
-              disabled={busy}
-              onMore={() => void learningPages.loadMore()}
-              onRetry={learningPages.retry}
+          {workspace?.activeAppointments[0] && !accessBlocked && (
+            <MeetingPreparationPanel
+              key={`${workspace.activeAppointments[0].ownerUid}:${workspace.activeAppointments[0].id}`}
+              booking={workspace.activeAppointments[0]}
+              goals={goals.loaded ? goals.items : undefined}
+              readOnly={readOnly}
+              visible={view === "meetings" && workspaceVisible}
+              onChanged={refresh}
+              onFailure={pageFailure}
+              onDirtyChange={(dirty) =>
+                preparationChanged(workspace.activeAppointments[0]!.id, dirty)
+              }
             />
-          </section>
+          )}
+          <LearningRecordsPanel
+            base={learningPages}
+            studentUid={studentUid}
+            revision={revision}
+            readOnly={readOnly}
+            busy={busy}
+            visible={view === "learning" && workspaceVisible && !accessBlocked}
+            onFailure={studentPageFailure}
+            onAcknowledge={(record, outcomeId) =>
+              void run(
+                `ack:${record.id}:${outcomeId}`,
+                async (signal, id) => {
+                  await talaApi.acknowledgeOutcome(
+                    record.id,
+                    { outcomeId, requestId: id },
+                    signal,
+                  );
+                },
+                "Your acknowledgement was saved.",
+              )
+            }
+            onDetails={(record) => openLearningDetails(record.id)}
+          />
           <section
             id="evidence"
             className="product-card"
@@ -1051,9 +1415,9 @@ function LearningWorkspace({
               Evidence
             </h2>
             <p>
-              Share a PDF or plain-text file, up to 5 MiB, linked to your
-              booking. Your files are private. Use non-sensitive learning
-              material until TALA approves its data collection policy.
+              Write a reflection, or share a PDF or plain-text file up to 5 MiB,
+              linked to your booking. Your files are private. Use non-sensitive
+              learning material until TALA approves its data collection policy.
             </p>
             {readOnly ? (
               <p className="student-family-notice">
@@ -1076,6 +1440,19 @@ function LearningWorkspace({
                   className="product-fields"
                 >
                   <legend className="sr-only">Evidence details</legend>
+                  <EvidenceEntryChoice
+                    mode={evidenceMode}
+                    hasDraft={hasEvidenceDraft}
+                    disabled={readOnly || busy || Boolean(pending)}
+                    onConfirming={setFormatConfirming}
+                    onChange={(next) => {
+                      setEvidenceMode(next);
+                      setFile(null);
+                      setReflection("");
+                      setError("");
+                      if (fileInput.current) fileInput.current.value = "";
+                    }}
+                  />
                   <div className="form-field">
                     <label htmlFor="evidence-revision">Submission type</label>
                     <select
@@ -1181,33 +1558,48 @@ function LearningWorkspace({
                       onChange={(event) => setTitle(event.target.value)}
                     />
                   </div>
-                  <div className="form-field">
-                    <label htmlFor="evidence-file">File</label>
-                    <input
-                      ref={fileInput}
-                      id="evidence-file"
-                      type="file"
-                      accept=".txt,.pdf,text/plain,application/pdf"
-                      required
-                      onChange={(event) => {
+                  {evidenceMode === "note" ? (
+                    <EvidenceNoteComposer
+                      value={reflection}
+                      disabled={readOnly || busy || Boolean(pending)}
+                      onChange={(value) => {
                         if (selectedBooking) {
                           setPinnedBooking(selectedBooking);
                           setAppointmentId(selectedBooking.id);
                         }
-                        setFile(event.target.files?.[0] ?? null);
+                        setReflection(value);
                         setError("");
                       }}
-                      aria-describedby="file-help"
                     />
-                    <p id="file-help">PDF or plain text · Maximum 5 MiB</p>
-                    {file && (
-                      <p className="student-file-preview">
-                        Selected: {file.name} · {(file.size / 1024).toFixed(1)}{" "}
-                        KiB. Your selection stays in this tab while you switch
-                        sections.
-                      </p>
-                    )}
-                  </div>
+                  ) : (
+                    <div className="form-field">
+                      <label htmlFor="evidence-file">File</label>
+                      <input
+                        ref={fileInput}
+                        id="evidence-file"
+                        type="file"
+                        accept=".txt,.pdf,text/plain,application/pdf"
+                        required
+                        onChange={(event) => {
+                          if (selectedBooking) {
+                            setPinnedBooking(selectedBooking);
+                            setAppointmentId(selectedBooking.id);
+                          }
+                          setFile(event.target.files?.[0] ?? null);
+                          setError("");
+                        }}
+                        aria-describedby="file-help"
+                      />
+                      <p id="file-help">PDF or plain text · Maximum 5 MiB</p>
+                      {file && (
+                        <p className="student-file-preview">
+                          Selected: {file.name} ·{" "}
+                          {(file.size / 1024).toFixed(1)} KiB. Your selection
+                          stays in this tab while you switch sections.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </fieldset>
                 <div className="product-actions">
                   <button
@@ -1216,9 +1608,14 @@ function LearningWorkspace({
                       readOnly ||
                       busy ||
                       !workspace ||
+                      formatConfirming ||
                       revisionStale ||
                       !selectedBooking ||
-                      (!pending && (!file || !title.trim()))
+                      (!pending &&
+                        (!title.trim() ||
+                          (evidenceMode === "note"
+                            ? Boolean(evidenceNoteProblem(reflection))
+                            : !file)))
                     }
                   >
                     {busy
@@ -1417,7 +1814,7 @@ function LearningWorkspace({
                         <button
                           type="button"
                           className="button"
-                          disabled={busy || Boolean(pending) || Boolean(file)}
+                          disabled={busy || hasEvidenceDraft}
                           onClick={() => chooseRevision(evidence)}
                         >
                           Prepare revision of {evidence.title}
@@ -1453,52 +1850,46 @@ function LearningWorkspace({
           </section>
         </div>
         <aside className="product-side">
-          <section
-            id="progress"
-            className="product-card"
-            aria-labelledby="progress-heading"
-            hidden={view !== "progress"}
-          >
-            <h2 id="progress-heading" tabIndex={-1}>
-              Your progress
-            </h2>
-            {workspace ? (
-              <dl className="product-stats">
-                <div>
-                  <dt>Evidence submitted</dt>
-                  <dd>{workspace.progress.submittedEvidenceCount}</dd>
-                </div>
-                <div>
-                  <dt>Manually reviewed</dt>
-                  <dd>{workspace.progress.reviewedEvidenceCount}</dd>
-                </div>
-                <div>
-                  <dt>Summaries acknowledged</dt>
-                  <dd>{workspace.progress.acknowledgedOutcomeCount}</dd>
-                </div>
-                <div>
-                  <dt>Revisions submitted</dt>
-                  <dd>{workspace.progress.revisionSubmissionCount}</dd>
-                </div>
-              </dl>
-            ) : (
-              <p>Progress will load from the server.</p>
-            )}
-            <p>
-              These counts track saved activity. Academic assessment, AI
-              analysis and official course credit are not connected.
-            </p>
-          </section>
+          <StudentProgress
+            workspace={workspace}
+            goals={goals.loaded ? goals.items : undefined}
+            loading={loading || goals.loading}
+            goalsError={goals.error}
+            visible={view === "progress" && workspaceVisible && !accessBlocked}
+            readOnly={readOnly}
+            onPlan={openPlan}
+            onEvidence={() => navigateView("evidence")}
+            onLearning={() => navigateView("learning")}
+            onRetry={goals.retry}
+          />
         </aside>
       </div>
-      {historyId && workspaceVisible && (
+      {historyId && workspaceVisible && !accessBlocked && (
         <EvidenceHistoryDialog
           evidenceId={historyId}
+          ownerUid={ownerUid}
+          readOnly={readOnly}
           onNavigate={openHistory}
           onClose={closeHistory}
           onExpired={onExpired}
+          onFailure={pageFailure}
         />
       )}
+      {detailId &&
+        (view === "learning" || view === "meetings") &&
+        workspaceVisible &&
+        !accessBlocked && (
+          <WorkspaceResourceDialog
+            key={`${view}:${detailId}:${ownerUid}`}
+            kind={view}
+            resourceId={detailId}
+            ownerUid={ownerUid}
+            readOnly={readOnly}
+            onClose={closeResource}
+            onChanged={refresh}
+            onFailure={pageFailure}
+          />
+        )}
       <details className="student-service-details">
         <summary>About saved records and available services</summary>
         <p>

@@ -129,12 +129,17 @@ function createListServices(db, helpers) {
   }
   function learning(actor, params, operator) {
     return read(actor, () => {
-      query(params, operator ? ["studentUid", "q", "limit", "cursor"] : ["studentUid", "limit", "cursor"]);
+      query(params, ["studentUid", "q", "limit", "cursor"]);
       if (operator) requireOperator(actor);
-      const requested = optionalId(params, "studentUid"), owner = operator ? requested : authorize(actor, requested || actor.uid), q = operator ? search(params) : "";
+      const requested = optionalId(params, "studentUid"), owner = operator ? requested : authorize(actor, requested || actor.uid), q = search(params);
       const limit = learningLimit(params), where = [], values = [];
       if (owner) { where.push("r.owner_uid=?"); values.push(owner); }
-      if (q) { where.push("(u.name LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM json_each(r.outcomes_json) outcome WHERE json_extract(outcome.value,'$.summary') LIKE ? ESCAPE '\\'))"); values.push(literalLike(q), literalLike(q)); }
+      if (q) {
+        const summaryMatch = "EXISTS(SELECT 1 FROM json_each(r.outcomes_json) outcome WHERE json_extract(outcome.value,'$.summary') LIKE ? ESCAPE '\\')";
+        where.push(operator ? `(u.name LIKE ? ESCAPE '\\' OR ${summaryMatch})` : summaryMatch);
+        if (operator) values.push(literalLike(q));
+        values.push(literalLike(q));
+      }
       const result = page(actor, params, operator ? "operations-learning" : "learning", owner, { q, limit }, {
         select: "SELECT r.*,u.name AS student_name FROM learning_records r JOIN users u ON u.uid=r.owner_uid", where, values,
         time: "r.published_at", timeField: "published_at", id: "r.id", limit,

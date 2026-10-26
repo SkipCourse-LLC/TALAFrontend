@@ -112,7 +112,7 @@ test("the schema-v1 upgrade preserves existing synthetic sessions, ownership and
     });
     assert.equal(
       application.db.prepare("PRAGMA user_version").get().user_version,
-      2,
+      4,
     );
     assert.deepEqual(
       application.db.prepare("PRAGMA foreign_key_check").all(),

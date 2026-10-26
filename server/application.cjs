@@ -20,7 +20,7 @@ function createApplication(options = {}) {
   const allowedOrigins = new Set(options.allowedOrigins || ["http://127.0.0.1:5173", "http://127.0.0.1:5176", "http://localhost:5173", "http://localhost:5176", "http://127.0.0.1:8787"]);
   if (!allowedOrigins.size || [...allowedOrigins].some((origin) => { try { return new URL(origin).origin !== origin; } catch { return true; } })) throw new Error("Configure explicit application origins, never a wildcard.");
   const db = openDatabase(dataDir);
-  const { services, operator, lists } = createServices(db, dataDir);
+  const { services, operator, lists, goals, updates, preparations } = createServices(db, dataDir);
   const sessionTtl = options.sessionTtlMs || 12 * 3600000;
   const cookieName = "tala_session";
   function currentSession(req) {
@@ -137,7 +137,7 @@ function createApplication(options = {}) {
       const route = url.pathname;
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 4, schemaVersion: 2, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 6, schemaVersion: 4, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
       if (req.method === "GET" && route === "/api/session") {
         // A cross-site top-level navigation omits SameSite=Strict cookies but
         // can still accept Set-Cookie. Do not overwrite a signed-in browser
@@ -257,6 +257,16 @@ function createApplication(options = {}) {
       }
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)$/))) return json(res, lists.read(actor, () => services.evidence(actor, match[1])));
       if (req.method === "GET" && route === "/api/learning") return json(res, lists.learning(actor, url.searchParams));
+      if (req.method === "GET" && (match = route.match(/^\/api\/appointments\/([^/]+)\/preparation$/))) return json(res, lists.read(actor, () => preparations.get(actor, match[1], url.searchParams)));
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/appointments\/([^/]+)\/preparation$/))) return json(res, await perform(req, (fresh, input) => preparations.save(fresh, match[1], input)));
+      if (req.method === "GET" && route === "/api/learning-goals") return json(res, lists.read(actor, () => goals.list(actor, url.searchParams)));
+      if (req.method === "POST" && route === "/api/learning-goals") return json(res, await perform(req, (fresh, input) => goals.create(fresh, input)), 201);
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/learning-goals\/([^/]+)$/))) return json(res, await perform(req, (fresh, input) => goals.update(fresh, match[1], input)));
+      if (req.method === "GET" && (match = route.match(/^\/api\/learning-goals\/([^/]+)\/evidence$/))) return json(res, lists.read(actor, () => goals.evidence(actor, match[1], url.searchParams)));
+      if (req.method === "POST" && (match = route.match(/^\/api\/learning-goals\/([^/]+)\/evidence$/))) return json(res, await perform(req, (fresh, input) => goals.linkEvidence(fresh, match[1], input)));
+      if (req.method === "GET" && route === "/api/updates") return json(res, lists.read(actor, () => updates.list(actor, url.searchParams)));
+      if (req.method === "POST" && route === "/api/updates/read-all") return json(res, await perform(req, (fresh, input) => updates.readAll(fresh, input)));
+      if (req.method === "POST" && (match = route.match(/^\/api\/updates\/([^/]+)\/read$/))) return json(res, await perform(req, (fresh, input) => updates.markRead(fresh, match[1], input)));
       if (req.method === "GET" && (match = route.match(/^\/api\/learning\/([^/]+)$/))) return json(res, lists.learningRecord(actor, match[1]));
       if (req.method === "POST" && route === "/api/outcomes") return json(res, await perform(req, (fresh, input) => services.publish(fresh, input)), 201);
       if (req.method === "POST" && (match = route.match(/^\/api\/outcomes\/([^/]+)\/acknowledge$/))) return json(res, await perform(req, (fresh, input) => services.acknowledge(fresh, match[1], input)));

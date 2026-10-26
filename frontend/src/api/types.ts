@@ -11,6 +11,64 @@ export interface SessionState {
   session: User | null;
   csrfToken: string;
 }
+export interface LearningGoal {
+  id: string;
+  ownerUid: string;
+  title: string;
+  notes: string;
+  dueDate: string | null;
+  status: "active" | "completed";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  steps: LearningGoalStep[];
+  linkedEvidenceCount: number;
+}
+export interface LearningGoalStep {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+export interface LearningGoals {
+  goals: LearningGoal[];
+  limit: 100;
+}
+export interface LearningGoalInput {
+  title: string;
+  notes: string;
+  dueDate: string | null;
+  steps?: LearningGoalStep[];
+}
+export interface LearningGoalEvidence {
+  goalId: string;
+  ownerUid: string;
+  evidence: Evidence[];
+  limit: 20;
+}
+export interface WorkspaceUpdate {
+  id: string;
+  type: "appointment" | "learning" | "review";
+  title: string;
+  summary: string;
+  occurredAt: string;
+  read: boolean;
+  target: {
+    view: "meetings" | "learning" | "evidence";
+    resourceId: string;
+  };
+}
+export interface WorkspaceUpdatesPage {
+  ownerUid: string;
+  items: WorkspaceUpdate[];
+  nextCursor: string | null;
+  unreadCount: number;
+}
+export interface WorkspaceUpdatesQuery {
+  studentUid?: string;
+  filter?: "all" | "unread";
+  cursor?: string;
+}
 export interface AccountSession {
   id: string;
   current: boolean;
@@ -73,6 +131,7 @@ export interface OperatorAppointmentQuery extends AppointmentPageQuery {
   q?: string;
 }
 export interface LearningPageQuery {
+  q?: string;
   studentUid?: string;
   limit?: number;
   cursor?: string;
@@ -94,6 +153,22 @@ export interface Appointment {
   meetingIntegration: "unavailable";
   updatedAt: string;
   learningRecordId?: string;
+}
+export interface AppointmentPreparation {
+  appointmentId: string;
+  ownerUid: string;
+  note: string;
+  goalId: string | null;
+  ready: boolean;
+  version: number;
+  updatedAt: string | null;
+}
+export interface AppointmentPreparationInput {
+  note: string;
+  goalId: string | null;
+  ready: boolean;
+  version: number;
+  requestId: string;
 }
 export type EvidenceContentType = "text/plain" | "application/pdf";
 export interface Evidence {

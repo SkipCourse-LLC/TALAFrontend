@@ -8,6 +8,7 @@ export function MeetingActionDialog({
   busy,
   current,
   draftBlocked,
+  preparationBlocked = false,
   error,
   onClose,
   onConfirm,
@@ -18,6 +19,7 @@ export function MeetingActionDialog({
   busy: boolean;
   current: boolean;
   draftBlocked: boolean;
+  preparationBlocked?: boolean;
   error: string;
   onClose: () => void;
   onConfirm: () => void;
@@ -110,6 +112,13 @@ export function MeetingActionDialog({
           booking. Your file is kept while you switch sections.
         </p>
       )}
+      {preparationBlocked && (
+        <p className="meeting-draft-warning" role="alert">
+          Your meeting preparation has unsaved changes. Keep this booking, then
+          save or explicitly discard the notes in “Prepare for your meeting”
+          before changing its time.
+        </p>
+      )}
       {error && (
         <p className="product-error" role="alert" ref={alert} tabIndex={-1}>
           {error}
@@ -127,7 +136,7 @@ export function MeetingActionDialog({
         <button
           type="button"
           className="button"
-          disabled={busy || !current || draftBlocked}
+          disabled={busy || !current || draftBlocked || preparationBlocked}
           onClick={onConfirm}
         >
           {busy
