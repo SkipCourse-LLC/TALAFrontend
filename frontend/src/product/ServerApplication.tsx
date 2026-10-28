@@ -18,6 +18,7 @@ import { AccountSecurityPage } from "./AccountSecurityPage";
 import { useSessionPrivacy } from "./useSessionPrivacy";
 import { WorkspaceVisibility } from "./workspaceVisibility";
 import "./product.css";
+import "./quietAccount.css";
 
 function IndependentRouteFocus() {
   const { pathname } = useLocation();
@@ -153,7 +154,7 @@ export function ServerApplication() {
   if (loading)
     return (
       <div className="container state-panel" role="status">
-        Restoring your secure session…
+        Restoring session…
       </div>
     );
   if (error)
@@ -161,10 +162,7 @@ export function ServerApplication() {
       <section className="container state-panel" role="alert">
         <h1>TALA server unavailable</h1>
         <p>{error}</p>
-        <p>
-          Start the independent server and retry. This page does not fall back
-          to a sample account.
-        </p>
+        <p>Start the TALA server, then retry. No sample account is used.</p>
         <button
           className="button"
           type="button"
@@ -205,16 +203,14 @@ export function ServerApplication() {
           role={privacy.error ? "alert" : "status"}
         >
           <h1>
-            {!privacy.checking
-              ? "Confirm your session to continue"
-              : "Checking your secure session…"}
+            {!privacy.checking ? "Confirm your session" : "Checking session…"}
           </h1>
           {!privacy.checking && (
             <>
               {privacy.error && <p>{privacy.error}</p>}
               <p>
-                Your records stay hidden until your current account is
-                confirmed. Unsent workspace drafts stay in this tab.
+                Records stay hidden until confirmed. Your drafts stay in this
+                tab.
               </p>
               <button
                 className="button"
@@ -315,9 +311,8 @@ export function ServerApplication() {
                   <section className="container state-panel">
                     <h1>Payment service not connected</h1>
                     <p>
-                      No payment provider or approved fee schedule is
-                      configured. No card details are collected and no payment
-                      can be made.
+                      Payment provider and fees are unconfigured. No card data
+                      is collected. No charge can be made.
                     </p>
                     <Link
                       className="button"

@@ -53,24 +53,20 @@ export function StudentProgress({
     >
       <header className="student-progress-heading">
         <h2 id="progress-heading" tabIndex={-1}>
-          Your progress
+          Progress
         </h2>
-        <p>A record of the work you’ve saved.</p>
       </header>
       <div className="student-progress-grid">
         <section
           className="student-progress-plan"
           aria-labelledby="progress-plan-heading"
         >
-          <h3 id="progress-plan-heading">Personal learning plan</h3>
+          <h3 id="progress-plan-heading">Goals completed</h3>
           {plansReady ? (
             <>
               <p className="student-progress-number">
                 <strong>{completed}</strong>
-                <span>
-                  of {goals.length} {goals.length === 1 ? "goal" : "goals"}{" "}
-                  completed
-                </span>
+                <span>/ {goals.length}</span>
               </p>
               {goals.length > 0 && (
                 <progress
@@ -82,9 +78,9 @@ export function StudentProgress({
                 </progress>
               )}
               <div className="student-progress-step-total">
-                <span>Steps checked</span>
+                <span>Steps</span>
                 <strong>
-                  {steps!.completed} of {steps!.total}
+                  {steps!.completed} / {steps!.total}
                 </strong>
               </div>
               {steps!.total > 0 && (
@@ -96,12 +92,6 @@ export function StudentProgress({
                   {steps!.completed} of {steps!.total}
                 </progress>
               )}
-              <p className="student-progress-help">
-                {readOnly
-                  ? "The student records these goals and steps."
-                  : "You choose when a goal or step is complete."}{" "}
-                They do not represent grades or verified skills.
-              </p>
             </>
           ) : goalsError ? (
             <div className="student-progress-plan-error" role="alert">
@@ -109,56 +99,55 @@ export function StudentProgress({
               <button
                 type="button"
                 className="student-progress-link"
+                aria-label="Reload learning plan"
                 disabled={loading}
                 onClick={onRetry}
               >
-                Reload learning plan
+                Reload
               </button>
             </div>
           ) : (
-            <p role="status">Loading saved goals…</p>
+            <p role="status">Loading goals…</p>
           )}
           <button
             type="button"
             className="student-progress-link"
+            aria-label="Open learning plan"
             onClick={() => onPlan()}
           >
-            Open learning plan
+            Learning plan
           </button>
         </section>
         <section
           className="student-progress-work"
           aria-labelledby="progress-work-heading"
         >
-          <h3 id="progress-work-heading">Saved learning work</h3>
+          <h3 id="progress-work-heading">Saved work</h3>
           <dl>
             <div>
-              <dt>Evidence submitted</dt>
+              <dt>Submitted</dt>
               <dd>{workspace?.progress.submittedEvidenceCount ?? "—"}</dd>
             </div>
             <div>
-              <dt>Manually reviewed</dt>
+              <dt>Reviewed</dt>
               <dd>{workspace?.progress.reviewedEvidenceCount ?? "—"}</dd>
             </div>
             <div>
-              <dt>Revisions submitted</dt>
+              <dt>Revisions</dt>
               <dd>{workspace?.progress.revisionSubmissionCount ?? "—"}</dd>
             </div>
             <div>
-              <dt>Connections to goals</dt>
+              <dt>Goal links</dt>
               <dd>{plansReady ? links : "—"}</dd>
             </div>
           </dl>
-          <p className="student-progress-help">
-            A file can support more than one goal. Each saved version and goal
-            connection is counted separately.
-          </p>
           <button
             type="button"
             className="student-progress-link"
+            aria-label="View Evidence"
             onClick={onEvidence}
           >
-            View Evidence
+            Evidence
           </button>
         </section>
       </div>
@@ -168,21 +157,19 @@ export function StudentProgress({
       >
         <header>
           <div>
-            <h3 id="progress-targets-heading">Next target dates</h3>
-            <p>
-              Your nearest active targets, including dates that have passed.
-            </p>
+            <h3 id="progress-targets-heading">Target dates</h3>
           </div>
           <button
             className="student-progress-link"
+            aria-label="View all goals"
             type="button"
             onClick={() => onPlan()}
           >
-            View all goals
+            All goals
           </button>
         </header>
         {!plansReady ? (
-          <p>Target dates will appear after your learning plan loads.</p>
+          <p>Loading target dates…</p>
         ) : targets.length ? (
           <ul>
             {targets.map((goal) => {
@@ -193,8 +180,8 @@ export function StudentProgress({
                     <span>
                       <strong>{goal.title}</strong>
                       <span>
-                        {goal.steps.filter((step) => step.completed).length} of{" "}
-                        {goal.steps.length} steps checked
+                        {goal.steps.filter((step) => step.completed).length} /{" "}
+                        {goal.steps.length} steps
                       </span>
                     </span>
                     <span data-overdue={date.overdue}>{date.label}</span>
@@ -204,33 +191,40 @@ export function StudentProgress({
             })}
           </ul>
         ) : (
-          <p>
-            No target dates on active goals. Add one to a goal when it would
-            help you plan.
-          </p>
+          <p>No target dates yet.</p>
         )}
       </section>
       <div className="student-progress-summary">
         <div>
-          <h3>Learning summaries</h3>
+          <h3>Learning records</h3>
           <p>
             {workspace
-              ? `${workspace.progress.acknowledgedOutcomeCount} ${workspace.progress.acknowledgedOutcomeCount === 1 ? "learning note" : "learning notes"} marked as reviewed.`
-              : "Your saved acknowledgements will appear here."}
+              ? `${workspace.progress.acknowledgedOutcomeCount} reviewed by student`
+              : "No records loaded."}
           </p>
         </div>
         <button
           type="button"
           className="student-progress-link"
+          aria-label="Read learning records"
           onClick={onLearning}
         >
-          Read learning records
+          Records
         </button>
       </div>
       <p className="student-progress-boundary">
-        These records show saved activity. Attendance, academic mastery, AI
-        assessment and official course credit are not verified by this system.
+        Saved activity only. Attendance, mastery, AI assessment and course
+        credit aren’t verified.
       </p>
+      <details className="student-progress-details">
+        <summary>Details</summary>
+        <p>
+          {readOnly
+            ? "The student records their goals and steps."
+            : "Goals and steps are self-reported."}{" "}
+          Each saved Evidence version and goal link is counted separately.
+        </p>
+      </details>
     </section>
   );
 }

@@ -7,7 +7,7 @@
 .student-progress-heading h2 {
   font-size: clamp(1.6rem, 2.6vw, 2rem);
   letter-spacing: -0.035em;
-  margin-bottom: 8px;
+  margin: 0;
 }
 .student-progress-heading p {
   margin-bottom: 0;
@@ -18,9 +18,10 @@
   gap: 32px;
 }
 .student-progress-plan {
-  border-radius: 24px;
-  background: #e5eee9;
-  padding: clamp(24px, 4vw, 40px);
+  border: 1px solid #d8dce0;
+  border-radius: 18px;
+  background: #fff;
+  padding: clamp(24px, 4vw, 32px);
   min-width: 0;
 }
 .student-progress-work {
@@ -28,7 +29,7 @@
   min-width: 0;
 }
 .student-progress h3 {
-  font-size: 1.15rem;
+  font-size: 1rem;
   letter-spacing: -0.02em;
   margin: 0 0 24px;
 }
@@ -36,7 +37,7 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   color: #30564a;
   margin-bottom: 20px;
 }
@@ -219,7 +220,28 @@
   max-width: 76ch;
   line-height: 1.7;
   border-top: 1px solid #d2d8d4;
-  padding-top: 24px;
+  padding-top: 18px;
+  margin-bottom: 8px;
+}
+.student-progress-details > summary {
+  display: list-item;
+  width: fit-content;
+  min-height: 44px;
+  align-content: center;
+  color: #174139;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.student-progress-details > summary:focus-visible {
+  outline: 3px solid #174139;
+  outline-offset: 4px;
+}
+.student-progress-details > p {
+  max-width: 65ch;
+  margin: 4px 0 16px;
+  color: #626268;
+  font-size: 0.875rem;
+  line-height: 1.65;
 }
 .student-progress-plan-error p {
   color: #743a2a;
@@ -231,7 +253,7 @@
     gap: 24px;
   }
   .student-progress-plan {
-    border-radius: 20px;
+    border-radius: 16px;
   }
   .student-progress-work {
     padding: 0;

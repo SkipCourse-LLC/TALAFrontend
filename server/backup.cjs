@@ -5,7 +5,7 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const SUPPORTED_SCHEMAS = new Set([2, 3, 4]);
+const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5]);
 const MAX_FILE = 5 * 1024 * 1024;
 function refuse(message) { throw new Error(message); }
 function localOnly() {
@@ -109,7 +109,7 @@ function copyPrivate(source, target, expectedSize) {
 }
 function checkDatabase(db, expectedSchema) {
   const schema = db.prepare("PRAGMA user_version").get().user_version;
-  if (!SUPPORTED_SCHEMAS.has(schema) || (expectedSchema !== undefined && expectedSchema !== schema)) refuse("This backup tool supports database schemas 2, 3 and 4, matching the manifest. No migration was performed.");
+  if (!SUPPORTED_SCHEMAS.has(schema) || (expectedSchema !== undefined && expectedSchema !== schema)) refuse("This backup tool supports database schemas 2, 3, 4 and 5, matching the manifest. No migration was performed.");
   if (db.prepare("PRAGMA quick_check").get().quick_check !== "ok" || db.prepare("PRAGMA foreign_key_check").get()) refuse("The database failed its consistency check.");
   if (db.prepare("SELECT name FROM sqlite_master WHERE type IN ('trigger','view') LIMIT 1").get()) refuse("This schema does not use triggers or views. Review unsupported database objects before backup or restore.");
   if (db.prepare(`SELECT u.id FROM uploads u LEFT JOIN evidence e ON e.id=u.id
@@ -161,6 +161,25 @@ function checkDatabase(db, expectedSchema) {
       if (!prepared.existing_owner || !validId(prepared.appointment_id) || !validId(prepared.owner_uid) || prepared.owner_uid !== prepared.booking_owner ||
           (prepared.goal_id !== null && (!validId(prepared.goal_id) || prepared.goal_owner !== prepared.owner_uid)) ||
           !plain(prepared.note, 1000, true, true) || ![0, 1].includes(prepared.ready) || !Number.isSafeInteger(prepared.version) || prepared.version < 1 || !instant(prepared.updated_at)) refuse("Meeting preparation ownership or metadata is inconsistent. No backup or restore was accepted.");
+    }
+  }
+  if (schema >= 5) {
+    const draftText = (value, maximum, paragraphs) => typeof value === "string" && value.isWellFormed() && value.length <= maximum &&
+      !(paragraphs ? /[\x00-\x08\x0b-\x1f\x7f]/ : /[\x00-\x1f\x7f]/).test(paragraphs ? value.replace(/\r\n/g, "\n") : value);
+    for (const draft of db.prepare("SELECT d.*,u.uid AS existing_owner FROM reflection_drafts d LEFT JOIN users u ON u.uid=d.owner_uid").iterate()) {
+      if (!draft.existing_owner || !validId(draft.owner_uid) || !draftText(draft.title, 120, false) || !draftText(draft.body, 5000, true) ||
+          !["empty", "saved"].includes(draft.status) || !Number.isSafeInteger(draft.version) || draft.version < 1 || !instant(draft.updated_at) ||
+          (draft.status === "empty" ? draft.title !== "" || draft.body !== "" : !draft.title.trim() && !draft.body.trim())) refuse("A private reflection draft contains inconsistent metadata. No backup or restore was accepted.");
+    }
+    // These operations deliberately confirm only a version. Restoring a ledger
+    // that accumulated prior draft text would defeat clearing the current draft.
+    for (const receipt of db.prepare(`SELECT o.*,d.version AS current_version FROM operations o
+      LEFT JOIN reflection_drafts d ON d.owner_uid=o.uid WHERE o.kind IN ('save-reflection-draft','clear-reflection-draft')`).iterate()) {
+      let metadata;
+      try { metadata = JSON.parse(receipt.result_json); } catch { refuse("A reflection draft receipt is invalid. No backup or restore was accepted."); }
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata) || Object.keys(metadata).join(",") !== "version" ||
+          !Number.isSafeInteger(metadata.version) || metadata.version < 1 || !Number.isSafeInteger(receipt.current_version) || metadata.version > receipt.current_version ||
+          !validId(receipt.request_id) || receipt.request_id.length < 16 || !/^[a-f0-9]{64}$/.test(receipt.fingerprint)) refuse("Private draft receipts must contain confirmation metadata only. No backup or restore was accepted.");
     }
   }
   return schema;

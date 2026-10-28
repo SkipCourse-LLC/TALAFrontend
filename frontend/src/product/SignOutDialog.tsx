@@ -47,11 +47,11 @@ export function SignOutDialog({
         if (!busy) onCancel();
       }}
     >
-      <h2 id="signout-heading">Keep your unsent work?</h2>
+      <h2 id="signout-heading">Sign out?</h2>
       <p id="signout-help">
-        Signing out clears unsent text and file selections from this tab. Your
-        saved records stay on the server. Unfinished server uploads remain
-        available until their expiry.
+        Unsent text and file selections will be cleared. Saved records and
+        private drafts stay on the server. Unfinished uploads remain until
+        expiry.
       </p>
       {error && (
         <p ref={alert} tabIndex={-1} role="alert" className="product-error">
@@ -73,8 +73,9 @@ export function SignOutDialog({
           className="button"
           disabled={busy}
           onClick={onConfirm}
+          aria-label={busy ? "Signing out…" : "Sign out and clear unsent work"}
         >
-          {busy ? "Signing out…" : "Sign out and clear unsent work"}
+          {busy ? "Signing out…" : "Sign out"}
         </button>
       </div>
     </dialog>

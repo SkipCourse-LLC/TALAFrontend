@@ -25,6 +25,8 @@ export function WorkspaceResourceDialog({
   onClose,
   onChanged,
   onFailure,
+  onEvidence,
+  onManageMeeting,
 }: {
   kind: "meetings" | "learning";
   resourceId: string;
@@ -33,6 +35,8 @@ export function WorkspaceResourceDialog({
   onClose: () => void;
   onChanged: () => void;
   onFailure: (failure: unknown) => void;
+  onEvidence: (booking: ApiAppointment) => void;
+  onManageMeeting: (booking: ApiAppointment) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -228,15 +232,23 @@ export function WorkspaceResourceDialog({
       }}
     >
       <header>
-        <h2 ref={heading} id="workspace-detail-heading" tabIndex={-1}>
-          {kind === "learning" ? "Learning summary" : "Meeting details"}
+        <h2
+          ref={heading}
+          id="workspace-detail-heading"
+          tabIndex={-1}
+          aria-label={
+            kind === "learning" ? "Learning summary" : "Meeting details"
+          }
+        >
+          {kind === "learning" ? "Summary" : "Meeting"}
         </h2>
         <button
           type="button"
           className="button button-secondary"
           onClick={onClose}
+          aria-label="Close details"
         >
-          Close details
+          Close
         </button>
       </header>
       {error && (
@@ -246,16 +258,17 @@ export function WorkspaceResourceDialog({
             className="button button-secondary"
             type="button"
             disabled={Boolean(pending) || reading}
+            aria-label="Reload details"
             onClick={() => {
               setReading(true);
               setAttempt((value) => value + 1);
             }}
           >
-            Reload details
+            Reload
           </button>
         </div>
       )}
-      {!saved && !error && <p role="status">Loading this saved record…</p>}
+      {!saved && !error && <p role="status">Loading…</p>}
       {saved && (
         <>
           <p className="workspace-detail-time">
@@ -263,38 +276,47 @@ export function WorkspaceResourceDialog({
           </p>
           <p className="workspace-detail-state">
             {saved.booking.status === "cancelled"
-              ? "Reservation cancelled"
+              ? "Cancelled"
               : saved.booking.status === "ended"
-                ? "Reservation period ended"
-                : "Time reserved"}
+                ? "Ended"
+                : "Reserved"}
           </p>
           {kind === "meetings" ? (
             <>
-              <p>
-                This is your saved reservation. A live meeting link and
-                confirmed attendance are not available.
-              </p>
+              <p>Live link unavailable. Attendance unconfirmed.</p>
               {saved.booking.status !== "cancelled" && (
                 <button
                   type="button"
                   className="button button-secondary"
                   disabled={Boolean(pending) || reading}
                   onClick={calendar}
+                  aria-label={
+                    pending.startsWith("calendar:")
+                      ? "Preparing calendar…"
+                      : "Save to calendar"
+                  }
                 >
                   {pending.startsWith("calendar:")
-                    ? "Preparing calendar…"
+                    ? "Preparing…"
                     : "Save to calendar"}
                 </button>
               )}
-              <p className="workspace-detail-help">
-                To change a future reservation, close these details and use the
-                Meetings page.
-              </p>
+              {!readOnly && saved.booking.status === "reserved" && (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={Boolean(pending) || reading}
+                  onClick={() => onManageMeeting(saved.booking)}
+                  aria-label="Manage booking"
+                >
+                  Manage
+                </button>
+              )}
               <section
                 className="workspace-detail-preparation"
                 aria-labelledby="detail-preparation-heading"
               >
-                <h3 id="detail-preparation-heading">Saved preparation</h3>
+                <h3 id="detail-preparation-heading">Preparation</h3>
                 {saved.preparation?.version ? (
                   <>
                     {saved.preparation.note && (
@@ -304,24 +326,17 @@ export function WorkspaceResourceDialog({
                     )}
                     <p>
                       {saved.preparation.ready
-                        ? "Materials marked ready by the student."
-                        : "Materials not marked ready."}
+                        ? "Materials ready."
+                        : "Materials not ready."}
                     </p>
-                    {saved.preparation.goalId && (
-                      <p>
-                        A personal learning goal is connected to this
-                        reservation.
-                      </p>
-                    )}
+                    {saved.preparation.goalId && <p>Goal linked.</p>}
                     <p className="workspace-detail-help">
                       Saved{" "}
                       {new Date(saved.preparation.updatedAt!).toLocaleString()}.
-                      Preparation stays with this reservation if its time is
-                      changed or cancelled.
                     </p>
                   </>
                 ) : (
-                  <p>No preparation saved for this reservation.</p>
+                  <p>No preparation saved.</p>
                 )}
               </section>
             </>
@@ -329,8 +344,8 @@ export function WorkspaceResourceDialog({
             saved.record && (
               <>
                 <p className="workspace-detail-help">
-                  Published {new Date(saved.record.updatedAt).toLocaleString()}.
-                  Written by your TALA team.
+                  TALA summary ·{" "}
+                  {new Date(saved.record.updatedAt).toLocaleString()}
                 </p>
                 <ol className="workspace-detail-outcomes">
                   {saved.record.outcomes.map((outcome) => (
@@ -340,11 +355,11 @@ export function WorkspaceResourceDialog({
                         outcome.id,
                       ) ? (
                         <span className="workspace-detail-reviewed">
-                          Reviewed by student
+                          Reviewed
                         </span>
                       ) : readOnly ? (
                         <span className="workspace-detail-help">
-                          Awaiting the student’s acknowledgement.
+                          Awaiting student review.
                         </span>
                       ) : (
                         <button
@@ -352,18 +367,32 @@ export function WorkspaceResourceDialog({
                           className="button button-secondary"
                           disabled={Boolean(pending) || reading}
                           onClick={() => acknowledge(outcome.id)}
+                          aria-label={
+                            pending === `ack:${saved.record!.id}:${outcome.id}`
+                              ? "Saving acknowledgement…"
+                              : "I have reviewed this summary"
+                          }
                         >
                           {pending === `ack:${saved.record!.id}:${outcome.id}`
-                            ? "Saving acknowledgement…"
-                            : "I have reviewed this summary"}
+                            ? "Saving…"
+                            : "Reviewed"}
                         </button>
                       )}
                     </li>
                   ))}
                 </ol>
+                {!readOnly && saved.booking.status !== "cancelled" && (
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={Boolean(pending) || reading}
+                    onClick={() => onEvidence(saved.booking)}
+                  >
+                    Add Evidence
+                  </button>
+                )}
                 <p className="workspace-detail-help">
-                  Acknowledging a summary records that you read it. It does not
-                  confirm attendance, mastery or course credit.
+                  Review confirms reading only, not attendance or credit.
                 </p>
               </>
             )

@@ -313,19 +313,18 @@ export function PendingUploadsPanel({
     >
       <header className="pending-uploads-heading">
         <div>
-          <h3 id="pending-uploads-heading">Unfinished uploads</h3>
-          <p>
-            Continue a saved upload or cancel it. Submitted Evidence stays in
-            your history.
-          </p>
+          <h3 id="pending-uploads-heading" aria-label="Unfinished uploads">
+            Uploads
+          </h3>
         </div>
         <button
           type="button"
+          aria-label={loading ? "Refreshing…" : "Refresh unfinished uploads"}
           className="pending-uploads-text-button"
           disabled={disabled || loading || Boolean(pending)}
           onClick={() => refresh(true)}
         >
-          {loading ? "Refreshing…" : "Refresh unfinished uploads"}
+          {loading ? "Refreshing…" : "Refresh"}
         </button>
       </header>
       <p
@@ -344,13 +343,11 @@ export function PendingUploadsPanel({
       )}
       {loading && !uploads && (
         <p className="pending-uploads-help" role="status">
-          Loading unfinished uploads…
+          Loading…
         </p>
       )}
       {visible && !visible.length && (
-        <p className="pending-uploads-empty">
-          No unfinished uploads to continue.
-        </p>
+        <p className="pending-uploads-empty">No unfinished uploads.</p>
       )}
       {visible && visible.length > 0 && (
         <ul
@@ -382,7 +379,7 @@ export function PendingUploadsPanel({
                 </span>
               </div>
               <p className="pending-uploads-help">
-                {expired[upload.uploadId] ? "Expired at" : "Available until"}{" "}
+                {expired[upload.uploadId] ? "Expired" : "Expires"}{" "}
                 <time dateTime={upload.expiresAt}>
                   {expiryLabel(upload.expiresAt)}
                 </time>
@@ -391,10 +388,11 @@ export function PendingUploadsPanel({
               {upload.status === "pending" && (
                 <div className="pending-uploads-file">
                   <label htmlFor={`pending-upload-file-${upload.uploadId}`}>
-                    Choose original file for {upload.title}
+                    Original file
                   </label>
                   <input
                     id={`pending-upload-file-${upload.uploadId}`}
+                    aria-label={`Choose original file for ${upload.title}`}
                     type="file"
                     accept=".txt,.pdf,text/plain,application/pdf"
                     disabled={blocked || expired[upload.uploadId]}
@@ -417,9 +415,9 @@ export function PendingUploadsPanel({
                   >
                     {expired[upload.uploadId]
                       ? files[upload.uploadId]
-                        ? "Your original file stays selected here. Use it again when starting a new upload."
-                        : "Select your original file in the Evidence form above when starting a new upload."
-                      : "Use the same file. Its type, size and checksum must match the saved upload."}
+                        ? "File kept. Use it in a new upload."
+                        : "Start a new upload with the original file."
+                      : "Use the same file; type, size and checksum must match."}
                   </p>
                 </div>
               )}
@@ -445,8 +443,9 @@ export function PendingUploadsPanel({
                     type="button"
                     disabled={blocked}
                     onClick={() => void act(upload, "check")}
+                    aria-label="Check saved result"
                   >
-                    Check saved result
+                    Check
                   </button>
                 </div>
               )}
@@ -456,21 +455,29 @@ export function PendingUploadsPanel({
                   type="button"
                   disabled={blocked || expired[upload.uploadId]}
                   onClick={() => void act(upload, "finish")}
+                  aria-label={
+                    pending?.id === upload.uploadId && pending.work === "finish"
+                      ? "Saving Evidence…"
+                      : upload.status === "uploaded"
+                        ? "Finish submission"
+                        : "Upload and submit"
+                  }
                 >
                   {pending?.id === upload.uploadId && pending.work === "finish"
-                    ? "Saving Evidence…"
+                    ? "Saving…"
                     : upload.status === "uploaded"
-                      ? "Finish submission"
-                      : "Upload and submit"}
+                      ? "Finish"
+                      : "Submit"}
                 </button>
                 <button
                   type="button"
                   className="pending-uploads-text-button"
                   id={`pending-cancel-upload-${upload.uploadId}`}
+                  aria-label="Cancel unfinished upload"
                   disabled={blocked}
                   onClick={() => setConfirmCancel(upload.uploadId)}
                 >
-                  Cancel unfinished upload
+                  Cancel
                 </button>
               </div>
               {confirmCancel === upload.uploadId && (
@@ -483,14 +490,15 @@ export function PendingUploadsPanel({
                     Cancel this unfinished upload?
                   </h4>
                   <p>
-                    The unfinished file will be removed. Submitted Evidence and
-                    earlier versions will be kept.
+                    Removes this unfinished file. Submitted work and earlier
+                    versions stay.
                   </p>
                   <div className="pending-uploads-actions">
                     <button
                       type="button"
                       className="button button-secondary"
                       ref={keepUpload}
+                      aria-label="Keep upload"
                       disabled={blocked}
                       onClick={() => {
                         setConfirmCancel(undefined);
@@ -503,13 +511,19 @@ export function PendingUploadsPanel({
                         );
                       }}
                     >
-                      Keep upload
+                      Keep
                     </button>
                     <button
                       type="button"
                       className="button"
                       disabled={blocked}
                       onClick={() => void act(upload, "cancel")}
+                      aria-label={
+                        pending?.id === upload.uploadId &&
+                        pending.work === "cancel"
+                          ? "Cancelling…"
+                          : "Confirm cancel upload"
+                      }
                     >
                       {pending?.id === upload.uploadId &&
                       pending.work === "cancel"

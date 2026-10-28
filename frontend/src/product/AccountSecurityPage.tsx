@@ -406,12 +406,15 @@ export function AccountSecurityPage({
   );
   return (
     <div className="container account-security">
-      <Link to={returnTo} className="account-security-back">
-        Back to workspace
+      <Link
+        to={returnTo}
+        className="account-security-back"
+        aria-label="Back to workspace"
+      >
+        Back
       </Link>
       <header className="account-security-heading">
-        <h1>Account security</h1>
-        <p>Manage your password and the sessions signed in to TALA.</p>
+        <h1 aria-label="Account security">Security</h1>
       </header>
       <div className="account-security-identity">
         <div>
@@ -425,6 +428,9 @@ export function AccountSecurityPage({
           {user.emailVerified ? "Email verified" : "Email not verified"}
         </span>
       </div>
+      <p className="account-security-help quiet-account-unavailable">
+        Email verification, recovery emails and 2FA are unavailable.
+      </p>
       <p
         className={
           message
@@ -443,7 +449,6 @@ export function AccountSecurityPage({
         >
           <div className="account-security-section-heading">
             <h2 id="account-password-heading">Change password</h2>
-            <p>Use a unique password you do not use anywhere else.</p>
           </div>
           {lastChangedAt && (
             <p className="account-security-change-time">
@@ -493,7 +498,7 @@ export function AccountSecurityPage({
                 value={newPassword}
                 visible={visible.next}
                 error={fieldErrors.next}
-                help="12 to 128 characters. Spaces and pasted passwords are welcome."
+                help="12–128 characters. Use a unique password."
                 disabled={passwordBlocked}
                 onChange={(value) => {
                   setNewPassword(value);
@@ -525,8 +530,7 @@ export function AccountSecurityPage({
                 }
               />
               <p className="account-security-help">
-                Changing your password keeps this session open and signs out
-                your other TALA sessions.
+                Keeps this session. Signs out all other sessions.
               </p>
               <button
                 className="button"
@@ -539,10 +543,6 @@ export function AccountSecurityPage({
               </button>
             </fieldset>
           </form>
-          <p className="account-security-help">
-            Leaving this page does not cancel a submitted password change. If
-            the result is uncertain, try signing in with your new password.
-          </p>
           {passwordError && (
             <div
               className="account-security-feedback account-security-error"
@@ -555,11 +555,8 @@ export function AccountSecurityPage({
           )}
           {passwordReceipt && (
             <div className="account-security-recovery">
-              <h3>Check the saved result</h3>
-              <p>
-                The passwords have been cleared from this form. No new password
-                change will be sent while you check.
-              </p>
+              <h3>Check saved result</h3>
+              <p>Passwords cleared. Checking does not send a new change.</p>
               <button
                 type="button"
                 className="button button-secondary"
@@ -589,16 +586,22 @@ export function AccountSecurityPage({
               )}
             </div>
           )}
-          <details className="account-security-capabilities">
-            <summary>Verification and account recovery</summary>
+          <details className="account-security-capabilities quiet-account-about">
+            <summary aria-label="About verification and account recovery">
+              About
+            </summary>
             <p>
-              Email verification, password reset emails and two-step
-              verification are not connected to this TALA server. No email is
-              sent, and no authenticator setup is offered here.
+              Email and authenticator services are not connected. For account
+              recovery, contact your authorized TALA operator.
             </p>
             <p>
-              If you lose your password, contact your authorized TALA operator.
-              Recovery must be confirmed through an approved process.
+              Leaving this page does not cancel a submitted password change. If
+              its result is uncertain, check the saved result or sign in with
+              your new password.
+            </p>
+            <p>
+              Session times use your time zone. Device names and locations are
+              not collected.
             </p>
           </details>
         </section>
@@ -609,22 +612,22 @@ export function AccountSecurityPage({
         >
           <div className="account-security-session-header">
             <div>
-              <h2 id="account-sessions-heading">Signed-in sessions</h2>
-              <p>Review the sessions currently using your account.</p>
+              <h2 id="account-sessions-heading" aria-label="Signed-in sessions">
+                Sessions
+              </h2>
             </div>
             <button
               className="account-security-text-button"
               type="button"
               disabled={blocked || sessionsLoading}
               onClick={refreshSessions}
+              aria-label={
+                sessionsLoading ? "Refreshing sessions…" : "Refresh sessions"
+              }
             >
-              {sessionsLoading ? "Refreshing…" : "Refresh sessions"}
+              {sessionsLoading ? "Refreshing…" : "Refresh"}
             </button>
           </div>
-          <p className="account-security-help">
-            Start and expiry times use your time zone. Device names and
-            locations are not collected.
-          </p>
           {sessionsError && (
             <div
               className="account-security-feedback account-security-error"
@@ -638,10 +641,7 @@ export function AccountSecurityPage({
           {unconfirmedSession && (
             <div className="account-security-recovery">
               <h3>Sign-out was not confirmed</h3>
-              <p>
-                Refresh this list to check, or retry the same sign-out request.
-                This session will stay open.
-              </p>
+              <p>Refresh or retry the same request. This session stays open.</p>
               <button
                 type="button"
                 className="button button-secondary"
@@ -654,7 +654,7 @@ export function AccountSecurityPage({
           )}
           {sessionsLoading && !sessions && (
             <p className="account-security-loading" role="status">
-              Loading active sessions…
+              Loading sessions…
             </p>
           )}
           {sessions && (
@@ -709,23 +709,26 @@ export function AccountSecurityPage({
                             : { kind: "one", sessionId: session.id },
                         )
                       }
+                      aria-label={
+                        session.current
+                          ? "Sign out of this session"
+                          : "End session"
+                      }
                     >
-                      {session.current
-                        ? "Sign out of this session"
-                        : "End session"}
+                      {session.current ? "Sign out" : "End session"}
                     </button>
                   </li>
                 ))}
               </ul>
               {sessions.hasMore && (
                 <p className="account-security-help">
-                  Showing this session and the most recent sessions, up to 100.
-                  Sign out other sessions also includes older active sessions.
+                  Up to 100 sessions shown. Signing out others also ends older
+                  sessions.
                 </p>
               )}
               {!otherCount && !sessions.hasMore && (
                 <p className="account-security-session-empty">
-                  Only this session is active.
+                  No other sessions.
                 </p>
               )}
               {(otherCount > 0 || sessions.hasMore) && (

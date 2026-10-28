@@ -1,0 +1,264 @@
+.student-workspace.server-dashboard {
+  padding-block: 40px 64px;
+}
+.server-dashboard-shell {
+  display: grid;
+  grid-template-columns: 238px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.server-dashboard-main {
+  min-width: 0;
+}
+.server-dashboard-sidebar {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 620px;
+  padding: 18px 14px;
+  border: 1px solid #e0e2e1;
+  border-radius: 24px;
+  background: #fff;
+}
+.server-dashboard-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 24px;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.server-dashboard-brand .icon {
+  width: 26px;
+  height: 26px;
+  color: #174139;
+}
+.server-dashboard-sidebar nav {
+  display: grid;
+  gap: 4px;
+}
+.server-dashboard-sidebar nav button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #626268;
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  text-align: left;
+}
+.server-dashboard-sidebar nav button .icon {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 auto;
+}
+.server-dashboard-sidebar nav button > span:first-of-type {
+  overflow-wrap: anywhere;
+}
+.server-dashboard-sidebar nav button[aria-current="page"] {
+  background: #e9f0ed;
+  color: #174139;
+  font-weight: 650;
+}
+.server-dashboard-sidebar nav button:hover:not(:disabled) {
+  background: #f3f5f4;
+}
+.server-dashboard-sidebar .student-updates-count {
+  min-width: 20px;
+  min-height: 20px;
+  margin-left: auto;
+  font-size: 0.6875rem;
+}
+.server-dashboard-sidebar .student-draft-dot {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.server-dashboard-account {
+  margin-top: 12px;
+  padding-inline: 10px;
+}
+.server-dashboard-sidebar .student-account {
+  margin: 0;
+  padding: 0;
+}
+.server-dashboard-sidebar .student-account summary {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #626268;
+}
+.server-dashboard-sidebar .student-account :is(p, label, input, button) {
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.server-dashboard-sidebar .student-account input {
+  width: 100%;
+  min-height: 44px;
+}
+.server-dashboard-sidebar .product-family {
+  padding: 16px 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+.server-dashboard-sidebar .product-family h2 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+.server-dashboard-sidebar .product-family :is(p, label, select) {
+  font-size: 0.8125rem;
+}
+.server-dashboard-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin-top: auto;
+  padding: 24px 10px 12px;
+  border-top: 1px solid #e5e5e9;
+}
+.server-dashboard-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #eaf0ed;
+  color: #174139;
+  font-weight: 600;
+}
+.server-dashboard-identity > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.server-dashboard-identity strong {
+  font-size: 0.875rem;
+}
+.server-dashboard-identity > div > span {
+  color: #626268;
+}
+.server-dashboard-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding-inline: 10px;
+}
+.server-dashboard-account-actions :is(a, button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 0;
+  padding: 8px 0;
+  background: transparent;
+  color: #344b40;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+.server-dashboard-account-actions .icon {
+  width: 18px;
+  height: 18px;
+}
+.server-dashboard-main .product-heading {
+  margin-bottom: 8px;
+}
+.server-dashboard-main .product-heading h1 {
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  margin-bottom: 8px;
+}
+.server-dashboard-main .student-workspace-label {
+  margin-bottom: 8px;
+  font-size: 0.8125rem;
+}
+.server-dashboard-main .student-workspace-toolbar {
+  justify-content: flex-end;
+  padding-block: 0 16px;
+}
+.server-dashboard-main .student-workspace-toolbar > span {
+  margin-right: auto;
+  order: -1;
+}
+.server-dashboard-mobile-nav {
+  display: none;
+}
+@media (max-width: 840px) {
+  .student-workspace.server-dashboard {
+    padding-top: 24px;
+  }
+  .server-dashboard-shell {
+    display: block;
+  }
+  .server-dashboard-sidebar {
+    position: static;
+    min-height: 0;
+    margin-bottom: 28px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+  .server-dashboard-sidebar .server-dashboard-desktop-nav {
+    display: none;
+  }
+  .server-dashboard-brand {
+    padding: 0 0 12px;
+  }
+  .server-dashboard-mobile-nav {
+    display: block;
+  }
+  .server-dashboard-mobile-nav > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #e9f0ed;
+    color: #174139;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .server-dashboard-mobile-nav > summary .icon {
+    width: 20px;
+    height: 20px;
+  }
+  .server-dashboard-mobile-links {
+    margin-top: 8px;
+  }
+  .server-dashboard-account {
+    margin-top: 4px;
+    padding-inline: 0;
+  }
+  .server-dashboard-identity {
+    padding: 12px 0 4px;
+    border-top: 0;
+  }
+  .server-dashboard-account-actions {
+    padding: 0;
+    justify-content: flex-end;
+    margin-top: 0;
+  }
+  .server-dashboard-identity > div {
+    max-width: 100%;
+  }
+  .server-dashboard-identity strong {
+    font-size: 0.8125rem;
+  }
+  .server-dashboard-main .student-workspace-toolbar {
+    padding-block: 8px 12px;
+  }
+  .server-dashboard-sidebar .student-account input {
+    font-size: 1rem;
+  }
+}

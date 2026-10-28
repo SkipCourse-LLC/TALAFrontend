@@ -1,6 +1,6 @@
 .goal-evidence {
   min-width: 0;
-  padding-top: 24px;
+  padding-top: 20px;
   border-top: 1px solid #d8dce0;
   color: #1d1d1f;
 }
@@ -13,7 +13,7 @@
 }
 .goal-evidence h4,
 .goal-evidence h5 {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   color: #1d1d1f;
   font-size: 1rem;
   line-height: 1.5;

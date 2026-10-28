@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "basePath": "/api",
   "defaultOrigin": "http://127.0.0.1:8787",
   "security": {
@@ -198,6 +198,14 @@
       "ready": "boolean self-report, notattendance oreligibility",
       "version": "nonnegative safeinteger;0 whennot saved, incrementsone pernewPATCH",
       "updatedAt": "null whenversion0, otherwiseISO UTC"
+    },
+    "ReflectionDraft": {
+      "ownerUid": "cookie-authenticated active student UID; no parent/operator access",
+      "title": "exact well-formed Unicode plain single-line text0..120 UTF-16 code units; spacing preserved",
+      "text": "exact well-formed Unicode plain paragraphs0..5000 UTF-16 code units; TAB,LF,CRLF and spacing preserved; no other controls",
+      "status": "empty|saved; initial empty never inserts a row; clear persists an empty tombstone",
+      "version": "nonnegative safe integer; initially0, advances once for every new successful save orclear",
+      "updatedAt": "ISO UTC timestamp|null; null only for initial version0"
     }
   },
   "routes": [
@@ -207,8 +215,8 @@
       "response": {
         "application": "tala-independent-server",
         "version": 1,
-        "contractVersion": 6,
-        "schemaVersion": 4,
+        "contractVersion": 7,
+        "schemaVersion": 5,
         "runtimeRevision": "SHA-256 of source captured at process startup; local reuse compatibility only, not authentication",
         "instanceScope": "SHA-256 of selected absolute data directory; no private path or records are exposed",
         "status": "ok",
@@ -720,6 +728,32 @@
         "requestId": "uniqueidentifier16..128"
       },
       "response": "MeetingPreparation version+1; ownstudent only,futurereservedbooking. Newstale/started/cancelledwrites409CONFLICT; missingforeigngoal404. Exactsuccessfulrequestreplayreturnsoriginalreceipt evenafterstart/cancellation, butstillrequiresfreshactor/session/role."
+    },
+    {
+      "method": "GET",
+      "path": "/reflection-draft",
+      "query": "none; rejects every query parameter including studentUid",
+      "response": "ReflectionDraft; active students can read only their own current private draft"
+    },
+    {
+      "method": "POST",
+      "path": "/reflection-draft",
+      "body": {
+        "title": "string0..120; exact spacing preserved",
+        "text": "string0..5000; exact paragraphs preserved",
+        "version": "current nonnegative safe integer",
+        "requestId": "unique16..128 character identifier"
+      },
+      "response": "HTTP200 ReflectionDraft version+1; at least title or text must contain non-whitespace; no Evidence, file, booking association or review is created"
+    },
+    {
+      "method": "POST",
+      "path": "/reflection-draft/clear",
+      "body": {
+        "version": "current nonnegative safe integer",
+        "requestId": "unique16..128 character identifier"
+      },
+      "response": "HTTP200 empty ReflectionDraft version+1; content cleared, monotonic tombstone retained to prevent ABA"
     }
   ],
   "factory": "createApplication({dataDir,allowedOrigins,sessionTtlMs?,downloadTtlMs?}) returns {server,db,operator,close}; downloadTtlMs is test-factory-only integer100..30000, defaults30000, no environment override. No socket is opened until server.listen()",
@@ -755,17 +789,21 @@
     "learningGoalSteps": 8,
     "linkedEvidencePerGoal": 20,
     "workspaceUpdatePageItems": 25,
-    "meetingPreparationNoteCharacters": 1000
+    "meetingPreparationNoteCharacters": 1000,
+    "reflectionDraftsPerStudent": 1,
+    "reflectionDraftTitleCharacters": 120,
+    "reflectionDraftTextCharacters": 5000
   },
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "availabilityPolicy": "Publish times must be ISO 8601 with explicit Z/UTC offset. Withdrawal is transactionally fenced against reservations. Times on a slot are immutable. Publishing an exactly matching withdrawn start/end reactivates its same ID; any changed time uses a new ID. Old cancelled bookings retain original times.",
   "revisionPolicy": "Only a student can revise their own latest needs_revision Evidence for the same booking. Upload captures the current reviewVersion server-side. Final submit rechecks that review and atomically commits a single successor; concurrent or stale revisions conflict. Earlier evidence bytes, review and identifiers remain immutable. Superseded evidence cannot be reviewed again. Counters count all versions, manual review is not academic credit.",
-  "localDatabaseMigration": "Schema 1/2/3 to 4 is additive and local-only. Before upgrading, a consistent VACUUM INTO snapshot with 0600permissions and foreign-key/quick checks is verified. Existing users,sessions,slots,Evidence,goals,operations and private file bytes are preserved. Schema1 receives its existing availability/revision tables; schema3 adds learning_goals; schema4 adds learning_goal_steps,learning_goal_evidence,workspace_update_reads, appointment_preparations and owner indexes. New empty databases start at schema4 with no seed data. Future schemas fail closed. Backup tooling verifies/restores schemas2,3,4 separately without implicit migration; starting a restored older local copy then performs the checked startup upgrade.",
+  "localDatabaseMigration": "Schema 1/2/3/4 to 5 is additive and local-only. Before upgrading, a consistent VACUUM INTO snapshot with0600 permissions and foreign-key/quick checks is verified. Existing users,sessions,slots,Evidence,goals,operations and private file bytes are preserved. Schema1 receives its existing availability/revision tables; schema3 adds learning_goals; schema4 adds learning_goal_steps,learning_goal_evidence,workspace_update_reads and appointment_preparations; schema5 adds one private reflection_drafts row per student. New empty databases start at schema5 with no seed data. Future schemas fail closed. Backup tooling verifies/restores schemas2,3,4,5 separately without implicit migration; starting a restored older local copy then performs the checked startup upgrade.",
   "accountSecurityPolicy": "Password changes require the current password, per-account and per-IP rate limits, fresh CSRF/session/disabled-account/password checks after each asynchronous hash, and one transaction for credential update, all-session revocation, replacement session and completion receipt. No plaintext or fast password-derived idempotency digest is stored. Session handles grant no authentication and expose neither cookie nor database session hash. Current-session revocation uses logout. After a lost password-change response, bootstrap GET /session and query the completion receipt before claiming success; if the replacement cookie was lost, reauthenticate with the new password. A receipt never restores authentication. No email delivery or MFA is implied.",
   "storageQuotaPolicy": "Logical Evidence quotas include pending intents at creation, with committed storage rechecked at final submit. They bound 100 MiB/1000 versions per owner and 2 GiB/20000 versions per instance, and fail with STORAGE_FULL. They are not a physical disk quota for database history, backup directories or unrelated/orphan files. No submitted Evidence is automatically deleted.",
   "paginationPolicy": "Each page uses a short DEFERRED read snapshot that rechecks the server session, account status, role and target relationship before querying. Filters are applied before LIMIT. Cursors use bounded base64url JSON with a domain-separated HMAC, bound to actor UID, authorized target UID, resource and canonical filters; they expose no password verifier and grant no authentication. Unknown/repeated parameters, tampered cursors or changed scopes return INVALID_INPUT. Historical pages sort (immutable time DESC,id DESC), available times sort ASC. No OFFSET or full-dataset preload is used. Changes to reviews, statuses or search results are live, not a cross-request immutable snapshot: reset pagination after edits or filter changes. /workspace and /operations remain bounded overview summaries, not complete histories.",
   "privateReadPolicy": "Single Evidence records, unfinished-upload metadata, family access, operator overviews and account-security reads use the same short DEFERRED authorization snapshot as resource pages. Private files are authorized and integrity-checked before the download response starts; later permission revocation cannot recall bytes already sent. Every private download has an absolute thirty-second deadline.",
   "learningGoalPolicy": "Student-owned personal planning records, never verified school outcomes, AI assessment, grade or approval. Mutations recheck current session, role and CSRF under SQLite writer fence; parent reads require current enabled student and active recorded consent in the same read snapshot. Goal maximum100 across active/completed; no delete route. Full PATCH and Evidence link/unlink advance version exactlyonce for a new successful request, including no-op edits/duplicate links, with optimistic version checks and exact fingerprint receipts. Omitted optional steps preserve old-client data; [] explicitly clears and neither adding/completing/removing steps automatically completes the goal. Explicit link/unlink modifies only the association. Existing schema3 receipts are enriched with historically empty steps and count0 rather than mutable current state. New exact requestId retries return the originally committed DTO; changed bodies conflict. No browser token or data storage is needed.",
   "workspaceUpdatesPolicy": "Live derived feed, not email/push delivery or an audit ledger: persisted booking creation plus its current cancellation event (reschedule creates a replacement reservation and cancels the original); one published learning-record event; only latest persisted manual review perEvidence. Elapsed meeting periods add no event and never certify attendance. Earlier superseded review events disappear; new request to mark absent event returns404, while exact replay of earlier successful receipt returns its committed result. EventIDs are bound to student,source and persistedversion. Read-only parents see student read state; only student can mark. Count covers entire current stream, pages25. Read-all uses one writer transaction to mark the full current unread snapshot; idempotent replay doesnotmark events created later. Queries reject unknown/repeatedparams; cursors are bounded HMAC-signed and scoped to actor,owner,filter and credentials. Parent consent/session/role rechecked on every read; no staff arbitraryfeedaccess.",
-  "meetingPreparationPolicy": "One private preparation record per existing appointment. Version0 is a read-only blank default, never an automatically inserted row. Saving requires student ownership of booking and optional goal, a future starts_at and reserved status rechecked under writer fence. Full optimistic version and operation fingerprint avoid overwrites/double submissions; exact historical receipts can be recovered after time/status changes but never authorize a new late write. Goal completion is not required and ready is only self-reported. Current linked parents may read historical preparation but cannot edit it; operators cannot arbitrarily read it. Rescheduling retains preparation on the cancelled original booking, newbooking starts blank, noauto-copy or delete. GET never expires booking or mutates records. No Zoom,attendance,assessment,payment orclinical data collection is implied."
+  "meetingPreparationPolicy": "One private preparation record per existing appointment. Version0 is a read-only blank default, never an automatically inserted row. Saving requires student ownership of booking and optional goal, a future starts_at and reserved status rechecked under writer fence. Full optimistic version and operation fingerprint avoid overwrites/double submissions; exact historical receipts can be recovered after time/status changes but never authorize a new late write. Goal completion is not required and ready is only self-reported. Current linked parents may read historical preparation but cannot edit it; operators cannot arbitrarily read it. Rescheduling retains preparation on the cancelled original booking, newbooking starts blank, noauto-copy or delete. GET never expires booking or mutates records. No Zoom,attendance,assessment,payment orclinical data collection is implied.",
+  "reflectionDraftPolicy": "One private owner-only reflection draft, separate from submitted Evidence and never included in parent,operator,workspace,progress orplan exports. Active students only; fresh session,password,disabled and role checks protect read snapshots and write fences, with CSRF and no query-owner override. Save andclear use optimistic version CAS. Clear stores an empty monotonic tombstone, preventing stale version0 or prior-version writes from resurrecting content. Idempotency operations persist only a hash of input and {version} metadata, never historical title/text. Matching retries return current content only while that confirmed version remains current; superseded retries return CONFLICT and require a fresh GET without reapplying old content. Text/spacing/CRLF are preserved. This is manual persistence, not automatic submission orfile/revision recovery. Clear removes current draft text; protected older SQLite snapshots/backups can still contain prior content and are subject to operational retention."
 }

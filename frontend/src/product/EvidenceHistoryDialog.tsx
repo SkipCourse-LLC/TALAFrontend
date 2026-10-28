@@ -151,13 +151,16 @@ export function EvidenceHistoryDialog({
       }}
     >
       <header>
-        <h2 id="history-heading">Document history</h2>
+        <h2 id="history-heading" aria-label="Document history">
+          History
+        </h2>
         <button
           className="button button-secondary"
           type="button"
           onClick={onClose}
+          aria-label="Close history"
         >
-          Close history
+          Close
         </button>
       </header>
       {error && (
@@ -167,12 +170,13 @@ export function EvidenceHistoryDialog({
             className="button button-secondary"
             type="button"
             disabled={busy}
+            aria-label="Reload document"
             onClick={() => {
               setFailure(undefined);
               setAttempt((value) => value + 1);
             }}
           >
-            Reload document
+            Reload
           </button>
         </div>
       )}
@@ -194,14 +198,10 @@ export function EvidenceHistoryDialog({
           </p>
           {evidence.reviewNote && (
             <div className="student-review-note">
-              <strong>Staff review note</strong>
+              <strong>Feedback</strong>
               <p>{evidence.reviewNote}</p>
             </div>
           )}
-          <p>
-            Each version keeps its own file and review note. Submitting a
-            revision does not overwrite earlier work.
-          </p>
           <EvidenceTextPreview
             evidence={evidence}
             readOnly={readOnly}
@@ -212,31 +212,36 @@ export function EvidenceHistoryDialog({
               className="button"
               disabled={busy}
               onClick={() => void download()}
+              aria-label={
+                busy ? "Preparing download…" : "Download this version"
+              }
             >
-              {busy ? "Preparing download…" : "Download this version"}
+              {busy ? "Preparing…" : "Download"}
             </button>
             {evidence.revisesEvidenceId && (
               <button
                 className="button button-secondary"
                 disabled={busy}
+                aria-label="Previous version"
                 onClick={() => {
                   setMessage("");
                   onNavigate(evidence.revisesEvidenceId!);
                 }}
               >
-                Previous version
+                Previous
               </button>
             )}
             {evidence.supersededByEvidenceId && (
               <button
                 className="button button-secondary"
                 disabled={busy}
+                aria-label="Next version"
                 onClick={() => {
                   setMessage("");
                   onNavigate(evidence.supersededByEvidenceId!);
                 }}
               >
-                Next version
+                Next
               </button>
             )}
           </div>

@@ -64,17 +64,19 @@ export function SiteHeader({
           <NavLink to="/" end>
             Home
           </NavLink>
-          <NavLink to="/learn-more">Learn More</NavLink>
+          <NavLink to="/learn-more">About</NavLink>
           <NavLink to="/programs">Programs</NavLink>
           <NavLink to="/register">Enrollment</NavLink>
-          <NavLink to="/events">Community Events</NavLink>
+          <NavLink to="/events" aria-label="Community Events">
+            Events
+          </NavLink>
           <NavLink to="/contact">Contact</NavLink>
           <div className="nav-actions">
             <NavLink
               className="nav-hub-link"
               to={session ? "/dashboard" : "/login"}
             >
-              {session ? "My dashboard" : "Community Login"}
+              {session ? "Workspace" : "Sign in"}
             </NavLink>
           </div>
         </nav>

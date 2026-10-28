@@ -12,6 +12,7 @@ import { CommunityWorkspace } from "./CommunityWorkspace";
 import { StudentAccountPanel } from "./StudentAccountPanel";
 import { StudentSchedule } from "../classes/StudentSchedule";
 import type { EnrollmentReceipt } from "../registration/enrollmentService";
+import { DemoMeetingsPanel } from "../meetings/DemoMeetingsPanel";
 export function StudentDashboard({
   session,
   onLogout,
@@ -129,7 +130,9 @@ export function StudentDashboard({
             </div>
           </details>
         )}
-        {["calendar", "classes", "slots"].includes(view) ? (
+        {view === "meetings" ? (
+          <DemoMeetingsPanel identity={learner.email} />
+        ) : ["calendar", "classes", "slots"].includes(view) ? (
           <StudentSchedule
             key={`${view}-${scenario}-${session.email}-${session.representing ?? "self"}`}
             student={
@@ -144,18 +147,23 @@ export function StudentDashboard({
         ) : ["attendance", "skipcourse", "messages"].includes(view) ? (
           <StudentAccountPanel view={view} />
         ) : (
-          <DashboardContent
-            key={`${scenario}-${session.email}`}
-            scenario={scenario}
-            onRetry={() => {
-              setParams({ view, scenario: "success" });
-              document
-                .querySelector<HTMLHeadingElement>(".dashboard-heading h1")
-                ?.focus();
-            }}
-            view={view}
-            session={learner}
-          />
+          <>
+            {view === "overview" && (
+              <DemoMeetingsPanel identity={learner.email} />
+            )}
+            <DashboardContent
+              key={`${scenario}-${session.email}`}
+              scenario={scenario}
+              onRetry={() => {
+                setParams({ view, scenario: "success" });
+                document
+                  .querySelector<HTMLHeadingElement>(".dashboard-heading h1")
+                  ?.focus();
+              }}
+              view={view}
+              session={learner}
+            />
+          </>
         )}
       </div>
     </div>

@@ -119,3 +119,18 @@
     scroll-behavior: auto;
   }
 }
+
+.workspace-resource-dialog > header > .button {
+  border: 0;
+  padding-inline: 10px;
+  background: transparent;
+  color: #174139;
+}
+.workspace-resource-dialog .workspace-detail-preparation {
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.workspace-resource-dialog .workspace-detail-preparation h3 {
+  font-size: 1rem;
+  margin-bottom: 12px;
+}

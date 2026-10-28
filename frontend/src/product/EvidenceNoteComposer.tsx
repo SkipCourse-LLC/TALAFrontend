@@ -23,7 +23,7 @@ export function EvidenceNoteComposer({
     <div className="evidence-note">
       <label htmlFor="evidence-reflection">Your reflection</label>
       <p className="evidence-note-guidance" id={helpId}>
-        What did you try? What did you learn? What would you try next?
+        What did you learn?
       </p>
       <textarea
         id="evidence-reflection"

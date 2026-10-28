@@ -50,7 +50,7 @@ export function EvidenceEntryChoice({
       className="evidence-entry-choice"
       disabled={disabled}
     >
-      <legend>Choose how to share</legend>
+      <legend>Format</legend>
       <div className="evidence-entry-options">
         <label>
           <input
@@ -60,9 +60,7 @@ export function EvidenceEntryChoice({
             checked={mode === "file"}
             onChange={() => request("file")}
           />
-          <span>
-            Upload a file<small>PDF or plain text</small>
-          </span>
+          <span>Upload a file</span>
         </label>
         <label>
           <input
@@ -72,9 +70,7 @@ export function EvidenceEntryChoice({
             checked={mode === "note"}
             onChange={() => request("note")}
           />
-          <span>
-            Write a reflection<small>A short learning note</small>
-          </span>
+          <span>Write a reflection</span>
         </label>
       </div>
       {requested && (

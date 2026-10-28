@@ -222,3 +222,12 @@
     animation: none !important;
   }
 }
+
+.pending-uploads-list > li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.pending-uploads .pending-uploads-empty {
+  margin-block: 8px 0;
+  font-size: 0.875rem;
+}

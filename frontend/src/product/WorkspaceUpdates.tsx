@@ -549,26 +549,17 @@ export function WorkspaceUpdates({
           <h2 id="updates-heading" tabIndex={-1} ref={heading}>
             Updates
           </h2>
-          <p>
-            {readOnly
-              ? "Changes to the student’s meetings, learning records and evidence."
-              : "Changes to your meetings, learning records and evidence."}
-          </p>
         </div>
         <button
           className="workspace-updates-secondary"
+          aria-label="Refresh updates"
           type="button"
           onClick={refresh}
           disabled={busy || loading || !visible}
         >
-          Refresh updates
+          Refresh
         </button>
       </header>
-      <p className="workspace-updates-context">
-        {readOnly
-          ? "Read status follows the student’s account. Viewing their updates does not change it."
-          : "Read status is saved to your account. Opening an update does not mark it as read."}
-      </p>
       <div className="workspace-updates-toolbar">
         <div
           className="workspace-updates-filters"
@@ -595,7 +586,7 @@ export function WorkspaceUpdates({
                 setNotice("");
               }}
             >
-              {value === "all" ? "All updates" : "Unread"}
+              {value === "all" ? "All" : "Unread"}
               {value === "unread" && current && (
                 <span>{current.unreadCount}</span>
               )}
@@ -615,7 +606,7 @@ export function WorkspaceUpdates({
             }
             onClick={() => void markRead({ kind: "all" })}
           >
-            {pending === "all" ? "Saving read status…" : "Mark all as read"}
+            {pending === "all" ? "Saving…" : "Mark all as read"}
           </button>
         )}
       </div>
@@ -664,11 +655,11 @@ export function WorkspaceUpdates({
       >
         {notice ||
           (busy
-            ? "Saving read status…"
+            ? "Saving…"
             : loading || (!current && !problem && enabled)
               ? "Loading updates…"
               : current
-                ? `${current.items.length} ${filter === "unread" ? "unread " : ""}${current.items.length === 1 ? "update" : "updates"} loaded${current.nextCursor ? ". More are available." : "."}`
+                ? `${current.items.length} ${filter === "unread" ? "unread " : ""}${current.items.length === 1 ? "update" : "updates"}`
                 : "")}
       </p>
       {!denied &&
@@ -720,7 +711,7 @@ export function WorkspaceUpdates({
                             );
                         }}
                       >
-                        Open update
+                        Open
                         <svg
                           width="16"
                           height="16"
@@ -735,7 +726,11 @@ export function WorkspaceUpdates({
                         <button
                           className="workspace-updates-text"
                           type="button"
-                          aria-label={`Mark “${item.title}” as read`}
+                          aria-label={
+                            pending === item.id
+                              ? "Saving…"
+                              : `Mark as read — ${item.title}`
+                          }
                           disabled={busy || loading || loadingMore || !visible}
                           onClick={() =>
                             void markRead({ kind: "one", id: item.id })
@@ -762,26 +757,30 @@ export function WorkspaceUpdates({
           <h3>
             {filter === "unread" ? "You’re up to date." : "No updates yet."}
           </h3>
-          <p>
-            {filter === "unread"
-              ? "Unread changes to this workspace will appear here."
-              : "Saved meeting changes and published learning or evidence reviews will appear here."}
-          </p>
         </div>
       )}
       {!denied && current?.nextCursor && (
         <button
           className="workspace-updates-secondary workspace-updates-more"
+          aria-label={
+            loadingMore ? "Loading more updates…" : "Load more updates"
+          }
           type="button"
           disabled={busy || loading || loadingMore || !visible}
           onClick={() => void loadMore()}
         >
-          {loadingMore ? "Loading more updates…" : "Load more updates"}
+          {loadingMore ? "Loading…" : "Load more"}
         </button>
       )}
-      <p className="workspace-updates-footnote">
-        Updates stay in this workspace. No email or push notification is sent.
-      </p>
+      <details className="workspace-updates-details">
+        <summary>Details</summary>
+        <p>
+          {readOnly
+            ? "The student controls read status."
+            : "Opening an update doesn’t mark it read."}{" "}
+          Read status is saved. No email or push notifications are sent.
+        </p>
+      </details>
     </section>
   );
 }

@@ -330,20 +330,17 @@ export function GoalEvidencePanel({
       <header className="goal-evidence-heading">
         <div>
           <h4 id={`${baseId}-heading`} tabIndex={-1} ref={heading}>
-            Evidence for this goal
+            Linked Evidence
           </h4>
-          <p>
-            Connect saved work to your plan. Linking evidence does not verify a
-            skill or award course credit.
-          </p>
         </div>
         <button
           type="button"
           className="goal-evidence-text-action"
+          aria-label="Refresh links"
           disabled={pending || loading}
           onClick={refreshLinks}
         >
-          Refresh links
+          Refresh
         </button>
       </header>
       {(error || loadError) && (
@@ -366,7 +363,7 @@ export function GoalEvidencePanel({
         aria-atomic="true"
       >
         {pending
-          ? "Saving the evidence link…"
+          ? "Saving link…"
           : loading
             ? "Loading linked evidence…"
             : message}
@@ -434,20 +431,18 @@ export function GoalEvidencePanel({
             </ul>
           ) : (
             !loading && (
-              <p className="goal-evidence-empty">
-                No evidence is linked to this goal yet.
-              </p>
+              <p className="goal-evidence-empty">Nothing linked yet.</p>
             )
           )}
           <p className="goal-evidence-help">
-            {links.length} of 20 evidence links. Unlinking only removes the
-            connection to this goal; it keeps the original record and file.
+            {links.length} / 20 linked. Unlink keeps the record and file.
           </p>
           {!readOnly && !picker && (
             <button
               ref={openPickerButton}
               type="button"
               className="goal-evidence-secondary"
+              aria-label="Link saved evidence"
               disabled={locked || loading || full || !!intent}
               onClick={() => {
                 setPicker(true);
@@ -455,26 +450,26 @@ export function GoalEvidencePanel({
                 setMessage("");
               }}
             >
-              Link saved evidence
+              Link
             </button>
           )}
           {!readOnly && full && (
             <p className="goal-evidence-help">
-              This goal has 20 evidence links. Unlink a record before choosing
-              another.
+              20 links saved. Unlink one to add another.
             </p>
           )}
         </>
       )}
       {!readOnly && !blocked && picker && (
         <div className="goal-evidence-picker">
-          <h5>Choose saved evidence</h5>
+          <h5>Choose Evidence</h5>
           <div className="goal-evidence-search">
-            <label htmlFor={`${baseId}-search`}>Search saved evidence</label>
+            <label htmlFor={`${baseId}-search`}>Search</label>
             <input
               ref={searchInput}
               id={`${baseId}-search`}
               type="search"
+              aria-label="Search saved evidence"
               value={search}
               maxLength={80}
               onChange={(event) => setSearch(event.target.value)}
@@ -482,8 +477,7 @@ export function GoalEvidencePanel({
             />
           </div>
           <p className="goal-evidence-help">
-            Choose a current submission. Earlier versions already linked to a
-            goal stay linked.
+            Current submissions only. Existing links stay saved.
           </p>
           {choices.error && (
             <div role="alert" className="goal-evidence-error">
@@ -491,10 +485,11 @@ export function GoalEvidencePanel({
               <button
                 type="button"
                 className="goal-evidence-text-action"
+                aria-label="Retry saved evidence"
                 onClick={choices.retry}
                 disabled={choices.loading || pending}
               >
-                Retry saved evidence
+                Retry
               </button>
             </div>
           )}
@@ -532,20 +527,23 @@ export function GoalEvidencePanel({
           {!choices.loading && choices.loaded && !available.length && (
             <p className="goal-evidence-empty">
               {query
-                ? "No matching evidence on this page. Try another search or load more."
-                : "There is no unlinked current evidence on this page. Submit your work in Evidence, or load more saved records."}
+                ? "No matches here. Search again or load more."
+                : "No unlinked submissions here. Load more or submit Evidence."}
             </p>
           )}
           {choices.nextCursor && (
             <button
               type="button"
               className="goal-evidence-text-action"
+              aria-label={
+                choices.moreLoading
+                  ? "Loading more saved evidence…"
+                  : "Load more saved evidence"
+              }
               disabled={choices.loading || choices.moreLoading || pending}
               onClick={() => void choices.loadMore()}
             >
-              {choices.moreLoading
-                ? "Loading more…"
-                : "Load more saved evidence"}
+              {choices.moreLoading ? "Loading…" : "Load more"}
             </button>
           )}
           {selected && (
@@ -561,6 +559,7 @@ export function GoalEvidencePanel({
             <button
               type="button"
               className="goal-evidence-primary"
+              aria-label="Link evidence"
               disabled={
                 locked ||
                 loading ||
@@ -571,15 +570,16 @@ export function GoalEvidencePanel({
               }
               onClick={() => selected && void changeLink(selected.id, "link")}
             >
-              Link evidence
+              Link
             </button>
             <button
               type="button"
               className="goal-evidence-text-action"
+              aria-label="Cancel linking"
               disabled={pending}
               onClick={closePicker}
             >
-              Cancel linking
+              Cancel
             </button>
           </div>
         </div>

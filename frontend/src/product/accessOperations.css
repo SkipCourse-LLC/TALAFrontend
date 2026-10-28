@@ -1,0 +1,92 @@
+.product-access-role {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.product-access-role legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.product-access-role-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.product-access-role-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-control-line);
+  border-radius: 12px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.product-access-role-options label:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-green);
+}
+
+.product-access-role-options input[type="radio"] {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.product-access-password {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.product-access-password input {
+  flex: 1;
+  min-width: 0;
+}
+
+.product-access-password button {
+  flex-shrink: 0;
+  min-width: 56px;
+  min-height: 48px;
+  padding: 8px;
+  border: 1px solid var(--color-control-line);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.product-access-password button:disabled {
+  cursor: wait;
+}
+
+.product-access-password button:focus-visible,
+.product-access-role-options input:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.product-access-recovery {
+  margin-block: 20px;
+}
+
+.product-access-recovery p {
+  font-size: var(--text-small);
+}
+
+@media (max-width: 440px) {
+  .product-access-role-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

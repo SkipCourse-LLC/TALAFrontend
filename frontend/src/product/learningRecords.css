@@ -17,8 +17,8 @@
   line-height: 1.7;
 }
 .learning-records .learning-records-search {
-  margin-block: 28px 24px;
-  max-width: 640px;
+  margin-block: 20px 12px;
+  max-width: 420px;
   min-width: 0;
 }
 .learning-records-search > label {
@@ -141,11 +141,23 @@
   font-weight: 600;
 }
 .learning-records .learning-records-empty {
-  max-width: 56ch;
-  padding-block: 16px;
-  color: #56655f;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
+  min-height: 180px;
+  padding: 32px 16px;
+  color: #626268;
   font-size: 0.9375rem;
-  line-height: 1.8;
+  line-height: 1.5;
+}
+.learning-records-empty .icon {
+  width: 32px;
+  height: 32px;
+  color: #85948b;
+}
+.learning-records-empty p {
+  margin: 0;
 }
 .learning-records :is(input, button, [tabindex]):focus-visible {
   outline: 3px solid #174139;

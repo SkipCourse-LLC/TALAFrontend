@@ -1,0 +1,58 @@
+.demo-meetings {
+  margin-block: 24px;
+  scroll-margin-top: 24px;
+}
+.demo-meetings-entry {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.demo-meetings-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.demo-meetings-heading h2 {
+  margin-top: 8px;
+}
+.demo-meetings .form-field {
+  max-width: 640px;
+}
+.demo-meetings .form-field select {
+  width: 100%;
+  min-height: 48px;
+}
+.demo-meetings-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-block: 20px;
+}
+.demo-meetings-actions > * {
+  min-height: 48px;
+}
+.demo-meetings-saved {
+  background: #e9efed;
+  border-radius: 14px;
+  padding: 20px;
+  margin-block: 20px;
+}
+.demo-meetings-saved p {
+  margin-block: 8px 16px;
+}
+.demo-meetings .small {
+  margin-top: 20px;
+}
+@media (max-width: 540px) {
+  .demo-meetings-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .demo-meetings-actions > * {
+    width: 100%;
+  }
+}

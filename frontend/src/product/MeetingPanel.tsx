@@ -18,6 +18,7 @@ import {
 } from "./meetingHelpers";
 import type { BookingHistoryDateRange, MeetingChange } from "./meetingHelpers";
 import "./meetingDateRange.css";
+import "./meetingOperations.css";
 
 type HistoryFilter = "past" | "cancelled" | "upcoming";
 type AppliedHistoryDates = {
@@ -47,6 +48,7 @@ export function MeetingPanel({
   onCancel,
   onCalendar,
   onDetails,
+  onPrepare,
 }: {
   workspace?: ApiWorkspace;
   visible: boolean;
@@ -67,10 +69,16 @@ export function MeetingPanel({
   onCancel: (booking: ApiAppointment) => Promise<boolean>;
   onCalendar: (booking: ApiAppointment) => Promise<boolean>;
   onDetails: (booking: ApiAppointment) => void;
+  onPrepare: () => void;
 }) {
   const workspaceVisible = useWorkspaceVisible();
   const [now, setNow] = useState(Date.now);
   const [slotId, setSlotId] = useState("");
+  const [changingBookingId, setChangingBookingId] = useState<string | null>(
+    null,
+  );
+  const [allTimesOpen, setAllTimesOpen] = useState(false);
+  const availabilityHeading = useRef<HTMLHeadingElement>(null);
   const [filter, setFilter] = useState<HistoryFilter>("past");
   const [query, setQuery] = useState("");
   const dateId = useId();
@@ -159,6 +167,12 @@ export function MeetingPanel({
   const booking = workspace?.activeAppointments.find(
     (item) => bookingPeriod(item, now) !== "past" && item.status === "reserved",
   );
+  const showingAvailability = !booking || changingBookingId === booking.id;
+  const quickSlots = available.slice(0, 3);
+  const selectedOutsideQuickSlots = Boolean(
+    selected && !quickSlots.some((slot) => slot.id === selected.id),
+  );
+  const showAllTimes = allTimesOpen;
   const blocked =
     readOnly || busy || loading || stale || !workspace || Boolean(times.error);
   useEffect(() => {
@@ -289,7 +303,11 @@ export function MeetingPanel({
           : await onBook(change.replacement, change.booking);
       if (mounted.current) {
         if (saved) {
-          if (change.kind === "reschedule") setSlotId("");
+          if (change.kind === "reschedule") {
+            setSlotId("");
+            setChangingBookingId(null);
+            setAllTimesOpen(false);
+          }
           setChange(null);
         } else setAttempted(true);
       }
@@ -309,31 +327,33 @@ export function MeetingPanel({
           <h2 id="meetings-heading" tabIndex={-1}>
             Meetings
           </h2>
-          <p>Reserve a published time and keep track of your saved bookings.</p>
         </div>
-        <span className="meeting-time-zone">Times shown in {timeZone}</span>
+        <span className="meeting-time-zone">{timeZone}</span>
       </header>
       {!workspace ? (
         <p role="status">
-          {loading
-            ? "Loading available times…"
-            : "Connect to the server to view your bookings."}
+          {loading ? "Loading…" : "Bookings unavailable. Refresh to retry."}
         </p>
       ) : (
         <>
           {stale && (
             <p className="meeting-stale-note">
-              These records may be out of date. Refresh before changing a
-              booking.
+              Refresh before changing this booking.
             </p>
           )}
-          <div className="meeting-booking-layout">
+          <div className="meeting-booking-layout meeting-operations-layout">
             <section
               className="meeting-current"
               aria-labelledby="current-booking-heading"
+              hidden={!booking}
             >
-              <h3 id="current-booking-heading">
-                {booking ? "Your current booking" : "Your next meeting"}
+              <h3
+                id="current-booking-heading"
+                aria-label={
+                  booking ? "Your current booking" : "Your next meeting"
+                }
+              >
+                Next meeting
               </h3>
               {booking ? (
                 <>
@@ -345,63 +365,107 @@ export function MeetingPanel({
                       {meetingRange(booking.startsAt, booking.endsAt, timeZone)}
                     </time>
                   </p>
-                  <p>
-                    {bookingPeriod(booking, now) === "in_progress"
-                      ? "The scheduled time is in progress. Attendance has not been recorded."
-                      : "Your reservation is saved to the server."}{" "}
-                    A live meeting link is not available yet.
-                  </p>
-                  <div className="product-actions">
+                  <p>Live link unavailable. Attendance unconfirmed.</p>
+                  <div className="product-actions meeting-primary-actions">
+                    <button
+                      type="button"
+                      className="button"
+                      aria-controls="meeting-preparation"
+                      aria-label={
+                        readOnly ? "View preparation" : "Prepare for meeting"
+                      }
+                      onClick={onPrepare}
+                    >
+                      {readOnly ? "View preparation" : "Prepare"}
+                    </button>
                     <button
                       type="button"
                       className="button button-secondary"
                       disabled={blocked || !pendingUploadsKnown}
+                      aria-label={
+                        showingAvailability
+                          ? "Keep current time"
+                          : "Change booking"
+                      }
+                      aria-expanded={showingAvailability}
+                      aria-controls="meeting-availability"
+                      onClick={() => {
+                        if (showingAvailability) {
+                          setChangingBookingId(null);
+                          setSlotId("");
+                          setAllTimesOpen(false);
+                          return;
+                        }
+                        setChangingBookingId(booking.id);
+                        requestAnimationFrame(() => {
+                          availabilityHeading.current?.focus();
+                          availabilityHeading.current?.scrollIntoView({
+                            block: "start",
+                          });
+                        });
+                      }}
+                    >
+                      {showingAvailability ? "Keep" : "Change"}
+                    </button>
+                  </div>
+                  <div className="product-actions meeting-secondary-actions">
+                    <button
+                      type="button"
+                      className="meeting-text-action"
+                      disabled={busy || loading || stale}
+                      aria-label="Download calendar"
+                      onClick={() => void onCalendar(booking)}
+                    >
+                      Download
+                    </button>
+                    <button
+                      type="button"
+                      className="meeting-text-action"
+                      aria-label="View reservation details"
+                      onClick={() => onDetails(booking)}
+                    >
+                      Details
+                    </button>
+                    <button
+                      type="button"
+                      className="meeting-text-action"
+                      disabled={blocked || !pendingUploadsKnown}
+                      aria-label="Cancel booking"
                       onClick={() => {
                         setChange({ kind: "cancel", booking });
                         setAttempted(false);
                       }}
                     >
-                      Cancel booking
-                    </button>
-                    <button
-                      type="button"
-                      className="meeting-text-action"
-                      disabled={busy || loading || stale}
-                      onClick={() => void onCalendar(booking)}
-                    >
-                      Download calendar
-                    </button>
-                    <button
-                      type="button"
-                      className="meeting-text-action"
-                      onClick={() => onDetails(booking)}
-                    >
-                      View reservation details
+                      Cancel
                     </button>
                   </div>
                   <p className="meeting-help">
-                    Calendar downloads are private copies. Changes and
-                    cancellations do not sync automatically.
+                    Calendar copies don’t update automatically.
                   </p>
                 </>
               ) : (
                 <>
-                  <p>You do not have an upcoming reservation.</p>
-                  <p>
-                    Choose a time published by your TALA operator. No sample
-                    meeting times are generated.
-                  </p>
+                  <p>No upcoming meeting.</p>
                 </>
               )}
             </section>
             <section
+              id="meeting-availability"
+              hidden={!showingAvailability}
               className="meeting-availability"
               aria-labelledby="available-meetings-heading"
             >
-              <h3 id="available-meetings-heading">
-                {booking
-                  ? "Choose a replacement time"
-                  : "Find an available time"}
+              <h3
+                id="available-meetings-heading"
+                ref={availabilityHeading}
+                tabIndex={-1}
+                aria-label={
+                  booking
+                    ? "Choose a replacement time"
+                    : "Find an available time"
+                }
+              >
+                {booking ? "New time" : "Choose a time"}
               </h3>
               {available.length ? (
                 <form
@@ -422,71 +486,125 @@ export function MeetingPanel({
                       setAttempted(false);
                     } else
                       void onBook(selected).then((saved) => {
-                        if (saved && mounted.current) setSlotId("");
+                        if (saved && mounted.current) {
+                          setSlotId("");
+                          setAllTimesOpen(false);
+                        }
                       });
                   }}
                 >
-                  <div className="form-field">
-                    <label htmlFor="meeting-slot">Available meeting time</label>
-                    <select
-                      id="meeting-slot"
-                      required
-                      value={selected?.id ?? ""}
-                      disabled={blocked}
-                      onChange={(event) => setSlotId(event.target.value)}
-                      aria-describedby="meeting-slot-help"
+                  <fieldset
+                    className="meeting-quick-times"
+                    disabled={blocked}
+                    aria-describedby="meeting-slot-help"
+                  >
+                    <legend className="sr-only">Available meeting times</legend>
+                    {quickSlots.map((slot) => (
+                      <label
+                        className="meeting-quick-time"
+                        key={slot.id}
+                        data-selected={selected?.id === slot.id || undefined}
+                      >
+                        <input
+                          type="radio"
+                          name="quick-meeting-time"
+                          value={slot.id}
+                          checked={selected?.id === slot.id}
+                          onChange={() => setSlotId(slot.id)}
+                        />
+                        <span>
+                          <strong>{slot.label}</strong>
+                          <span>
+                            {meetingRange(slot.startsAt, slot.endsAt, timeZone)}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  {available.length > 3 && (
+                    <details
+                      className="meeting-all-times"
+                      open={showAllTimes}
+                      onToggle={(event) => {
+                        setAllTimesOpen(event.currentTarget.open);
+                      }}
                     >
-                      <option value="">Choose a time</option>
-                      {slotDays.map((day) => (
-                        <optgroup label={day.label} key={day.key}>
-                          {day.items.map((slot) => (
-                            <option value={slot.id} key={slot.id}>
-                              {slot.label} ·{" "}
-                              {meetingRange(
-                                slot.startsAt,
-                                slot.endsAt,
-                                timeZone,
-                              )}
-                            </option>
+                      <summary>All times</summary>
+                      <div className="form-field">
+                        <label htmlFor="meeting-slot">Time</label>
+                        <select
+                          id="meeting-slot"
+                          aria-label="Available meeting time"
+                          required
+                          value={selected?.id ?? ""}
+                          disabled={blocked}
+                          onChange={(event) => {
+                            setSlotId(event.target.value);
+                            setAllTimesOpen(true);
+                          }}
+                          aria-describedby="meeting-slot-help"
+                        >
+                          <option value="">Choose a time</option>
+                          {slotDays.map((day) => (
+                            <optgroup label={day.label} key={day.key}>
+                              {day.items.map((slot) => (
+                                <option value={slot.id} key={slot.id}>
+                                  {slot.label} ·{" "}
+                                  {meetingRange(
+                                    slot.startsAt,
+                                    slot.endsAt,
+                                    timeZone,
+                                  )}
+                                </option>
+                              ))}
+                            </optgroup>
                           ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                    <p id="meeting-slot-help" className="meeting-help">
-                      Only future times available on this server are listed.{" "}
-                      {booking
-                        ? "You will review both times before confirming a change."
-                        : "A reservation does not confirm attendance or school admission."}
+                        </select>
+                      </div>
+                    </details>
+                  )}
+                  {selectedOutsideQuickSlots && !showAllTimes && selected && (
+                    <p className="meeting-selected-time" role="status">
+                      Selected: {selected.label} ·{" "}
+                      {meetingRange(
+                        selected.startsAt,
+                        selected.endsAt,
+                        timeZone,
+                      )}
                     </p>
-                  </div>
+                  )}
+                  <p id="meeting-slot-help" className="meeting-help">
+                    {booking
+                      ? "Confirm the change before it’s saved."
+                      : "Attendance and admission are separate."}
+                  </p>
                   {slotId && !selected && (
                     <p role="status" className="meeting-help">
-                      That time is no longer available. Choose another time or
-                      refresh the list.
+                      Time unavailable. Choose another or refresh.
                     </p>
                   )}
                   <button
                     className="button"
+                    aria-label={
+                      busy
+                        ? "Saving…"
+                        : booking
+                          ? "Change booking"
+                          : "Book meeting"
+                    }
                     disabled={
                       blocked ||
                       !selected ||
                       Boolean(booking && !pendingUploadsKnown)
                     }
                   >
-                    {busy
-                      ? "Saving…"
-                      : booking
-                        ? "Change booking"
-                        : "Book meeting"}
+                    {busy ? "Saving…" : booking ? "Change" : "Book"}
                   </button>
                 </form>
               ) : (
                 <div className="meeting-empty">
                   <p>No meeting times are available.</p>
-                  <p>
-                    Ask your TALA operator to publish availability, then refresh
-                    this page.
-                  </p>
+                  <p>Ask your TALA team for availability.</p>
                 </div>
               )}
               <StudentPageControls
@@ -503,8 +621,7 @@ export function MeetingPanel({
               />
               {booking && !pendingUploadsKnown && !readOnly && (
                 <p className="meeting-help">
-                  Check unfinished Evidence uploads before changing this
-                  booking. Open Evidence to refresh their saved status.
+                  Open Evidence to check unfinished uploads first.
                 </p>
               )}
             </section>
@@ -515,18 +632,16 @@ export function MeetingPanel({
           >
             <div className="meeting-history-heading">
               <div>
-                <h3 id="booking-history-heading">Booking history</h3>
-                <p>
-                  Saved times and reservation status do not confirm attendance.
-                </p>
+                <h3 id="booking-history-heading" aria-label="Booking history">
+                  History
+                </h3>
               </div>
               <div className="form-field">
-                <label htmlFor="booking-history-search">
-                  Search booking history
-                </label>
+                <label htmlFor="booking-history-search">Search</label>
                 <input
                   type="search"
                   id="booking-history-search"
+                  aria-label="Search booking history"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Date or status"
@@ -534,9 +649,8 @@ export function MeetingPanel({
                 />
               </div>
             </div>
-            <p id="booking-history-search-help" className="meeting-help">
-              Searches only bookings already loaded for the selected status and
-              applied dates. Load more bookings to include additional results.
+            <p id="booking-history-search-help" className="sr-only">
+              Searches loaded bookings. Load more for older results.
             </p>
             <form
               className="meeting-date-range"
@@ -545,16 +659,16 @@ export function MeetingPanel({
               noValidate
             >
               <fieldset aria-describedby={`${dateId}-help`}>
-                <legend>Filter by meeting date</legend>
+                <legend>Dates</legend>
                 <p className="meeting-help" id={`${dateId}-help`}>
-                  Choose either or both dates. Includes the whole Through date
-                  in {timeZone}.
+                  Includes the full Through day.
                 </p>
                 <div className="meeting-date-range-fields">
                   <div className="form-field">
-                    <label htmlFor={`${dateId}-from`}>From date</label>
+                    <label htmlFor={`${dateId}-from`}>From</label>
                     <input
                       id={`${dateId}-from`}
+                      aria-label="From date"
                       ref={fromInput}
                       type="date"
                       min="0001-01-01"
@@ -573,9 +687,10 @@ export function MeetingPanel({
                     />
                   </div>
                   <div className="form-field">
-                    <label htmlFor={`${dateId}-through`}>Through date</label>
+                    <label htmlFor={`${dateId}-through`}>Through</label>
                     <input
                       id={`${dateId}-through`}
+                      aria-label="Through date"
                       ref={throughInput}
                       type="date"
                       min="0001-01-01"
@@ -607,9 +722,10 @@ export function MeetingPanel({
                   <button
                     type="submit"
                     className="meeting-date-range-apply"
+                    aria-label="Apply dates"
                     disabled={busy}
                   >
-                    Apply dates
+                    Apply
                   </button>
                   {(fromDate ||
                     throughDate ||
@@ -620,8 +736,9 @@ export function MeetingPanel({
                       className="meeting-text-action"
                       disabled={busy}
                       onClick={clearDateRange}
+                      aria-label="Clear dates"
                     >
-                      Clear dates
+                      Clear
                     </button>
                   )}
                 </div>
@@ -630,19 +747,15 @@ export function MeetingPanel({
                   role="status"
                   aria-atomic="true"
                 >
-                  {datesChanged && (
-                    <strong>Date changes are not applied yet.</strong>
-                  )}
+                  {datesChanged && <strong>Apply to update results.</strong>}
                   {appliedDates.fromDate && appliedDates.throughDate
                     ? `Showing ${bookingDateLabel(appliedDates.fromDate)} through ${bookingDateLabel(appliedDates.throughDate)}.`
                     : appliedDates.fromDate
                       ? `Showing dates from ${bookingDateLabel(appliedDates.fromDate)}.`
                       : appliedDates.throughDate
                         ? `Showing dates through ${bookingDateLabel(appliedDates.throughDate)}.`
-                        : "Showing all dates."}
-                  {hasAppliedDates
-                    ? ` Dates use ${appliedDates.timeZone}.`
-                    : ""}
+                        : "All dates."}
+                  {hasAppliedDates ? ` ${appliedDates.timeZone}.` : ""}
                 </p>
               </fieldset>
             </form>
@@ -708,8 +821,7 @@ export function MeetingPanel({
                           </span>
                           {bookingPeriod(item, now) === "past" && (
                             <p className="meeting-help">
-                              Attendance unconfirmed. Read any staff-published
-                              summary in Learning records.
+                              Attendance unconfirmed.
                             </p>
                           )}
                         </div>
@@ -720,7 +832,7 @@ export function MeetingPanel({
                             aria-label={`View details for ${meetingRange(item.startsAt, item.endsAt, timeZone)}`}
                             onClick={() => onDetails(item)}
                           >
-                            View details
+                            Details
                           </button>
                           {item.status !== "cancelled" && (
                             <button
@@ -730,7 +842,7 @@ export function MeetingPanel({
                               aria-label={`Download calendar for ${meetingRange(item.startsAt, item.endsAt, timeZone)}`}
                               onClick={() => void onCalendar(item)}
                             >
-                              Download calendar
+                              Download
                             </button>
                           )}
                         </div>
@@ -743,11 +855,11 @@ export function MeetingPanel({
               <div className="meeting-history-empty">
                 <p>
                   {query.trim()
-                    ? "No loaded bookings match your search."
+                    ? "No matching bookings."
                     : hasAppliedDates
                       ? `No ${filter} bookings in this date range.`
                       : filter === "past"
-                        ? "No past scheduled meetings yet."
+                        ? "No past meetings."
                         : filter === "cancelled"
                           ? "No cancelled bookings."
                           : "No upcoming bookings."}
@@ -757,8 +869,9 @@ export function MeetingPanel({
                     type="button"
                     className="meeting-text-action"
                     onClick={() => setQuery("")}
+                    aria-label="Clear search"
                   >
-                    Clear search
+                    Clear
                   </button>
                 )}
               </div>

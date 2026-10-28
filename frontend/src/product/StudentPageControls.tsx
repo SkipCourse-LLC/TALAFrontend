@@ -47,8 +47,15 @@ export function StudentPageControls({
     else status.current?.focus({ preventScroll: true });
   }, [loading, moreLoading, nextCursor, error]);
   return (
-    <div className="student-page-controls">
-      <p role="status" tabIndex={-1} ref={status}>
+    <div
+      className={`student-page-controls${!loading && !moreLoading && !error && !nextCursor ? " is-idle" : ""}`}
+    >
+      <p
+        role="status"
+        tabIndex={-1}
+        ref={status}
+        className={!loading && !moreLoading ? "sr-only" : undefined}
+      >
         {loading
           ? `Loading ${label}…`
           : moreLoading
@@ -67,6 +74,7 @@ export function StudentPageControls({
             className="button button-secondary"
             type="button"
             ref={retryButton}
+            aria-label={`Retry ${label}`}
             disabled={disabled || loading || moreLoading}
             onClick={(event) => {
               activator.current = event.currentTarget;
@@ -74,7 +82,7 @@ export function StudentPageControls({
               onRetry();
             }}
           >
-            Retry {label}
+            Retry
           </button>
         </div>
       )}
@@ -83,6 +91,9 @@ export function StudentPageControls({
           className="button button-secondary"
           type="button"
           ref={moreButton}
+          aria-label={
+            moreLoading ? `Loading more ${label}…` : `Load more ${label}`
+          }
           disabled={disabled || loading || moreLoading}
           onClick={(event) => {
             activator.current = event.currentTarget;
@@ -90,7 +101,7 @@ export function StudentPageControls({
             onMore();
           }}
         >
-          {moreLoading ? "Loading…" : `Load more ${label}`}
+          {moreLoading ? "Loading…" : "More"}
         </button>
       )}
     </div>

@@ -1,14 +1,14 @@
 .meeting-preparation {
   margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #cad8d1;
+  padding-top: 0;
+  border-top: 0;
   min-width: 0;
 }
 .meeting-preparation > summary {
   min-height: 44px;
   padding-block: 10px;
   color: #174139;
-  font-size: 0.9375rem;
+  font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.6;
   cursor: pointer;
@@ -16,6 +16,7 @@
 }
 .meeting-preparation .meeting-preparation-content {
   padding-top: 16px;
+  max-width: 760px;
   min-width: 0;
 }
 .meeting-preparation .meeting-preparation-intro,

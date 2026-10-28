@@ -8,6 +8,7 @@ const { createListServices } = require("./listServices.cjs");
 const { createLearningGoalServices } = require("./learningGoals.cjs");
 const { createWorkspaceUpdates } = require("./workspaceUpdates.cjs");
 const { createMeetingPreparationServices } = require("./meetingPreparation.cjs");
+const { createReflectionDraftServices } = require("./reflectionDrafts.cjs");
 const { fail, object, text, paragraph, identifier, requestId, hash } = require("./security.cjs");
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const OWNER_STORAGE_BYTES = 100 * 1024 * 1024;
@@ -550,7 +551,8 @@ function createServices(db, dataDir) {
   const goals = createLearningGoalServices(db, { authorize, operation, evidenceDTO });
   const updates = createWorkspaceUpdates(db, { authorize, operation });
   const preparations = createMeetingPreparationServices(db, { authorize, operation });
-  return { services, operator, lists, goals, updates, preparations };
+  const reflectionDrafts = createReflectionDraftServices(db, { operation, read: lists.read });
+  return { services, operator, lists, goals, updates, preparations, reflectionDrafts };
 }
 function validateContent(bytes, type) {
   if (type === "application/pdf") {

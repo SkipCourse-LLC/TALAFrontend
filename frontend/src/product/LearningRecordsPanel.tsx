@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { talaApi } from "../api";
 import type { ApiLearningRecord } from "../api";
 import { StudentPageControls } from "./StudentPageControls";
+import { Icon } from "../shared/Icon";
 import { useStudentPage } from "./useStudentPage";
 import "./learningRecords.css";
 
@@ -34,6 +35,7 @@ export function LearningRecordsPanel({
   onFailure,
   onAcknowledge,
   onDetails,
+  onEvidence,
 }: {
   base: LearningRecordsPage;
   studentUid?: string;
@@ -44,6 +46,7 @@ export function LearningRecordsPanel({
   onFailure: (failure: unknown) => void;
   onAcknowledge: (record: ApiLearningRecord, outcomeId: string) => void;
   onDetails: (record: ApiLearningRecord) => void;
+  onEvidence: (record: ApiLearningRecord) => void;
 }) {
   const searchId = useId();
   const [search, setSearch] = useState("");
@@ -108,21 +111,15 @@ export function LearningRecordsPanel({
       hidden={!visible}
     >
       <header className="learning-records-header">
-        <h2 id="records-heading" tabIndex={-1}>
-          Learning records
+        <h2 id="records-heading" tabIndex={-1} aria-label="Learning records">
+          Learning
         </h2>
-        <p>
-          Saved learning notes, written and published by your TALA team. These
-          summaries are not an AI assessment or confirmation of attendance.
-        </p>
       </header>
-      {readOnly && (
-        <p className="learning-records-family">
-          You can read these notes. Only the student can acknowledge a summary.
-        </p>
-      )}
+      {readOnly && <p className="learning-records-family">Read-only.</p>}
       <div className="learning-records-search">
-        <label htmlFor={searchId}>Search learning records</label>
+        <label htmlFor={searchId} className="sr-only">
+          Search learning records
+        </label>
         <div className="learning-records-search-control">
           <input
             id={searchId}
@@ -131,34 +128,31 @@ export function LearningRecordsPanel({
             maxLength={80}
             autoComplete="off"
             value={search}
-            aria-describedby={`${searchId}-help`}
+            placeholder="Search"
             onChange={(event) => setSearch(event.target.value)}
           />
           {search.length > 0 && (
             <button
               type="button"
               className="learning-records-clear"
+              aria-label="Clear search"
               onClick={() => {
                 setSearch("");
                 setQuery("");
                 input.current?.focus({ preventScroll: true });
               }}
             >
-              Clear search
+              Clear
             </button>
           )}
         </div>
-        <p id={`${searchId}-help`}>
-          Search the text of published summaries, including older records.
-        </p>
       </div>
       <div className="learning-records-results" aria-busy={loading}>
         {!loading && page.loaded && records.length === 0 && !page.error && (
-          <p className="learning-records-empty">
-            {searching
-              ? "No learning records match this search. Try another phrase or clear the search."
-              : "No learning summaries have been published yet. Saved notes will appear here when your TALA team shares them."}
-          </p>
+          <div className="learning-records-empty">
+            <Icon name="book" />
+            <p>{searching ? "No matches." : "No records yet."}</p>
+          </div>
         )}
         {records.length > 0 && (
           <ol
@@ -170,9 +164,7 @@ export function LearningRecordsPanel({
                 <article aria-labelledby={`${searchId}-${record.id}`}>
                   <header className="learning-records-row-header">
                     <div>
-                      <h3 id={`${searchId}-${record.id}`}>
-                        Published staff summary
-                      </h3>
+                      <h3 id={`${searchId}-${record.id}`}>Team note</h3>
                       <p>
                         <time dateTime={record.updatedAt}>
                           {publishedDate(record.updatedAt)}
@@ -182,9 +174,10 @@ export function LearningRecordsPanel({
                     <button
                       type="button"
                       className="learning-records-details"
+                      aria-label="Open learning summary"
                       onClick={() => onDetails(record)}
                     >
-                      Open learning summary
+                      Open
                     </button>
                   </header>
                   <ol className="learning-records-outcomes">
@@ -208,16 +201,17 @@ export function LearningRecordsPanel({
                                 else outcomeStatus.current.delete(key);
                               }}
                             >
-                              Reviewed by student
+                              Student reviewed
                             </span>
                           ) : readOnly ? (
                             <span className="learning-records-awaiting">
-                              Awaiting the student’s acknowledgement.
+                              Not reviewed
                             </span>
                           ) : (
                             <button
                               type="button"
                               className="learning-records-acknowledge"
+                              aria-label="Mark as reviewed — I have reviewed this summary"
                               disabled={busy || loading || page.moreLoading}
                               onClick={(event) => {
                                 if (busy || readOnly) return;
@@ -229,13 +223,23 @@ export function LearningRecordsPanel({
                                 onAcknowledge(record, outcome.id);
                               }}
                             >
-                              I have reviewed this summary
+                              Mark as reviewed
                             </button>
                           )}
                         </li>
                       );
                     })}
                   </ol>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      disabled={busy || loading || page.moreLoading}
+                      onClick={() => onEvidence(record)}
+                    >
+                      Add Evidence
+                    </button>
+                  )}
                 </article>
               </li>
             ))}

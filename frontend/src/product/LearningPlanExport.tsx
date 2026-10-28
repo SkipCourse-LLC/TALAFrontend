@@ -87,23 +87,29 @@ export function LearningPlanExport({
       <summary aria-describedby={`${baseId}-help`}>Export plan</summary>
       <div className="learning-plan-export-content">
         <p id={`${baseId}-help`}>
-          Download all saved goals, including completed goals. Unsent edits are
-          not included. Your file contains private learning notes.
+          All saved goals, including completed. Contains private notes; unsent
+          edits excluded.
         </p>
         <div className="learning-plan-export-actions">
           <button
             type="button"
             disabled={disabled || pending !== undefined}
             onClick={() => void download("text")}
+            aria-label={
+              pending === "text" ? "Preparing text plan…" : "Download text plan"
+            }
           >
-            {pending === "text" ? "Preparing text plan…" : "Download text plan"}
+            {pending === "text" ? "Preparing" : "Text"}
           </button>
           <button
             type="button"
             disabled={disabled || pending !== undefined}
             onClick={() => void download("json")}
+            aria-label={
+              pending === "json" ? "Preparing JSON plan…" : "Download JSON plan"
+            }
           >
-            {pending === "json" ? "Preparing JSON plan…" : "Download JSON plan"}
+            {pending === "json" ? "Preparing" : "JSON"}
           </button>
         </div>
         {error && (

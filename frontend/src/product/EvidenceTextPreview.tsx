@@ -185,7 +185,9 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
         } else closePreview();
       }}
     >
-      <summary ref={summary}>Read submitted text</summary>
+      <summary ref={summary} aria-label="Read submitted text">
+        Read
+      </summary>
       {opened && (
         <div className="evidence-text-preview-content" aria-busy={loading}>
           <p
@@ -194,11 +196,7 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
             aria-atomic="true"
             className={`evidence-text-preview-status${loading ? "" : " sr-only"}`}
           >
-            {loading
-              ? "Loading submitted text…"
-              : preview
-                ? "Submitted text ready."
-                : ""}
+            {loading ? "Loading…" : preview ? "Submitted text ready." : ""}
           </p>
           {error && (
             <div
@@ -209,18 +207,16 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
             >
               <p>{error}</p>
               {blocked ? (
-                <p>
-                  Close this document and reload its details before trying
-                  again.
-                </p>
+                <p>Close and reload this document to retry.</p>
               ) : (
                 <button
                   type="button"
                   className="evidence-text-preview-retry"
                   disabled={loading}
                   onClick={() => void loadPreview(true)}
+                  aria-label="Retry text preview"
                 >
-                  Retry text preview
+                  Retry
                 </button>
               )}
             </div>
@@ -241,17 +237,14 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
                   {preview.text}
                 </pre>
               ) : (
-                <p className="evidence-text-preview-status">
-                  There is no text to display.
-                </p>
+                <p className="evidence-text-preview-status">No text.</p>
               )}
               {preview.truncated && (
                 <p
                   className="evidence-text-preview-note"
                   id={`${baseId}-truncated`}
                 >
-                  This preview is shortened. Use Download this version to read
-                  the full file.
+                  Shortened preview. Download for the full text.
                 </p>
               )}
             </>

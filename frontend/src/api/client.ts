@@ -2,6 +2,10 @@ import { createHttpTransport, readBoundedResponse } from "./http";
 import type { HttpTransport } from "./http";
 import { TalaApiError } from "./errors";
 import * as decode from "./decoders";
+import {
+  decodeReflectionDraft,
+  reflectionDraftProblem,
+} from "./reflectionDraftContract";
 import type {
   Appointment,
   AppointmentPageQuery,
@@ -21,6 +25,7 @@ import type {
   UploadIntent,
   UploadStatus,
   User,
+  ReflectionDraftInput,
 } from "./types";
 
 export { MAX_FILE_BYTES } from "./decoders";
@@ -296,6 +301,75 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
   }
   return {
     getSession: loadSession,
+    getReflectionDraft(signal?: AbortSignal) {
+      return authenticated(signal, async (current, transport) => {
+        if (current.role !== "student") throw new TalaApiError("FORBIDDEN");
+        const saved = await transport.json(
+          "/api/reflection-draft",
+          { signal },
+          decodeReflectionDraft,
+        );
+        if (saved.ownerUid !== current.uid)
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    saveReflectionDraft(input: ReflectionDraftInput, signal?: AbortSignal) {
+      if (
+        reflectionDraftProblem(input.title, input.text) ||
+        !Number.isSafeInteger(input.version) ||
+        input.version < 0 ||
+        input.version >= Number.MAX_SAFE_INTEGER
+      )
+        return Promise.reject(new TalaApiError("INVALID_INPUT"));
+      return authenticated(signal, async (current, _transport, json) => {
+        if (current.role !== "student") throw new TalaApiError("FORBIDDEN");
+        const saved = await json(
+          "/api/reflection-draft",
+          "POST",
+          input,
+          signal,
+          decodeReflectionDraft,
+        );
+        if (
+          saved.ownerUid !== current.uid ||
+          saved.status !== "saved" ||
+          saved.version !== input.version + 1 ||
+          saved.title !== input.title ||
+          saved.text !== input.text
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    clearReflectionDraft(
+      input: { version: number; requestId: string },
+      signal?: AbortSignal,
+    ) {
+      if (
+        !Number.isSafeInteger(input.version) ||
+        input.version < 0 ||
+        input.version >= Number.MAX_SAFE_INTEGER
+      )
+        return Promise.reject(new TalaApiError("INVALID_INPUT"));
+      return authenticated(signal, async (current, _transport, json) => {
+        if (current.role !== "student") throw new TalaApiError("FORBIDDEN");
+        const saved = await json(
+          "/api/reflection-draft/clear",
+          "POST",
+          input,
+          signal,
+          decodeReflectionDraft,
+        );
+        if (
+          saved.ownerUid !== current.uid ||
+          saved.status !== "empty" ||
+          saved.version !== input.version + 1
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
     getLearningGoals(studentUid?: string, signal?: AbortSignal) {
       return authenticated(signal, async (current, transport) => {
         const saved = await transport.json(

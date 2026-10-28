@@ -40,6 +40,21 @@ export interface LearningGoalInput {
   dueDate: string | null;
   steps?: LearningGoalStep[];
 }
+/** One private, unsubmitted reflection per student; never shared with parents. */
+export interface ReflectionDraft {
+  ownerUid: string;
+  title: string;
+  text: string;
+  status: "empty" | "saved";
+  version: number;
+  updatedAt: string | null;
+}
+export interface ReflectionDraftInput {
+  title: string;
+  text: string;
+  version: number;
+  requestId: string;
+}
 export interface LearningGoalEvidence {
   goalId: string;
   ownerUid: string;

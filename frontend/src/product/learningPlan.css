@@ -15,7 +15,7 @@
   gap: 20px 28px;
 }
 .learning-plan .learning-plan-heading h2 {
-  margin: 0 0 10px;
+  margin: 0;
   font-size: clamp(1.6rem, 3vw, 2rem);
   letter-spacing: -0.035em;
   line-height: 1.2;
@@ -81,7 +81,7 @@
   text-underline-offset: 4px;
 }
 .learning-plan .learning-plan-boundary {
-  margin: 24px 0 0;
+  margin: 12px 0 0;
   color: var(--plan-muted);
   font-size: 0.875rem;
   line-height: 1.6;
@@ -90,7 +90,7 @@
 .learning-plan-organization {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(190px, 0.45fr);
-  gap: 16px 24px;
+  gap: 12px;
   margin-top: 22px;
 }
 .learning-plan-organization label {
@@ -145,7 +145,7 @@
   outline-offset: 4px;
 }
 .learning-plan .learning-plan-results {
-  margin: 18px 0 10px;
+  margin: 14px 0 6px;
   color: var(--plan-muted);
   font-size: 0.8125rem;
   line-height: 1.6;
@@ -188,7 +188,7 @@
   font-size: 0.875rem;
 }
 .learning-plan .learning-plan-editor {
-  background: var(--plan-subtle);
+  background: #fff;
   padding: 28px;
   border: 1px solid var(--plan-line);
   border-radius: 16px;
@@ -489,11 +489,11 @@
   padding: 8px 0 0 40px;
 }
 .learning-plan .learning-plan-empty {
-  padding-block: 40px 32px;
+  padding-block: 28px;
 }
 .learning-plan .learning-plan-empty h3 {
-  margin: 0 0 10px;
-  font-size: 1.15rem;
+  margin: 0 0 8px;
+  font-size: 1rem;
   letter-spacing: -0.02em;
   line-height: 1.5;
 }

@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const EXTENSIONS = `
   CREATE TABLE IF NOT EXISTS availability_state (
     slot_id TEXT PRIMARY KEY REFERENCES slots(id),
@@ -65,6 +65,14 @@ const EXTENSIONS = `
     updated_at INTEGER NOT NULL
   ) STRICT;
   CREATE INDEX IF NOT EXISTS appointment_preparations_owner ON appointment_preparations(owner_uid,updated_at DESC);
+  CREATE TABLE IF NOT EXISTS reflection_drafts (
+    owner_uid TEXT PRIMARY KEY REFERENCES users(uid),
+    title TEXT NOT NULL CHECK(length(title)<=120),
+    body TEXT NOT NULL CHECK(length(body)<=5000),
+    status TEXT NOT NULL CHECK(status IN ('empty','saved')),
+    version INTEGER NOT NULL CHECK(version>=1), updated_at INTEGER NOT NULL,
+    CHECK((status='empty' AND title='' AND body='') OR (status='saved' AND (length(title)>0 OR length(body)>0)))
+  ) STRICT;
 `;
 
 function backupBeforeMigration(db, dataDir, version) {

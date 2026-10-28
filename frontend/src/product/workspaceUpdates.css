@@ -14,7 +14,7 @@
   gap: 20px 28px;
 }
 .workspace-updates .workspace-updates-heading h2 {
-  margin: 0 0 10px;
+  margin: 0;
   font-size: clamp(1.6rem, 3vw, 2rem);
   letter-spacing: -0.035em;
   line-height: 1.2;
@@ -62,7 +62,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px 24px;
-  margin-top: 28px;
+  margin-top: 20px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--updates-line);
 }
@@ -157,7 +157,7 @@
   display: flex;
   align-items: start;
   gap: 16px;
-  padding: 24px 0;
+  padding: 20px 0;
   border-bottom: 1px solid var(--updates-line);
   min-width: 0;
 }
@@ -233,7 +233,7 @@
   padding-block: 10px;
 }
 .workspace-updates .workspace-updates-empty {
-  padding: 44px 24px 36px;
+  padding: 28px 24px;
   text-align: center;
   max-width: 60ch;
   margin-inline: auto;
@@ -250,9 +250,31 @@
   font-size: 1.125rem;
 }
 .workspace-updates .workspace-updates-empty h3 {
-  font-size: 1.25rem;
+  font-size: 1.0625rem;
   letter-spacing: -0.02em;
-  margin: 0 0 10px;
+  margin: 0;
+}
+.workspace-updates-details {
+  margin-top: 20px;
+}
+.workspace-updates-details > summary {
+  width: fit-content;
+  min-height: 44px;
+  align-content: center;
+  color: var(--updates-green);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.workspace-updates-details > summary:focus-visible {
+  outline: 3px solid var(--updates-green);
+  outline-offset: 4px;
+}
+.workspace-updates-details > p {
+  max-width: 65ch;
+  margin: 4px 0 16px;
+  color: var(--updates-muted);
+  font-size: 0.875rem;
+  line-height: 1.65;
 }
 .workspace-updates .workspace-updates-empty p {
   color: var(--updates-muted);

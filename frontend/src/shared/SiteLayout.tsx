@@ -25,7 +25,7 @@ export function SiteLayout({
       </a>
       <div className="preview-banner">
         {backend === "api" ? (
-          "TALA · Independent local server · Records are saved to your server."
+          "Local workspace"
         ) : backend === "firebase-emulator" ? (
           "TALA · Local Firebase integration · Synthetic test accounts and files only. No live meetings or charges."
         ) : backend === "firebase-test" ? (
@@ -45,42 +45,56 @@ export function SiteLayout({
       <main id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
-      <footer className="site-footer">
-        <div className="container footer-top">
-          <div>
+      <footer
+        className={
+          backend === "api" ? "site-footer quiet-site-footer" : "site-footer"
+        }
+      >
+        {backend === "api" ? (
+          <div className="container quiet-footer-row">
             <Brand />
-            <p>
-              Room to learn.
-              <br />
-              Space to become yourself.
-            </p>
+            <nav aria-label="Footer">
+              <Link to="/about">About</Link>
+              <Link to="/programs">Programs</Link>
+              <Link to="/contact">Contact</Link>
+            </nav>
+            <small>Local records. Live services not connected.</small>
           </div>
-          <nav aria-label="Footer">
-            <Link to="/about">About TALA</Link>
-            <Link to="/programs">Explore programs</Link>
-            <Link to={session ? "/dashboard" : "/login"}>Student hub</Link>
-          </nav>
-          <div className="footer-note">
-            <p>Your learning. Your next step.</p>
-            <small>
-              {backend === "api"
-                ? "Accounts, bookings and documents use the TALA server. Email delivery, live meeting links and payments require connected providers."
-                : backend
-                  ? "Authentication uses Firebase. Meeting, evidence and payment services require an approved environment and team integration."
-                  : "This frontend preview brings enrollment and learning together. School decisions, billing and live services are not connected."}
-            </small>
-          </div>
-        </div>
-        <div className="container footer-bottom">
-          <span>
-            {backend === "api"
-              ? "TALA-Hub · Independent server"
-              : backend
-                ? "TALA-Hub · Backend integration"
-                : "TALA-Hub · Frontend product preview"}
-          </span>
-          <span>Built for different ways to learn.</span>
-        </div>
+        ) : (
+          <>
+            <div className="container footer-top">
+              <div>
+                <Brand />
+                <p>
+                  Room to learn.
+                  <br />
+                  Space to become yourself.
+                </p>
+              </div>
+              <nav aria-label="Footer">
+                <Link to="/about">About TALA</Link>
+                <Link to="/programs">Explore programs</Link>
+                <Link to={session ? "/dashboard" : "/login"}>Student hub</Link>
+              </nav>
+              <div className="footer-note">
+                <p>Your learning. Your next step.</p>
+                <small>
+                  {backend
+                    ? "Authentication uses Firebase. Meeting, evidence and payment services require an approved environment and team integration."
+                    : "This frontend preview brings enrollment and learning together. School decisions, billing and live services are not connected."}
+                </small>
+              </div>
+            </div>
+            <div className="container footer-bottom">
+              <span>
+                {backend
+                  ? "TALA-Hub · Backend integration"
+                  : "TALA-Hub · Frontend product preview"}
+              </span>
+              <span>Built for different ways to learn.</span>
+            </div>
+          </>
+        )}
       </footer>
     </>
   );

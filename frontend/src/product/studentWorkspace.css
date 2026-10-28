@@ -393,12 +393,17 @@
   display: block;
 }
 .student-focused-content .product-card {
-  padding: clamp(24px, 4vw, 40px);
-  border-color: #e0e2e1;
-  border-radius: 24px;
+  padding: clamp(22px, 3vw, 32px);
+  border-color: #e5e5e9;
+  border-radius: 20px;
 }
 .student-focused-content .product-card > p {
   max-width: 76ch;
+}
+.student-workspace .product-card > .student-evidence-privacy {
+  color: var(--student-muted);
+  font-size: 0.8125rem;
+  margin-block: -8px 20px;
 }
 .student-focused-content .product-fields {
   max-width: 690px;
@@ -441,6 +446,39 @@
   padding-top: 16px;
   border-top: 1px solid var(--student-line);
   max-width: 85ch;
+}
+.student-workspace .product-card h2 {
+  font-size: clamp(1.4rem, 2.4vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  margin-bottom: 20px;
+}
+.student-workspace .product-card :is(p, label, select, input, textarea) {
+  font-size: 0.9375rem;
+}
+.student-workspace .product-card p {
+  line-height: 1.5;
+}
+.student-workspace .product-actions .button {
+  font-size: 0.875rem;
+  min-height: 44px;
+  padding: 11px 18px;
+}
+.student-workspace .student-workspace-toolbar {
+  padding-block: 8px 16px;
+}
+.student-workspace .student-page-controls.is-idle {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.student-workspace .student-page-controls.is-idle > .sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  margin-top: 12px;
+  clip-path: none;
+  white-space: normal;
 }
 .student-service-details summary {
   min-height: 44px;
@@ -664,5 +702,8 @@
 @media (max-width: 540px) {
   .student-workspace .student-page-controls > button {
     width: 100%;
+  }
+  .student-workspace .product-card :is(input, select, textarea) {
+    font-size: 1rem;
   }
 }

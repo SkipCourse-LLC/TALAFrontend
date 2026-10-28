@@ -39,6 +39,7 @@ export function MeetingPreparationPanel({
   goals,
   readOnly,
   visible,
+  openRequest = 0,
   onChanged,
   onFailure,
   onDirtyChange,
@@ -47,12 +48,17 @@ export function MeetingPreparationPanel({
   goals?: LearningGoal[];
   readOnly: boolean;
   visible: boolean;
+  openRequest?: number;
   onChanged: () => void;
   onFailure: (failure: unknown) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const baseId = useId();
-  const [opened, setOpened] = useState(false);
+  const [locallyOpened, setOpened] = useState(false);
+  const [dismissedOpenRequest, setDismissedOpenRequest] = useState(openRequest);
+  const opened = locallyOpened || openRequest > dismissedOpenRequest;
+  const preparationSummary = useRef<HTMLElement>(null);
+  const focusedOpenRequest = useRef(openRequest);
   const [saved, setSaved] = useState<AppointmentPreparation>();
   const [draft, setDraft] = useState<Draft>();
   const [loading, setLoading] = useState(true);
@@ -114,6 +120,14 @@ export function MeetingPreparationPanel({
     draftRef.current = nextDraft;
     setDraft(nextDraft);
   }, []);
+
+  useEffect(() => {
+    if (!visible || !opened || openRequest <= focusedOpenRequest.current)
+      return;
+    focusedOpenRequest.current = openRequest;
+    preparationSummary.current?.focus({ preventScroll: true });
+    preparationSummary.current?.scrollIntoView({ block: "start" });
+  }, [visible, opened, openRequest]);
 
   useEffect(() => {
     latest.current = { onChanged, onFailure, onDirtyChange, readOnly, visible };
@@ -406,19 +420,26 @@ export function MeetingPreparationPanel({
   if (!visible) return null;
   return (
     <details
+      id="meeting-preparation"
       className="meeting-preparation"
       open={opened}
-      onToggle={(event) => setOpened(event.currentTarget.open)}
+      onToggle={(event) => {
+        const nextOpened = event.currentTarget.open;
+        setOpened(nextOpened);
+        if (!nextOpened) setDismissedOpenRequest(openRequest);
+      }}
     >
-      <summary>
-        {editable ? "Prepare for your meeting" : "Meeting preparation"}
+      <summary
+        id="meeting-preparation-heading"
+        ref={preparationSummary}
+        aria-label={
+          editable ? "Prepare for your meeting" : "Meeting preparation"
+        }
+      >
+        {editable ? "Prepare" : "Preparation"}
       </summary>
       {opened && (
         <div className="meeting-preparation-content">
-          <p className="meeting-preparation-intro">
-            A few learning notes can make your time together more useful. This
-            does not confirm attendance or provide a live meeting link.
-          </p>
           {error && (
             <div
               className="meeting-preparation-error"
@@ -440,11 +461,7 @@ export function MeetingPreparationPanel({
             aria-live="polite"
             aria-atomic="true"
           >
-            {pending
-              ? "Saving meeting preparation…"
-              : loading
-                ? "Loading saved preparation…"
-                : message}
+            {pending ? "Saving…" : loading ? "Loading…" : message}
           </p>
           {currentSaved &&
             currentDraft &&
@@ -458,12 +475,11 @@ export function MeetingPreparationPanel({
                 aria-busy={pending}
               >
                 <div className="meeting-preparation-field">
-                  <label htmlFor={`${baseId}-note`}>
-                    Learning notes (optional)
-                  </label>
+                  <label htmlFor={`${baseId}-note`}>Notes (optional)</label>
                   <textarea
                     ref={noteInput}
                     id={`${baseId}-note`}
+                    aria-label="Learning notes (optional)"
                     value={currentDraft.note}
                     onChange={(event) =>
                       updateDraft({ note: event.target.value })
@@ -479,8 +495,7 @@ export function MeetingPreparationPanel({
                     id={`${baseId}-note-help`}
                     className="meeting-preparation-help"
                   >
-                    What would you like to explore or ask? Use learning notes
-                    only. Leave out medical or other sensitive information.
+                    Learning notes only. No medical or sensitive details.
                   </p>
                   {noteError && (
                     <p
@@ -492,11 +507,10 @@ export function MeetingPreparationPanel({
                   )}
                 </div>
                 <div className="meeting-preparation-field">
-                  <label htmlFor={`${baseId}-goal`}>
-                    Related goal (optional)
-                  </label>
+                  <label htmlFor={`${baseId}-goal`}>Goal (optional)</label>
                   <select
                     id={`${baseId}-goal`}
+                    aria-label="Related goal (optional)"
                     value={currentDraft.goalId ?? ""}
                     disabled={locked || !goals}
                     onChange={(event) =>
@@ -506,14 +520,12 @@ export function MeetingPreparationPanel({
                       !goals ? `${baseId}-goals-help` : undefined
                     }
                   >
-                    <option value="">No related goal</option>
+                    <option value="">None</option>
                     {currentDraft.goalId &&
                       !goals?.some(
                         (goal) => goal.id === currentDraft.goalId,
                       ) && (
-                        <option value={currentDraft.goalId}>
-                          Saved goal (not currently loaded)
-                        </option>
+                        <option value={currentDraft.goalId}>Saved goal</option>
                       )}
                     {sortLearningGoals(goals ?? []).map((goal) => (
                       <option key={goal.id} value={goal.id}>
@@ -527,8 +539,7 @@ export function MeetingPreparationPanel({
                       className="meeting-preparation-help"
                       id={`${baseId}-goals-help`}
                     >
-                      Saved goals are not available yet. Any existing goal
-                      choice is kept.
+                      Goals unavailable. Your choice is kept.
                     </p>
                   )}
                 </div>
@@ -542,54 +553,46 @@ export function MeetingPreparationPanel({
                       updateDraft({ ready: event.target.checked })
                     }
                   />
-                  <span>
-                    My learning materials are ready
-                    <span>A personal checklist, not an attendance record.</span>
-                  </span>
+                  <span>My learning materials are ready</span>
                 </label>
                 <div className="meeting-preparation-actions">
                   <button
                     type="submit"
                     className="meeting-preparation-primary"
+                    aria-label={pending ? "Saving…" : "Save preparation"}
                     disabled={locked || loading || !dirty}
                   >
-                    {pending ? "Saving…" : "Save preparation"}
+                    {pending ? "Saving…" : "Save"}
                   </button>
                   <span className="meeting-preparation-draft-label">
                     {dirty
                       ? "Unsaved changes"
                       : currentSaved.version > 0
                         ? "Saved"
-                        : "Nothing saved yet"}
+                        : "Not saved"}
                   </span>
                 </div>
               </form>
             ) : (
               <div className="meeting-preparation-saved">
                 <h4>
-                  {currentSaved.version > 0
-                    ? "Saved preparation"
-                    : "No preparation saved"}
+                  {currentSaved.version > 0 ? "Preparation" : "No preparation"}
                 </h4>
                 <p className="meeting-preparation-note">
-                  {currentSaved.note || "No learning notes have been saved."}
+                  {currentSaved.note || "No notes."}
                 </p>
                 <dl>
                   <div>
-                    <dt>Related goal</dt>
+                    <dt>Goal</dt>
                     <dd>
                       {currentSaved.goalId
-                        ? (selectedGoal?.title ?? "A saved goal is linked.")
-                        : "No related goal"}
+                        ? (selectedGoal?.title ?? "Saved goal")
+                        : "None"}
                     </dd>
                   </div>
                   <div>
                     <dt>Materials</dt>
-                    <dd>
-                      {currentSaved.ready
-                        ? "Marked ready by the student"
-                        : "Not marked ready"}
-                    </dd>
+                    <dd>{currentSaved.ready ? "Ready" : "Not ready"}</dd>
                   </div>
                 </dl>
                 {!readOnly && dirty && (
@@ -613,7 +616,7 @@ export function MeetingPreparationPanel({
             ))}
           {currentSaved?.updatedAt && (
             <p className="meeting-preparation-help">
-              Last saved{" "}
+              Saved{" "}
               {new Intl.DateTimeFormat(undefined, {
                 dateStyle: "medium",
                 timeStyle: "short",
@@ -623,24 +626,22 @@ export function MeetingPreparationPanel({
           )}
           {intent && !pending && (
             <div className="meeting-preparation-uncertain">
-              <p>
-                This save has not been confirmed. Retrying uses the same request
-                and values.
-              </p>
+              <p>Save unconfirmed. Retry uses the same request.</p>
               <button
                 type="button"
                 className="meeting-preparation-secondary"
                 disabled={loading || !editable}
                 onClick={() => void save(intent)}
+                aria-label="Retry preparation save"
               >
-                Retry preparation save
+                Retry
               </button>
             </div>
           )}
           {!readOnly && !editable && (
             <p className="meeting-preparation-help">
-              Preparation is read-only once a meeting starts or is cancelled.
-              Saved notes stay with the original booking.
+              Read-only after start or cancellation. Notes stay with this
+              booking.
             </p>
           )}
           <button
@@ -649,8 +650,9 @@ export function MeetingPreparationPanel({
             className="meeting-preparation-text-action"
             disabled={pending || loading}
             onClick={reloadSaved}
+            aria-label="Reload saved notes"
           >
-            Reload saved notes
+            Reload
           </button>
           {confirmReload && (
             <div
@@ -662,12 +664,13 @@ export function MeetingPreparationPanel({
                 Replace your unsaved draft?
               </h4>
               <p>
-                Reloading replaces this draft with the latest saved preparation.
-                Copy any text you want to keep first.
+                Replaces this draft with saved notes. Copy anything you want to
+                keep.
               </p>
               <div className="meeting-preparation-actions">
                 <button
                   ref={keepDraftButton}
+                  aria-label="Keep my draft"
                   type="button"
                   className="meeting-preparation-secondary"
                   onClick={() => {
@@ -675,14 +678,15 @@ export function MeetingPreparationPanel({
                     requestAnimationFrame(() => reloadButton.current?.focus());
                   }}
                 >
-                  Keep my draft
+                  Keep
                 </button>
                 <button
                   type="button"
                   className="meeting-preparation-text-action"
                   onClick={confirmSavedReload}
+                  aria-label="Replace with saved notes"
                 >
-                  Replace with saved notes
+                  Replace
                 </button>
               </div>
             </div>

@@ -13,15 +13,9 @@ export function ProgramsPage() {
   return (
     <div className="public-page public-programs">
       <section className="page-intro container">
-        <p className="eyebrow">Programs &amp; learning experiences</p>
-        <h1>Find a way to learn.</h1>
-        <p className="lead">
-          From focused support to discoveries beyond the classroom. Explore
-          early ideas for learning with TALA.
-        </p>
+        <h1>Programs</h1>
         <p className="content-note">
-          Concept previews. Program details, eligibility and schedules are still
-          being confirmed.
+          Planned programs. Details and availability to be confirmed.
         </p>
       </section>
       <section
@@ -68,7 +62,7 @@ export function ProgramsPage() {
             </button>
           ))}
         </div>
-        <p className="results-count" role="status">
+        <p className="results-count sr-only" role="status">
           Showing {shown.length}{" "}
           {shown.length === 1
             ? "learning opportunity"
@@ -84,9 +78,12 @@ export function ProgramsPage() {
                 <p className="eyebrow">{p.category}</p>
                 <h2>{p.title}</h2>
                 <p className="lead">{p.description}</p>
-                <p>{p.detail}</p>
+                <details className="public-program-details">
+                  <summary>Details</summary>
+                  <p>{p.detail}</p>
+                </details>
                 <Link className="text-link" to="/register">
-                  Start registration demo <Icon name="arrow" />
+                  Get started <Icon name="arrow" />
                 </Link>
               </div>
             </article>

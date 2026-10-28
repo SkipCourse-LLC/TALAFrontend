@@ -435,11 +435,6 @@ export function LearningPlanPanel({
           <h2 id="plan-heading" tabIndex={-1} ref={heading}>
             Learning plan
           </h2>
-          <p>
-            {readOnly
-              ? "A view of the student’s own learning goals."
-              : "Make room for what you want to learn next."}
-          </p>
         </div>
         {!readOnly && !editor && (
           <button
@@ -456,8 +451,7 @@ export function LearningPlanPanel({
         )}
       </header>
       <p className="learning-plan-boundary">
-        Personal goals are self-reported. Completing one does not award course
-        credit or verify a skill.
+        Self-reported. No verified skills or course credit.
       </p>
       <LearningPlanExport
         studentUid={studentUid}
@@ -571,8 +565,7 @@ export function LearningPlanPanel({
                 className="learning-plan-field-hint"
                 id={`${baseId}-notes-help`}
               >
-                A small next step is enough. Leave out private or medical
-                information.
+                No private or medical details.
               </p>
               {fieldErrors.notes && (
                 <p
@@ -601,7 +594,7 @@ export function LearningPlanPanel({
                 className="learning-plan-field-hint"
                 id={`${baseId}-date-help`}
               >
-                Choose a day that works for you.
+                Your own target, not a deadline.
               </p>
               {fieldErrors.dueDate && (
                 <p
@@ -620,8 +613,7 @@ export function LearningPlanPanel({
           >
             <legend>Steps (optional)</legend>
             <p id={`${baseId}-steps-help`}>
-              Break your goal into up to eight small steps. Changes are saved
-              with your goal.
+              Up to 8 steps. Saved with your goal.
             </p>
             {steps.length > 0 && (
               <ol className="learning-plan-edit-step-list">
@@ -705,7 +697,7 @@ export function LearningPlanPanel({
               >
                 Add step
               </button>
-              <span>{steps.length} of 8 steps</span>
+              <span>{steps.length} / 8</span>
             </div>
           </fieldset>
           <div className="learning-plan-editor-actions">
@@ -773,22 +765,26 @@ export function LearningPlanPanel({
           </div>
           <div className="learning-plan-organization">
             <div className="learning-plan-search">
-              <label htmlFor={`${baseId}-search`}>Search learning goals</label>
+              <label htmlFor={`${baseId}-search`} className="sr-only">
+                Search
+              </label>
               <div className="learning-plan-search-control">
                 <input
                   id={`${baseId}-search`}
                   ref={searchInput}
                   type="search"
+                  aria-label="Search learning goals"
+                  placeholder="Search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   maxLength={120}
                   autoComplete="off"
                   disabled={locked}
-                  aria-describedby={`${baseId}-search-help`}
                 />
                 {search.length > 0 && (
                   <button
                     className="learning-plan-search-clear"
+                    aria-label="Clear search"
                     type="button"
                     disabled={locked}
                     onClick={() => {
@@ -796,19 +792,19 @@ export function LearningPlanPanel({
                       searchInput.current?.focus({ preventScroll: true });
                     }}
                   >
-                    Clear search
+                    Clear
                   </button>
                 )}
               </div>
-              <p id={`${baseId}-search-help`}>
-                Search names, notes and checklist steps.
-              </p>
             </div>
             <div className="learning-plan-sort-control">
-              <label htmlFor={`${baseId}-sort`}>Sort goals</label>
+              <label htmlFor={`${baseId}-sort`} className="sr-only">
+                Sort
+              </label>
               <select
                 id={`${baseId}-sort`}
                 value={sort}
+                aria-label="Sort goals"
                 disabled={locked}
                 onChange={(event) => {
                   const next = event.target.value;
@@ -833,8 +829,8 @@ export function LearningPlanPanel({
             aria-live="polite"
             aria-atomic="true"
           >
-            {visible.length} of {filteredCount}{" "}
-            {filteredCount === 1 ? "goal" : "goals"} shown.
+            {visible.length} / {filteredCount}{" "}
+            {filteredCount === 1 ? "goal" : "goals"}
           </p>
           {full && !readOnly && (
             <p className="learning-plan-limit">
@@ -871,7 +867,7 @@ export function LearningPlanPanel({
                         <div className="learning-plan-saved-steps">
                           <p className="learning-plan-step-summary">
                             {goal.steps.filter((step) => step.completed).length}{" "}
-                            of {goal.steps.length} steps completed
+                            / {goal.steps.length} steps
                           </p>
                           <ul aria-label={`Steps for “${goal.title}”`}>
                             {goal.steps.map((step) => (
@@ -940,7 +936,7 @@ export function LearningPlanPanel({
                         disabled={unavailable || !!editor}
                         aria-expanded={expandedGoal === goal.id}
                         aria-controls={`${baseId}-evidence-${goal.id}`}
-                        aria-label={`Evidence for “${goal.title}” (${goal.linkedEvidenceCount})`}
+                        aria-label={`Evidence ${goal.linkedEvidenceCount} for “${goal.title}”`}
                         onClick={() =>
                           setExpandedGoal((saved) =>
                             saved === goal.id ? undefined : goal.id,
@@ -969,7 +965,11 @@ export function LearningPlanPanel({
                             className="learning-plan-secondary learning-plan-complete-action"
                             type="button"
                             disabled={unavailable || !!editor}
-                            aria-label={`${completed ? "Reopen" : "Complete"} “${goal.title}”`}
+                            aria-label={
+                              changing
+                                ? "Saving…"
+                                : `${completed ? "Reopen" : "Complete"} “${goal.title}”`
+                            }
                             onClick={(event) =>
                               changeStatus(goal, event.currentTarget)
                             }
@@ -1011,28 +1011,12 @@ export function LearningPlanPanel({
                   {search.trim()
                     ? "No goals match this search."
                     : goals.length === 0
-                      ? readOnly
-                        ? "No goals saved yet."
-                        : "Start with one small goal."
+                      ? "No goals yet."
                       : filter === "completed"
                         ? "No completed goals yet."
-                        : "A little space for your next step."}
+                        : "No active goals."}
                 </h3>
-                <p>
-                  {search.trim()
-                    ? "Search goal names, notes or steps. Clear the search or choose another status."
-                    : goals.length === 0
-                      ? readOnly
-                        ? "The student’s saved goals will appear here."
-                        : "Choose something you want to learn. Add a target date if it helps."
-                      : filter === "completed"
-                        ? readOnly
-                          ? "Goals appear here when the student marks them complete."
-                          : "Goals appear here when you mark them complete."
-                        : readOnly
-                          ? "The student’s completed goals are saved in the Completed view."
-                          : "Your completed goals are saved in the Completed view."}
-                </p>
+                {search.trim() && <p>Clear search or change the filter.</p>}
               </div>
             )
           )}
@@ -1040,7 +1024,7 @@ export function LearningPlanPanel({
       )}
       {goals === undefined && !loading && !alertText && (
         <p className="learning-plan-empty">
-          Your saved goals are not available yet.{" "}
+          Goals aren’t loaded.{" "}
           <button
             type="button"
             className="learning-plan-link"

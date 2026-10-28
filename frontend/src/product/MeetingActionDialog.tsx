@@ -68,12 +68,12 @@ export function MeetingActionDialog({
       </h2>
       <p>
         {change.kind === "cancel"
-          ? "Your reserved time will become available to other students. Your saved learning records and files will be kept."
-          : "Your current booking stays reserved until the server confirms the replacement. If the new time is unavailable, your original booking is kept."}
+          ? "Releases this time to others. Saved records and files are kept."
+          : "Your current time is kept unless the replacement is confirmed."}
       </p>
       <dl className="meeting-confirm-times">
         <div>
-          <dt>Current booking</dt>
+          <dt>Current</dt>
           <dd>
             {meetingRange(
               change.booking.startsAt,
@@ -96,8 +96,7 @@ export function MeetingActionDialog({
         )}
       </dl>
       <p className="meeting-help">
-        Times shown in {timeZone}. If you saved a personal calendar copy, update
-        it after this change.
+        {timeZone}. Update any downloaded calendar copy.
       </p>
       {!current && (
         <p className="product-error" role="alert">
@@ -130,14 +129,22 @@ export function MeetingActionDialog({
           className="button button-secondary"
           disabled={busy}
           onClick={onClose}
+          aria-label="Keep booking"
         >
-          Keep booking
+          Keep
         </button>
         <button
           type="button"
           className="button"
           disabled={busy || !current || draftBlocked || preparationBlocked}
           onClick={onConfirm}
+          aria-label={
+            busy
+              ? "Saving…"
+              : change.kind === "cancel"
+                ? "Confirm cancellation"
+                : "Confirm change"
+          }
         >
           {busy
             ? "Saving…"
@@ -151,8 +158,9 @@ export function MeetingActionDialog({
             className="meeting-text-action"
             disabled={busy}
             onClick={onRefresh}
+            aria-label="Refresh booking details"
           >
-            Refresh booking details
+            Refresh
           </button>
         )}
       </div>
