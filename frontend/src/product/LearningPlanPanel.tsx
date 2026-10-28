@@ -3,7 +3,6 @@ import type { FormEvent } from "react";
 import { newRequestId } from "../api";
 import type { LearningGoal, LearningGoalInput } from "../api";
 import {
-  goalDueLabel,
   validGoalDate,
   validateGoalSteps,
   goalStepsChanged,
@@ -16,7 +15,13 @@ import { hasTextControls, isWellFormedText } from "./unicodeText";
 import { LearningPlanExport } from "./LearningPlanExport";
 import { organizeLearningGoals } from "./learningPlanOrganizationHelpers";
 import type { GoalSort } from "./learningPlanOrganizationHelpers";
+import {
+  goalChecklist,
+  goalTargetLabel,
+  starterSteps,
+} from "./learningPlanExperience";
 import "./learningPlan.css";
+import "./learningPlanFocus.css";
 
 type GoalInput = LearningGoalInput;
 type GoalFilter = "active" | "completed" | "all";
@@ -75,8 +80,13 @@ export function LearningPlanPanel({
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [dateIncomplete, setDateIncomplete] = useState(false);
   const [steps, setSteps] = useState<EditableGoalStep[]>([]);
   const [expandedGoal, setExpandedGoal] = useState<string>();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [completionGoalId, setCompletionGoalId] = useState<string>();
+  const [completedGoalId, setCompletedGoalId] = useState<string>();
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [associationBusy, setAssociationBusy] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState<string>();
@@ -87,6 +97,7 @@ export function LearningPlanPanel({
   const active = useRef(false);
   const running = useRef(false);
   const titleInput = useRef<HTMLInputElement>(null);
+  const dateInput = useRef<HTMLInputElement>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const errorMessage = useRef<HTMLDivElement>(null);
   const returnTarget = useRef<HTMLElement | null>(null);
@@ -101,6 +112,9 @@ export function LearningPlanPanel({
   const unavailable = locked || loading || goals === undefined;
   const full = (goals?.length ?? 0) >= 100;
   const alertText = error || actionFailure;
+  const showOrganization = Boolean(
+    goals?.length || search.length || filter !== "active",
+  );
   const activeCount =
     goals?.filter((goal) => goal.status === "active").length ?? 0;
   const completedCount = (goals?.length ?? 0) - activeCount;
@@ -117,11 +131,21 @@ export function LearningPlanPanel({
     (title !== (originalEditorGoal?.title ?? "") ||
       notes !== (originalEditorGoal?.notes ?? "") ||
       dueDate !== (originalEditorGoal?.dueDate ?? "") ||
+      dateIncomplete ||
       goalStepsChanged(steps, originalEditorGoal?.steps)),
   );
   const protectedEditor =
     !readOnly &&
     Boolean(editor && (editorChanged || pending === "editor" || uncertain));
+  const showEditorDetails =
+    detailsOpen ||
+    Boolean(
+      notes ||
+      dueDate ||
+      dateIncomplete ||
+      fieldErrors.notes ||
+      fieldErrors.dueDate,
+    );
 
   useEffect(() => {
     dirtyListener.current = onDirtyChange;
@@ -219,25 +243,40 @@ export function LearningPlanPanel({
       else heading.current?.focus();
     });
   }
-  function openEditor(next: Editor, target: HTMLElement) {
-    if (unavailable || readOnly) return;
+  function clearSearch() {
+    setSearch("");
+    requestAnimationFrame(() => {
+      if (!active.current || !panelVisible) return;
+      if (!goals?.length && filter === "active") heading.current?.focus();
+      else searchInput.current?.focus({ preventScroll: true });
+    });
+  }
+  function openEditor(next: Editor, target: HTMLElement, starterTitle = "") {
+    if (running.current || unavailable || readOnly) return;
     returnTarget.current = target;
-    setTitle(next.kind === "edit" ? next.goal.title : "");
+    setTitle(next.kind === "edit" ? next.goal.title : starterTitle);
     setNotes(next.kind === "edit" ? next.goal.notes : "");
     setDueDate(next.kind === "edit" ? (next.goal.dueDate ?? "") : "");
+    setDateIncomplete(false);
     setSteps(
       next.kind === "edit" ? next.goal.steps.map((step) => ({ ...step })) : [],
     );
     setFieldErrors({});
     setMessage("");
     setActionFailure("");
+    setCompletionGoalId(undefined);
+    setCompletedGoalId(undefined);
+    setDetailsOpen(false);
+    setDiscardOpen(false);
     onClearError?.();
     setEditor(next);
   }
   function cancelEditor() {
-    if (locked) return;
+    if (running.current || locked) return;
     const created = editor?.kind === "create";
     setEditor(undefined);
+    setDateIncomplete(false);
+    setDiscardOpen(false);
     setFieldErrors({});
     setActionFailure("");
     onClearError?.();
@@ -248,20 +287,58 @@ export function LearningPlanPanel({
     );
     returnFocus(created);
   }
+  function requestCancelEditor() {
+    if (running.current || locked) return;
+    if (!editorChanged && !uncertain) {
+      cancelEditor();
+      return;
+    }
+    setDiscardOpen(true);
+    requestAnimationFrame(() => {
+      if (active.current && panelVisible)
+        document.getElementById(`${baseId}-discard-heading`)?.focus();
+    });
+  }
+  function keepEditing() {
+    if (running.current || locked) return;
+    setDiscardOpen(false);
+    requestAnimationFrame(() => {
+      const target = titleInput.current;
+      if (active.current && target?.getClientRects().length) target.focus();
+    });
+  }
   function addStep() {
-    if (editorLocked || steps.length >= 8) return;
+    if (running.current || editorLocked || steps.length >= 8) return;
     const id = newRequestId();
-    setSteps((saved) => [...saved, { id, title: "", completed: false }]);
+    setSteps((saved) =>
+      saved.length >= 8
+        ? saved
+        : [...saved, { id, title: "", completed: false }],
+    );
+    requestAnimationFrame(() => {
+      if (active.current && panelVisible)
+        document.getElementById(`${baseId}-step-${id}`)?.focus();
+    });
+  }
+  function addStarterStep(value: string) {
+    if (running.current || editorLocked || steps.length >= 8) return;
+    if (steps.some((step) => step.title.trim() === value)) return;
+    const id = newRequestId();
+    setSteps((saved) =>
+      saved.length >= 8 || saved.some((step) => step.title.trim() === value)
+        ? saved
+        : [...saved, { id, title: value, completed: false }],
+    );
     requestAnimationFrame(() => {
       if (active.current && panelVisible)
         document.getElementById(`${baseId}-step-${id}`)?.focus();
     });
   }
   function removeStep(id: string) {
-    if (editorLocked) return;
+    if (running.current || editorLocked) return;
     const index = steps.findIndex((step) => step.id === id);
     const remaining = steps.filter((step) => step.id !== id);
-    setSteps(remaining);
+    setSteps((saved) => saved.filter((step) => step.id !== id));
     setFieldErrors((saved) => ({
       ...saved,
       steps: undefined,
@@ -270,8 +347,33 @@ export function LearningPlanPanel({
     requestAnimationFrame(() => {
       if (!active.current || !panelVisible) return;
       const next = remaining[Math.min(index, remaining.length - 1)];
-      if (next) document.getElementById(`${baseId}-step-${next.id}`)?.focus();
+      const target = next
+        ? document.getElementById(`${baseId}-step-${next.id}`)
+        : undefined;
+      if (target?.isConnected) target.focus();
       else addStepButton.current?.focus();
+    });
+  }
+  function moveStep(id: string, position: number) {
+    if (running.current || editorLocked || !Number.isInteger(position)) return;
+    setSteps((saved) => {
+      const from = saved.findIndex((step) => step.id === id);
+      if (
+        from < 0 ||
+        position < 0 ||
+        position >= saved.length ||
+        from === position
+      )
+        return saved;
+      const ordered = [...saved];
+      const [step] = ordered.splice(from, 1);
+      ordered.splice(position, 0, step!);
+      return ordered;
+    });
+    requestAnimationFrame(() => {
+      const target = document.getElementById(`${baseId}-position-${id}`);
+      if (active.current && target?.getClientRects().length)
+        target.focus({ preventScroll: true });
     });
   }
   async function mutate(
@@ -311,7 +413,8 @@ export function LearningPlanPanel({
   }
   function saveGoal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editor || unavailable || readOnly) return;
+    if (!editor || unavailable || readOnly || discardOpen) return;
+    setDiscardOpen(false);
     const errors: FieldErrors = {};
     if (!title.trim()) errors.title = "Give your goal a short name.";
     else if (title.trim().length > 120)
@@ -323,7 +426,10 @@ export function LearningPlanPanel({
     if (normalizedNotes === null)
       errors.notes =
         "Use plain learning notes of 600 characters or fewer, without unsupported characters.";
-    if (dueDate && !validGoalDate(dueDate))
+    if (
+      dateInput.current?.validity.badInput ||
+      (dueDate && !validGoalDate(dueDate))
+    )
       errors.dueDate = "Choose a valid date.";
     const checklist = validateGoalSteps(steps);
     if (!checklist.valid) {
@@ -331,6 +437,7 @@ export function LearningPlanPanel({
       errors.stepId = checklist.stepId;
     }
     setFieldErrors(errors);
+    if (errors.notes || errors.dueDate) setDetailsOpen(true);
     const firstInvalid = errors.title
       ? "title"
       : errors.notes
@@ -370,13 +477,30 @@ export function LearningPlanPanel({
             : "Your changes were saved.",
         );
         setEditor(undefined);
+        setDetailsOpen(false);
         returnFocus(editor.kind === "create");
       },
     );
   }
-  function changeStatus(goal: LearningGoal, target: HTMLButtonElement) {
-    if (editor) return;
+  function changeStatus(
+    goal: LearningGoal,
+    target: HTMLButtonElement,
+    confirmed = false,
+  ) {
+    if (editor || running.current) return;
     returnTarget.current = target;
+    if (
+      goal.status === "active" &&
+      goalChecklist(goal).remaining > 0 &&
+      !confirmed
+    ) {
+      setCompletionGoalId(goal.id);
+      requestAnimationFrame(() => {
+        if (active.current && panelVisible)
+          document.getElementById(`${baseId}-complete-${goal.id}`)?.focus();
+      });
+      return;
+    }
     const status = goal.status === "active" ? "completed" : "active";
     void mutate(
       goal.id,
@@ -389,6 +513,8 @@ export function LearningPlanPanel({
           steps: goal.steps,
         }),
       () => {
+        setCompletionGoalId(undefined);
+        setCompletedGoalId(status === "completed" ? goal.id : undefined);
         setMessage(
           status === "completed"
             ? `“${goal.title}” was marked complete.`
@@ -403,7 +529,7 @@ export function LearningPlanPanel({
     stepId: string,
     target: HTMLInputElement,
   ) {
-    if (editor) return;
+    if (editor || running.current) return;
     returnTarget.current = target;
     const step = goal.steps.find((item) => item.id === stepId);
     if (!step) return;
@@ -453,12 +579,14 @@ export function LearningPlanPanel({
       <p className="learning-plan-boundary">
         Self-reported. No verified skills or course credit.
       </p>
-      <LearningPlanExport
-        studentUid={studentUid}
-        disabled={unavailable}
-        visible={panelVisible}
-        onFailure={onFailure}
-      />
+      {Boolean(goals?.length) && (
+        <LearningPlanExport
+          studentUid={studentUid}
+          disabled={unavailable}
+          visible={panelVisible}
+          onFailure={onFailure}
+        />
+      )}
       {focusGoalId &&
         missingGoalId === focusGoalId &&
         !goals?.some((goal) => goal.id === focusGoalId) && (
@@ -504,10 +632,32 @@ export function LearningPlanPanel({
         {message ||
           (loading ? "Loading goals…" : pending ? "Saving your goal…" : "")}
       </div>
+      {completedGoalId && !editor && filter !== "completed" && (
+        <button
+          type="button"
+          className="learning-plan-link learning-plan-saved-action"
+          disabled={locked}
+          onClick={() => {
+            setFilter("completed");
+            setSearch("");
+            setCompletedGoalId(undefined);
+            heading.current?.focus();
+          }}
+        >
+          View completed goals
+        </button>
+      )}
       {!readOnly && editor && (
         <form
           className="learning-plan-editor"
           onSubmit={saveGoal}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && discardOpen) {
+              event.preventDefault();
+              event.stopPropagation();
+              keepEditing();
+            }
+          }}
           noValidate
           aria-labelledby={`${baseId}-editor-heading`}
           aria-busy={locked}
@@ -525,9 +675,13 @@ export function LearningPlanPanel({
             <label htmlFor={`${baseId}-title`}>Goal</label>
             <input
               id={`${baseId}-title`}
+              dir="auto"
               ref={titleInput}
               value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                setFieldErrors((saved) => ({ ...saved, title: undefined }));
+              }}
               maxLength={120}
               required
               disabled={locked}
@@ -547,13 +701,41 @@ export function LearningPlanPanel({
               </p>
             )}
           </div>
-          <div className="learning-plan-editor-details">
+          {!showEditorDetails && (
+            <button
+              type="button"
+              className="learning-plan-link learning-plan-details-trigger"
+              aria-expanded={false}
+              aria-controls={`${baseId}-optional-details`}
+              disabled={editorLocked}
+              onClick={() => {
+                setDetailsOpen(true);
+                requestAnimationFrame(() => {
+                  const target = document.getElementById(`${baseId}-notes`);
+                  if (active.current && target?.getClientRects().length)
+                    target.focus();
+                });
+              }}
+            >
+              Add notes or a target date
+              <span aria-hidden="true">+</span>
+            </button>
+          )}
+          <div
+            id={`${baseId}-optional-details`}
+            className="learning-plan-editor-details"
+            hidden={!showEditorDetails}
+          >
             <div className="learning-plan-field">
               <label htmlFor={`${baseId}-notes`}>Notes (optional)</label>
               <textarea
                 id={`${baseId}-notes`}
+                dir="auto"
                 value={notes}
-                onChange={(event) => setNotes(event.target.value)}
+                onChange={(event) => {
+                  setNotes(event.target.value);
+                  setFieldErrors((saved) => ({ ...saved, notes: undefined }));
+                }}
                 maxLength={600}
                 rows={3}
                 disabled={locked}
@@ -580,9 +762,22 @@ export function LearningPlanPanel({
               <label htmlFor={`${baseId}-date`}>Target date (optional)</label>
               <input
                 id={`${baseId}-date`}
+                ref={dateInput}
                 type="date"
                 value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
+                onChange={(event) => {
+                  setDueDate(event.target.value);
+                  setFieldErrors((saved) => ({ ...saved, dueDate: undefined }));
+                }}
+                onInput={(event) => {
+                  const incomplete = event.currentTarget.validity.badInput;
+                  setDateIncomplete(incomplete);
+                  if (!incomplete)
+                    setFieldErrors((saved) => ({
+                      ...saved,
+                      dueDate: undefined,
+                    }));
+                }}
                 min="0001-01-01"
                 max="9999-12-31"
                 disabled={locked}
@@ -612,19 +807,65 @@ export function LearningPlanPanel({
             aria-describedby={`${baseId}-steps-help`}
           >
             <legend>Steps (optional)</legend>
-            <p id={`${baseId}-steps-help`}>
-              Up to 8 steps. Saved with your goal.
-            </p>
+            <p id={`${baseId}-steps-help`}>Up to 8 steps.</p>
+            {steps.length === 0 && (
+              <div
+                className="learning-plan-step-ideas"
+                role="group"
+                aria-label="Suggested starting steps"
+              >
+                {starterSteps.map((idea) => (
+                  <button
+                    type="button"
+                    key={idea}
+                    disabled={editorLocked}
+                    onClick={() => addStarterStep(idea)}
+                  >
+                    <span aria-hidden="true">+</span> {idea}
+                  </button>
+                ))}
+              </div>
+            )}
             {steps.length > 0 && (
               <ol className="learning-plan-edit-step-list">
                 {steps.map((step, index) => (
                   <li key={step.id}>
                     <div className="learning-plan-field">
-                      <label htmlFor={`${baseId}-step-${step.id}`}>
-                        Step {index + 1}
-                      </label>
+                      <div className="learning-plan-step-caption">
+                        <label htmlFor={`${baseId}-step-${step.id}`}>
+                          Step {index + 1}
+                        </label>
+                        {steps.length > 1 && (
+                          <div className="learning-plan-step-position">
+                            <label
+                              className="sr-only"
+                              htmlFor={`${baseId}-position-${step.id}`}
+                            >
+                              Move step {index + 1} to position
+                            </label>
+                            <select
+                              id={`${baseId}-position-${step.id}`}
+                              value={index}
+                              disabled={editorLocked}
+                              onChange={(event) =>
+                                moveStep(
+                                  step.id,
+                                  Number(event.currentTarget.value),
+                                )
+                              }
+                            >
+                              {steps.map((item, position) => (
+                                <option key={item.id} value={position}>
+                                  {position + 1} of {steps.length}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
                       <input
                         id={`${baseId}-step-${step.id}`}
+                        dir="auto"
                         value={step.title}
                         maxLength={120}
                         readOnly={uncertain}
@@ -636,6 +877,15 @@ export function LearningPlanPanel({
                                 ? { ...item, title: value }
                                 : item,
                             ),
+                          );
+                          setFieldErrors((saved) =>
+                            saved.stepId === step.id
+                              ? {
+                                  ...saved,
+                                  steps: undefined,
+                                  stepId: undefined,
+                                }
+                              : saved,
                           );
                         }}
                         aria-invalid={fieldErrors.stepId === step.id}
@@ -700,11 +950,11 @@ export function LearningPlanPanel({
               <span>{steps.length} / 8</span>
             </div>
           </fieldset>
-          <div className="learning-plan-editor-actions">
+          <div className="learning-plan-editor-actions" hidden={discardOpen}>
             <button
               className="learning-plan-primary"
               type="submit"
-              disabled={unavailable}
+              disabled={unavailable || discardOpen}
             >
               {pending === "editor"
                 ? "Saving…"
@@ -718,120 +968,172 @@ export function LearningPlanPanel({
               className="learning-plan-secondary"
               type="button"
               disabled={locked}
-              onClick={cancelEditor}
+              onClick={requestCancelEditor}
             >
               Cancel
             </button>
           </div>
+          {discardOpen && (
+            <div
+              className="learning-plan-discard"
+              role="group"
+              aria-labelledby={`${baseId}-discard-heading`}
+            >
+              <h4 id={`${baseId}-discard-heading`} tabIndex={-1}>
+                {uncertain
+                  ? "Close this unconfirmed draft?"
+                  : "Discard unsaved changes?"}
+              </h4>
+              {uncertain && (
+                <p>
+                  A save may have reached the server. Check saved goals before
+                  editing again.
+                </p>
+              )}
+              <div className="learning-plan-completion-actions">
+                <button
+                  type="button"
+                  className="learning-plan-primary"
+                  disabled={locked}
+                  onClick={keepEditing}
+                >
+                  Keep editing
+                </button>
+                <button
+                  type="button"
+                  className="learning-plan-secondary"
+                  disabled={locked}
+                  onClick={cancelEditor}
+                >
+                  {uncertain ? "Close draft" : "Discard changes"}
+                </button>
+              </div>
+            </div>
+          )}
         </form>
       )}
       {goals !== undefined && (
         <>
-          <div className="learning-plan-toolbar">
-            <div
-              className="learning-plan-filters"
-              role="group"
-              aria-label="Filter learning goals"
-            >
-              {(["active", "completed", "all"] as const).map((value) => {
-                const label =
-                  value === "active"
-                    ? "Active"
-                    : value === "completed"
-                      ? "Completed"
-                      : "All";
-                const count =
-                  value === "active"
-                    ? activeCount
-                    : value === "completed"
-                      ? completedCount
-                      : goals.length;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    className="learning-plan-filter"
-                    aria-pressed={filter === value}
-                    aria-label={`${label} goals (${count})`}
+          {showOrganization && (
+            <>
+              <div className="learning-plan-toolbar">
+                <div
+                  className="learning-plan-filters"
+                  role="group"
+                  aria-label="Filter learning goals"
+                >
+                  {(["active", "completed", "all"] as const).map((value) => {
+                    const label =
+                      value === "active"
+                        ? "Active"
+                        : value === "completed"
+                          ? "Completed"
+                          : "All";
+                    const count =
+                      value === "active"
+                        ? activeCount
+                        : value === "completed"
+                          ? completedCount
+                          : goals.length;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        className="learning-plan-filter"
+                        aria-pressed={filter === value}
+                        aria-label={`${label} goals (${count})`}
+                        disabled={locked}
+                        onClick={() => {
+                          setFilter(value);
+                          if (
+                            !goals.length &&
+                            !search.length &&
+                            value === "active"
+                          )
+                            requestAnimationFrame(() => {
+                              if (active.current && panelVisible)
+                                heading.current?.focus();
+                            });
+                        }}
+                      >
+                        {label}
+                        <span aria-hidden="true">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="learning-plan-organization">
+                <div className="learning-plan-search">
+                  <label htmlFor={`${baseId}-search`} className="sr-only">
+                    Search
+                  </label>
+                  <div className="learning-plan-search-control">
+                    <input
+                      id={`${baseId}-search`}
+                      ref={searchInput}
+                      type="search"
+                      aria-label="Search learning goals"
+                      dir="auto"
+                      placeholder="Search"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      maxLength={120}
+                      autoComplete="off"
+                      disabled={locked}
+                    />
+                    {search.length > 0 && (
+                      <button
+                        className="learning-plan-search-clear"
+                        aria-label="Clear search"
+                        type="button"
+                        disabled={locked}
+                        onClick={clearSearch}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="learning-plan-sort-control">
+                  <label htmlFor={`${baseId}-sort`} className="sr-only">
+                    Sort
+                  </label>
+                  <select
+                    id={`${baseId}-sort`}
+                    value={sort}
+                    aria-label="Sort goals"
                     disabled={locked}
-                    onClick={() => setFilter(value)}
-                  >
-                    {label}
-                    <span aria-hidden="true">{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="learning-plan-organization">
-            <div className="learning-plan-search">
-              <label htmlFor={`${baseId}-search`} className="sr-only">
-                Search
-              </label>
-              <div className="learning-plan-search-control">
-                <input
-                  id={`${baseId}-search`}
-                  ref={searchInput}
-                  type="search"
-                  aria-label="Search learning goals"
-                  placeholder="Search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  maxLength={120}
-                  autoComplete="off"
-                  disabled={locked}
-                />
-                {search.length > 0 && (
-                  <button
-                    className="learning-plan-search-clear"
-                    aria-label="Clear search"
-                    type="button"
-                    disabled={locked}
-                    onClick={() => {
-                      setSearch("");
-                      searchInput.current?.focus({ preventScroll: true });
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setSort(
+                        next === "title" || next === "updated"
+                          ? next
+                          : "target",
+                      );
                     }}
                   >
-                    Clear
-                  </button>
-                )}
+                    <option value="target">
+                      {filter === "completed"
+                        ? "Recently completed"
+                        : "Nearest target date"}
+                    </option>
+                    <option value="updated">Recently updated</option>
+                    <option value="title">Goal name</option>
+                  </select>
+                </div>
               </div>
-            </div>
-            <div className="learning-plan-sort-control">
-              <label htmlFor={`${baseId}-sort`} className="sr-only">
-                Sort
-              </label>
-              <select
-                id={`${baseId}-sort`}
-                value={sort}
-                aria-label="Sort goals"
-                disabled={locked}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  setSort(
-                    next === "title" || next === "updated" ? next : "target",
-                  );
-                }}
+              <p
+                className="learning-plan-results"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
               >
-                <option value="target">
-                  {filter === "completed"
-                    ? "Recently completed"
-                    : "Nearest target date"}
-                </option>
-                <option value="updated">Recently updated</option>
-                <option value="title">Goal name</option>
-              </select>
-            </div>
-          </div>
-          <p
-            className="learning-plan-results"
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {visible.length} / {filteredCount}{" "}
-            {filteredCount === 1 ? "goal" : "goals"}
-          </p>
+                {visible.length} / {filteredCount}{" "}
+                {filteredCount === 1 ? "goal" : "goals"}
+              </p>
+            </>
+          )}
           {full && !readOnly && (
             <p className="learning-plan-limit">
               All 100 goal spaces are in use. You can still edit, complete or
@@ -844,9 +1146,10 @@ export function LearningPlanPanel({
               aria-label="Saved learning goals"
             >
               {visible.map((goal) => {
-                const due = goalDueLabel(goal.dueDate, today);
+                const due = goalTargetLabel(goal.dueDate, today);
                 const completed = goal.status === "completed";
                 const changing = pending === goal.id;
+                const checklist = goalChecklist(goal);
                 return (
                   <li
                     key={goal.id}
@@ -866,12 +1169,23 @@ export function LearningPlanPanel({
                       {goal.steps.length > 0 && (
                         <div className="learning-plan-saved-steps">
                           <p className="learning-plan-step-summary">
-                            {goal.steps.filter((step) => step.completed).length}{" "}
-                            / {goal.steps.length} steps
+                            {checklist.completed} / {goal.steps.length} steps
                           </p>
+                          <progress
+                            className="learning-plan-goal-meter"
+                            value={checklist.completed}
+                            max={goal.steps.length}
+                            aria-label={`Checklist progress for “${goal.title}”`}
+                          />
                           <ul aria-label={`Steps for “${goal.title}”`}>
                             {goal.steps.map((step) => (
-                              <li key={step.id}>
+                              <li
+                                key={step.id}
+                                data-next={
+                                  !completed && checklist.next?.id === step.id
+                                }
+                                data-step-completed={step.completed}
+                              >
                                 {readOnly ? (
                                   <span className="learning-plan-read-step">
                                     <span aria-hidden="true">
@@ -902,12 +1216,25 @@ export function LearningPlanPanel({
                                       }
                                       aria-label={`${step.completed ? "Reopen" : "Complete"} step “${step.title}”`}
                                     />
-                                    <span>{step.title}</span>
+                                    <span>
+                                      {step.title}
+                                      {!completed &&
+                                        checklist.next?.id === step.id && (
+                                          <span className="learning-plan-next-label">
+                                            Next step
+                                          </span>
+                                        )}
+                                    </span>
                                   </label>
                                 )}
                               </li>
                             ))}
                           </ul>
+                          {!completed && checklist.remaining === 0 && (
+                            <p className="learning-plan-steps-done">
+                              Steps done. Complete the goal when you’re ready.
+                            </p>
+                          )}
                         </div>
                       )}
                       <p className="learning-plan-meta">
@@ -929,6 +1256,65 @@ export function LearningPlanPanel({
                         )}
                       </p>
                     </div>
+                    {completionGoalId === goal.id &&
+                      !completed &&
+                      checklist.remaining > 0 && (
+                        <div
+                          className="learning-plan-completion-check"
+                          role="group"
+                          aria-labelledby={`${baseId}-complete-${goal.id}`}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (!running.current && !locked) {
+                                setCompletionGoalId(undefined);
+                                returnFocus();
+                              }
+                            }
+                          }}
+                        >
+                          <div>
+                            <h4
+                              id={`${baseId}-complete-${goal.id}`}
+                              tabIndex={-1}
+                            >
+                              {checklist.remaining}{" "}
+                              {checklist.remaining === 1
+                                ? "step is"
+                                : "steps are"}{" "}
+                              still open.
+                            </h4>
+                            <p>
+                              You can complete this goal and keep its checklist
+                              as it is.
+                            </p>
+                          </div>
+                          <div className="learning-plan-completion-actions">
+                            <button
+                              type="button"
+                              className="learning-plan-secondary"
+                              disabled={unavailable || !!editor}
+                              onClick={() => {
+                                setCompletionGoalId(undefined);
+                                returnFocus();
+                              }}
+                            >
+                              Keep working
+                            </button>
+                            <button
+                              type="button"
+                              className="learning-plan-primary"
+                              disabled={unavailable || !!editor}
+                              onClick={(event) =>
+                                changeStatus(goal, event.currentTarget, true)
+                              }
+                            >
+                              {changing ? "Saving…" : "Complete anyway"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     <div className="learning-plan-row-actions">
                       <button
                         className="learning-plan-link learning-plan-evidence-trigger"
@@ -1011,12 +1397,56 @@ export function LearningPlanPanel({
                   {search.trim()
                     ? "No goals match this search."
                     : goals.length === 0
-                      ? "No goals yet."
+                      ? readOnly
+                        ? "No learning goals yet."
+                        : "Start with one small goal."
                       : filter === "completed"
                         ? "No completed goals yet."
-                        : "No active goals."}
+                        : "Your goals are complete."}
                 </h3>
                 {search.trim() && <p>Clear search or change the filter.</p>}
+                {readOnly && goals.length === 0 && !search.trim() && (
+                  <p>The student’s saved goals will appear here.</p>
+                )}
+                {!search.trim() && goals.length > 0 && filter === "active" && (
+                  <p>
+                    {readOnly
+                      ? "Completed goals are saved in the Completed tab."
+                      : "Add a new goal when you’re ready, or revisit a completed one."}
+                  </p>
+                )}
+                {!readOnly &&
+                  !editor &&
+                  !search.trim() &&
+                  goals.length === 0 && (
+                    <div className="learning-plan-starters">
+                      <p>Choose an idea. Make it yours.</p>
+                      <div role="group" aria-label="Goal ideas">
+                        {[
+                          "Explore something new",
+                          "Practice a skill",
+                          "Finish a project",
+                        ].map((idea) => (
+                          <button
+                            type="button"
+                            key={idea}
+                            disabled={unavailable || full}
+                            onClick={(event) => {
+                              if (unavailable || full) return;
+                              openEditor(
+                                { kind: "create" },
+                                event.currentTarget,
+                                idea,
+                              );
+                            }}
+                          >
+                            {idea}
+                            <span aria-hidden="true">+</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </div>
             )
           )}

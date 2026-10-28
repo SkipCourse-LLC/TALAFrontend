@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { newRequestId, safeTalaApiError, talaApi, TalaApiError } from "../api";
 import type { WorkspaceUpdate, WorkspaceUpdatesPage } from "../api";
 import {
@@ -56,6 +63,14 @@ function UpdateSymbol({ type }: { type: WorkspaceUpdate["type"] }) {
   );
 }
 
+function openLabel(type: WorkspaceUpdate["type"]) {
+  return type === "appointment"
+    ? "View meeting"
+    : type === "learning"
+      ? "View record"
+      : "View evidence";
+}
+
 export function WorkspaceUpdates({
   studentUid,
   readOnly,
@@ -81,7 +96,7 @@ export function WorkspaceUpdates({
   const baseId = useId();
   const scope = studentUid ?? "self";
   const [filter, setFilter] = useState<UpdateFilter>("all");
-  const key = `${scope}:${filter}`;
+  const key = `${scope}:${readOnly ? "family" : "student"}:${filter}`;
   const [saved, setSaved] = useState<SavedUpdates>();
   const savedRef = useRef<SavedUpdates | undefined>(undefined);
   const [loading, setLoading] = useState(false);
@@ -105,6 +120,12 @@ export function WorkspaceUpdates({
   const errorMessage = useRef<HTMLDivElement>(null);
   const announcement = useRef<HTMLParagraphElement>(null);
   const focusAfterRefresh = useRef<string | undefined>(undefined);
+  const context = useRef({ scope, key, enabled, readOnly });
+  useLayoutEffect(() => {
+    // Block late continuations as soon as access/scope changes, before the
+    // passive effects abort requests and start a newly scoped page.
+    context.current = { scope, key, enabled, readOnly };
+  }, [scope, key, enabled, readOnly]);
   const current =
     enabled && deniedScope !== scope && saved?.key === key ? saved : undefined;
   const problem = issue?.scope === scope ? issue : undefined;
@@ -143,7 +164,7 @@ export function WorkspaceUpdates({
     [scope, updateIssue],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -295,6 +316,8 @@ export function WorkspaceUpdates({
       .then((page) => {
         if (
           !mounted.current ||
+          !context.current.enabled ||
+          context.current.key !== key ||
           controller.signal.aborted ||
           version !== generation.current
         )
@@ -317,6 +340,8 @@ export function WorkspaceUpdates({
       .catch((failure: unknown) => {
         if (
           !mounted.current ||
+          !context.current.enabled ||
+          context.current.key !== key ||
           controller.signal.aborted ||
           version !== generation.current
         )
@@ -361,17 +386,19 @@ export function WorkspaceUpdates({
     actionRequest.current?.abort();
     running.current = false;
     requestIds.current.clear();
+    issueRef.current = undefined;
     const timer = window.setTimeout(() => {
       if (mounted.current) {
         setPending(undefined);
         setNotice("");
+        updateIssue(undefined);
       }
     }, 0);
     return () => {
       window.clearTimeout(timer);
       actionRequest.current?.abort();
     };
-  }, [scope, readOnly]);
+  }, [scope, readOnly, updateIssue]);
 
   function refresh() {
     if (busy || !visible || !enabled) return;
@@ -408,6 +435,8 @@ export function WorkspaceUpdates({
       );
       if (
         !mounted.current ||
+        !context.current.enabled ||
+        context.current.key !== key ||
         controller.signal.aborted ||
         version !== generation.current
       )
@@ -442,6 +471,8 @@ export function WorkspaceUpdates({
     } catch (failure) {
       if (
         !mounted.current ||
+        !context.current.enabled ||
+        context.current.key !== key ||
         controller.signal.aborted ||
         version !== generation.current
       )
@@ -493,6 +524,9 @@ export function WorkspaceUpdates({
         );
         if (
           !mounted.current ||
+          !context.current.enabled ||
+          context.current.readOnly ||
+          context.current.scope !== scope ||
           controller.signal.aborted ||
           version !== actionGeneration.current
         )
@@ -510,6 +544,9 @@ export function WorkspaceUpdates({
         );
         if (
           !mounted.current ||
+          !context.current.enabled ||
+          context.current.readOnly ||
+          context.current.scope !== scope ||
           controller.signal.aborted ||
           version !== actionGeneration.current
         )
@@ -524,6 +561,9 @@ export function WorkspaceUpdates({
     } catch (failure) {
       if (
         !mounted.current ||
+        !context.current.enabled ||
+        context.current.readOnly ||
+        context.current.scope !== scope ||
         controller.signal.aborted ||
         version !== actionGeneration.current
       )
@@ -549,6 +589,11 @@ export function WorkspaceUpdates({
           <h2 id="updates-heading" tabIndex={-1} ref={heading}>
             Updates
           </h2>
+          {readOnly && (
+            <span className="workspace-updates-family-badge">
+              Student updates · Read-only
+            </span>
+          )}
         </div>
         <button
           className="workspace-updates-secondary"
@@ -581,6 +626,7 @@ export function WorkspaceUpdates({
               }
               disabled={busy || !visible || denied}
               onClick={() => {
+                if (filter === value) return;
                 setFilter(value);
                 if (issueRef.current?.kind !== "action") updateIssue(undefined);
                 setNotice("");
@@ -629,14 +675,14 @@ export function WorkspaceUpdates({
               className="workspace-updates-text"
               disabled={busy || loading || loadingMore || !visible}
               onClick={() =>
-                problem.kind === "action" && problem.action
+                problem.kind === "action" && problem.action && !readOnly
                   ? void markRead(problem.action)
                   : problem.kind === "more"
                     ? void loadMore()
                     : refresh()
               }
             >
-              {problem.kind === "action"
+              {problem.kind === "action" && !readOnly
                 ? "Retry saving read status"
                 : problem.kind === "more"
                   ? "Retry loading more updates"
@@ -683,7 +729,10 @@ export function WorkspaceUpdates({
                   <div className="workspace-updates-content">
                     <p className="workspace-updates-meta">
                       <span>{workspaceUpdateType(item.type)}</span>
-                      <time dateTime={item.occurredAt}>
+                      <time
+                        dateTime={item.occurredAt}
+                        title={new Date(item.occurredAt).toLocaleString()}
+                      >
                         {workspaceUpdateTime(item.occurredAt)}
                       </time>
                     </p>
@@ -693,9 +742,11 @@ export function WorkspaceUpdates({
                           <span className="sr-only">Unread: </span>
                         </span>
                       )}
-                      {item.title}
+                      <bdi>{item.title}</bdi>
                     </h4>
-                    <p className="workspace-updates-summary">{item.summary}</p>
+                    <p className="workspace-updates-summary" dir="auto">
+                      {item.summary}
+                    </p>
                     <div className="workspace-updates-row-actions">
                       <button
                         className="workspace-updates-open"
@@ -711,7 +762,7 @@ export function WorkspaceUpdates({
                             );
                         }}
                       >
-                        Open
+                        {openLabel(item.type)}
                         <svg
                           width="16"
                           height="16"
@@ -757,6 +808,25 @@ export function WorkspaceUpdates({
           <h3>
             {filter === "unread" ? "You’re up to date." : "No updates yet."}
           </h3>
+          <p>
+            {filter === "unread"
+              ? "No unread updates."
+              : "Meeting, learning and feedback updates appear here."}
+          </p>
+          {filter === "unread" && (
+            <button
+              type="button"
+              disabled={busy || loadingMore}
+              className="workspace-updates-secondary"
+              onClick={() => {
+                setFilter("all");
+                if (issueRef.current?.kind !== "action") updateIssue(undefined);
+                setNotice("");
+              }}
+            >
+              View all updates
+            </button>
+          )}
         </div>
       )}
       {!denied && current?.nextCursor && (

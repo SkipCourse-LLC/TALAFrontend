@@ -46,7 +46,7 @@ function email(value) {
 function password(value, register = true) {
   // Keep existing credentials readable while preventing new UTF-8 replacement
   // aliases when a new password reaches the password hashing implementation.
-  if (typeof value !== "string" || (register && !wellFormedText(value)) || value.length > 128 || value.length < (register ? 12 : 1)) fail(400, "INVALID_INPUT", "Use a password containing 12 to 128 characters.");
+  if (typeof value !== "string" || (register && !wellFormedText(value)) || value.length > 128 || value.length < (register ? 8 : 1)) fail(400, "INVALID_INPUT", "Use a password containing 8 to 128 characters.");
   return value;
 }
 async function expensive(fn) {

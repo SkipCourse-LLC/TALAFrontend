@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReflectionDraft } from "../api";
 import { reflectionDraftProblem } from "../api/reflectionDraftContract";
 import type { ReflectionDraftState } from "./useReflectionDraft";
+import { LearningGlyph } from "./LearningGlyph";
 import "./reflectionDraft.css";
 
 type Confirmation =
@@ -38,6 +39,7 @@ export function ReflectionDraftPanel({
   const [confirmation, setConfirmation] = useState<Confirmation>();
   const [checking, setChecking] = useState(false);
   const [editorOwnsBase, setEditorOwnsBase] = useState(false);
+  const [checkedEmpty, setCheckedEmpty] = useState(false);
   const handledResume = useRef(0);
   const resumeAction = useRef<(() => void) | null>(null);
   const currentWriting = useRef({
@@ -59,7 +61,7 @@ export function ReflectionDraftPanel({
   const errorTarget = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
   const visibility = useRef(visible);
-  useEffect(() => {
+  useLayoutEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -77,11 +79,18 @@ export function ReflectionDraftPanel({
   const sameWriting = (value: ReflectionDraft) =>
     value.title === title && value.text === text;
   const changed = !base || !sameWriting(base);
+  const matchesSaved =
+    canSave &&
+    !hasNonTextWork &&
+    state.saved?.status === "saved" &&
+    sameWriting(state.saved);
+  const hasUnsavedWriting = canSave && Boolean(title || text) && !matchesSaved;
 
   function restore(value: ReflectionDraft) {
     state.acceptCheckedVersion();
     setBase(value);
     setEditorOwnsBase(true);
+    setCheckedEmpty(false);
     onRestore(value);
     setConfirmation(undefined);
     requestAnimationFrame(() => {
@@ -99,6 +108,16 @@ export function ReflectionDraftPanel({
       // the latest committed writing, not the values when Resume was clicked.
       const writing = currentWriting.current;
       if (writing.disabled) return;
+      if (value.status === "empty") {
+        // Checking a cleared server draft is a read, never consent to erase
+        // writing, a selected file, or a revision in the current editor.
+        setBase(value);
+        setEditorOwnsBase(false);
+        setCheckedEmpty(true);
+        state.acceptCheckedVersion();
+        return;
+      }
+      setCheckedEmpty(false);
       if (
         writing.hasNonTextWork ||
         (writing.hasLocalWork &&
@@ -115,6 +134,7 @@ export function ReflectionDraftPanel({
     if (value && mounted.current) {
       setBase(value);
       setEditorOwnsBase(true);
+      setCheckedEmpty(false);
     }
     if (mounted.current) setConfirmation(undefined);
   }
@@ -160,45 +180,75 @@ export function ReflectionDraftPanel({
     >
       <div className="reflection-draft-heading">
         <div>
-          <h3 id={`${baseId}-heading`}>Draft</h3>
+          <h3 id={`${baseId}-heading`}>Reflection draft</h3>
         </div>
-        <span className="reflection-draft-badge">Not submitted</span>
+        <span
+          className="reflection-draft-badge"
+          data-status={
+            state.uncertain || state.conflict ? "attention" : "private"
+          }
+        >
+          {state.uncertain
+            ? "Save unconfirmed"
+            : state.conflict
+              ? "Check saved version"
+              : "Not submitted"}
+        </span>
       </div>
       {state.loading && <p role="status">Loading…</p>}
       {state.saved?.status === "saved" && (
         <div className="reflection-draft-saved">
+          <span className="reflection-draft-receipt-icon">
+            <LearningGlyph name="book" />
+          </span>
           <p>
-            <strong>{state.saved.title.trim() || "Untitled reflection"}</strong>
+            <strong>
+              <bdi>{state.saved.title.trim() || "Untitled reflection"}</bdi>
+            </strong>
             <span>
-              Saved{" "}
-              {state.saved.updatedAt
-                ? new Date(state.saved.updatedAt).toLocaleString()
-                : ""}
+              {state.saved.updatedAt && (
+                <time
+                  dateTime={state.saved.updatedAt}
+                  title={new Date(state.saved.updatedAt).toLocaleString()}
+                >
+                  Saved{" "}
+                  {new Date(state.saved.updatedAt).toLocaleString(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </time>
+              )}
             </span>
           </p>
-          <button
-            type="button"
-            aria-label="Resume saved reflection"
-            disabled={locked}
-            onClick={() => void checkSaved()}
-          >
-            Resume
-          </button>
-          <button
-            type="button"
-            aria-label="Clear saved draft"
-            disabled={locked || state.uncertain}
-            onClick={() =>
-              state.saved &&
-              setConfirmation({ kind: "clear", value: state.saved })
-            }
-          >
-            Clear
-          </button>
+          <div className="reflection-draft-receipt-actions">
+            <button
+              type="button"
+              aria-label="Resume saved reflection"
+              disabled={locked}
+              onClick={() => void checkSaved()}
+            >
+              {checking ? "Checking…" : "Resume"}
+            </button>
+            <button
+              type="button"
+              aria-label="Clear saved draft"
+              disabled={locked || state.uncertain}
+              onClick={() =>
+                state.saved &&
+                setConfirmation({ kind: "clear", value: state.saved })
+              }
+            >
+              Clear
+            </button>
+          </div>
         </div>
       )}
       {state.saved?.status === "empty" && (
-        <p className="reflection-draft-empty">No saved draft.</p>
+        <p className="reflection-draft-empty">
+          {checkedEmpty
+            ? "No saved draft. Your current work is kept."
+            : "No saved draft."}
+        </p>
       )}
       <div className="reflection-draft-actions">
         {canSave && (
@@ -229,7 +279,11 @@ export function ReflectionDraftPanel({
             disabled={locked}
             onClick={async () => {
               const value = await state.retry();
-              if (value && mounted.current) setBase(value);
+              if (value && mounted.current) {
+                setBase(value);
+                setEditorOwnsBase(value.status === "saved");
+                setCheckedEmpty(false);
+              }
             }}
           >
             {state.pendingKind === "clear"
@@ -250,6 +304,24 @@ export function ReflectionDraftPanel({
           </button>
         )}
       </div>
+      {canSave &&
+        !state.uncertain &&
+        !state.conflict &&
+        !state.error &&
+        !state.busy &&
+        !state.loading && (
+          <p
+            className="reflection-draft-writing-state"
+            data-saved={matchesSaved}
+          >
+            {matchesSaved && <LearningGlyph name="check" />}
+            {matchesSaved
+              ? "Saved. You can return later."
+              : hasUnsavedWriting
+                ? "Unsaved changes"
+                : "Save a reflection to continue later."}
+          </p>
+        )}
       {canSave && problem && (title || text) && (
         <p className="reflection-draft-help">{problem}</p>
       )}
@@ -267,7 +339,7 @@ export function ReflectionDraftPanel({
         {state.notice}
       </p>
       <details className="reflection-draft-info">
-        <summary aria-label="About drafts">About</summary>
+        <summary aria-label="About drafts">About this draft</summary>
         <p>
           Private title and text only. No files or revisions. Kept after
           submission.
@@ -361,7 +433,7 @@ function DraftConfirmation({
       </h2>
       <p id={`${baseId}-help`}>
         {clearing
-          ? "Your current writing and submitted work stay. Backups may retain older copies."
+          ? "Only the saved draft is cleared. Your current writing and submitted work stay. Backups may retain older copies."
           : kind === "restore"
             ? "Starts a new submission. Replaces current writing and clears selected files and revision choices."
             : "Replaces the saved draft with this writing. Evidence stays unchanged."}
@@ -379,7 +451,7 @@ function DraftConfirmation({
           onClick={onCancel}
           aria-label={clearing ? "Keep saved draft" : "Keep my writing"}
         >
-          Keep
+          {clearing ? "Keep draft" : "Keep my writing"}
         </button>
         <button
           type="button"
@@ -395,7 +467,13 @@ function DraftConfirmation({
                   : "Replace saved reflection"
           }
         >
-          {busy ? "Saving…" : clearing ? "Clear" : "Replace"}
+          {busy
+            ? "Saving…"
+            : clearing
+              ? "Clear draft"
+              : kind === "restore"
+                ? "Use saved draft"
+                : "Replace draft"}
         </button>
       </div>
     </dialog>

@@ -15,19 +15,27 @@ import { ServerAccessPage } from "./ServerAccessPage";
 import { ServerWorkspace } from "./ServerWorkspace";
 import { OperatorWorkspace } from "./OperatorWorkspace";
 import { AccountSecurityPage } from "./AccountSecurityPage";
+import { ApplicationConnectionNotice } from "./ApplicationConnectionNotice";
 import { useSessionPrivacy } from "./useSessionPrivacy";
 import { WorkspaceVisibility } from "./workspaceVisibility";
+import { readWorkspaceView, workspaceViews } from "./workspaceViews";
 import "./product.css";
 import "./quietAccount.css";
 
-function IndependentRouteFocus() {
-  const { pathname } = useLocation();
+function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
+  const { pathname, search } = useLocation();
   useEffect(() => {
     if (pathname !== "/dashboard" && pathname !== "/two-factor") return;
+    const view = readWorkspaceView(new URLSearchParams(search).get("view"));
     document.title =
       pathname === "/two-factor"
         ? "Account security | TALA"
-        : "Your workspace | TALA";
+        : role === "operator"
+          ? "Your workspace | TALA"
+          : `${workspaceViews.find((item) => item.id === view)!.label} | TALA`;
+  }, [pathname, search, role]);
+  useEffect(() => {
+    if (pathname !== "/dashboard" && pathname !== "/two-factor") return;
     window.scrollTo({ top: 0, behavior: "instant" });
     document.getElementById("main-content")?.focus({ preventScroll: true });
   }, [pathname]);
@@ -81,7 +89,7 @@ export function ServerApplication() {
     intent,
     onRestored: restored,
   });
-  const { changedHere } = privacy;
+  const { changedHere, retry: revalidateSession } = privacy;
   useEffect(() => {
     active.current = true;
     return () => {
@@ -141,16 +149,21 @@ export function ServerApplication() {
         setError("");
         changedHere();
       }
+    } catch (failure) {
+      // The server may have ended the cookie session before its reply was
+      // lost. Conceal cached records until a fresh read confirms the outcome.
+      if (active.current) revalidateSession();
+      throw failure;
     } finally {
       loggingOut.current = false;
     }
   }
   const expired = useCallback(() => {
-    intent.current++;
-    setUser(null);
-    setAttempt((value) => value + 1);
-    changedHere();
-  }, [changedHere]);
+    // A rejected old response is not proof that the current cookie expired.
+    // Preserve drafts/Files until the privacy layer checks the actual session;
+    // it keeps all private content hidden while that decision is uncertain.
+    revalidateSession();
+  }, [revalidateSession]);
   if (loading)
     return (
       <div className="container state-panel" role="status">
@@ -159,22 +172,14 @@ export function ServerApplication() {
     );
   if (error)
     return (
-      <section className="container state-panel" role="alert">
-        <h1>TALA server unavailable</h1>
-        <p>{error}</p>
-        <p>Start the TALA server, then retry. No sample account is used.</p>
-        <button
-          className="button"
-          type="button"
-          onClick={() => {
-            setLoading(true);
-            setError("");
-            setAttempt((value) => value + 1);
-          }}
-        >
-          Retry connection
-        </button>
-      </section>
+      <ApplicationConnectionNotice
+        error={error}
+        onRetry={() => {
+          setLoading(true);
+          setError("");
+          setAttempt((value) => value + 1);
+        }}
+      />
     );
   const workspace = user ? (
     user.role === "operator" ? (
@@ -331,7 +336,7 @@ export function ServerApplication() {
             </Route>
           </Route>
         </Routes>
-        <IndependentRouteFocus />
+        <IndependentRouteFocus role={user?.role} />
       </div>
     </>
   );

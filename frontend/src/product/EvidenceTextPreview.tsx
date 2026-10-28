@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { safeTalaApiError, talaApi, TalaApiError } from "../api";
 import type { ApiEvidence } from "../api";
 import { useWorkspaceVisible } from "./workspaceVisibility";
@@ -49,10 +49,10 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
     generation.current++;
     request.current?.abort();
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     latest.current = { readOnly, onFailure };
   }, [readOnly, onFailure]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     active.current = true;
     return () => {
       active.current = false;
@@ -74,6 +74,7 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
     running.current = true;
     const ticket = ++generation.current;
     const controller = new AbortController();
+    const opener = document.activeElement;
     request.current = controller;
     setLoading(true);
     setError("");
@@ -156,12 +157,18 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
       }
       setError(
         failure instanceof EvidenceTextEncodingError
-          ? "This file is not valid UTF-8 text, so a preview is unavailable. Use Download this version to read the original file."
+          ? "This text cannot be previewed. Download the original file to read it."
           : problem.message,
       );
       const errorGeneration = generation.current;
       requestAnimationFrame(() => {
-        if (active.current && errorGeneration === generation.current)
+        if (
+          active.current &&
+          errorGeneration === generation.current &&
+          errorTarget.current?.getClientRects().length &&
+          (document.activeElement === opener ||
+            document.activeElement === document.body)
+        )
           errorTarget.current?.focus();
       });
     } finally {
@@ -186,7 +193,7 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
       }}
     >
       <summary ref={summary} aria-label="Read submitted text">
-        Read
+        Read text
       </summary>
       {opened && (
         <div className="evidence-text-preview-content" aria-busy={loading}>
@@ -207,7 +214,7 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
             >
               <p>{error}</p>
               {blocked ? (
-                <p>Close and reload this document to retry.</p>
+                <p>Close this history and refresh your records.</p>
               ) : (
                 <button
                   type="button"
@@ -233,11 +240,14 @@ function PrivateTextReader({ evidence, readOnly, onFailure }: Props) {
                     preview.truncated ? `${baseId}-truncated` : undefined
                   }
                   tabIndex={0}
+                  dir="auto"
                 >
                   {preview.text}
                 </pre>
               ) : (
-                <p className="evidence-text-preview-status">No text.</p>
+                <p className="evidence-text-preview-status">
+                  No readable text in this file.
+                </p>
               )}
               {preview.truncated && (
                 <p

@@ -1,8 +1,9 @@
 .reflection-draft {
   margin: 24px 0;
-  padding: 18px 0;
-  border-top: 1px solid #d0d9d3;
-  background: transparent;
+  padding: 20px;
+  border: 1px solid #d0d9d3;
+  border-radius: 18px;
+  background: #f8faf8;
   color: #202b26;
 }
 .reflection-draft[hidden] {
@@ -12,10 +13,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 .reflection-draft h3 {
-  font-size: 1rem;
+  font-size: calc(1rem * var(--student-type-scale, 1));
   line-height: 1.4;
   margin: 0;
 }
@@ -28,31 +30,56 @@
 }
 .reflection-draft-badge {
   flex-shrink: 0;
-  font-size: 0.75rem;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
   color: #375547;
+  border: 1px solid #d5dfd6;
+  border-radius: 7px;
+  padding: 4px 8px;
+  background: #fff;
+  line-height: 1.5;
+}
+.reflection-draft-badge[data-status="attention"] {
+  color: #785821;
+  background: #fbf7e9;
+  border-color: #e0d6b9;
 }
 .reflection-draft-help,
 .reflection-draft-empty {
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
   color: #52635b;
 }
 .reflection-draft-saved {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 18px;
-  padding: 14px 0 0;
+  gap: 12px;
+  padding: 18px 0 0;
+}
+.reflection-draft-receipt-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  height: 44px;
+  border: 1px solid #d0dcd2;
+  border-radius: 10px;
+  color: #174139;
+  background: #fff;
+}
+.reflection-draft-receipt-icon svg {
+  width: 21px;
+  height: 21px;
 }
 .reflection-draft-saved p {
   flex: 1 1 200px;
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
 }
 .reflection-draft-saved p > span {
   display: block;
   margin-top: 4px;
-  font-size: 0.8125rem;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
   color: #52635b;
 }
 .reflection-draft-actions {
@@ -60,6 +87,9 @@
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 16px;
+}
+.reflection-draft-actions:empty {
+  display: none;
 }
 .reflection-draft button,
 .reflection-draft-dialog button {
@@ -70,16 +100,20 @@
   background: #fff;
   color: #19463e;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
   font-weight: 600;
   cursor: pointer;
 }
 .reflection-draft .reflection-draft-save {
-  background: white;
-  color: #19463e;
-  border-color: #738a7e;
+  background: #19463e;
+  color: #fff;
+  border-color: #19463e;
 }
-.reflection-draft-saved > button {
+.reflection-draft-receipt-actions {
+  display: flex;
+  gap: 12px;
+}
+.reflection-draft-receipt-actions > button {
   border: 0;
   background: transparent;
   padding-inline: 4px;
@@ -89,12 +123,28 @@
 .reflection-draft-info {
   margin-top: 10px;
 }
+.reflection-draft-writing-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0 0;
+  color: #6e592e;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.reflection-draft-writing-state[data-saved="true"] {
+  color: #34584b;
+}
+.reflection-draft-writing-state > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}
 .reflection-draft-info > summary {
   min-height: 44px;
   align-content: center;
   cursor: pointer;
   color: #52635b;
-  font-size: 0.8125rem;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
 }
 .reflection-draft-info > summary:focus-visible {
   outline: 3px solid #19463e;
@@ -102,7 +152,7 @@
   border-radius: 4px;
 }
 .reflection-draft-info p {
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
   color: #52635b;
   margin-block: 6px 0;
 }
@@ -124,7 +174,7 @@
 .reflection-draft-notice {
   margin-block: 12px 0;
   color: #19463e;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
 }
 .reflection-draft-notice:empty {
   margin: 0;
@@ -138,30 +188,41 @@
   border-radius: 16px;
   padding: 28px;
   color: #202b26;
+  overscroll-behavior: contain;
 }
 .reflection-draft-dialog::backdrop {
   background: rgb(12 30 23 / 38%);
 }
 .reflection-draft-dialog h2 {
   margin: 0;
-  font-size: 1.375rem;
+  font-size: calc(1.375rem * var(--student-type-scale, 1));
   line-height: 1.35;
 }
 .reflection-draft-dialog p {
   line-height: 1.7;
+  color: #52635b;
+  font-size: calc(0.9375rem * var(--student-type-scale, 1));
+}
+.reflection-draft-dialog .reflection-draft-actions button:last-child {
+  background: #19463e;
+  color: #fff;
+  border-color: #19463e;
 }
 @media (max-width: 600px) {
   .reflection-draft {
-    padding: 16px 0;
+    padding: 16px;
   }
   .reflection-draft-heading {
     flex-direction: row;
   }
   .reflection-draft-saved {
-    align-items: stretch;
+    align-items: start;
   }
   .reflection-draft-saved p {
-    flex-basis: 100%;
+    flex-basis: calc(100% - 50px);
+  }
+  .reflection-draft-receipt-actions {
+    margin-left: 50px;
   }
   .reflection-draft-actions > button {
     flex: 1 1 180px;

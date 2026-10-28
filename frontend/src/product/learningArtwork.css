@@ -1,0 +1,23 @@
+.learning-artwork {
+  display: block;
+  width: 144px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  flex-shrink: 0;
+  pointer-events: none;
+  user-select: none;
+}
+.learning-artwork[data-variant="notes"],
+.learning-artwork[data-variant="work"] {
+  width: 120px;
+}
+@media (max-width: 480px) {
+  .learning-artwork {
+    width: 120px;
+  }
+  .learning-artwork[data-variant="notes"],
+  .learning-artwork[data-variant="work"] {
+    width: 104px;
+  }
+}

@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { FormEvent, ReactNode } from "react";
 import { talaApi } from "../api";
 import { useStudentPage } from "./useStudentPage";
 import { StudentPageControls } from "./StudentPageControls";
 import type { ApiAppointment, ApiWorkspace, Slot as ApiSlot } from "../api";
 import { MeetingActionDialog } from "./MeetingActionDialog";
 import { useWorkspaceVisible } from "./workspaceVisibility";
+import { useMeetingClock } from "./useMeetingClock";
 import {
   availableMeetingSlots,
   bookingPeriod,
@@ -14,12 +22,19 @@ import {
   bookingHistoryDateRange,
   groupMeetingDays,
   meetingChangeIsCurrent,
-  meetingRange,
 } from "./meetingHelpers";
 import type { BookingHistoryDateRange, MeetingChange } from "./meetingHelpers";
 import "./meetingDateRange.css";
-import "./meetingOperations.css";
+import "./meetingExperience.css";
+import {
+  meetingDateParts,
+  meetingDurationLabel,
+  meetingScheduleLabel,
+  meetingTimeLabel,
+} from "./meetingPresentation";
+import { LearningGlyph } from "./LearningGlyph";
 
+const EMPTY_SLOTS: readonly ApiSlot[] = [];
 type HistoryFilter = "past" | "cancelled" | "upcoming";
 type AppliedHistoryDates = {
   fromDate: string;
@@ -49,6 +64,7 @@ export function MeetingPanel({
   onCalendar,
   onDetails,
   onPrepare,
+  preparation,
 }: {
   workspace?: ApiWorkspace;
   visible: boolean;
@@ -70,17 +86,35 @@ export function MeetingPanel({
   onCalendar: (booking: ApiAppointment) => Promise<boolean>;
   onDetails: (booking: ApiAppointment) => void;
   onPrepare: () => void;
+  preparation?: ReactNode;
 }) {
   const workspaceVisible = useWorkspaceVisible();
-  const [now, setNow] = useState(Date.now);
+  const [initialObservedAt] = useState(Date.now);
   const [slotId, setSlotId] = useState("");
+  const [dayKey, setDayKey] = useState("");
   const [changingBookingId, setChangingBookingId] = useState<string | null>(
     null,
   );
   const [allTimesOpen, setAllTimesOpen] = useState(false);
+  const [dateToolsOpen, setDateToolsOpen] = useState(false);
+  const dateSummary = useRef<HTMLElement>(null);
+  const [bookingPending, setBookingPending] = useState(false);
+  const bookingRunning = useRef(false);
+  const panel = useRef<HTMLElement>(null);
+  const bookingFocus = useRef<{
+    slotId: string;
+    opener: Element | null;
+  } | null>(null);
+  const picker = useRef<HTMLDivElement>(null);
+  const focusedTimeChoice = useRef<HTMLElement | null>(null);
   const availabilityHeading = useRef<HTMLHeadingElement>(null);
+  const historyHeading = useRef<HTMLHeadingElement>(null);
+  const workspaceRetry = useRef<Element | null>(null);
+  const availabilityRetry = useRef<Element | null>(null);
+  const historyRetry = useRef<Element | null>(null);
   const [filter, setFilter] = useState<HistoryFilter>("past");
   const [query, setQuery] = useState("");
+  const historySearch = useRef<HTMLInputElement>(null);
   const dateId = useId();
   const [fromDate, setFromDate] = useState("");
   const [throughDate, setThroughDate] = useState("");
@@ -100,8 +134,19 @@ export function MeetingPanel({
   const confirmRunning = useRef(false);
   const mounted = useRef(false);
   const refreshedBoundary = useRef("");
-  const observedAt = useRef(now);
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const observedAt = useRef(initialObservedAt);
+  const { timeZone, locale } = Intl.DateTimeFormat().resolvedOptions();
+  const dayFormatters = useMemo(
+    () => ({
+      weekday: new Intl.DateTimeFormat(locale, {
+        weekday: "short",
+        timeZone,
+      }),
+      day: new Intl.DateTimeFormat(locale, { day: "numeric", timeZone }),
+      month: new Intl.DateTimeFormat(locale, { month: "short", timeZone }),
+    }),
+    [locale, timeZone],
+  );
   const hasAppliedDates = Boolean(
     appliedDates.fromDate || appliedDates.throughDate,
   );
@@ -152,9 +197,41 @@ export function MeetingPanel({
     load: loadHistory,
     onFailure: onPageFailure,
   });
-  const available = availableMeetingSlots(
-    times.loaded ? times.items : (workspace?.slots ?? []),
-    now,
+  const timingSlots = times.loaded
+    ? times.items
+    : (workspace?.slots ?? EMPTY_SLOTS);
+  const slotTiming = useMemo(
+    () =>
+      new Map(
+        timingSlots.map((slot) => [
+          slot.id,
+          {
+            time: meetingTimeLabel(slot, timeZone, locale),
+            duration: meetingDurationLabel(slot),
+            schedule: meetingScheduleLabel(slot, timeZone, locale),
+          },
+        ]),
+      ),
+    [timingSlots, timeZone, locale],
+  );
+  const allSlotDays = useMemo(
+    () => groupMeetingDays(timingSlots, timeZone, locale),
+    [timingSlots, timeZone, locale],
+  );
+  const activeAppointments = workspace?.activeAppointments;
+  const now = useMeetingClock(
+    [
+      ...timingSlots.map((slot) => slot.startsAt),
+      ...(activeAppointments ?? []).flatMap((item) => [
+        item.startsAt,
+        item.endsAt,
+      ]),
+    ],
+    clockActive,
+  );
+  const available = useMemo(
+    () => availableMeetingSlots(timingSlots, now),
+    [timingSlots, now],
   );
   const confirmationWorkspace = workspace
     ? {
@@ -168,13 +245,55 @@ export function MeetingPanel({
     (item) => bookingPeriod(item, now) !== "past" && item.status === "reserved",
   );
   const showingAvailability = !booking || changingBookingId === booking.id;
-  const quickSlots = available.slice(0, 3);
-  const selectedOutsideQuickSlots = Boolean(
-    selected && !quickSlots.some((slot) => slot.id === selected.id),
-  );
+  const viewPreparationOnly =
+    readOnly || Boolean(booking && Date.parse(booking.startsAt) <= now);
+  const slotDays = useMemo(() => {
+    const availableIds = new Set(available.map((slot) => slot.id));
+    return allSlotDays
+      .map((day) => ({
+        ...day,
+        items: day.items.filter((slot) => availableIds.has(slot.id)),
+      }))
+      .filter((day) => day.items.length > 0);
+  }, [available, allSlotDays]);
+  const selectedDay = slotDays.find((day) => day.key === dayKey) ?? slotDays[0];
+  const quickSlots = selectedDay?.items.slice(0, 6) ?? [];
   const showAllTimes = allTimesOpen;
   const blocked =
-    readOnly || busy || loading || stale || !workspace || Boolean(times.error);
+    readOnly ||
+    busy ||
+    bookingPending ||
+    loading ||
+    stale ||
+    !workspace ||
+    Boolean(times.error);
+  const bookingTiming = useMemo(
+    () =>
+      booking
+        ? {
+            date: meetingDateParts(booking.startsAt, timeZone, locale),
+            time: meetingTimeLabel(booking, timeZone, locale),
+            duration: meetingDurationLabel(booking),
+          }
+        : undefined,
+    [booking, timeZone, locale],
+  );
+  const fromDateLabel = useMemo(
+    () => bookingDateLabel(appliedDates.fromDate, locale),
+    [appliedDates.fromDate, locale],
+  );
+  const throughDateLabel = useMemo(
+    () => bookingDateLabel(appliedDates.throughDate, locale),
+    [appliedDates.throughDate, locale],
+  );
+  const dateRangeLabel =
+    appliedDates.fromDate && appliedDates.throughDate
+      ? `${fromDateLabel} – ${throughDateLabel}`
+      : appliedDates.fromDate
+        ? `From ${fromDateLabel}`
+        : appliedDates.throughDate
+          ? `Through ${throughDateLabel}`
+          : "All dates";
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -182,42 +301,228 @@ export function MeetingPanel({
     };
   }, []);
   useEffect(() => {
-    if (visible) return;
+    const belongsToTimePicker = (element: HTMLElement) =>
+      Boolean(
+        panel.current?.contains(element) &&
+        element.matches(
+          ".meeting-day, .meeting-quick-time input, #meeting-slot",
+        ),
+      );
+    const rememberFocus = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      // Removing a focused choice normally drops focus onto body without a
+      // focus event. Preserve the same recovery if a browser emits that event.
+      if (
+        target === document.body &&
+        focusedTimeChoice.current &&
+        !focusedTimeChoice.current.isConnected
+      )
+        return;
+      focusedTimeChoice.current = belongsToTimePicker(target) ? target : null;
+    };
+    const releaseOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        !(target instanceof Element) ||
+        !panel.current?.contains(target) ||
+        !target.closest(".meeting-day, .meeting-quick-time, .meeting-all-times")
+      )
+        focusedTimeChoice.current = null;
+    };
+    document.addEventListener("focusin", rememberFocus);
+    document.addEventListener("pointerdown", releaseOnOutsidePointer, true);
+    return () => {
+      document.removeEventListener("focusin", rememberFocus);
+      document.removeEventListener(
+        "pointerdown",
+        releaseOnOutsidePointer,
+        true,
+      );
+      focusedTimeChoice.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    const previous = focusedTimeChoice.current;
+    if (
+      !previous ||
+      previous.isConnected ||
+      !visible ||
+      !workspaceVisible ||
+      !showingAvailability
+    )
+      return;
+    const frame = requestAnimationFrame(() => {
+      if (focusedTimeChoice.current !== previous) return;
+      focusedTimeChoice.current = null;
+      if (
+        !mounted.current ||
+        document.visibilityState === "hidden" ||
+        document.activeElement !== document.body ||
+        !availabilityHeading.current?.getClientRects().length
+      )
+        return;
+      const nextDay = picker.current?.querySelector<HTMLButtonElement>(
+        'button[aria-pressed="true"]:not(:disabled)',
+      );
+      (nextDay ?? availabilityHeading.current)?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [available, visible, workspaceVisible, showingAvailability]);
+  useEffect(() => {
+    if (visible && workspaceVisible) return;
+    bookingFocus.current = null;
+    workspaceRetry.current = null;
+    availabilityRetry.current = null;
+    historyRetry.current = null;
+    focusedTimeChoice.current = null;
     const timer = window.setTimeout(() => {
       setChange(null);
       setAttempted(false);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [visible]);
+  }, [visible, workspaceVisible]);
+  useEffect(() => {
+    const intent = bookingFocus.current;
+    if (!intent || loading || bookingPending) return;
+    if (!visible || !workspaceVisible || stale) {
+      bookingFocus.current = null;
+      return;
+    }
+    if (!booking || booking.slotId !== intent.slotId) return;
+    bookingFocus.current = null;
+    const frame = requestAnimationFrame(() => {
+      // Navigation or typing elsewhere wins over a delayed booking response.
+      if (
+        !mounted.current ||
+        !panel.current?.getClientRects().length ||
+        document.visibilityState === "hidden"
+      )
+        return;
+      if (
+        document.activeElement !== intent.opener &&
+        document.activeElement !== document.body
+      )
+        return;
+      panel.current
+        .querySelector<HTMLElement>("#current-booking-heading")
+        ?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [booking, loading, bookingPending, visible, workspaceVisible, stale]);
+  useEffect(() => {
+    const opener = workspaceRetry.current;
+    if (!opener || !workspace || loading) return;
+    workspaceRetry.current = null;
+    const frame = requestAnimationFrame(() => {
+      if (
+        !visible ||
+        !workspaceVisible ||
+        document.visibilityState === "hidden" ||
+        !panel.current?.getClientRects().length
+      )
+        return;
+      if (
+        document.activeElement === opener ||
+        document.activeElement === document.body
+      )
+        panel.current
+          .querySelector<HTMLElement>("#meetings-heading")
+          ?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [workspace, loading, visible, workspaceVisible]);
+  useEffect(() => {
+    const opener = availabilityRetry.current;
+    if (
+      !opener ||
+      times.loading ||
+      times.moreLoading ||
+      times.error ||
+      !times.loaded
+    )
+      return;
+    availabilityRetry.current = null;
+    const frame = requestAnimationFrame(() => {
+      if (
+        !visible ||
+        !workspaceVisible ||
+        document.visibilityState === "hidden" ||
+        !availabilityHeading.current?.getClientRects().length
+      )
+        return;
+      if (
+        document.activeElement === opener ||
+        document.activeElement === document.body
+      )
+        availabilityHeading.current.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    times.loading,
+    times.moreLoading,
+    times.error,
+    times.loaded,
+    times.items,
+    visible,
+    workspaceVisible,
+  ]);
+  useEffect(() => {
+    const opener = historyRetry.current;
+    if (
+      !opener ||
+      bookings.loading ||
+      bookings.moreLoading ||
+      bookings.error ||
+      !bookings.loaded
+    )
+      return;
+    historyRetry.current = null;
+    const frame = requestAnimationFrame(() => {
+      if (
+        !visible ||
+        !workspaceVisible ||
+        document.visibilityState === "hidden" ||
+        !historyHeading.current?.getClientRects().length
+      )
+        return;
+      if (
+        document.activeElement === opener ||
+        document.activeElement === document.body
+      )
+        historyHeading.current.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [
+    bookings.loading,
+    bookings.moreLoading,
+    bookings.error,
+    bookings.loaded,
+    bookings.items,
+    visible,
+    workspaceVisible,
+  ]);
   useEffect(() => {
     if (workspace && !loading) observedAt.current = Date.now();
   }, [workspace, loading]);
   useEffect(() => {
     if (!clockActive) return;
-    const update = (refreshIfOld = false) => {
-      if (document.visibilityState === "hidden") return;
+    const refreshIfOld = () => {
+      if (document.visibilityState === "hidden" || loading || busy) return;
       const timestamp = Date.now();
-      setNow(timestamp);
-      if (
-        refreshIfOld &&
-        !loading &&
-        !busy &&
-        timestamp - observedAt.current >= 60_000
-      ) {
-        observedAt.current = timestamp;
-        onRefresh();
-      }
+      if (timestamp - observedAt.current < 60_000) return;
+      observedAt.current = timestamp;
+      onRefresh();
     };
-    const initial = window.setTimeout(() => update(true), 0);
-    const interval = window.setInterval(() => update(), 30_000);
-    const visibility = () => update(true);
-    document.addEventListener("visibilitychange", visibility);
+    // Refresh policy stays separate from the pure display clock: activation,
+    // changed server snapshots and visibility resume may recheck stale data.
+    const timer = window.setTimeout(refreshIfOld, 0);
+    document.addEventListener("visibilitychange", refreshIfOld);
     return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", visibility);
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", refreshIfOld);
     };
-  }, [clockActive, loading, busy, onRefresh]);
+  }, [clockActive, loading, busy, onRefresh, timingSlots, activeAppointments]);
   useEffect(() => {
     if (!clockActive || busy || loading || stale || !workspace) return;
     const ended = workspace.activeAppointments.find(
@@ -229,16 +534,42 @@ export function MeetingPanel({
     refreshedBoundary.current = boundary;
     onRefresh();
   }, [clockActive, busy, loading, stale, workspace, now, onRefresh]);
-  const slotDays = groupMeetingDays(available, timeZone);
-  const history = bookings.items.filter(
-    (item) =>
-      !query.trim() ||
-      `${meetingRange(item.startsAt, item.endsAt, timeZone)} ${item.startsAt} ${bookingStatusLabel(item, now)}`
-        .toLocaleLowerCase()
-        .includes(query.trim().toLocaleLowerCase()),
+  const historyTiming = useMemo(
+    () =>
+      new Map(
+        bookings.items.map((item) => [
+          item.id,
+          {
+            time: meetingTimeLabel(item, timeZone, locale),
+            duration: meetingDurationLabel(item),
+            schedule: meetingScheduleLabel(item, timeZone, locale),
+          },
+        ]),
+      ),
+    [bookings.items, timeZone, locale],
   );
-  const historyDays = groupMeetingDays(history, timeZone);
-  if (filter !== "upcoming") historyDays.reverse();
+  const searchableHistory = useMemo(
+    () =>
+      bookings.items.map((item) => ({
+        item,
+        text: `${historyTiming.get(item.id)?.schedule ?? ""} ${item.startsAt} ${bookingStatusLabel(item, now)}`.toLocaleLowerCase(),
+      })),
+    [bookings.items, historyTiming, now],
+  );
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const history = useMemo(
+    () =>
+      searchableHistory
+        .filter(
+          ({ text }) => !normalizedQuery || text.includes(normalizedQuery),
+        )
+        .map(({ item }) => item),
+    [searchableHistory, normalizedQuery],
+  );
+  const historyDays = useMemo(() => {
+    const groups = groupMeetingDays(history, timeZone, locale);
+    return filter === "upcoming" ? groups : groups.reverse();
+  }, [history, timeZone, locale, filter]);
   function applyDateRange(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -255,11 +586,23 @@ export function MeetingPanel({
         }
       : bookingHistoryDateRange(fromDate, throughDate);
     if (!result.valid) {
+      const opener = document.activeElement;
       setDateError({ field: result.field, message: result.message });
       requestAnimationFrame(() => {
-        if (!mounted.current || !visible || !workspaceVisible) return;
+        if (
+          !mounted.current ||
+          !visible ||
+          !workspaceVisible ||
+          document.visibilityState === "hidden"
+        )
+          return;
+        if (
+          document.activeElement !== opener &&
+          document.activeElement !== document.body
+        )
+          return;
         const input = result.field === "from" ? fromInput : throughInput;
-        input.current?.focus();
+        if (input.current?.getClientRects().length) input.current.focus();
       });
       return;
     }
@@ -281,7 +624,33 @@ export function MeetingPanel({
     setThroughDate("");
     setDateError(undefined);
     setAppliedDates({ fromDate: "", throughDate: "", timeZone: "" });
-    fromInput.current?.focus({ preventScroll: true });
+    if (dateToolsOpen) fromInput.current?.focus({ preventScroll: true });
+    else dateSummary.current?.focus({ preventScroll: true });
+  }
+  async function bookSelectedTime() {
+    if (blocked || !selected || bookingRunning.current) return;
+    bookingRunning.current = true;
+    const opener = document.activeElement;
+    setBookingPending(true);
+    try {
+      const saved = await onBook(selected);
+      if (saved && mounted.current) {
+        setSlotId("");
+        setAllTimesOpen(false);
+        if (
+          panel.current?.getClientRects().length &&
+          document.visibilityState !== "hidden"
+        )
+          bookingFocus.current = { slotId: selected.id, opener };
+      }
+    } catch (failure: unknown) {
+      // The public callback normally reports its own errors; retain a safe
+      // boundary if a future adapter rejects instead of returning false.
+      if (mounted.current) onPageFailure(failure);
+    } finally {
+      bookingRunning.current = false;
+      if (mounted.current) setBookingPending(false);
+    }
   }
   async function confirm() {
     if (
@@ -311,6 +680,11 @@ export function MeetingPanel({
           setChange(null);
         } else setAttempted(true);
       }
+    } catch (failure: unknown) {
+      if (mounted.current) {
+        onPageFailure(failure);
+        setAttempted(true);
+      }
     } finally {
       confirmRunning.current = false;
     }
@@ -318,7 +692,8 @@ export function MeetingPanel({
   return (
     <section
       id="meetings"
-      className="product-card meeting-panel"
+      ref={panel}
+      className="product-card meeting-panel meeting-experience"
       aria-labelledby="meetings-heading"
       hidden={!visible}
     >
@@ -328,55 +703,95 @@ export function MeetingPanel({
             Meetings
           </h2>
         </div>
-        <span className="meeting-time-zone">{timeZone}</span>
+        <span className="meeting-time-zone">Your time · {timeZone}</span>
       </header>
       {!workspace ? (
-        <p role="status">
-          {loading ? "Loading…" : "Bookings unavailable. Refresh to retry."}
-        </p>
+        <div className="meeting-unavailable" role="status">
+          <LearningGlyph name="calendar" />
+          <p>{loading ? "Loading meetings…" : "Meetings unavailable."}</p>
+          {!loading && (
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={(event) => {
+                workspaceRetry.current = event.currentTarget;
+                onRefresh();
+              }}
+            >
+              Retry
+            </button>
+          )}
+        </div>
       ) : (
         <>
           {stale && (
-            <p className="meeting-stale-note">
-              Refresh before changing this booking.
-            </p>
+            <div className="meeting-stale-note" role="status">
+              <p>Refresh before making changes.</p>
+              <button
+                className="meeting-text-action"
+                type="button"
+                disabled={busy || loading}
+                onClick={onRefresh}
+              >
+                Refresh
+              </button>
+            </div>
           )}
           <div className="meeting-booking-layout meeting-operations-layout">
             <section
-              className="meeting-current"
+              className="meeting-current meeting-next-reservation"
               aria-labelledby="current-booking-heading"
               hidden={!booking}
             >
-              <h3
-                id="current-booking-heading"
-                aria-label={
-                  booking ? "Your current booking" : "Your next meeting"
-                }
-              >
+              <h3 id="current-booking-heading" tabIndex={-1}>
                 Next meeting
               </h3>
               {booking ? (
                 <>
-                  <span className="meeting-booking-status">
-                    {bookingStatusLabel(booking, now)}
-                  </span>
-                  <p className="meeting-current-time">
-                    <time dateTime={booking.startsAt}>
-                      {meetingRange(booking.startsAt, booking.endsAt, timeZone)}
-                    </time>
+                  <div className="meeting-reservation-summary">
+                    <div
+                      className="meeting-reservation-date"
+                      aria-hidden="true"
+                    >
+                      <span>{bookingTiming?.date.month}</span>
+                      <strong>{bookingTiming?.date.day}</strong>
+                    </div>
+                    <div className="meeting-reservation-timing">
+                      <span className="meeting-booking-status">
+                        {bookingStatusLabel(booking, now)}
+                      </span>
+                      <p className="meeting-reservation-weekday">
+                        {bookingTiming?.date.full}
+                      </p>
+                      <p className="meeting-current-time">
+                        <time dateTime={booking.startsAt}>
+                          {bookingTiming?.time}
+                        </time>
+                      </p>
+                      {bookingTiming?.duration && (
+                        <span className="meeting-duration">
+                          {bookingTiming.duration}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="meeting-connection-note">
+                    <LearningGlyph name="calendar" /> Reservation saved. Live
+                    link not connected.
                   </p>
-                  <p>Live link unavailable. Attendance unconfirmed.</p>
                   <div className="product-actions meeting-primary-actions">
                     <button
                       type="button"
                       className="button"
                       aria-controls="meeting-preparation"
                       aria-label={
-                        readOnly ? "View preparation" : "Prepare for meeting"
+                        viewPreparationOnly
+                          ? "View preparation"
+                          : "Prepare for meeting"
                       }
                       onClick={onPrepare}
                     >
-                      {readOnly ? "View preparation" : "Prepare"}
+                      {viewPreparationOnly ? "View preparation" : "Prepare"}
                     </button>
                     <button
                       type="button"
@@ -388,18 +803,35 @@ export function MeetingPanel({
                           : "Change booking"
                       }
                       aria-expanded={showingAvailability}
+                      aria-describedby={
+                        !readOnly && !pendingUploadsKnown
+                          ? "meeting-change-blocked-help"
+                          : undefined
+                      }
                       aria-controls="meeting-availability"
-                      onClick={() => {
+                      onClick={(event) => {
                         if (showingAvailability) {
                           setChangingBookingId(null);
                           setSlotId("");
                           setAllTimesOpen(false);
                           return;
                         }
+                        const opener = event.currentTarget;
                         setChangingBookingId(booking.id);
                         requestAnimationFrame(() => {
-                          availabilityHeading.current?.focus();
-                          availabilityHeading.current?.scrollIntoView({
+                          if (
+                            !availabilityHeading.current?.getClientRects()
+                              .length ||
+                            document.visibilityState === "hidden"
+                          )
+                            return;
+                          if (
+                            document.activeElement !== opener &&
+                            document.activeElement !== document.body
+                          )
+                            return;
+                          availabilityHeading.current.focus();
+                          availabilityHeading.current.scrollIntoView({
                             block: "start",
                           });
                         });
@@ -416,7 +848,7 @@ export function MeetingPanel({
                       aria-label="Download calendar"
                       onClick={() => void onCalendar(booking)}
                     >
-                      Download
+                      Calendar
                     </button>
                     <button
                       type="button"
@@ -431,6 +863,11 @@ export function MeetingPanel({
                       className="meeting-text-action"
                       disabled={blocked || !pendingUploadsKnown}
                       aria-label="Cancel booking"
+                      aria-describedby={
+                        !readOnly && !pendingUploadsKnown
+                          ? "meeting-change-blocked-help"
+                          : undefined
+                      }
                       onClick={() => {
                         setChange({ kind: "cancel", booking });
                         setAttempted(false);
@@ -440,8 +877,18 @@ export function MeetingPanel({
                     </button>
                   </div>
                   <p className="meeting-help">
-                    Calendar copies don’t update automatically.
+                    Calendar downloads don’t sync changes. Attendance is
+                    unconfirmed.
                   </p>
+                  {!readOnly && !pendingUploadsKnown && (
+                    <p
+                      className="meeting-help meeting-blocked-help"
+                      role="status"
+                      id="meeting-change-blocked-help"
+                    >
+                      Check uploads in Evidence to unlock changes.
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
@@ -467,6 +914,16 @@ export function MeetingPanel({
               >
                 {booking ? "New time" : "Choose a time"}
               </h3>
+              {readOnly && (
+                <p className="meeting-help">
+                  Students book their own meetings.
+                </p>
+              )}
+              {times.error && available.length > 0 && (
+                <p className="meeting-help meeting-blocked-help">
+                  Couldn’t refresh times. Retry below.
+                </p>
+              )}
               {available.length ? (
                 <form
                   onSubmit={(event) => {
@@ -484,15 +941,92 @@ export function MeetingPanel({
                         replacement: selected,
                       });
                       setAttempted(false);
-                    } else
-                      void onBook(selected).then((saved) => {
-                        if (saved && mounted.current) {
-                          setSlotId("");
-                          setAllTimesOpen(false);
-                        }
-                      });
+                    } else void bookSelectedTime();
                   }}
                 >
+                  <div
+                    className="meeting-day-picker"
+                    ref={picker}
+                    onKeyDown={(event) => {
+                      if (event.altKey || event.ctrlKey || event.metaKey)
+                        return;
+                      if (
+                        !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                          event.key,
+                        )
+                      )
+                        return;
+                      const buttons = [
+                        ...(picker.current?.querySelectorAll<HTMLButtonElement>(
+                          "button:not(:disabled)",
+                        ) ?? []),
+                      ];
+                      const activeIndex = buttons.indexOf(
+                        document.activeElement as HTMLButtonElement,
+                      );
+                      if (activeIndex < 0) return;
+                      event.preventDefault();
+                      const next =
+                        event.key === "Home"
+                          ? 0
+                          : event.key === "End"
+                            ? buttons.length - 1
+                            : Math.max(
+                                0,
+                                Math.min(
+                                  buttons.length - 1,
+                                  activeIndex +
+                                    (event.key === "ArrowRight" ? 1 : -1),
+                                ),
+                              );
+                      buttons[next]?.focus({ preventScroll: true });
+                      buttons[next]?.scrollIntoView({
+                        block: "nearest",
+                        inline: "nearest",
+                      });
+                    }}
+                    role="group"
+                    aria-label="Available meeting days"
+                    aria-describedby="meeting-day-keyboard-help"
+                  >
+                    {slotDays.map((day) => {
+                      const firstSlot = day.items[0];
+                      if (!firstSlot) return null;
+                      const date = new Date(firstSlot.startsAt);
+                      return (
+                        <button
+                          type="button"
+                          className="meeting-day"
+                          key={day.key}
+                          aria-pressed={selectedDay?.key === day.key}
+                          tabIndex={selectedDay?.key === day.key ? 0 : -1}
+                          aria-label={`Show times for ${day.label}`}
+                          disabled={blocked}
+                          onClick={() => {
+                            setDayKey(day.key);
+                            if (!day.items.some((slot) => slot.id === slotId))
+                              setSlotId("");
+                          }}
+                        >
+                          <span>{dayFormatters.weekday.format(date)}</span>
+                          <strong>{dayFormatters.day.format(date)}</strong>
+                          <span>{dayFormatters.month.format(date)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="sr-only" id="meeting-day-keyboard-help">
+                    Use arrow keys to browse days. Enter or Space shows times.
+                  </p>
+                  {selectedDay && (
+                    <p className="meeting-day-label" role="status">
+                      <span>{selectedDay.label}</span>
+                      <span>
+                        {selectedDay.items.length}{" "}
+                        {selectedDay.items.length === 1 ? "time" : "times"}
+                      </span>
+                    </p>
+                  )}
                   <fieldset
                     className="meeting-quick-times"
                     disabled={blocked}
@@ -510,18 +1044,26 @@ export function MeetingPanel({
                           name="quick-meeting-time"
                           value={slot.id}
                           checked={selected?.id === slot.id}
+                          aria-label={`${slot.label}, ${slotTiming.get(slot.id)?.schedule}`}
                           onChange={() => setSlotId(slot.id)}
                         />
                         <span>
-                          <strong>{slot.label}</strong>
+                          <strong>{slotTiming.get(slot.id)?.time}</strong>
                           <span>
-                            {meetingRange(slot.startsAt, slot.endsAt, timeZone)}
+                            {slot.label}
+                            {slotTiming.get(slot.id)?.duration
+                              ? ` · ${slotTiming.get(slot.id)?.duration}`
+                              : ""}
                           </span>
+                        </span>
+                        <span className="meeting-slot-check" aria-hidden="true">
+                          <LearningGlyph name="check" />
                         </span>
                       </label>
                     ))}
                   </fieldset>
-                  {available.length > 3 && (
+                  {(slotDays.length > 1 ||
+                    available.length > quickSlots.length) && (
                     <details
                       className="meeting-all-times"
                       open={showAllTimes}
@@ -540,6 +1082,12 @@ export function MeetingPanel({
                           disabled={blocked}
                           onChange={(event) => {
                             setSlotId(event.target.value);
+                            const day = slotDays.find((item) =>
+                              item.items.some(
+                                (slot) => slot.id === event.target.value,
+                              ),
+                            );
+                            if (day) setDayKey(day.key);
                             setAllTimesOpen(true);
                           }}
                           aria-describedby="meeting-slot-help"
@@ -550,11 +1098,7 @@ export function MeetingPanel({
                               {day.items.map((slot) => (
                                 <option value={slot.id} key={slot.id}>
                                   {slot.label} ·{" "}
-                                  {meetingRange(
-                                    slot.startsAt,
-                                    slot.endsAt,
-                                    timeZone,
-                                  )}
+                                  {slotTiming.get(slot.id)?.schedule}
                                 </option>
                               ))}
                             </optgroup>
@@ -563,20 +1107,27 @@ export function MeetingPanel({
                       </div>
                     </details>
                   )}
-                  {selectedOutsideQuickSlots && !showAllTimes && selected && (
-                    <p className="meeting-selected-time" role="status">
-                      Selected: {selected.label} ·{" "}
-                      {meetingRange(
-                        selected.startsAt,
-                        selected.endsAt,
-                        timeZone,
-                      )}
-                    </p>
-                  )}
+                  <div
+                    className="meeting-selection-summary"
+                    role="status"
+                    aria-atomic="true"
+                  >
+                    {selected ? (
+                      <>
+                        <LearningGlyph name="check" />
+                        <span>
+                          <strong>{selected.label}</strong>
+                          <span>{slotTiming.get(selected.id)?.schedule}</span>
+                        </span>
+                      </>
+                    ) : (
+                      <span>Choose a time to continue.</span>
+                    )}
+                  </div>
                   <p id="meeting-slot-help" className="meeting-help">
                     {booking
                       ? "Confirm the change before it’s saved."
-                      : "Attendance and admission are separate."}
+                      : "A reservation doesn’t confirm attendance or admission."}
                   </p>
                   {slotId && !selected && (
                     <p role="status" className="meeting-help">
@@ -586,10 +1137,10 @@ export function MeetingPanel({
                   <button
                     className="button"
                     aria-label={
-                      busy
+                      busy || bookingPending
                         ? "Saving…"
                         : booking
-                          ? "Change booking"
+                          ? "Confirm new time"
                           : "Book meeting"
                     }
                     disabled={
@@ -598,13 +1149,50 @@ export function MeetingPanel({
                       Boolean(booking && !pendingUploadsKnown)
                     }
                   >
-                    {busy ? "Saving…" : booking ? "Change" : "Book"}
+                    {busy || bookingPending
+                      ? "Saving…"
+                      : booking
+                        ? "Confirm new time"
+                        : "Book meeting"}
                   </button>
                 </form>
               ) : (
                 <div className="meeting-empty">
-                  <p>No meeting times are available.</p>
-                  <p>Ask your TALA team for availability.</p>
+                  <LearningGlyph name="calendar" />
+                  <h4>
+                    {times.loading || times.moreLoading
+                      ? "Finding times…"
+                      : times.error
+                        ? "Times unavailable"
+                        : times.nextCursor
+                          ? "More times"
+                          : "No times available"}
+                  </h4>
+                  <p>
+                    {times.loading || times.moreLoading
+                      ? "Checking availability."
+                      : times.error
+                        ? "Retry below."
+                        : times.nextCursor
+                          ? "Load more to see other published times."
+                          : "Check later or ask your TALA team."}
+                  </p>
+                  {!times.loading &&
+                    !times.moreLoading &&
+                    !times.error &&
+                    !times.nextCursor && (
+                      <button
+                        type="button"
+                        className="meeting-text-action"
+                        disabled={busy || loading}
+                        onClick={(event) => {
+                          availabilityRetry.current = event.currentTarget;
+                          onRefresh();
+                        }}
+                      >
+                        Check again
+                      </button>
+                    )}
                 </div>
               )}
               <StudentPageControls
@@ -617,22 +1205,27 @@ export function MeetingPanel({
                 error={times.error}
                 disabled={busy}
                 onMore={() => void times.loadMore()}
-                onRetry={times.retry}
+                onRetry={() => {
+                  availabilityRetry.current = document.activeElement;
+                  times.retry();
+                }}
               />
-              {booking && !pendingUploadsKnown && !readOnly && (
-                <p className="meeting-help">
-                  Open Evidence to check unfinished uploads first.
-                </p>
-              )}
             </section>
           </div>
+          {preparation}
           <section
             className="meeting-history"
             aria-labelledby="booking-history-heading"
+            aria-busy={bookings.loading || bookings.moreLoading}
           >
             <div className="meeting-history-heading">
               <div>
-                <h3 id="booking-history-heading" aria-label="Booking history">
+                <h3
+                  id="booking-history-heading"
+                  ref={historyHeading}
+                  tabIndex={-1}
+                  aria-label="Booking history"
+                >
                   History
                 </h3>
               </div>
@@ -641,7 +1234,11 @@ export function MeetingPanel({
                 <input
                   type="search"
                   id="booking-history-search"
+                  ref={historySearch}
                   aria-label="Search booking history"
+                  dir="auto"
+                  autoComplete="off"
+                  maxLength={120}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Date or status"
@@ -650,115 +1247,159 @@ export function MeetingPanel({
               </div>
             </div>
             <p id="booking-history-search-help" className="sr-only">
-              Searches loaded bookings. Load more for older results.
+              Searches loaded bookings. Load more to search other records.
             </p>
-            <form
-              className="meeting-date-range"
-              aria-label="Booking history date range"
-              onSubmit={applyDateRange}
-              noValidate
+            <p className="meeting-history-context">
+              Reservations don’t confirm attendance.
+            </p>
+            <details
+              className="meeting-history-date-tools"
+              open={dateToolsOpen}
+              onToggle={(event) => setDateToolsOpen(event.currentTarget.open)}
             >
-              <fieldset aria-describedby={`${dateId}-help`}>
-                <legend>Dates</legend>
-                <p className="meeting-help" id={`${dateId}-help`}>
-                  Includes the full Through day.
-                </p>
-                <div className="meeting-date-range-fields">
-                  <div className="form-field">
-                    <label htmlFor={`${dateId}-from`}>From</label>
-                    <input
-                      id={`${dateId}-from`}
-                      aria-label="From date"
-                      ref={fromInput}
-                      type="date"
-                      min="0001-01-01"
-                      max="9999-12-31"
-                      value={fromDate}
-                      onChange={(event) => {
-                        setFromDate(event.target.value);
-                        setDateError(undefined);
-                      }}
-                      aria-invalid={dateError?.field === "from"}
-                      aria-describedby={
-                        dateError?.field === "from"
-                          ? `${dateId}-help ${dateId}-error`
-                          : `${dateId}-help`
-                      }
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor={`${dateId}-through`}>Through</label>
-                    <input
-                      id={`${dateId}-through`}
-                      aria-label="Through date"
-                      ref={throughInput}
-                      type="date"
-                      min="0001-01-01"
-                      max="9999-12-30"
-                      value={throughDate}
-                      onChange={(event) => {
-                        setThroughDate(event.target.value);
-                        setDateError(undefined);
-                      }}
-                      aria-invalid={dateError?.field === "through"}
-                      aria-describedby={
-                        dateError?.field === "through"
-                          ? `${dateId}-help ${dateId}-error`
-                          : `${dateId}-help`
-                      }
-                    />
-                  </div>
-                </div>
-                {dateError && (
-                  <p
-                    className="meeting-date-range-error"
-                    id={`${dateId}-error`}
-                    role="alert"
-                  >
-                    {dateError.message}
-                  </p>
+              <summary ref={dateSummary} aria-label="Filter history by dates">
+                <LearningGlyph name="calendar" />
+                <span>Dates</span>
+                {hasAppliedDates && (
+                  <span className="meeting-filter-dot" aria-hidden="true" />
                 )}
-                <div className="meeting-date-range-actions">
-                  <button
-                    type="submit"
-                    className="meeting-date-range-apply"
-                    aria-label="Apply dates"
-                    disabled={busy}
-                  >
-                    Apply
-                  </button>
-                  {(fromDate ||
-                    throughDate ||
-                    hasAppliedDates ||
-                    dateError) && (
-                    <button
-                      type="button"
-                      className="meeting-text-action"
-                      disabled={busy}
-                      onClick={clearDateRange}
-                      aria-label="Clear dates"
+              </summary>
+              <form
+                className="meeting-date-range"
+                aria-label="Booking history date range"
+                onSubmit={applyDateRange}
+                noValidate
+              >
+                <fieldset aria-describedby={`${dateId}-help`}>
+                  <legend>Dates</legend>
+                  <p className="meeting-help" id={`${dateId}-help`}>
+                    Includes the last day.
+                  </p>
+                  <div className="meeting-date-range-fields">
+                    <div className="form-field">
+                      <label htmlFor={`${dateId}-from`}>From</label>
+                      <input
+                        id={`${dateId}-from`}
+                        aria-label="From date"
+                        ref={fromInput}
+                        type="date"
+                        min="0001-01-01"
+                        max="9999-12-31"
+                        value={fromDate}
+                        onChange={(event) => {
+                          setFromDate(event.target.value);
+                          setDateError(undefined);
+                        }}
+                        aria-invalid={dateError?.field === "from"}
+                        aria-describedby={
+                          dateError?.field === "from"
+                            ? `${dateId}-help ${dateId}-error`
+                            : `${dateId}-help`
+                        }
+                      />
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor={`${dateId}-through`}>Through</label>
+                      <input
+                        id={`${dateId}-through`}
+                        aria-label="Through date"
+                        ref={throughInput}
+                        type="date"
+                        min="0001-01-01"
+                        max="9999-12-30"
+                        value={throughDate}
+                        onChange={(event) => {
+                          setThroughDate(event.target.value);
+                          setDateError(undefined);
+                        }}
+                        aria-invalid={dateError?.field === "through"}
+                        aria-describedby={
+                          dateError?.field === "through"
+                            ? `${dateId}-help ${dateId}-error`
+                            : `${dateId}-help`
+                        }
+                      />
+                    </div>
+                  </div>
+                  {dateError && (
+                    <p
+                      className="meeting-date-range-error"
+                      id={`${dateId}-error`}
+                      role="alert"
                     >
-                      Clear
-                    </button>
+                      {dateError.message}
+                    </p>
                   )}
-                </div>
-                <p
-                  className="meeting-date-range-applied"
-                  role="status"
-                  aria-atomic="true"
-                >
-                  {datesChanged && <strong>Apply to update results.</strong>}
-                  {appliedDates.fromDate && appliedDates.throughDate
-                    ? `Showing ${bookingDateLabel(appliedDates.fromDate)} through ${bookingDateLabel(appliedDates.throughDate)}.`
-                    : appliedDates.fromDate
-                      ? `Showing dates from ${bookingDateLabel(appliedDates.fromDate)}.`
-                      : appliedDates.throughDate
-                        ? `Showing dates through ${bookingDateLabel(appliedDates.throughDate)}.`
-                        : "All dates."}
-                  {hasAppliedDates ? ` ${appliedDates.timeZone}.` : ""}
-                </p>
-              </fieldset>
-            </form>
+                  <div className="meeting-date-range-actions">
+                    <button
+                      type="submit"
+                      className="meeting-date-range-apply"
+                      aria-label="Apply dates"
+                      disabled={busy}
+                    >
+                      Apply
+                    </button>
+                    {(fromDate ||
+                      throughDate ||
+                      hasAppliedDates ||
+                      dateError) && (
+                      <button
+                        type="button"
+                        className="meeting-text-action"
+                        disabled={busy}
+                        onClick={clearDateRange}
+                        aria-label="Clear dates"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <p
+                    className="meeting-date-range-applied"
+                    role="status"
+                    aria-atomic="true"
+                  >
+                    {datesChanged && <strong>Apply to update results.</strong>}
+                    {appliedDates.fromDate && appliedDates.throughDate
+                      ? `Showing ${fromDateLabel} through ${throughDateLabel}.`
+                      : appliedDates.fromDate
+                        ? `Showing dates from ${fromDateLabel}.`
+                        : appliedDates.throughDate
+                          ? `Showing dates through ${throughDateLabel}.`
+                          : "All dates."}
+                    {hasAppliedDates ? ` ${appliedDates.timeZone}.` : ""}
+                  </p>
+                </fieldset>
+              </form>
+            </details>
+            {(hasAppliedDates || datesChanged || dateError) && (
+              <div className="meeting-active-dates" role="status">
+                <span>
+                  {hasAppliedDates
+                    ? dateRangeLabel
+                    : dateError
+                      ? "Check your dates"
+                      : "Date changes not applied"}
+                  {hasAppliedDates && appliedDates.timeZone !== timeZone
+                    ? ` · ${appliedDates.timeZone}`
+                    : ""}
+                  {hasAppliedDates && datesChanged
+                    ? " · Changes not applied"
+                    : ""}
+                </span>
+                {hasAppliedDates && (
+                  <button
+                    type="button"
+                    className="meeting-text-action"
+                    aria-label="Clear date filter"
+                    disabled={busy}
+                    onClick={clearDateRange}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
             <div
               className="meeting-history-filters"
               role="group"
@@ -804,14 +1445,15 @@ export function MeetingPanel({
                     ).map((item) => (
                       <li key={item.id}>
                         <div>
-                          <p>
+                          <p className="meeting-history-time-line">
                             <time dateTime={item.startsAt}>
-                              {meetingRange(
-                                item.startsAt,
-                                item.endsAt,
-                                timeZone,
-                              )}
+                              {historyTiming.get(item.id)?.time}
                             </time>
+                            {historyTiming.get(item.id)?.duration && (
+                              <span>
+                                {historyTiming.get(item.id)?.duration}
+                              </span>
+                            )}
                           </p>
                           <span
                             className="meeting-history-status"
@@ -819,17 +1461,12 @@ export function MeetingPanel({
                           >
                             {bookingStatusLabel(item, now)}
                           </span>
-                          {bookingPeriod(item, now) === "past" && (
-                            <p className="meeting-help">
-                              Attendance unconfirmed.
-                            </p>
-                          )}
                         </div>
                         <div className="product-actions meeting-history-actions">
                           <button
                             type="button"
                             className="meeting-text-action"
-                            aria-label={`View details for ${meetingRange(item.startsAt, item.endsAt, timeZone)}`}
+                            aria-label={`View details for ${historyTiming.get(item.id)?.schedule}`}
                             onClick={() => onDetails(item)}
                           >
                             Details
@@ -839,10 +1476,10 @@ export function MeetingPanel({
                               type="button"
                               className="meeting-text-action"
                               disabled={busy || loading || stale}
-                              aria-label={`Download calendar for ${meetingRange(item.startsAt, item.endsAt, timeZone)}`}
+                              aria-label={`Download calendar for ${historyTiming.get(item.id)?.schedule}`}
                               onClick={() => void onCalendar(item)}
                             >
-                              Download
+                              Calendar
                             </button>
                           )}
                         </div>
@@ -855,7 +1492,7 @@ export function MeetingPanel({
               <div className="meeting-history-empty">
                 <p>
                   {query.trim()
-                    ? "No matching bookings."
+                    ? "No matches in loaded bookings."
                     : hasAppliedDates
                       ? `No ${filter} bookings in this date range.`
                       : filter === "past"
@@ -864,14 +1501,28 @@ export function MeetingPanel({
                           ? "No cancelled bookings."
                           : "No upcoming bookings."}
                 </p>
-                {query.trim() && (
+                {query.trim() && bookings.nextCursor && (
+                  <p className="meeting-help">
+                    Load more to search other bookings.
+                  </p>
+                )}
+                {(query.trim() || hasAppliedDates) && (
                   <button
                     type="button"
                     className="meeting-text-action"
-                    onClick={() => setQuery("")}
-                    aria-label="Clear search"
+                    onClick={() => {
+                      setQuery("");
+                      if (hasAppliedDates) clearDateRange();
+                      else
+                        historySearch.current?.focus({ preventScroll: true });
+                    }}
+                    aria-label={
+                      hasAppliedDates
+                        ? "Clear filters: search and dates"
+                        : "Clear filters: search"
+                    }
                   >
-                    Clear
+                    Clear filters
                   </button>
                 )}
               </div>
@@ -886,7 +1537,10 @@ export function MeetingPanel({
               error={bookings.error}
               disabled={busy}
               onMore={() => void bookings.loadMore()}
-              onRetry={bookings.retry}
+              onRetry={() => {
+                historyRetry.current = document.activeElement;
+                bookings.retry();
+              }}
             />
           </section>
         </>
@@ -896,6 +1550,7 @@ export function MeetingPanel({
           change={change}
           timeZone={timeZone}
           busy={busy || loading}
+          refreshing={loading}
           current={
             !stale && meetingChangeIsCurrent(change, confirmationWorkspace, now)
           }
@@ -903,6 +1558,7 @@ export function MeetingPanel({
             !pendingUploadsKnown ||
             evidenceDraftBookingIds.has(change.booking.id)
           }
+          uploadsKnown={pendingUploadsKnown}
           preparationBlocked={preparationDraftBookingIds.has(change.booking.id)}
           error={
             attempted

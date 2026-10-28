@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { newRequestId, safeTalaApiError, talaApi, TalaApiError } from "../api";
 import type {
   ApiAppointment,
@@ -11,6 +19,7 @@ import {
   normalizeLearningNote,
 } from "./learningPlanHelpers";
 import "./meetingPreparation.css";
+import { meetingScheduleLabel } from "./meetingPresentation";
 
 type Draft = {
   base: AppointmentPreparation;
@@ -40,6 +49,7 @@ export function MeetingPreparationPanel({
   readOnly,
   visible,
   openRequest = 0,
+  reservationCurrent = true,
   onChanged,
   onFailure,
   onDirtyChange,
@@ -49,6 +59,7 @@ export function MeetingPreparationPanel({
   readOnly: boolean;
   visible: boolean;
   openRequest?: number;
+  reservationCurrent?: boolean;
   onChanged: () => void;
   onFailure: (failure: unknown) => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -68,6 +79,8 @@ export function MeetingPreparationPanel({
   const [pending, setPending] = useState(false);
   const [intent, setIntent] = useState<AppointmentPreparationInput>();
   const [confirmReload, setConfirmReload] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [copyMessage, setCopyMessage] = useState("");
   const [noteError, setNoteError] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const draftRef = useRef<Draft | undefined>(undefined);
@@ -85,6 +98,10 @@ export function MeetingPreparationPanel({
   const noteInput = useRef<HTMLTextAreaElement>(null);
   const reloadButton = useRef<HTMLButtonElement>(null);
   const keepDraftButton = useRef<HTMLButtonElement>(null);
+  const unsentNote = useRef<HTMLTextAreaElement>(null);
+  const discardButton = useRef<HTMLButtonElement>(null);
+  const keepUnsentButton = useRef<HTMLButtonElement>(null);
+  const copyAttempt = useRef(0);
   const latest = useRef({
     onChanged,
     onFailure,
@@ -93,6 +110,12 @@ export function MeetingPreparationPanel({
     visible,
   });
   const identity = `${booking.ownerUid}:${booking.id}`;
+  const currentIdentity = useRef(identity);
+  const { timeZone, locale } = Intl.DateTimeFormat().resolvedOptions();
+  const bookingLabel = useMemo(
+    () => meetingScheduleLabel(booking, timeZone, locale),
+    [booking, timeZone, locale],
+  );
   const currentSaved =
     saved?.appointmentId === booking.id && saved.ownerUid === booking.ownerUid
       ? saved
@@ -106,10 +129,12 @@ export function MeetingPreparationPanel({
   const protectedDraft = !readOnly && (dirty || Boolean(intent));
   const editable =
     !readOnly &&
+    reservationCurrent &&
     booking.status === "reserved" &&
     Date.parse(booking.startsAt) > now;
   const locked = pending || !!intent || loading;
   const selectedGoal = goals?.find((goal) => goal.id === currentSaved?.goalId);
+  const unsentGoal = goals?.find((goal) => goal.id === currentDraft?.goalId);
   const adopt = useCallback((next: AppointmentPreparation) => {
     const nextDraft = {
       base: next,
@@ -120,6 +145,16 @@ export function MeetingPreparationPanel({
     draftRef.current = nextDraft;
     setDraft(nextDraft);
   }, []);
+  function focusCurrentPreparation(target: HTMLElement | null) {
+    if (
+      active.current &&
+      currentIdentity.current === identity &&
+      latest.current.visible &&
+      document.visibilityState !== "hidden" &&
+      target?.getClientRects().length
+    )
+      target.focus({ preventScroll: true });
+  }
 
   useEffect(() => {
     if (!visible || !opened || openRequest <= focusedOpenRequest.current)
@@ -129,31 +164,35 @@ export function MeetingPreparationPanel({
     preparationSummary.current?.scrollIntoView({ block: "start" });
   }, [visible, opened, openRequest]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     latest.current = { onChanged, onFailure, onDirtyChange, readOnly, visible };
   }, [onChanged, onFailure, onDirtyChange, readOnly, visible]);
-  useEffect(() => {
-    latest.current.onDirtyChange?.(protectedDraft);
-  }, [protectedDraft]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     active.current = true;
+    currentIdentity.current = identity;
+    const lifetimeGeneration = generation;
+    const clipboardAttempt = copyAttempt;
     return () => {
       active.current = false;
+      lifetimeGeneration.current++;
       readRequest.current?.abort();
       mutation.current?.abort();
+      intentIdentity.current = undefined;
+      clipboardAttempt.current++;
       latest.current.onDirtyChange?.(false);
     };
-  }, []);
-  useEffect(() => {
-    if (!visible) mutation.current?.abort();
-  }, [visible]);
-  useEffect(
-    () => () => {
+  }, [identity]);
+  useLayoutEffect(() => {
+    if (active.current && currentIdentity.current === identity)
+      latest.current.onDirtyChange?.(protectedDraft);
+  }, [protectedDraft, identity]);
+  useLayoutEffect(() => {
+    if (!visible) {
+      readRequest.current?.abort();
       mutation.current?.abort();
-      intentIdentity.current = undefined;
-    },
-    [identity],
-  );
+      copyAttempt.current++;
+    }
+  }, [visible]);
   useEffect(() => {
     if (!protectedDraft) return;
     const guard = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -164,28 +203,35 @@ export function MeetingPreparationPanel({
     if (confirmReload && visible) keepDraftButton.current?.focus();
   }, [confirmReload, visible]);
   useEffect(() => {
+    if (confirmDiscard && visible) keepUnsentButton.current?.focus();
+  }, [confirmDiscard, visible]);
+  useEffect(() => {
     if (!visible) return;
     let timer: number | undefined;
     const update = () => {
       if (timer !== undefined) window.clearTimeout(timer);
+      if (
+        !active.current ||
+        currentIdentity.current !== identity ||
+        !latest.current.visible ||
+        document.visibilityState === "hidden"
+      )
+        return;
       const clock = Date.now();
       setNow(clock);
       const remaining = Date.parse(booking.startsAt) - clock;
       if (remaining > 0)
         timer = window.setTimeout(update, Math.min(60_000, remaining + 30));
     };
-    const whenVisible = () => {
-      if (document.visibilityState === "visible") update();
-    };
     timer = window.setTimeout(update, 0);
-    document.addEventListener("visibilitychange", whenVisible);
-    window.addEventListener("focus", whenVisible);
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("focus", update);
     return () => {
       if (timer !== undefined) window.clearTimeout(timer);
-      document.removeEventListener("visibilitychange", whenVisible);
-      window.removeEventListener("focus", whenVisible);
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("focus", update);
     };
-  }, [booking.startsAt, visible]);
+  }, [booking.startsAt, visible, identity]);
 
   const concealFailure = useCallback((failure: unknown) => {
     const problem = safeTalaApiError(failure);
@@ -209,16 +255,30 @@ export function MeetingPreparationPanel({
 
   useEffect(() => {
     const ticket = ++generation.current;
-    if (!opened || !visible || running.current) return;
+    if (
+      !active.current ||
+      currentIdentity.current !== identity ||
+      !opened ||
+      !visible ||
+      running.current
+    )
+      return;
     const request = new AbortController();
+    const isCurrent = () =>
+      active.current &&
+      currentIdentity.current === identity &&
+      !request.signal.aborted &&
+      ticket === generation.current;
     const replaceDraft = replaceOnRead.current;
     replaceOnRead.current = false;
     readRequest.current = request;
-    const timer = window.setTimeout(() => setLoading(true), 0);
+    const timer = window.setTimeout(() => {
+      if (isCurrent() && latest.current.visible) setLoading(true);
+    }, 0);
     void talaApi
       .getAppointmentPreparation(booking.id, booking.ownerUid, request.signal)
       .then((next) => {
-        if (request.signal.aborted || ticket !== generation.current) return;
+        if (!isCurrent() || !latest.current.visible) return;
         savedRef.current = next;
         setSaved(next);
         setError("");
@@ -259,15 +319,14 @@ export function MeetingPreparationPanel({
         }
       })
       .catch((failure: unknown) => {
-        if (request.signal.aborted || ticket !== generation.current) return;
+        if (!isCurrent() || !latest.current.visible) return;
         concealFailure(failure);
         setError(safeTalaApiError(failure).message);
       })
       .finally(() => {
         window.clearTimeout(timer);
         if (readRequest.current === request) readRequest.current = null;
-        if (!request.signal.aborted && ticket === generation.current)
-          setLoading(false);
+        if (isCurrent()) setLoading(false);
       });
     return () => {
       window.clearTimeout(timer);
@@ -290,14 +349,26 @@ export function MeetingPreparationPanel({
   ) {
     if (!currentDraft || locked || !editable) return;
     const next = { ...currentDraft, ...input };
+    if (
+      next.note === currentDraft.note &&
+      next.goalId === currentDraft.goalId &&
+      next.ready === currentDraft.ready
+    )
+      return;
+    // Notify the owner during the user event, before a simultaneous end-time
+    // workspace refresh can remove this booking and its unsent preparation.
+    onDirtyChange?.(changed(next) || Boolean(uncertain.current));
     draftRef.current = next;
     setDraft(next);
     setMessage("");
+    copyAttempt.current++;
+    setCopyMessage("");
     setNoteError("");
   }
   function reloadSaved() {
     if (pending) return;
-    if (dirty) {
+    if (dirty || intent) {
+      setConfirmDiscard(false);
       setConfirmReload(true);
       return;
     }
@@ -308,12 +379,95 @@ export function MeetingPreparationPanel({
   function confirmSavedReload() {
     if (pending) return;
     replaceOnRead.current = true;
+    setConfirmDiscard(false);
     setConfirmReload(false);
     setLoading(true);
     setAttempt((value) => value + 1);
   }
+  function selectUnsentNotes() {
+    const input = unsentNote.current;
+    if (
+      !visible ||
+      readOnly ||
+      !currentDraft?.note ||
+      pending ||
+      !input ||
+      input.value !== currentDraft.note
+    )
+      return;
+    input.focus();
+    input.select();
+    setCopyMessage("Text selected. Use your device’s Copy command.");
+  }
+  async function copyUnsentNotes() {
+    if (!visible || readOnly || !currentDraft?.note || pending) return;
+    const note = currentDraft.note;
+    const ticket = ++copyAttempt.current;
+    const isCurrent = () =>
+      active.current &&
+      currentIdentity.current === identity &&
+      latest.current.visible &&
+      !latest.current.readOnly &&
+      ticket === copyAttempt.current &&
+      draftRef.current?.note === note;
+    setCopyMessage("");
+    try {
+      if (!navigator.clipboard?.writeText) {
+        selectUnsentNotes();
+        return;
+      }
+      await navigator.clipboard.writeText(note);
+      if (isCurrent()) setCopyMessage("Copied.");
+    } catch {
+      if (isCurrent()) selectUnsentNotes();
+    }
+  }
+  function discardLocalDraft() {
+    if (
+      !currentSaved ||
+      !currentDraft ||
+      editable ||
+      readOnly ||
+      pending ||
+      loading ||
+      running.current
+    )
+      return;
+    const sentSaveUnconfirmed = Boolean(uncertain.current);
+    const opener = document.activeElement;
+    copyAttempt.current++;
+    uncertain.current = undefined;
+    intentIdentity.current = undefined;
+    setIntent(undefined);
+    adopt(currentSaved);
+    setNoteError("");
+    setCopyMessage("");
+    setConfirmDiscard(false);
+    setConfirmReload(false);
+    setMessage("Local draft discarded.");
+    if (sentSaveUnconfirmed)
+      setError(
+        "A previous save is unconfirmed. Reload to check saved preparation.",
+      );
+    onDirtyChange?.(false);
+    requestAnimationFrame(() => {
+      if (
+        document.activeElement !== opener &&
+        document.activeElement !== document.body
+      )
+        return;
+      if (document.visibilityState === "hidden") return;
+      const heading = [
+        document.getElementById("current-booking-heading"),
+        document.getElementById("meetings-heading"),
+      ].find((element) => element?.getClientRects().length);
+      heading?.focus({ preventScroll: true });
+    });
+  }
   async function save(retry?: AppointmentPreparationInput) {
     if (
+      !active.current ||
+      currentIdentity.current !== identity ||
       running.current ||
       !currentDraft ||
       readOnly ||
@@ -360,9 +514,19 @@ export function MeetingPreparationPanel({
         input,
         request.signal,
       );
-      if (next.ownerUid !== booking.ownerUid)
+      if (
+        !active.current ||
+        currentIdentity.current !== identity ||
+        !latest.current.visible ||
+        latest.current.readOnly ||
+        request.signal.aborted
+      )
+        return;
+      if (
+        next.ownerUid !== booking.ownerUid ||
+        next.appointmentId !== booking.id
+      )
         throw new TalaApiError("INVALID_RESPONSE");
-      if (!active.current || request.signal.aborted) return;
       uncertain.current = undefined;
       intentIdentity.current = undefined;
       setIntent(undefined);
@@ -383,15 +547,18 @@ export function MeetingPreparationPanel({
       }
       latest.current.onChanged();
       requestAnimationFrame(() => {
-        if (
-          active.current &&
-          latest.current.visible &&
-          document.activeElement === document.body
-        )
-          statusTarget.current?.focus({ preventScroll: true });
+        if (document.activeElement === document.body)
+          focusCurrentPreparation(statusTarget.current);
       });
     } catch (failure: unknown) {
-      if (!active.current || request.signal.aborted) return;
+      if (
+        !active.current ||
+        currentIdentity.current !== identity ||
+        !latest.current.visible ||
+        latest.current.readOnly ||
+        request.signal.aborted
+      )
+        return;
       const problem = safeTalaApiError(failure);
       if (concealFailure(failure)) setError(problem.message);
       else if (problem.code === "CONFLICT") {
@@ -407,13 +574,15 @@ export function MeetingPreparationPanel({
           `${problem.message} Your draft is kept. Retry this save with the same details, or reload saved notes to check what was saved.`,
         );
       requestAnimationFrame(() => {
-        if (active.current && latest.current.visible)
-          errorTarget.current?.focus();
+        focusCurrentPreparation(errorTarget.current);
       });
     } finally {
-      running.current = false;
-      if (mutation.current === request) mutation.current = null;
-      if (active.current) setPending(false);
+      if (mutation.current === request) {
+        mutation.current = null;
+        running.current = false;
+        if (active.current && currentIdentity.current === identity)
+          setPending(false);
+      }
     }
   }
 
@@ -422,6 +591,13 @@ export function MeetingPreparationPanel({
     <details
       id="meeting-preparation"
       className="meeting-preparation"
+      data-state={
+        dirty || intent
+          ? "unsaved"
+          : currentSaved && currentSaved.version > 0
+            ? "saved"
+            : "empty"
+      }
       open={opened}
       onToggle={(event) => {
         const nextOpened = event.currentTarget.open;
@@ -436,10 +612,22 @@ export function MeetingPreparationPanel({
           editable ? "Prepare for your meeting" : "Meeting preparation"
         }
       >
-        {editable ? "Prepare" : "Preparation"}
+        <span>{editable ? "Prepare" : "Preparation"}</span>
+        <span className="meeting-preparation-summary-state">
+          {pending
+            ? "Saving…"
+            : dirty || intent
+              ? "Unsaved"
+              : currentSaved && currentSaved.version > 0
+                ? "Saved"
+                : "Optional"}
+        </span>
       </summary>
       {opened && (
         <div className="meeting-preparation-content">
+          <p className="meeting-preparation-booking-time">
+            <time dateTime={booking.startsAt}>{bookingLabel}</time>
+          </p>
           {error && (
             <div
               className="meeting-preparation-error"
@@ -475,7 +663,12 @@ export function MeetingPreparationPanel({
                 aria-busy={pending}
               >
                 <div className="meeting-preparation-field">
-                  <label htmlFor={`${baseId}-note`}>Notes (optional)</label>
+                  <div className="meeting-preparation-note-heading">
+                    <label htmlFor={`${baseId}-note`}>Notes (optional)</label>
+                    <span id={`${baseId}-note-count`}>
+                      {currentDraft.note.length}/1,000
+                    </span>
+                  </div>
                   <textarea
                     ref={noteInput}
                     id={`${baseId}-note`}
@@ -486,10 +679,11 @@ export function MeetingPreparationPanel({
                     }
                     maxLength={1000}
                     rows={4}
+                    placeholder="What would you like to work on?"
                     disabled={pending || loading}
                     readOnly={Boolean(intent)}
                     aria-invalid={!!noteError}
-                    aria-describedby={`${baseId}-note-help${noteError ? ` ${baseId}-note-error` : ""}`}
+                    aria-describedby={`${baseId}-note-help ${baseId}-note-count${noteError ? ` ${baseId}-note-error` : ""}`}
                   />
                   <p
                     id={`${baseId}-note-help`}
@@ -520,7 +714,7 @@ export function MeetingPreparationPanel({
                       !goals ? `${baseId}-goals-help` : undefined
                     }
                   >
-                    <option value="">None</option>
+                    <option value="">No goal selected</option>
                     {currentDraft.goalId &&
                       !goals?.some(
                         (goal) => goal.id === currentDraft.goalId,
@@ -559,10 +753,10 @@ export function MeetingPreparationPanel({
                   <button
                     type="submit"
                     className="meeting-preparation-primary"
-                    aria-label={pending ? "Saving…" : "Save preparation"}
+                    aria-label={pending ? "Saving…" : "Save notes"}
                     disabled={locked || loading || !dirty}
                   >
-                    {pending ? "Saving…" : "Save"}
+                    {pending ? "Saving…" : "Save notes"}
                   </button>
                   <span className="meeting-preparation-draft-label">
                     {dirty
@@ -595,21 +789,113 @@ export function MeetingPreparationPanel({
                     <dd>{currentSaved.ready ? "Ready" : "Not ready"}</dd>
                   </div>
                 </dl>
-                {!readOnly && dirty && (
+                {protectedDraft && (
                   <div className="meeting-preparation-unsent">
                     <label htmlFor={`${baseId}-unsent`}>
                       Unsent learning notes
                     </label>
                     <p>
-                      The meeting can no longer be edited. This draft was not
-                      saved; you can still copy your text.
+                      This meeting can no longer be edited. Copy these notes or
+                      discard the local draft.
                     </p>
                     <textarea
                       id={`${baseId}-unsent`}
+                      ref={unsentNote}
                       readOnly
                       value={currentDraft.note}
                       rows={4}
                     />
+                    <dl className="meeting-preparation-unsent-choices">
+                      <div>
+                        <dt>Unsent goal</dt>
+                        <dd>
+                          {currentDraft.goalId
+                            ? (unsentGoal?.title ?? "Linked goal")
+                            : "None"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Unsent materials</dt>
+                        <dd>{currentDraft.ready ? "Ready" : "Not ready"}</dd>
+                      </div>
+                    </dl>
+                    <div className="meeting-preparation-actions">
+                      <button
+                        type="button"
+                        className="meeting-preparation-secondary"
+                        disabled={pending || !currentDraft.note}
+                        onClick={() => void copyUnsentNotes()}
+                      >
+                        Copy notes
+                      </button>
+                      <button
+                        type="button"
+                        className="meeting-preparation-text-action"
+                        disabled={pending || !currentDraft.note}
+                        onClick={selectUnsentNotes}
+                      >
+                        Select text
+                      </button>
+                      <button
+                        type="button"
+                        ref={discardButton}
+                        className="meeting-preparation-text-action"
+                        disabled={pending || loading}
+                        onClick={() => {
+                          setConfirmReload(false);
+                          setConfirmDiscard(true);
+                        }}
+                      >
+                        Discard local draft
+                      </button>
+                    </div>
+                    <p
+                      className="meeting-preparation-copy-status"
+                      role="status"
+                      aria-atomic="true"
+                    >
+                      {copyMessage}
+                    </p>
+                    {confirmDiscard && (
+                      <div
+                        className="meeting-preparation-confirm"
+                        role="group"
+                        aria-labelledby={`${baseId}-discard-heading`}
+                      >
+                        <h4 id={`${baseId}-discard-heading`}>
+                          Discard this local draft?
+                        </h4>
+                        <p>
+                          {intent
+                            ? "An earlier save may already be on the server. Discarding this copy won’t undo it."
+                            : "Saved notes won’t be deleted. Copy anything you want to keep."}
+                        </p>
+                        <div className="meeting-preparation-actions">
+                          <button
+                            type="button"
+                            ref={keepUnsentButton}
+                            className="meeting-preparation-secondary"
+                            disabled={pending || loading}
+                            onClick={() => {
+                              setConfirmDiscard(false);
+                              requestAnimationFrame(() =>
+                                focusCurrentPreparation(discardButton.current),
+                              );
+                            }}
+                          >
+                            Keep draft
+                          </button>
+                          <button
+                            type="button"
+                            className="meeting-preparation-text-action"
+                            disabled={pending || loading}
+                            onClick={discardLocalDraft}
+                          >
+                            Discard draft
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -626,16 +912,22 @@ export function MeetingPreparationPanel({
           )}
           {intent && !pending && (
             <div className="meeting-preparation-uncertain">
-              <p>Save unconfirmed. Retry uses the same request.</p>
-              <button
-                type="button"
-                className="meeting-preparation-secondary"
-                disabled={loading || !editable}
-                onClick={() => void save(intent)}
-                aria-label="Retry preparation save"
-              >
-                Retry
-              </button>
+              <p>
+                {editable
+                  ? "Save unconfirmed. Retry uses the same request."
+                  : "Save unconfirmed. Reload to check saved notes."}
+              </p>
+              {editable && (
+                <button
+                  type="button"
+                  className="meeting-preparation-secondary"
+                  disabled={loading}
+                  onClick={() => void save(intent)}
+                  aria-label="Retry preparation save"
+                >
+                  Retry
+                </button>
+              )}
             </div>
           )}
           {!readOnly && !editable && (
@@ -675,7 +967,9 @@ export function MeetingPreparationPanel({
                   className="meeting-preparation-secondary"
                   onClick={() => {
                     setConfirmReload(false);
-                    requestAnimationFrame(() => reloadButton.current?.focus());
+                    requestAnimationFrame(() =>
+                      focusCurrentPreparation(reloadButton.current),
+                    );
                   }}
                 >
                   Keep

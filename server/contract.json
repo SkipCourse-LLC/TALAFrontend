@@ -238,7 +238,7 @@
       "body": {
         "name": "string",
         "email": "string",
-        "password": "12..128 characters",
+        "password": "8..128 characters",
         "accountType": "student|parent"
       },
       "response": "Session; rotates cookie and CSRF token"
@@ -513,7 +513,7 @@
       "path": "/account/password",
       "body": {
         "currentPassword": "current password",
-        "newPassword": "different password, 12..128 characters",
+        "newPassword": "different password, 8..128 characters",
         "requestId": "unique string"
       },
       "response": {

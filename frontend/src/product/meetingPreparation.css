@@ -1,51 +1,58 @@
-.meeting-preparation {
+.student-workspace .meeting-preparation {
   margin-top: 24px;
-  padding-top: 0;
-  border-top: 0;
+  padding: clamp(18px, 3vw, 24px);
+  border: 1px solid #dce5df;
+  border-radius: 22px;
+  background: #fff;
   min-width: 0;
 }
-.meeting-preparation > summary {
+.student-workspace .meeting-preparation > summary {
   min-height: 44px;
   padding-block: 10px;
   color: #174139;
-  font-size: 1.125rem;
+  font-size: calc(1.125rem * var(--student-type-scale, 1));
   font-weight: 600;
   line-height: 1.6;
   cursor: pointer;
   overflow-wrap: anywhere;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  list-style: none;
 }
-.meeting-preparation .meeting-preparation-content {
+.student-workspace .meeting-preparation .meeting-preparation-content {
   padding-top: 16px;
   max-width: 760px;
   min-width: 0;
 }
-.meeting-preparation .meeting-preparation-intro,
-.meeting-preparation .meeting-preparation-help {
+.student-workspace .meeting-preparation .meeting-preparation-intro,
+.student-workspace .meeting-preparation .meeting-preparation-help {
   max-width: 65ch;
   color: #56655f;
-  font-size: 0.8125rem;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
   line-height: 1.7;
 }
-.meeting-preparation .meeting-preparation-intro {
+.student-workspace .meeting-preparation .meeting-preparation-intro {
   margin: 0 0 24px;
 }
-.meeting-preparation .meeting-preparation-help {
+.student-workspace .meeting-preparation .meeting-preparation-help {
   margin: 10px 0 18px;
 }
-.meeting-preparation .meeting-preparation-field {
+.student-workspace .meeting-preparation .meeting-preparation-field {
   min-width: 0;
   margin-block: 0 22px;
 }
-.meeting-preparation .meeting-preparation-field label,
-.meeting-preparation .meeting-preparation-unsent > label {
+.student-workspace .meeting-preparation .meeting-preparation-field label,
+.student-workspace .meeting-preparation .meeting-preparation-unsent > label {
   display: block;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
   font-weight: 600;
   line-height: 1.6;
   margin-bottom: 8px;
 }
-.meeting-preparation textarea,
-.meeting-preparation select {
+.student-workspace .meeting-preparation textarea,
+.student-workspace .meeting-preparation select {
   display: block;
   width: 100%;
   max-width: 100%;
@@ -57,23 +64,23 @@
   color: #1d1d1f;
   padding: 12px 14px;
   font: inherit;
-  font-size: 0.9375rem;
+  font-size: calc(0.9375rem * var(--student-type-scale, 1));
   line-height: 1.6;
 }
-.meeting-preparation textarea {
+.student-workspace .meeting-preparation textarea {
   resize: vertical;
 }
-.meeting-preparation button {
+.student-workspace .meeting-preparation button {
   min-height: 44px;
   max-width: 100%;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
   line-height: 1.5;
   cursor: pointer;
   overflow-wrap: anywhere;
 }
-.meeting-preparation .meeting-preparation-primary,
-.meeting-preparation .meeting-preparation-secondary {
+.student-workspace .meeting-preparation .meeting-preparation-primary,
+.student-workspace .meeting-preparation .meeting-preparation-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -82,16 +89,16 @@
   padding: 10px 16px;
   font-weight: 600;
 }
-.meeting-preparation .meeting-preparation-primary {
+.student-workspace .meeting-preparation .meeting-preparation-primary {
   color: #fff;
   background: #174139;
 }
-.meeting-preparation .meeting-preparation-secondary {
+.student-workspace .meeting-preparation .meeting-preparation-secondary {
   color: #174139;
   background: #fff;
   border-color: #8b9c94;
 }
-.meeting-preparation .meeting-preparation-text-action {
+.student-workspace .meeting-preparation .meeting-preparation-text-action {
   padding: 10px 4px;
   color: #174139;
   border: 0;
@@ -99,135 +106,232 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-.meeting-preparation button:disabled {
+.student-workspace .meeting-preparation button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
-.meeting-preparation
+.student-workspace
+  .meeting-preparation
   :is(button, textarea, select, input, summary):focus-visible {
   outline: 3px solid #174139;
   outline-offset: 4px;
 }
-.meeting-preparation .meeting-preparation-actions {
+.student-workspace .meeting-preparation .meeting-preparation-actions {
   display: flex;
   gap: 12px 18px;
   flex-wrap: wrap;
   align-items: center;
   margin-top: 20px;
 }
-.meeting-preparation .meeting-preparation-ready {
+.student-workspace .meeting-preparation .meeting-preparation-ready {
   display: flex;
   gap: 12px;
   align-items: start;
   min-height: 44px;
   padding-block: 8px;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
   line-height: 1.6;
   cursor: pointer;
 }
-.meeting-preparation .meeting-preparation-ready input {
+.student-workspace .meeting-preparation .meeting-preparation-ready input {
   width: 20px;
   height: 20px;
   margin: 2px 0 0;
   flex: 0 0 20px;
   accent-color: #174139;
 }
-.meeting-preparation .meeting-preparation-ready > span > span {
+.student-workspace
+  .meeting-preparation
+  .meeting-preparation-ready
+  > span
+  > span {
   display: block;
   color: #56655f;
-  font-size: 0.8125rem;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
   margin-top: 4px;
 }
-.meeting-preparation .meeting-preparation-draft-label {
-  font-size: 0.8125rem;
+.student-workspace .meeting-preparation .meeting-preparation-draft-label {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
   color: #56655f;
 }
-.meeting-preparation .meeting-preparation-status {
+.student-workspace .meeting-preparation .meeting-preparation-status {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
   line-height: 1.65;
   color: #174139;
 }
-.meeting-preparation .meeting-preparation-status:not(:empty) {
+.student-workspace
+  .meeting-preparation
+  .meeting-preparation-status:not(:empty) {
   margin-block: 16px;
 }
-.meeting-preparation .meeting-preparation-error {
+.student-workspace .meeting-preparation .meeting-preparation-error {
   margin-block: 18px;
   padding: 16px;
   border-left: 3px solid #a3342d;
   background: #fff6f5;
   color: #812a25;
   overflow-wrap: anywhere;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
 }
-.meeting-preparation .meeting-preparation-error p {
+.student-workspace .meeting-preparation .meeting-preparation-error p {
   color: inherit;
   margin: 0;
 }
-.meeting-preparation .meeting-preparation-error p + p {
+.student-workspace .meeting-preparation .meeting-preparation-error p + p {
   margin-top: 10px;
 }
-.meeting-preparation .meeting-preparation-field-error {
+.student-workspace .meeting-preparation .meeting-preparation-field-error {
   color: #912b25;
-  font-size: 0.8125rem;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
   line-height: 1.6;
   margin-top: 8px;
 }
-.meeting-preparation textarea[aria-invalid="true"] {
+.student-workspace .meeting-preparation textarea[aria-invalid="true"] {
   border-color: #a3342d;
 }
-.meeting-preparation .meeting-preparation-saved h4,
-.meeting-preparation .meeting-preparation-confirm h4 {
+.student-workspace .meeting-preparation .meeting-preparation-saved h4,
+.student-workspace .meeting-preparation .meeting-preparation-confirm h4 {
   margin: 0 0 10px;
-  font-size: 0.9375rem;
+  font-size: calc(0.9375rem * var(--student-type-scale, 1));
   color: #1d1d1f;
   line-height: 1.6;
 }
-.meeting-preparation .meeting-preparation-note {
+.student-workspace .meeting-preparation .meeting-preparation-note {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: #414e48;
-  font-size: 0.9375rem;
+  font-size: calc(0.9375rem * var(--student-type-scale, 1));
   line-height: 1.75;
 }
-.meeting-preparation .meeting-preparation-saved dl {
+.student-workspace .meeting-preparation .meeting-preparation-saved dl {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
   line-height: 1.7;
 }
-.meeting-preparation .meeting-preparation-saved dl > div {
+.student-workspace .meeting-preparation .meeting-preparation-saved dl > div {
   margin-top: 16px;
 }
-.meeting-preparation .meeting-preparation-saved dt {
+.student-workspace .meeting-preparation .meeting-preparation-saved dt {
   color: #56655f;
 }
-.meeting-preparation .meeting-preparation-saved dd {
+.student-workspace .meeting-preparation .meeting-preparation-saved dd {
   margin: 4px 0 0;
   overflow-wrap: anywhere;
 }
-.meeting-preparation .meeting-preparation-unsent,
-.meeting-preparation .meeting-preparation-uncertain,
-.meeting-preparation .meeting-preparation-confirm {
+.student-workspace .meeting-preparation .meeting-preparation-unsent,
+.student-workspace .meeting-preparation .meeting-preparation-uncertain,
+.student-workspace .meeting-preparation .meeting-preparation-confirm {
   margin-top: 20px;
   padding-block: 18px;
   border-block: 1px solid #cad8d1;
 }
-.meeting-preparation .meeting-preparation-unsent > p,
-.meeting-preparation .meeting-preparation-uncertain > p,
-.meeting-preparation .meeting-preparation-confirm > p {
+.student-workspace .meeting-preparation .meeting-preparation-unsent > p,
+.student-workspace .meeting-preparation .meeting-preparation-uncertain > p,
+.student-workspace .meeting-preparation .meeting-preparation-confirm > p {
   margin-bottom: 12px;
-  font-size: 0.8125rem;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
   color: #56655f;
   line-height: 1.7;
 }
 @media (max-width: 440px) {
-  .meeting-preparation .meeting-preparation-actions > button {
+  .student-workspace
+    .meeting-preparation
+    .meeting-preparation-actions
+    > button {
     flex: 1 1 auto;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .meeting-preparation * {
+  .student-workspace .meeting-preparation * {
     transition: none !important;
     animation: none !important;
+  }
+}
+.student-workspace .meeting-preparation > summary::-webkit-details-marker {
+  display: none;
+}
+.student-workspace .meeting-preparation > summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+.student-workspace .meeting-preparation[open] > summary::before {
+  transform: translateY(-2px) rotate(45deg);
+}
+.student-workspace .meeting-preparation .meeting-preparation-summary-state {
+  padding: 3px 9px;
+  border-radius: 12px;
+  color: #56655f;
+  background: #f1f4f1;
+  font-size: calc(0.6875rem * var(--student-type-scale, 1));
+  font-weight: 500;
+}
+.student-workspace
+  .meeting-preparation[data-state="unsaved"]
+  .meeting-preparation-summary-state {
+  color: #76551b;
+  background: #fcf2db;
+}
+.student-workspace
+  .meeting-preparation[data-state="saved"]
+  .meeting-preparation-summary-state {
+  color: #31502a;
+  background: #eef5e7;
+}
+.student-workspace .meeting-preparation .meeting-preparation-booking-time {
+  margin: 0 0 24px;
+  color: #56655f;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.student-workspace .meeting-preparation .meeting-preparation-note-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.student-workspace
+  .meeting-preparation
+  .meeting-preparation-note-heading
+  > span {
+  flex-shrink: 0;
+  color: #56655f;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  font-variant-numeric: tabular-nums;
+}
+.student-workspace .meeting-preparation textarea::placeholder {
+  color: #66726b;
+}
+.student-workspace .meeting-preparation .meeting-preparation-unsent-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 12px;
+}
+.student-workspace
+  .meeting-preparation
+  .meeting-preparation-unsent-choices
+  > div {
+  min-width: 0;
+  flex: 1 1 180px;
+}
+.student-workspace .meeting-preparation .meeting-preparation-copy-status {
+  margin: 10px 0 0;
+  color: #174139;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.student-workspace .meeting-preparation .meeting-preparation-copy-status:empty {
+  margin: 0;
+}
+
+@media (max-width: 540px) {
+  .student-workspace .meeting-preparation :is(textarea, select) {
+    font-size: calc(1rem * var(--student-type-scale, 1));
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ApiWorkspace, ApiLearningRecords, LearningGoal } from "../api";
 import type { WorkspaceView } from "./workspaceViews";
 import { meetingTime } from "./format";
@@ -9,10 +9,36 @@ import { buildTodayTasks } from "./studentTodayHelpers";
 import type {
   SavedReflectionDraftSummary,
   TodayTask,
+  TodayPreferences,
 } from "./studentTodayHelpers";
-import { useTodayClock, useTodayPreferences } from "./useTodayPreferences";
+import { useMeetingClock } from "./useMeetingClock";
 import { TodayTaskPanel } from "./TodayTaskPanel";
+import { LearningJourney } from "./LearningJourney";
+import { LearningGlyph } from "./LearningGlyph";
 import "./studentOverview.css";
+
+type QuickStepAttempt = {
+  ownerUid: string;
+  goalId: string;
+  stepId: string;
+  version: number;
+  phase: "saving" | "accepted" | "unconfirmed";
+};
+
+function quickStepIsSaved(
+  attempt: QuickStepAttempt | undefined,
+  goals: LearningGoal[] | undefined,
+) {
+  if (!attempt) return false;
+  const saved = goals?.find(
+    (goal) => goal.id === attempt.goalId && goal.ownerUid === attempt.ownerUid,
+  );
+  return Boolean(
+    saved &&
+    saved.version > attempt.version &&
+    saved.steps.some((step) => step.id === attempt.stepId && step.completed),
+  );
+}
 
 function NextIcon() {
   return (
@@ -51,6 +77,10 @@ export function StudentOverview({
   onLearning,
   onResumeDraft,
   savedReflectionDraft,
+  preferences,
+  onPreferences,
+  busy = false,
+  onCompleteGoalStep,
 }: {
   workspace?: ApiWorkspace;
   learning?: ApiLearningRecords;
@@ -68,33 +98,53 @@ export function StudentOverview({
   onLearning?: (recordId: string) => void;
   onResumeDraft?: () => void;
   savedReflectionDraft?: SavedReflectionDraftSummary;
+  preferences: TodayPreferences;
+  onPreferences: (next: TodayPreferences) => void;
+  busy?: boolean;
+  onCompleteGoalStep?: (goal: LearningGoal, stepId: string) => Promise<boolean>;
 }) {
   const workspaceVisible = useWorkspaceVisible();
   const today = useLocalCalendarDay(workspaceVisible);
-  const now = useTodayClock(workspaceVisible);
-  const [preferences, setPreferences] = useTodayPreferences();
+  const now = useMeetingClock(
+    (workspace?.activeAppointments ?? []).flatMap((item) => [
+      item.startsAt,
+      item.endsAt,
+      Date.parse(item.startsAt) - 86_400_000,
+    ]),
+    workspaceVisible,
+  );
   // The full dashboard is always the entry view, including on devices that
   // remembered an older Focus preference. Focus is an explicit visit choice.
   const [focusView, setFocusView] = useState(false);
+  const [quickStepAttempt, setQuickStepAttempt] = useState<QuickStepAttempt>();
+  const mounted = useRef(false);
+  const quickStepRunning = useRef(false);
+  const currentQuickStep = useRef<QuickStepAttempt | undefined>(undefined);
   const displayPreferences = { ...preferences, focus: focusView };
-  const booking = workspace?.activeAppointments[0];
+  const booking = [...(workspace?.activeAppointments ?? [])]
+    .filter(
+      (item) => item.status === "reserved" && Date.parse(item.endsAt) > now,
+    )
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))[0];
   const activeGoals = goals?.filter((goal) => goal.status === "active");
   const focus = sortLearningGoals(activeGoals ?? [])[0];
+  const noteCharacters = Array.from(
+    focus?.notes.trim().replace(/\s+/gu, " ") ?? "",
+  );
+  const notePreview = `${noteCharacters.slice(0, 160).join("")}${noteCharacters.length > 160 ? "…" : ""}`;
   const completed = goals?.filter((goal) => goal.status === "completed").length;
   const revisions =
     workspace?.evidence.filter(
       (item) =>
         item.reviewStatus === "needs_revision" && !item.supersededByEvidenceId,
     ) ?? [];
-  const unread =
-    learning?.records.reduce(
-      (count, record) =>
-        count +
-        record.outcomes.filter(
-          (item) => !record.acknowledgedOutcomeIds.includes(item.id),
-        ).length,
-      0,
-    ) ?? 0;
+  const unreadRecords = [...(learning?.records ?? [])]
+    .filter((record) =>
+      record.outcomes.some(
+        (item) => !record.acknowledgedOutcomeIds.includes(item.id),
+      ),
+    )
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const planReady = goals !== undefined && !goalsError;
   const tasks = buildTodayTasks({
     workspace,
@@ -104,6 +154,149 @@ export function StudentOverview({
     savedReflectionDraft,
     now,
   });
+  const first = tasks[0];
+  const quickGoal =
+    first?.kind === "goal"
+      ? goals?.find(
+          (goal) => goal.id === first.targetId && goal.status === "active",
+        )
+      : undefined;
+  const quickStep = quickGoal?.steps.find((step) => !step.completed);
+  const quickStepSaved = quickStepIsSaved(quickStepAttempt, goals);
+  const attemptForGoal = Boolean(
+    quickStepAttempt &&
+    quickGoal?.id === quickStepAttempt.goalId &&
+    quickGoal.ownerUid === quickStepAttempt.ownerUid,
+  );
+  const unsettledStep = attemptForGoal && !quickStepSaved;
+  const ownStepPending = attemptForGoal && quickStepAttempt?.phase === "saving";
+  const ownStepChecking =
+    attemptForGoal && quickStepAttempt?.phase === "accepted" && !quickStepSaved;
+  const completedQuickStep =
+    attemptForGoal &&
+    quickStepAttempt?.phase === "accepted" &&
+    quickStepSaved &&
+    !quickStep
+      ? quickGoal?.steps.find((step) => step.id === quickStepAttempt.stepId)
+      : undefined;
+  const displayedQuickStep = quickStep ?? completedQuickStep;
+  const refreshedStepMismatch = Boolean(
+    ownStepChecking &&
+    quickStepAttempt &&
+    quickGoal &&
+    quickGoal.version > quickStepAttempt.version,
+  );
+  const quickStepReady =
+    !readOnly &&
+    !loading &&
+    !goalsLoading &&
+    !stale &&
+    !goalsError &&
+    Boolean(workspace) &&
+    workspaceVisible;
+  const quickContext = useRef({
+    goal: quickGoal,
+    step: quickStep,
+    goals,
+    available: quickStepReady && !busy,
+    onCompleteGoalStep,
+  });
+  useLayoutEffect(() => {
+    quickContext.current = {
+      goal: quickGoal,
+      step: quickStep,
+      goals,
+      available: quickStepReady && !busy,
+      onCompleteGoalStep,
+    };
+  }, [quickGoal, quickStep, goals, quickStepReady, busy, onCompleteGoalStep]);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  async function completePrimaryStep() {
+    const context = quickContext.current;
+    const { goal, step, onCompleteGoalStep: complete } = context;
+    if (
+      !mounted.current ||
+      quickStepRunning.current ||
+      !context.available ||
+      !complete ||
+      !goal ||
+      !step
+    )
+      return;
+    const previous = currentQuickStep.current;
+    if (
+      previous &&
+      previous.ownerUid === goal.ownerUid &&
+      previous.goalId === goal.id &&
+      !quickStepIsSaved(previous, context.goals)
+    )
+      return;
+
+    // The callback gets the exact saved version visible at activation time.
+    // Neither a render nor an optimistic checkbox can change this request.
+    const snapshot = {
+      ...goal,
+      steps: goal.steps.map((item) => ({ ...item })),
+    };
+    const attempt: QuickStepAttempt = {
+      ownerUid: goal.ownerUid,
+      goalId: goal.id,
+      stepId: step.id,
+      version: goal.version,
+      phase: "saving",
+    };
+    currentQuickStep.current = attempt;
+    quickStepRunning.current = true;
+    setQuickStepAttempt(attempt);
+    try {
+      const confirmed = await complete(snapshot, step.id);
+      if (!mounted.current || currentQuickStep.current !== attempt) return;
+      const finished: QuickStepAttempt = {
+        ...attempt,
+        phase: confirmed === true ? "accepted" : "unconfirmed",
+      };
+      currentQuickStep.current = finished;
+      setQuickStepAttempt(finished);
+    } catch {
+      if (!mounted.current || currentQuickStep.current !== attempt) return;
+      const failed: QuickStepAttempt = { ...attempt, phase: "unconfirmed" };
+      currentQuickStep.current = failed;
+      setQuickStepAttempt(failed);
+    } finally {
+      quickStepRunning.current = false;
+    }
+  }
+  const quickFeedback =
+    attemptForGoal && !readOnly
+      ? quickStepAttempt?.phase === "saving"
+        ? { message: "Saving step…", error: false }
+        : quickStepAttempt?.phase === "accepted" && quickStepSaved
+          ? {
+              message: completedQuickStep
+                ? "All steps checked. Open goal to review."
+                : "Saved. Next step ready.",
+              error: false,
+            }
+          : quickStepAttempt?.phase === "accepted" && refreshedStepMismatch
+            ? {
+                message: "Not confirmed. Open goal to check.",
+                error: true,
+              }
+            : quickStepAttempt?.phase === "accepted" && unsettledStep
+              ? { message: "Checking saved step…", error: false }
+              : quickStepAttempt?.phase === "unconfirmed" && !quickStepSaved
+                ? {
+                    message: "Not confirmed. Open goal to check.",
+                    error: true,
+                  }
+                : undefined
+      : undefined;
   function openTask(task: TodayTask) {
     if (task.kind === "draft") {
       if (onResumeDraft) onResumeDraft();
@@ -144,7 +337,62 @@ export function StudentOverview({
           </span>
         )}
       </div>
+      <div className="learning-overview-today">
+        <h3>Today</h3>
+        <TodayTaskPanel
+          tasks={tasks}
+          preferences={displayPreferences}
+          onPreferences={(next) => {
+            setFocusView(next.focus);
+            // Text and spacing persist. Focus never conceals the default
+            // dashboard on the next visit or another signed-in account.
+            onPreferences({ ...next, focus: false });
+          }}
+          onTask={openTask}
+          quickGoalStep={
+            onCompleteGoalStep &&
+            displayedQuickStep &&
+            quickGoal &&
+            !readOnly &&
+            workspaceVisible &&
+            (quickStepReady || ownStepPending || ownStepChecking)
+              ? {
+                  title: displayedQuickStep.title,
+                  goalTitle: quickGoal.title,
+                  disabled:
+                    busy ||
+                    ownStepPending ||
+                    unsettledStep ||
+                    Boolean(completedQuickStep),
+                  saving: ownStepPending,
+                  completed: Boolean(completedQuickStep),
+                  onComplete: () => void completePrimaryStep(),
+                }
+              : undefined
+          }
+          quickGoalFeedback={quickFeedback}
+          loading={loading || goalsLoading}
+          stale={stale || goalsError || !workspace}
+        />
+      </div>
       <div className="learning-overview-full" hidden={focusView}>
+        <LearningJourney
+          goalCount={planReady ? goals.length : undefined}
+          bookingCount={
+            workspace
+              ? workspace.activeAppointments.filter(
+                  (item) =>
+                    item.status === "reserved" && Date.parse(item.endsAt) > now,
+                ).length
+              : undefined
+          }
+          evidenceCount={workspace?.progress.submittedEvidenceCount}
+          reviewedCount={workspace?.progress.reviewedEvidenceCount}
+          nextKind={tasks[0]?.kind}
+          stale={stale || goalsError}
+          readOnly={readOnly}
+          onNavigate={onNavigate}
+        />
         <section
           className="learning-overview-activity"
           aria-label="Saved activity"
@@ -152,15 +400,24 @@ export function StudentOverview({
           <h3 className="sr-only">Your saved activity</h3>
           <dl>
             <div>
-              <dt>Goals completed</dt>
+              <dt>
+                <LearningGlyph name="goal" />
+                Goals completed
+              </dt>
               <dd>{planReady ? completed : "—"}</dd>
             </div>
             <div>
-              <dt>Evidence submitted</dt>
+              <dt>
+                <LearningGlyph name="evidence" />
+                Evidence submitted
+              </dt>
               <dd>{workspace?.progress.submittedEvidenceCount ?? "—"}</dd>
             </div>
             <div>
-              <dt>Manually reviewed</dt>
+              <dt>
+                <LearningGlyph name="feedback" />
+                Manually reviewed
+              </dt>
               <dd>{workspace?.progress.reviewedEvidenceCount ?? "—"}</dd>
             </div>
           </dl>
@@ -199,7 +456,7 @@ export function StudentOverview({
             aria-labelledby="overview-plan-heading"
           >
             <p className="learning-overview-label">Learning plan</p>
-            <h3 id="overview-plan-heading">
+            <h3 id="overview-plan-heading" dir="auto">
               {goalsError
                 ? "Plan unavailable."
                 : !planReady
@@ -211,10 +468,10 @@ export function StudentOverview({
                       : "Choose a goal."}
             </h3>
             {(goalsError || focus?.notes) && (
-              <p className="learning-overview-focus-copy">
+              <p className="learning-overview-focus-copy" dir="auto">
                 {goalsError
                   ? "Open your plan to retry. Saved goals are unchanged."
-                  : focus?.notes}
+                  : notePreview}
               </p>
             )}
             {planReady && focus?.dueDate && (
@@ -223,23 +480,42 @@ export function StudentOverview({
               </p>
             )}
             {planReady && focus && focus.steps.length > 0 && (
-              <p className="learning-overview-step-progress">
-                {focus.steps.filter((step) => step.completed).length} of{" "}
-                {focus.steps.length} steps checked
-              </p>
+              <div className="learning-overview-step-progress">
+                <label htmlFor="overview-goal-progress">
+                  {focus.steps.filter((step) => step.completed).length} of{" "}
+                  {focus.steps.length} steps checked
+                </label>
+                <progress
+                  id="overview-goal-progress"
+                  max={focus.steps.length}
+                  value={focus.steps.filter((step) => step.completed).length}
+                />
+              </div>
             )}
             <div className="learning-overview-focus-footer">
               <button
                 className="button"
                 type="button"
-                onClick={() => onNavigate("plan")}
+                onClick={() => {
+                  if (focus && onGoal) onGoal(focus.id);
+                  else onNavigate("plan");
+                }}
                 aria-label={
-                  planReady && !goals.length && !readOnly
-                    ? "Create your first goal"
-                    : "Open learning plan"
+                  focus
+                    ? `${readOnly ? "View goal" : "Open goal"} — ${focus.title}`
+                    : planReady && !goals.length && !readOnly
+                      ? "Choose a goal — Create your first goal"
+                      : "Open learning plan"
                 }
               >
-                {planReady && !goals.length && !readOnly ? "Create" : "Open"}
+                {focus
+                  ? readOnly
+                    ? "View goal"
+                    : "Open goal"
+                  : planReady && !goals.length && !readOnly
+                    ? "Choose a goal"
+                    : "Open plan"}
+                <LearningGlyph name="arrow" />
               </button>
               {planReady && activeGoals && activeGoals.length > 0 && (
                 <span>
@@ -273,7 +549,11 @@ export function StudentOverview({
               </svg>
             </div>
             <h3 id="overview-meeting-heading">
-              {booking ? "Next meeting" : "Meetings"}
+              {booking
+                ? Date.parse(booking.startsAt) <= now
+                  ? "Scheduled meeting"
+                  : "Next meeting"
+                : "Meetings"}
             </h3>
             <p className="learning-overview-meeting-time">
               {!workspace
@@ -307,34 +587,23 @@ export function StudentOverview({
           </article>
         </div>
       </div>
-      <div className="learning-overview-today">
-        <h3>Today</h3>
-        <TodayTaskPanel
-          tasks={tasks}
-          preferences={displayPreferences}
-          onPreferences={(next) => {
-            setFocusView(next.focus);
-            // Text and spacing persist. Focus never conceals the default
-            // dashboard on the next visit or another signed-in account.
-            setPreferences({ ...next, focus: false });
-          }}
-          onTask={openTask}
-          loading={loading || goalsLoading}
-          stale={stale || goalsError || !workspace}
-        />
-      </div>
       <div className="learning-overview-full" hidden={focusView}>
         <div className="learning-overview-follow-ups">
           <button
             className="learning-overview-follow-up"
             type="button"
-            onClick={() => onNavigate("evidence")}
+            onClick={() => {
+              if (revisions[0] && onEvidence) onEvidence(revisions[0].id);
+              else onNavigate("evidence");
+            }}
           >
             <span
               className="learning-overview-follow-up-symbol"
               aria-hidden="true"
             >
-              {revisions.length || "↗"}
+              <LearningGlyph
+                name={revisions.length ? "feedback" : "evidence"}
+              />
             </span>
             <span>
               <strong>
@@ -342,32 +611,38 @@ export function StudentOverview({
               </strong>
               <span>
                 {revisions.length
-                  ? `${revisions.length} to revise. Read staff feedback first.`
+                  ? "Read your team’s feedback"
                   : "Files and feedback"}
               </span>
             </span>
             <span className="learning-overview-follow-up-action">
-              Open
+              {revisions.length ? "Feedback" : "Open"}
               <NextIcon />
             </span>
           </button>
           <button
             className="learning-overview-follow-up"
             type="button"
-            onClick={() => onNavigate("learning")}
+            onClick={() => {
+              if (unreadRecords[0] && onLearning)
+                onLearning(unreadRecords[0].id);
+              else onNavigate("learning");
+            }}
           >
             <span
               className="learning-overview-follow-up-symbol"
               aria-hidden="true"
             >
-              {unread || "≡"}
+              <LearningGlyph name="book" />
             </span>
             <span>
-              <strong>
-                {unread ? "Unread learning summaries" : "Learning summaries"}
-              </strong>
+              <strong>Learning notes</strong>
               <span>
-                {unread ? `${unread} to review` : "Published by TALA"}
+                {unreadRecords.length
+                  ? readOnly
+                    ? "Awaiting student review"
+                    : "New notes to read"
+                  : "Published by TALA"}
               </span>
             </span>
             <span className="learning-overview-follow-up-action">

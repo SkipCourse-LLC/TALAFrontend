@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   MAX_FILE_BYTES,
   newRequestId,
@@ -8,6 +8,7 @@ import {
   validateEvidenceFile,
 } from "../api";
 import type { ApiEvidence, ApiPendingUpload, UploadStatus } from "../api";
+import { EvidenceFilePicker } from "./EvidenceFilePicker";
 import "./pendingUploads.css";
 
 type Work = "finish" | "cancel" | "check";
@@ -26,8 +27,13 @@ function matchingStatus(saved: UploadStatus, upload: ApiPendingUpload) {
     throw new TalaApiError("INTEGRITY_ERROR");
   return saved;
 }
-function matchingEvidence(saved: ApiEvidence, upload: ApiPendingUpload) {
+function matchingEvidence(
+  saved: ApiEvidence,
+  upload: ApiPendingUpload,
+  ownerUid: string,
+) {
   if (
+    saved.ownerUid !== ownerUid ||
     saved.id !== upload.uploadId ||
     saved.appointmentId !== upload.appointmentId ||
     saved.sha256 !== upload.sha256 ||
@@ -39,21 +45,35 @@ function matchingEvidence(saved: ApiEvidence, upload: ApiPendingUpload) {
   return saved;
 }
 
-export function PendingUploadsPanel({
-  disabled = false,
-  excludeUploadId,
-  onChanged,
-  onExpired,
-  onBusyChange,
-  onUploadsChanged,
-}: {
+type Props = {
+  ownerUid: string;
   disabled?: boolean;
+  revision?: number;
   excludeUploadId?: string;
   onChanged: () => void;
   onExpired: () => void;
   onBusyChange?: (busy: boolean) => void;
   onUploadsChanged?: (uploads: ApiPendingUpload[]) => void;
-}) {
+  onNoticeDismissed?: () => void;
+};
+
+export function PendingUploadsPanel(props: Props) {
+  // A changed student identity retires all old Files, confirmations and reads
+  // at the layout boundary, before the newly scoped recovery UI is shown.
+  return <OwnerPendingUploadsPanel key={props.ownerUid} {...props} />;
+}
+
+function OwnerPendingUploadsPanel({
+  ownerUid,
+  disabled = false,
+  revision = 0,
+  excludeUploadId,
+  onChanged,
+  onExpired,
+  onBusyChange,
+  onUploadsChanged,
+  onNoticeDismissed,
+}: Props) {
   const [uploads, setUploads] = useState<ApiPendingUpload[]>();
   const [attempt, setAttempt] = useState(0),
     [loading, setLoading] = useState(true);
@@ -70,33 +90,43 @@ export function PendingUploadsPanel({
   const busy = useRef(false),
     active = useRef(false);
   const mutation = useRef<AbortController | null>(null);
+  const readRequest = useRef<AbortController | null>(null);
   const busyListener = useRef(onBusyChange);
   const uploadsListener = useRef(onUploadsChanged);
   const uploadsSnapshot = useRef<ApiPendingUpload[]>([]);
   const dataRevision = useRef(0);
   const requestIds = useRef(new Map<string, string>());
   const keepUpload = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
+  const statusTarget = useRef<HTMLParagraphElement>(null);
+  const actionOpener = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
     busyListener.current = onBusyChange;
   }, [onBusyChange]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     uploadsListener.current = onUploadsChanged;
   }, [onUploadsChanged]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     active.current = true;
     return () => {
       active.current = false;
+      readRequest.current?.abort();
       mutation.current?.abort();
       busyListener.current?.(false);
     };
   }, []);
   useEffect(() => {
+    const loadingTimer = window.setTimeout(() => setLoading(true), 0);
     const request = new AbortController();
+    readRequest.current = request;
     const version = dataRevision.current;
     void talaApi
       .getPendingUploads(request.signal)
       .then((saved) => {
-        if (!request.signal.aborted && version === dataRevision.current) {
+        if (
+          active.current &&
+          !request.signal.aborted &&
+          version === dataRevision.current
+        ) {
           uploadsSnapshot.current = saved.uploads;
           setUploads(saved.uploads);
           uploadsListener.current?.(saved.uploads);
@@ -104,7 +134,7 @@ export function PendingUploadsPanel({
         }
       })
       .catch((failure: unknown) => {
-        if (request.signal.aborted) return;
+        if (!active.current || request.signal.aborted) return;
         const error = safeTalaApiError(failure);
         if (error.code === "AUTH_REQUIRED" || error.code === "FORBIDDEN") {
           setUploads(undefined);
@@ -112,10 +142,16 @@ export function PendingUploadsPanel({
         } else setLoadError(error.message);
       })
       .finally(() => {
-        if (!request.signal.aborted) setLoading(false);
+        window.clearTimeout(loadingTimer);
+        if (readRequest.current === request) readRequest.current = null;
+        if (active.current && !request.signal.aborted) setLoading(false);
       });
-    return () => request.abort();
-  }, [attempt, excludeUploadId, onExpired]);
+    return () => {
+      window.clearTimeout(loadingTimer);
+      request.abort();
+      if (readRequest.current === request) readRequest.current = null;
+    };
+  }, [attempt, excludeUploadId, onExpired, revision]);
   useEffect(() => {
     if (confirmCancel) keepUpload.current?.focus();
   }, [confirmCancel]);
@@ -127,8 +163,16 @@ export function PendingUploadsPanel({
   function showError(uploadId: string, text: string) {
     setErrors((saved) => ({ ...saved, [uploadId]: text }));
     requestAnimationFrame(() => {
-      if (active.current)
-        document.getElementById(`pending-upload-error-${uploadId}`)?.focus();
+      const target = document.getElementById(
+        `pending-upload-error-${uploadId}`,
+      );
+      if (
+        active.current &&
+        target?.getClientRects().length &&
+        (document.activeElement === actionOpener.current ||
+          document.activeElement === document.body)
+      )
+        target.focus();
     });
   }
   function retire(upload: ApiPendingUpload, text: string) {
@@ -154,6 +198,15 @@ export function PendingUploadsPanel({
     requestIds.current.delete(upload.uploadId);
     setMessage(text);
     onChanged();
+    requestAnimationFrame(() => {
+      if (
+        active.current &&
+        statusTarget.current?.getClientRects().length &&
+        (document.activeElement === actionOpener.current ||
+          document.activeElement === document.body)
+      )
+        statusTarget.current.focus();
+    });
   }
   async function recoverSubmission(
     upload: ApiPendingUpload,
@@ -162,6 +215,7 @@ export function PendingUploadsPanel({
     matchingEvidence(
       await talaApi.getEvidence(upload.uploadId, signal),
       upload,
+      ownerUid,
     );
     if (!active.current || signal.aborted) return;
     retire(upload, `“${upload.title}” is saved as submitted Evidence.`);
@@ -169,6 +223,10 @@ export function PendingUploadsPanel({
   async function act(upload: ApiPendingUpload, work: Work) {
     if (busy.current || disabled || loading || loadError) return;
     busy.current = true;
+    actionOpener.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     busyListener.current?.(true);
     setPending({ id: upload.uploadId, work });
     setMessage("");
@@ -249,6 +307,7 @@ export function PendingUploadsPanel({
           ),
           upload,
         );
+        if (!active.current || request.signal.aborted) return;
         if (uploaded.status === "submitted") {
           await recoverSubmission(upload, request.signal);
           return;
@@ -264,7 +323,7 @@ export function PendingUploadsPanel({
         { requestId },
         request.signal,
       );
-      matchingEvidence(submitted.evidence, upload);
+      matchingEvidence(submitted.evidence, upload, ownerUid);
       if (active.current && !request.signal.aborted)
         retire(upload, `“${upload.title}” is saved as submitted Evidence.`);
     } catch (failure) {
@@ -297,45 +356,93 @@ export function PendingUploadsPanel({
       showError(upload.uploadId, error.message);
     } finally {
       busy.current = false;
-      busyListener.current?.(false);
-      if (active.current) setPending(undefined);
+      if (active.current) {
+        busyListener.current?.(false);
+        setPending(undefined);
+      }
     }
   }
   const blocked = disabled || Boolean(pending) || loading || Boolean(loadError);
   const visible = uploads?.filter(
     (upload) => upload.uploadId !== excludeUploadId,
   );
+  const hasLocalRecovery =
+    Boolean(confirmCancel) ||
+    Object.entries(files).some(
+      ([id, file]) => id !== excludeUploadId && Boolean(file),
+    ) ||
+    Object.entries(uncertain).some(
+      ([id, result]) => id !== excludeUploadId && Boolean(result),
+    );
+  const quietEmpty =
+    visible?.length === 0 &&
+    !loading &&
+    !loadError &&
+    !message &&
+    !pending &&
+    !hasLocalRecovery;
   return (
     <section
-      className="pending-uploads"
-      aria-labelledby="pending-uploads-heading"
+      className={quietEmpty ? undefined : "pending-uploads"}
+      aria-labelledby={quietEmpty ? undefined : "pending-uploads-heading"}
       aria-busy={loading || Boolean(pending)}
     >
-      <header className="pending-uploads-heading">
-        <div>
-          <h3 id="pending-uploads-heading" aria-label="Unfinished uploads">
-            Uploads
-          </h3>
-        </div>
-        <button
-          type="button"
-          aria-label={loading ? "Refreshing…" : "Refresh unfinished uploads"}
-          className="pending-uploads-text-button"
-          disabled={disabled || loading || Boolean(pending)}
-          onClick={() => refresh(true)}
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </header>
+      {!quietEmpty && (
+        <header className="pending-uploads-heading">
+          <div>
+            <h3 id="pending-uploads-heading" aria-label="Unfinished uploads">
+              Uploads
+              {Boolean(visible?.length) && (
+                <span
+                  className="pending-uploads-count"
+                  aria-label={`${visible!.length} unfinished ${visible!.length === 1 ? "upload" : "uploads"}`}
+                >
+                  {visible!.length}
+                </span>
+              )}
+            </h3>
+          </div>
+          <button
+            type="button"
+            aria-label={loading ? "Refreshing…" : "Refresh unfinished uploads"}
+            className="pending-uploads-text-button"
+            disabled={disabled || loading || Boolean(pending)}
+            onClick={() => refresh(true)}
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </header>
+      )}
       <p
+        key="pending-upload-status"
         className={
-          message ? "pending-uploads-notice" : "pending-uploads-status"
+          quietEmpty
+            ? "sr-only"
+            : message
+              ? "pending-uploads-notice"
+              : "pending-uploads-status"
         }
         role="status"
         aria-live="polite"
+        ref={statusTarget}
+        tabIndex={-1}
       >
-        {message}
+        {message || (quietEmpty ? "No unfinished uploads." : "")}
       </p>
+      {message && (
+        <button
+          type="button"
+          className="pending-uploads-text-button"
+          aria-label="Dismiss upload confirmation"
+          disabled={disabled || loading || Boolean(pending)}
+          onClick={() => {
+            setMessage("");
+            onNoticeDismissed?.();
+          }}
+        >
+          Dismiss
+        </button>
+      )}
       {loadError && (
         <div className="pending-uploads-error" role="alert">
           <p>{loadError} Refresh this list before continuing.</p>
@@ -346,7 +453,7 @@ export function PendingUploadsPanel({
           Loading…
         </p>
       )}
-      {visible && !visible.length && (
+      {!quietEmpty && visible && !visible.length && (
         <p className="pending-uploads-empty">No unfinished uploads.</p>
       )}
       {visible && visible.length > 0 && (
@@ -358,7 +465,9 @@ export function PendingUploadsPanel({
             <li key={upload.uploadId}>
               <div className="pending-uploads-document">
                 <div>
-                  <h4>{upload.title}</h4>
+                  <h4>
+                    <bdi>{upload.title}</bdi>
+                  </h4>
                   <p>
                     {upload.contentType === "application/pdf" ? "PDF" : "Text"}{" "}
                     · {Math.max(1, Math.ceil(upload.size / 1024))} KiB
@@ -387,21 +496,17 @@ export function PendingUploadsPanel({
               </p>
               {upload.status === "pending" && (
                 <div className="pending-uploads-file">
-                  <label htmlFor={`pending-upload-file-${upload.uploadId}`}>
-                    Original file
-                  </label>
-                  <input
+                  <EvidenceFilePicker
                     id={`pending-upload-file-${upload.uploadId}`}
-                    aria-label={`Choose original file for ${upload.title}`}
-                    type="file"
-                    accept=".txt,.pdf,text/plain,application/pdf"
+                    label="Original file"
+                    inputLabel={`Choose original file for ${upload.title}`}
+                    file={files[upload.uploadId] ?? null}
                     disabled={blocked || expired[upload.uploadId]}
-                    aria-describedby={`pending-upload-help-${upload.uploadId}`}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
+                    describedBy={`pending-upload-help-${upload.uploadId}`}
+                    onFileChange={(file) => {
                       setFiles((saved) => ({
                         ...saved,
-                        [upload.uploadId]: file,
+                        [upload.uploadId]: file ?? undefined,
                       }));
                       setErrors((saved) => ({
                         ...saved,
@@ -417,7 +522,7 @@ export function PendingUploadsPanel({
                       ? files[upload.uploadId]
                         ? "File kept. Use it in a new upload."
                         : "Start a new upload with the original file."
-                      : "Use the same file; type, size and checksum must match."}
+                      : "Choose the same original file to continue."}
                   </p>
                 </div>
               )}
@@ -445,7 +550,7 @@ export function PendingUploadsPanel({
                     onClick={() => void act(upload, "check")}
                     aria-label="Check saved result"
                   >
-                    Check
+                    Check status
                   </button>
                 </div>
               )}
@@ -466,8 +571,8 @@ export function PendingUploadsPanel({
                   {pending?.id === upload.uploadId && pending.work === "finish"
                     ? "Saving…"
                     : upload.status === "uploaded"
-                      ? "Finish"
-                      : "Submit"}
+                      ? "Finish submission"
+                      : "Upload and submit"}
                 </button>
                 <button
                   type="button"

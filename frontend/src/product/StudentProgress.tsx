@@ -1,7 +1,13 @@
 import type { ApiWorkspace, LearningGoal } from "../api";
-import { goalDueLabel, sortLearningGoals } from "./learningPlanHelpers";
+import {
+  goalChecklist,
+  goalTargetLabel,
+  learningPlanSnapshot,
+} from "./learningPlanExperience";
 import { useLocalCalendarDay } from "./useLocalCalendarDay";
 import "./studentProgress.css";
+import "./progressJourney.css";
+import { LearningGlyph } from "./LearningGlyph";
 
 export function StudentProgress({
   workspace,
@@ -27,47 +33,109 @@ export function StudentProgress({
   onRetry: () => void;
 }) {
   const today = useLocalCalendarDay(visible);
-  const completed =
-    goals?.filter((goal) => goal.status === "completed").length ?? 0;
-  const steps = goals?.reduce(
-    (counts, goal) => ({
-      total: counts.total + goal.steps.length,
-      completed:
-        counts.completed + goal.steps.filter((step) => step.completed).length,
-    }),
-    { total: 0, completed: 0 },
-  );
-  const targets = sortLearningGoals(
-    (goals ?? []).filter((goal) => goal.status === "active" && goal.dueDate),
-  ).slice(0, 4);
-  const links = goals?.reduce(
-    (count, goal) => count + goal.linkedEvidenceCount,
-    0,
-  );
+  // This panel has no editable content to retain while another section is open.
+  if (!visible) return null;
+  const plan = learningPlanSnapshot(goals ?? []);
+  const completed = plan.completed.length;
+  const steps = plan.steps;
+  const nextStep = plan.nextGoal
+    ? goalChecklist(plan.nextGoal).next
+    : undefined;
+  const targets = plan.active.slice(0, 4);
   const plansReady = goals !== undefined && !goalsError;
   return (
     <section
       className="student-progress"
       aria-labelledby="progress-heading"
       hidden={!visible}
+      aria-busy={loading}
     >
       <header className="student-progress-heading">
         <h2 id="progress-heading" tabIndex={-1}>
           Progress
         </h2>
       </header>
+      {plansReady && goals.length > 0 && (
+        <div className="student-progress-next">
+          <span className="student-progress-next-symbol" aria-hidden="true">
+            <LearningGlyph
+              name={plan.active.length ? "goal" : completed ? "check" : "book"}
+            />
+          </span>
+          <div>
+            <p>
+              {plan.nextGoal
+                ? "Keep going"
+                : completed
+                  ? "What’s next?"
+                  : "One small step"}
+            </p>
+            <h3 dir="auto">
+              {nextStep?.title ??
+                plan.nextGoal?.title ??
+                (completed
+                  ? "Choose what comes next."
+                  : "Start your learning plan.")}
+            </h3>
+            {nextStep && (
+              <span>
+                <bdi>{plan.nextGoal!.title}</bdi>
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="student-progress-next-action"
+            onClick={() => onPlan(plan.nextGoal?.id)}
+          >
+            {plan.nextGoal
+              ? readOnly
+                ? "View goal"
+                : "Continue goal"
+              : "Open plan"}
+            <LearningGlyph name="arrow" />
+          </button>
+        </div>
+      )}
       <div className="student-progress-grid">
         <section
           className="student-progress-plan"
           aria-labelledby="progress-plan-heading"
         >
-          <h3 id="progress-plan-heading">Goals completed</h3>
-          {plansReady ? (
+          <h3 id="progress-plan-heading">
+            {plansReady && goals.length === 0
+              ? "Your learning journey"
+              : "Goals completed"}
+          </h3>
+          {plansReady && goals.length > 0 ? (
             <>
-              <p className="student-progress-number">
-                <strong>{completed}</strong>
-                <span>/ {goals.length}</span>
-              </p>
+              <div className="student-progress-goal-visual">
+                <svg viewBox="0 0 160 160" aria-hidden="true">
+                  <circle
+                    className="student-progress-ring-track"
+                    cx="80"
+                    cy="80"
+                    r="65"
+                  />
+                  <circle
+                    className="student-progress-ring-fill"
+                    cx="80"
+                    cy="80"
+                    r="65"
+                    strokeDasharray={2 * Math.PI * 65}
+                    strokeDashoffset={
+                      2 *
+                      Math.PI *
+                      65 *
+                      (1 - (goals.length ? completed / goals.length : 0))
+                    }
+                  />
+                </svg>
+                <p className="student-progress-number">
+                  <strong>{completed}</strong>
+                  <span>/ {goals.length}</span>
+                </p>
+              </div>
               {goals.length > 0 && (
                 <progress
                   value={completed}
@@ -80,19 +148,40 @@ export function StudentProgress({
               <div className="student-progress-step-total">
                 <span>Steps</span>
                 <strong>
-                  {steps!.completed} / {steps!.total}
+                  {steps.total
+                    ? `${steps.completed} / ${steps.total}`
+                    : "Not added"}
                 </strong>
               </div>
-              {steps!.total > 0 && (
+              {steps.total > 0 && (
                 <progress
-                  value={steps!.completed}
-                  max={steps!.total}
+                  value={steps.completed}
+                  max={steps.total}
                   aria-label="Personal learning steps completed"
                 >
-                  {steps!.completed} of {steps!.total}
+                  {steps.completed} of {steps.total}
                 </progress>
               )}
+              {steps.total === 0 && (
+                <p className="student-progress-checklist-help">
+                  {readOnly
+                    ? "The student can add steps to their goals."
+                    : "Add steps to make your next goal easier to follow."}
+                </p>
+              )}
             </>
+          ) : plansReady ? (
+            <div className="student-progress-empty-plan">
+              <span aria-hidden="true">
+                <LearningGlyph name="book" />
+              </span>
+              <strong>Your progress starts here.</strong>
+              <p>
+                {readOnly
+                  ? "The student’s saved goals will appear here."
+                  : "Choose a goal. Track it at your own pace."}
+              </p>
+            </div>
           ) : goalsError ? (
             <div className="student-progress-plan-error" role="alert">
               <p>{goalsError} Saved goals have not been changed.</p>
@@ -116,6 +205,7 @@ export function StudentProgress({
             onClick={() => onPlan()}
           >
             Learning plan
+            <LearningGlyph name="arrow" />
           </button>
         </section>
         <section
@@ -138,7 +228,7 @@ export function StudentProgress({
             </div>
             <div>
               <dt>Goal links</dt>
-              <dd>{plansReady ? links : "—"}</dd>
+              <dd>{plansReady ? plan.links : "—"}</dd>
             </div>
           </dl>
           <button
@@ -148,58 +238,107 @@ export function StudentProgress({
             onClick={onEvidence}
           >
             Evidence
+            <LearningGlyph name="arrow" />
           </button>
+          {workspace?.progress.submittedEvidenceCount === 0 && (
+            <p className="student-progress-work-help">
+              Your saved work and feedback will appear here.
+            </p>
+          )}
         </section>
       </div>
-      <section
-        className="student-progress-targets"
-        aria-labelledby="progress-targets-heading"
-      >
-        <header>
-          <div>
-            <h3 id="progress-targets-heading">Target dates</h3>
-          </div>
-          <button
-            className="student-progress-link"
-            aria-label="View all goals"
-            type="button"
-            onClick={() => onPlan()}
-          >
-            All goals
-          </button>
-        </header>
-        {!plansReady ? (
-          <p>Loading target dates…</p>
-        ) : targets.length ? (
-          <ul>
-            {targets.map((goal) => {
-              const date = goalDueLabel(goal.dueDate, today);
-              return (
-                <li key={goal.id}>
-                  <button type="button" onClick={() => onPlan(goal.id)}>
-                    <span>
-                      <strong>{goal.title}</strong>
+      {(!plansReady || plan.active.length > 0) && (
+        <section
+          className="student-progress-targets"
+          aria-labelledby="progress-targets-heading"
+        >
+          <header>
+            <div>
+              <h3 id="progress-targets-heading">Active goals</h3>
+            </div>
+            <button
+              className="student-progress-link"
+              aria-label="View all goals"
+              type="button"
+              onClick={() => onPlan()}
+            >
+              All goals
+            </button>
+          </header>
+          {!plansReady ? (
+            <p>
+              {goalsError
+                ? "Goals are unavailable. Reload above to try again."
+                : "Loading goals…"}
+            </p>
+          ) : targets.length ? (
+            <ul>
+              {targets.map((goal) => {
+                const date = goalTargetLabel(goal.dueDate, today);
+                const checklist = goalChecklist(goal);
+                return (
+                  <li key={goal.id}>
+                    <button type="button" onClick={() => onPlan(goal.id)}>
                       <span>
-                        {goal.steps.filter((step) => step.completed).length} /{" "}
-                        {goal.steps.length} steps
+                        <strong dir="auto">{goal.title}</strong>
+                        <span>
+                          {checklist.total
+                            ? `${checklist.completed} / ${checklist.total} steps`
+                            : "Ready when you are"}
+                        </span>
                       </span>
-                    </span>
-                    <span data-overdue={date.overdue}>{date.label}</span>
-                  </button>
-                </li>
-              );
-            })}
+                      <span data-overdue={date.overdue}>
+                        {goal.dueDate ? date.label : "Open goal"}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p>
+              {completed
+                ? "All saved goals are complete."
+                : "No active goals yet."}
+            </p>
+          )}
+        </section>
+      )}
+      {plansReady && plan.completed.length > 0 && (
+        <section
+          className="student-progress-completed"
+          aria-labelledby="progress-completed-heading"
+        >
+          <h3 id="progress-completed-heading">Completed</h3>
+          <ul>
+            {plan.completed.slice(0, 3).map((goal) => (
+              <li key={goal.id}>
+                <span aria-hidden="true">
+                  <LearningGlyph name="check" />
+                </span>
+                <button type="button" onClick={() => onPlan(goal.id)}>
+                  <strong dir="auto">{goal.title}</strong>
+                  {goal.completedAt && (
+                    <time dateTime={goal.completedAt}>
+                      {new Intl.DateTimeFormat(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      }).format(new Date(goal.completedAt))}
+                    </time>
+                  )}
+                </button>
+              </li>
+            ))}
           </ul>
-        ) : (
-          <p>No target dates yet.</p>
-        )}
-      </section>
+        </section>
+      )}
       <div className="student-progress-summary">
         <div>
           <h3>Learning records</h3>
           <p>
             {workspace
-              ? `${workspace.progress.acknowledgedOutcomeCount} reviewed by student`
+              ? `${workspace.progress.acknowledgedOutcomeCount} read by student`
               : "No records loaded."}
           </p>
         </div>

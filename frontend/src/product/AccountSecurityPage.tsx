@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { newRequestId, safeTalaApiError, talaApi, TalaApiError } from "../api";
 import type { ApiAccountSession, ApiAccountSessions, ApiUser } from "../api";
+import { isWellFormedText } from "./unicodeText";
 import "./accountSecurity.css";
 
 type FieldName = "current" | "next" | "confirmation";
@@ -46,6 +47,7 @@ function PasswordField({
   onVisibility: () => void;
 }) {
   const id = `account-password-${name}`;
+  const [capsLock, setCapsLock] = useState(false);
   return (
     <div className="account-security-field">
       <label htmlFor={id}>{label}</label>
@@ -65,13 +67,20 @@ function PasswordField({
           }
           required
           maxLength={128}
-          minLength={name === "current" ? undefined : 12}
+          minLength={name === "current" ? undefined : 8}
           disabled={disabled}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onKeyUp={(event) => setCapsLock(event.getModifierState("CapsLock"))}
+          onKeyDown={(event) => setCapsLock(event.getModifierState("CapsLock"))}
+          onBlur={() => setCapsLock(false)}
           aria-invalid={Boolean(error)}
           aria-describedby={
-            [help ? `${id}-help` : "", error ? `${id}-error` : ""]
+            [
+              help && !error ? `${id}-help` : "",
+              error ? `${id}-error` : "",
+              capsLock ? `${id}-caps` : "",
+            ]
               .filter(Boolean)
               .join(" ") || undefined
           }
@@ -81,6 +90,7 @@ function PasswordField({
         <button
           type="button"
           aria-controls={id}
+          aria-pressed={visible}
           aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`}
           onClick={onVisibility}
           disabled={disabled}
@@ -88,7 +98,7 @@ function PasswordField({
           {visible ? "Hide" : "Show"}
         </button>
       </div>
-      {help && (
+      {help && !error && (
         <p className="account-security-help" id={`${id}-help`}>
           {help}
         </p>
@@ -96,6 +106,11 @@ function PasswordField({
       {error && (
         <p className="account-security-field-error" id={`${id}-error`}>
           {error}
+        </p>
+      )}
+      {capsLock && (
+        <p className="account-security-caps" id={`${id}-caps`} role="status">
+          Caps Lock is on.
         </p>
       )}
     </div>
@@ -140,7 +155,10 @@ export function AccountSecurityPage({
     busy = useRef(false);
   const mutation = useRef<AbortController | null>(null);
   const requestIds = useRef(new Map<string, string>());
-  const feedback = useRef<HTMLDivElement>(null);
+  const passwordFeedback = useRef<HTMLDivElement>(null);
+  const sessionsFeedback = useRef<HTMLDivElement>(null);
+  const savedFeedback = useRef<HTMLParagraphElement>(null);
+  const activator = useRef<HTMLElement | null>(null);
   const cancelConfirmation = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     active.current = true;
@@ -177,8 +195,23 @@ export function AccountSecurityPage({
     return () => request.abort();
   }, [refreshAttempt, user.uid, onExpired]);
   useEffect(() => {
-    if (passwordError || sessionsError) feedback.current?.focus();
-  }, [passwordError, sessionsError]);
+    if (passwordError) passwordFeedback.current?.focus();
+  }, [passwordError]);
+  useEffect(() => {
+    if (sessionsError) sessionsFeedback.current?.focus();
+  }, [sessionsError]);
+  useEffect(() => {
+    if (!message) return;
+    const frame = requestAnimationFrame(() => {
+      if (
+        active.current &&
+        (document.activeElement === document.body ||
+          document.activeElement === activator.current)
+      )
+        savedFeedback.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [message]);
   useEffect(() => {
     if (confirmation) cancelConfirmation.current?.focus();
   }, [confirmation]);
@@ -195,6 +228,10 @@ export function AccountSecurityPage({
   function start(task: Exclude<Pending, null>) {
     if (busy.current) return undefined;
     busy.current = true;
+    activator.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     setPending(task);
     setMessage("");
     const request = new AbortController();
@@ -216,11 +253,14 @@ export function AccountSecurityPage({
     event.preventDefault();
     if (busy.current || sessionsLoading || passwordReceipt) return;
     const errors: FieldErrors = {};
-    if (!currentPassword) errors.current = "Enter your current password.";
-    if (newPassword.length < 12 || newPassword.length > 128)
-      errors.next = "Use 12 to 128 characters.";
+    if (!currentPassword || currentPassword.length > 128)
+      errors.current = "Enter your current password.";
+    if (newPassword.length < 8 || newPassword.length > 128)
+      errors.next = "Use 8–128 characters.";
     else if (newPassword === currentPassword)
       errors.next = "Choose a different password from your current one.";
+    else if (!isWellFormedText(newPassword))
+      errors.next = "Use a password without unsupported characters.";
     if (confirmationPassword !== newPassword)
       errors.confirmation = "The new passwords must match.";
     setFieldErrors(errors);
@@ -229,9 +269,10 @@ export function AccountSecurityPage({
       (name) => errors[name],
     );
     if (first) {
-      requestAnimationFrame(() =>
-        document.getElementById(`account-password-${first}`)?.focus(),
-      );
+      requestAnimationFrame(() => {
+        if (active.current)
+          document.getElementById(`account-password-${first}`)?.focus();
+      });
       return;
     }
     const request = start("password");
@@ -375,19 +416,21 @@ export function AccountSecurityPage({
     }
   }
   function cancelPrompt() {
+    if (busy.current) return;
     const selected = confirmation;
     setConfirmation(undefined);
-    requestAnimationFrame(() =>
-      document
-        .getElementById(
-          selected?.kind === "one"
-            ? `account-session-${selected.sessionId}`
-            : selected?.kind === "current"
-              ? "account-current-signout"
-              : "account-other-signout",
-        )
-        ?.focus(),
-    );
+    requestAnimationFrame(() => {
+      if (!active.current) return;
+      const target = document.getElementById(
+        selected?.kind === "one"
+          ? `account-session-${selected.sessionId}`
+          : selected?.kind === "current"
+            ? "account-current-signout"
+            : "account-other-signout",
+      );
+      if (target?.isConnected && !target.matches(":disabled")) target.focus();
+      else document.getElementById("account-sessions-heading")?.focus();
+    });
   }
   const blocked = Boolean(pending),
     passwordBlocked = blocked || Boolean(passwordReceipt);
@@ -414,6 +457,19 @@ export function AccountSecurityPage({
         Back
       </Link>
       <header className="account-security-heading">
+        <span className="account-security-symbol" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z" />
+            <path d="m8 12 3 3 5-6" />
+          </svg>
+        </span>
         <h1 aria-label="Account security">Security</h1>
       </header>
       <div className="account-security-identity">
@@ -439,6 +495,8 @@ export function AccountSecurityPage({
         }
         role="status"
         aria-live="polite"
+        tabIndex={-1}
+        ref={savedFeedback}
       >
         {message}
       </p>
@@ -498,7 +556,7 @@ export function AccountSecurityPage({
                 value={newPassword}
                 visible={visible.next}
                 error={fieldErrors.next}
-                help="12–128 characters. Use a unique password."
+                help="8–128 characters."
                 disabled={passwordBlocked}
                 onChange={(value) => {
                   setNewPassword(value);
@@ -548,7 +606,7 @@ export function AccountSecurityPage({
               className="account-security-feedback account-security-error"
               role="alert"
               tabIndex={-1}
-              ref={feedback}
+              ref={passwordFeedback}
             >
               <p>{passwordError}</p>
             </div>
@@ -612,8 +670,18 @@ export function AccountSecurityPage({
         >
           <div className="account-security-session-header">
             <div>
-              <h2 id="account-sessions-heading" aria-label="Signed-in sessions">
+              <h2
+                id="account-sessions-heading"
+                aria-label="Signed-in sessions"
+                tabIndex={-1}
+              >
                 Sessions
+                {sessions && (
+                  <span className="account-security-session-count">
+                    {sessions.sessions.length}
+                    {sessions.hasMore ? "+" : ""}
+                  </span>
+                )}
               </h2>
             </div>
             <button
@@ -633,7 +701,7 @@ export function AccountSecurityPage({
               className="account-security-feedback account-security-error"
               role="alert"
               tabIndex={-1}
-              ref={passwordError ? undefined : feedback}
+              ref={sessionsFeedback}
             >
               <p>{sessionsError}</p>
             </div>
@@ -664,7 +732,7 @@ export function AccountSecurityPage({
                 aria-label="Your active TALA sessions"
               >
                 {orderedSessions.map((session: ApiAccountSession) => (
-                  <li key={session.id}>
+                  <li key={session.id} data-current={session.current}>
                     <div className="account-security-session-title">
                       <h3>
                         {session.current ? "This session" : "Other session"}
@@ -673,7 +741,7 @@ export function AccountSecurityPage({
                         <span className="account-security-tag">Current</span>
                       )}
                     </div>
-                    <dl>
+                    <dl id={`account-session-meta-${session.id}`}>
                       <div>
                         <dt>Started</dt>
                         <dd>
@@ -714,6 +782,7 @@ export function AccountSecurityPage({
                           ? "Sign out of this session"
                           : "End session"
                       }
+                      aria-describedby={`account-session-meta-${session.id}`}
                     >
                       {session.current ? "Sign out" : "End session"}
                     </button>
@@ -751,6 +820,13 @@ export function AccountSecurityPage({
               className="account-security-confirmation"
               role="group"
               aria-labelledby="account-session-confirmation-heading"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  cancelPrompt();
+                }
+              }}
             >
               <h3 id="account-session-confirmation-heading">
                 {confirmation.kind === "others"
@@ -761,10 +837,10 @@ export function AccountSecurityPage({
               </h3>
               <p>
                 {confirmation.kind === "current"
-                  ? "You will need to sign in again to return to your workspace."
+                  ? "Unsent work in this tab will clear. Saved records stay."
                   : confirmation.kind === "others"
-                    ? "Other sessions currently signed in to your TALA account will end. This session stays open."
-                    : `The session started ${confirmSession ? dateTime(confirmSession.createdAt) : "at the selected time"} will need to sign in again.`}
+                    ? "Other sessions will end. Their unsent work may be lost. This session stays open."
+                    : `The session started ${confirmSession ? dateTime(confirmSession.createdAt) : "at the selected time"} will end. Unsent work there may be lost.`}
               </p>
               <div className="account-security-confirmation-actions">
                 <button

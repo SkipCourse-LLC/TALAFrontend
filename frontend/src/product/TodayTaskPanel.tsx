@@ -1,6 +1,9 @@
 import { useId } from "react";
 import type { TodayPreferences, TodayTask } from "./studentTodayHelpers";
 import { meetingTime } from "./format";
+import { LearningGlyph } from "./LearningGlyph";
+import { LearningArtwork } from "./LearningArtwork";
+import "./todayQuickStep.css";
 
 export function TodayTaskPanel({
   tasks,
@@ -9,6 +12,8 @@ export function TodayTaskPanel({
   onTask,
   loading,
   stale,
+  quickGoalStep,
+  quickGoalFeedback,
 }: {
   tasks: TodayTask[];
   preferences: TodayPreferences;
@@ -16,10 +21,27 @@ export function TodayTaskPanel({
   onTask: (task: TodayTask) => void;
   loading: boolean;
   stale: boolean;
+  quickGoalStep?: {
+    title: string;
+    goalTitle: string;
+    disabled: boolean;
+    saving: boolean;
+    completed?: boolean;
+    onComplete: () => void;
+  };
+  quickGoalFeedback?: { message: string; error: boolean };
 }) {
   const baseId = useId();
   const first = tasks[0];
   const next = tasks.slice(1);
+  const actionLabel = (task: TodayTask) => {
+    if (task.kind === "draft") return "Resume draft";
+    if (task.kind === "booking") return "View meeting";
+    if (task.kind === "evidence") return "Read feedback";
+    if (task.kind === "learning") return "Read summary";
+    if (task.kind === "goal") return "Open goal";
+    return "Open plan";
+  };
   return (
     <div className="today-workspace">
       <details className="today-view-options">
@@ -103,29 +125,89 @@ export function TodayTaskPanel({
             className="today-primary-task"
             aria-labelledby={`${baseId}-primary-heading`}
           >
-            <p className="sr-only">{first.category}</p>
-            <h4 id={`${baseId}-primary-heading`}>{first.title}</h4>
+            <p className="today-task-category">
+              <LearningGlyph name="spark" />
+              {first.category}
+            </p>
+            <h4 id={`${baseId}-primary-heading`} dir="auto">
+              {quickGoalStep?.title ?? first.title}
+            </h4>
             {first.startsAt && first.endsAt && (
               <p className="today-task-time">
                 <time dateTime={first.startsAt}>
                   {meetingTime(first.startsAt, first.endsAt)}
                 </time>{" "}
-                {first.brief}
+                <span className="today-task-availability">{first.brief}</span>
               </p>
             )}
             {!first.startsAt && (
               <p className="today-task-description">
-                {first.brief ?? first.description}
+                {quickGoalStep?.goalTitle ?? first.brief ?? first.description}
               </p>
             )}
-            <button
-              className="today-primary-action"
-              type="button"
-              aria-label={first.action}
-              onClick={() => onTask(first)}
-            >
-              {first.action.split(" ")[0]}
-            </button>
+            <div className="today-quick-actions">
+              {quickGoalStep && (
+                <button
+                  className="today-primary-action"
+                  type="button"
+                  aria-disabled={quickGoalStep.disabled}
+                  aria-busy={quickGoalStep.saving}
+                  aria-describedby={`${baseId}-primary-heading`}
+                  onClick={(event) => {
+                    if (quickGoalStep.disabled || event.detail > 1) {
+                      event.preventDefault();
+                      return;
+                    }
+                    quickGoalStep.onComplete();
+                  }}
+                  onKeyDown={(event) => {
+                    if (
+                      (quickGoalStep.disabled || event.repeat) &&
+                      ["Enter", " "].includes(event.key)
+                    )
+                      event.preventDefault();
+                  }}
+                >
+                  {quickGoalStep.saving
+                    ? "Saving…"
+                    : quickGoalStep.completed
+                      ? "Step done"
+                      : "Mark step done"}
+                  <LearningGlyph name="check" />
+                </button>
+              )}
+              <button
+                className={
+                  quickGoalStep
+                    ? "today-secondary-action"
+                    : "today-primary-action"
+                }
+                type="button"
+                aria-label={actionLabel(first)}
+                onClick={() => onTask(first)}
+              >
+                {actionLabel(first)}
+                <LearningGlyph name="arrow" />
+              </button>
+            </div>
+            {quickGoalFeedback?.error ? (
+              <p
+                className="today-quick-feedback today-quick-error"
+                role="alert"
+              >
+                {quickGoalFeedback.message}
+              </p>
+            ) : (
+              <p
+                className="today-quick-feedback"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {quickGoalFeedback?.message}
+              </p>
+            )}
+            <LearningArtwork className="today-growth-art" />
           </article>
         ) : (
           <p className="today-empty" role="status">
@@ -144,15 +226,19 @@ export function TodayTaskPanel({
                 <li key={task.id}>
                   <div>
                     <p className="sr-only">{task.category}</p>
-                    <p className="today-next-title">{task.title}</p>
+                    <p className="today-next-title" dir="auto">
+                      {task.title}
+                    </p>
+                    <span className="today-next-category">{task.category}</span>
                   </div>
                   <button
                     className="today-secondary-action"
                     type="button"
-                    aria-label={task.action}
+                    aria-label={actionLabel(task)}
                     onClick={() => onTask(task)}
                   >
-                    {task.action.split(" ")[0]}
+                    {actionLabel(task)}
+                    <LearningGlyph name="arrow" />
                   </button>
                 </li>
               ))}

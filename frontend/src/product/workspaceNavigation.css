@@ -1,0 +1,180 @@
+.workspace-sync {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  width: 100%;
+}
+.workspace-sync-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #596b62;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.workspace-sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6a8b57;
+  margin-right: 2px;
+}
+.workspace-sync[data-stale="true"] .workspace-sync-dot {
+  background: #9a742f;
+}
+.workspace-sync[data-stale="true"] .workspace-sync-caption {
+  color: #7c5b24;
+}
+.workspace-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: #fff;
+  color: #315f47;
+  border: 1px solid #cedbcb;
+  border-bottom-width: 3px;
+  border-radius: 11px;
+  font: inherit;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  cursor: pointer;
+}
+.workspace-refresh .learning-glyph {
+  width: 15px;
+  height: 15px;
+}
+.workspace-refresh:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.workspace-refresh:focus-visible {
+  outline: 3px solid #315f47;
+  outline-offset: 3px;
+}
+.server-dashboard .server-dashboard-sidebar .server-dashboard-mobile-quick {
+  display: none;
+}
+@media (max-width: 840px) {
+  .server-dashboard .server-dashboard-sidebar .server-dashboard-mobile-quick {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    position: fixed;
+    z-index: 30;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 12px;
+    width: calc(100% - 24px);
+    padding: 6px;
+    gap: 4px;
+    border: 1px solid #d0ddcc;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 4px 24px #173f2e12;
+  }
+  .server-dashboard
+    .server-dashboard-sidebar
+    .server-dashboard-mobile-quick
+    button {
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-height: 56px;
+    border: 0;
+    padding: 7px 4px;
+    font-size: calc(0.6875rem * var(--student-type-scale, 1));
+    text-align: center;
+    border-radius: 14px;
+    color: #596b62;
+  }
+  .server-dashboard
+    .server-dashboard-sidebar
+    .server-dashboard-mobile-quick
+    button[aria-current="page"] {
+    box-shadow: none;
+    color: #214c3b;
+    background: #edf4e5;
+  }
+  .server-dashboard-mobile-quick button .learning-glyph {
+    width: 20px;
+    height: 20px;
+  }
+  .server-dashboard
+    .server-dashboard-sidebar
+    .server-dashboard-mobile-quick
+    .student-draft-dot {
+    position: absolute;
+    right: 12px;
+    top: 10px;
+  }
+  .server-dashboard-mobile-quick > button {
+    position: relative;
+  }
+  .student-workspace.server-dashboard {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+  body:has(.student-workspace.server-dashboard[data-workspace-visible="true"])
+    .site-footer {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+  .server-dashboard :is(button, a, input, textarea, select, [tabindex]) {
+    scroll-margin-block: 24px 100px;
+  }
+  .server-dashboard:has(
+      :is(
+        textarea,
+        input:not([type="checkbox"]):not([type="radio"]):not([type="file"])
+      ):focus
+    )
+    .server-dashboard-mobile-quick {
+    display: none;
+  }
+  .server-dashboard .student-workspace-toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+  .server-dashboard
+    .student-workspace-toolbar
+    .workspace-sync
+    .workspace-refresh {
+    width: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-refresh {
+    transition: none;
+    animation: none;
+  }
+}
+.student-preparation-context {
+  min-width: 0;
+}
+.student-preparation-retained {
+  margin: 0 0 12px;
+  padding: 16px 18px;
+  border: 1px solid #d7c69f;
+  border-radius: 14px;
+  background: #fff8e9;
+  color: #775a27;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.7;
+}
+.student-workspace .student-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.student-profile-actions > span {
+  color: #596b62;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.student-workspace .student-profile-error {
+  color: #9c3131;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  margin-block: 6px 0;
+}

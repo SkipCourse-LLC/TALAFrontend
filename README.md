@@ -2,6 +2,14 @@
 
 React and TypeScript frontend with an independent Node.js API, SQLite database and private file storage. The default application does not require Firebase or a cloud account.
 
+## Screenshots
+
+Captured from the local application using fictional accounts and files.
+
+![Student workspace](project/screenshots/student-dashboard.png)
+
+[Learning plan](project/screenshots/learning-plan.png) · [Meetings](project/screenshots/meetings.png) · [Evidence](project/screenshots/evidence.png) · [Mobile workspace](project/screenshots/student-mobile.png)
+
 ## Install and run
 
 Use **Node.js 24 or newer**.

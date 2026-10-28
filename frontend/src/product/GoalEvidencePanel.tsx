@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router-dom";
 import { newRequestId, safeTalaApiError, talaApi, TalaApiError } from "../api";
 import type { ApiEvidence, LearningGoal } from "../api";
@@ -63,36 +70,60 @@ export function GoalEvidencePanel({
   const dataRevision = useRef(0);
   const mutation = useRef<AbortController | null>(null);
   const uncertain = useRef<LinkIntent | undefined>(undefined);
+  const identity = `${goal.ownerUid}:${goal.id}`;
+  const readScope = `${identity}:${goal.version}:${goal.linkedEvidenceCount}:${attempt}`;
   const latest = useRef({
     onChanged,
     onFailure,
     onBusyChange,
     visible,
     readOnly,
+    identity,
+    readScope,
   });
   const errorTarget = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const openPickerButton = useRef<HTMLButtonElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
-  const identity = `${goal.ownerUid}:${goal.id}`;
   const links =
     !blocked && saved?.key === identity ? saved.evidence : undefined;
   const linkedIds = new Set(links?.map((item) => item.id) ?? []);
   const full = (links?.length ?? goal.linkedEvidenceCount) >= 20;
   const locked = disabled || pending;
+  const retireReads = useCallback(() => {
+    generation.current++;
+    dataRevision.current++;
+  }, []);
 
-  useEffect(() => {
-    latest.current = { onChanged, onFailure, onBusyChange, visible, readOnly };
-  }, [onChanged, onFailure, onBusyChange, visible, readOnly]);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    latest.current = {
+      onChanged,
+      onFailure,
+      onBusyChange,
+      visible,
+      readOnly,
+      identity,
+      readScope,
+    };
+  }, [
+    onChanged,
+    onFailure,
+    onBusyChange,
+    visible,
+    readOnly,
+    identity,
+    readScope,
+  ]);
+  useLayoutEffect(() => {
     active.current = true;
     return () => {
       active.current = false;
+      retireReads();
       mutation.current?.abort();
       latest.current.onBusyChange?.(false);
     };
-  }, []);
-  useEffect(() => {
+  }, [retireReads]);
+  useLayoutEffect(() => {
     if (!visible) mutation.current?.abort();
   }, [visible]);
   useEffect(() => {
@@ -104,6 +135,7 @@ export function GoalEvidencePanel({
   }, [search]);
 
   const concealFailure = useCallback((failure: unknown) => {
+    if (!active.current || !latest.current.visible) return false;
     const problem = safeTalaApiError(failure);
     if (!["AUTH_REQUIRED", "FORBIDDEN", "NOT_FOUND"].includes(problem.code))
       return false;
@@ -127,16 +159,21 @@ export function GoalEvidencePanel({
     if (!visible) return;
     const request = new AbortController();
     const revision = dataRevision.current;
-    const timer = window.setTimeout(() => setLoading(true), 0);
+    const currentScope = () =>
+      active.current &&
+      latest.current.visible &&
+      latest.current.readScope === readScope &&
+      !request.signal.aborted &&
+      version === generation.current;
+    const currentRead = () =>
+      currentScope() && revision === dataRevision.current;
+    const timer = window.setTimeout(() => {
+      if (currentRead()) setLoading(true);
+    }, 0);
     void talaApi
       .getLearningGoalEvidence(goal.id, goal.ownerUid, request.signal)
       .then((next) => {
-        if (
-          request.signal.aborted ||
-          version !== generation.current ||
-          revision !== dataRevision.current
-        )
-          return;
+        if (!currentRead()) return;
         setSaved({ key: identity, evidence: next.evidence });
         setLoadError("");
         setBlocked(false);
@@ -161,14 +198,13 @@ export function GoalEvidencePanel({
         if (countChanged) latest.current.onChanged();
       })
       .catch((failure: unknown) => {
-        if (request.signal.aborted || version !== generation.current) return;
+        if (!currentRead()) return;
         concealFailure(failure);
         setLoadError(safeTalaApiError(failure).message);
       })
       .finally(() => {
         window.clearTimeout(timer);
-        if (!request.signal.aborted && version === generation.current)
-          setLoading(false);
+        if (currentScope()) setLoading(false);
       });
     return () => {
       window.clearTimeout(timer);
@@ -180,6 +216,7 @@ export function GoalEvidencePanel({
     goal.version,
     goal.linkedEvidenceCount,
     identity,
+    readScope,
     attempt,
     visible,
     concealFailure,
@@ -187,9 +224,15 @@ export function GoalEvidencePanel({
 
   const pickerFailure = useCallback(
     (failure: unknown) => {
+      if (
+        !active.current ||
+        !latest.current.visible ||
+        latest.current.identity !== identity
+      )
+        return;
       concealFailure(failure);
     },
-    [concealFailure],
+    [concealFailure, identity],
   );
   const loadPicker = useCallback(
     async (cursor: string | undefined, signal: AbortSignal) => {
@@ -214,21 +257,29 @@ export function GoalEvidencePanel({
 
   function focusError() {
     requestAnimationFrame(() => {
-      if (active.current && latest.current.visible)
+      if (
+        active.current &&
+        latest.current.visible &&
+        latest.current.identity === identity
+      )
         errorTarget.current?.focus();
     });
   }
   function refreshLinks() {
-    if (pending) return;
+    if (running.current || pending) return;
     setLoadError("");
     setLoading(true);
     setAttempt((value) => value + 1);
   }
   function closePicker() {
-    if (pending) return;
+    if (running.current || pending) return;
     setPicker(false);
     requestAnimationFrame(() => {
-      if (active.current && latest.current.visible)
+      if (
+        active.current &&
+        latest.current.visible &&
+        latest.current.identity === identity
+      )
         openPickerButton.current?.focus();
     });
   }
@@ -239,6 +290,8 @@ export function GoalEvidencePanel({
   ) {
     if (
       running.current ||
+      !active.current ||
+      latest.current.identity !== identity ||
       disabled ||
       readOnly ||
       !visible ||
@@ -274,7 +327,13 @@ export function GoalEvidencePanel({
       );
       if (next.ownerUid !== goal.ownerUid)
         throw new TalaApiError("INVALID_RESPONSE");
-      if (!active.current || request.signal.aborted) return;
+      if (
+        !active.current ||
+        request.signal.aborted ||
+        !latest.current.visible ||
+        latest.current.identity !== identity
+      )
+        return;
       uncertain.current = undefined;
       setIntent(undefined);
       setMessage(
@@ -290,13 +349,24 @@ export function GoalEvidencePanel({
       setAttempt((value) => value + 1);
       latest.current.onChanged();
       requestAnimationFrame(() => {
-        if (!active.current || !latest.current.visible) return;
+        if (
+          !active.current ||
+          !latest.current.visible ||
+          latest.current.identity !== identity
+        )
+          return;
         if (openPickerButton.current && !openPickerButton.current.disabled)
           openPickerButton.current.focus();
         else heading.current?.focus();
       });
     } catch (failure: unknown) {
-      if (!active.current || request.signal.aborted) return;
+      if (
+        !active.current ||
+        request.signal.aborted ||
+        !latest.current.visible ||
+        latest.current.identity !== identity
+      )
+        return;
       const problem = safeTalaApiError(failure);
       if (concealFailure(failure)) {
         setError(problem.message);
@@ -315,11 +385,13 @@ export function GoalEvidencePanel({
       }
       focusError();
     } finally {
-      running.current = false;
-      if (mutation.current === request) mutation.current = null;
-      if (active.current) {
-        latest.current.onBusyChange?.(false);
-        setPending(false);
+      if (mutation.current === request) {
+        mutation.current = null;
+        running.current = false;
+        if (active.current && latest.current.identity === identity) {
+          latest.current.onBusyChange?.(false);
+          setPending(false);
+        }
       }
     }
   }
@@ -331,6 +403,9 @@ export function GoalEvidencePanel({
         <div>
           <h4 id={`${baseId}-heading`} tabIndex={-1} ref={heading}>
             Linked Evidence
+            {links && (
+              <span className="goal-evidence-count">{links.length}</span>
+            )}
           </h4>
         </div>
         <button
@@ -410,7 +485,11 @@ export function GoalEvidencePanel({
                       Version {item.revisionNumber} · Submitted{" "}
                       {evidenceDate(item.submittedAt)}
                     </p>
-                    <p>
+                    <p
+                      className="goal-evidence-review"
+                      data-review={item.reviewStatus}
+                    >
+                      <span aria-hidden="true" />
                       {reviewLabel(item.reviewStatus)}
                       {item.supersededByEvidenceId ? " · Earlier version" : ""}
                     </p>
@@ -431,12 +510,24 @@ export function GoalEvidencePanel({
             </ul>
           ) : (
             !loading && (
-              <p className="goal-evidence-empty">Nothing linked yet.</p>
+              <div className="goal-evidence-empty-state">
+                <p>No work linked to this goal yet.</p>
+                {!readOnly && !intent && !picker && (
+                  <Link
+                    className="goal-evidence-create-link"
+                    to="/dashboard?view=evidence"
+                  >
+                    Add Evidence
+                  </Link>
+                )}
+              </div>
             )
           )}
-          <p className="goal-evidence-help">
-            {links.length} / 20 linked. Unlink keeps the record and file.
-          </p>
+          {links.length > 0 && (
+            <p className="goal-evidence-help">
+              {links.length} / 20 linked. Original files stay in Evidence.
+            </p>
+          )}
           {!readOnly && !picker && (
             <button
               ref={openPickerButton}
@@ -450,7 +541,7 @@ export function GoalEvidencePanel({
                 setMessage("");
               }}
             >
-              Link
+              Link saved work
             </button>
           )}
           {!readOnly && full && (
@@ -525,11 +616,21 @@ export function GoalEvidencePanel({
             </fieldset>
           )}
           {!choices.loading && choices.loaded && !available.length && (
-            <p className="goal-evidence-empty">
-              {query
-                ? "No matches here. Search again or load more."
-                : "No unlinked submissions here. Load more or submit Evidence."}
-            </p>
+            <div className="goal-evidence-empty-state">
+              <p className="goal-evidence-empty">
+                {query
+                  ? "No matches here. Search again or load more."
+                  : "No unlinked submissions here. Load more or submit Evidence."}
+              </p>
+              {!query && !choices.nextCursor && !intent && (
+                <Link
+                  className="goal-evidence-create-link"
+                  to="/dashboard?view=evidence"
+                >
+                  Add Evidence
+                </Link>
+              )}
+            </div>
           )}
           {choices.nextCursor && (
             <button

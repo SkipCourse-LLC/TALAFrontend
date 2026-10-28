@@ -94,13 +94,20 @@ export function useSessionPrivacy({
           setAccessEpoch((value) => value + 1);
         }
         latest.current.onRestored(saved);
+        const restoredIntent = intent.current;
         setError("");
         concealed.current = false;
         setBlocked(false);
         const previous = focus.current;
         focus.current = null;
         requestAnimationFrame(() => {
-          if (!mounted.current) return;
+          if (
+            !mounted.current ||
+            generation.current !== version ||
+            intent.current !== restoredIntent ||
+            concealed.current
+          )
+            return;
           if (
             saved?.uid === expectedUid &&
             previous?.isConnected &&
@@ -220,14 +227,19 @@ export function useSessionPrivacy({
       cancelled = true;
     };
   }, [ready, user?.uid, user?.role, check]);
+  const retry = useCallback(() => {
+    // AUTH_REQUIRED can also fence an obsolete response after a same-account
+    // cookie rotation. Hide records now; only a fresh authoritative session
+    // read may decide whether that identity and its in-memory work survive.
+    // If another check predates this signal, queue a newer read behind it.
+    void check(true, true);
+  }, [check]);
   return {
     blocked,
     checking,
     error,
     accessEpoch,
     changedHere,
-    retry: () => {
-      void check(true);
-    },
+    retry,
   };
 }

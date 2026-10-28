@@ -1,13 +1,19 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { talaApi, newRequestId, safeTalaApiError, TalaApiError } from "../api";
 import type {
   ApiAppointment,
   ApiLearningRecord,
   AppointmentPreparation,
 } from "../api";
-import { meetingTime } from "./format";
-import { buildBookingCalendar } from "./meetingHelpers";
+import { bookingStatusLabel, buildBookingCalendar } from "./meetingHelpers";
 import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
+import { LearningGlyph } from "./LearningGlyph";
+import { useMeetingClock } from "./useMeetingClock";
+import {
+  meetingDateParts,
+  meetingDurationLabel,
+  meetingTimeLabel,
+} from "./meetingPresentation";
 import "./workspaceResource.css";
 
 type SavedDetail = {
@@ -27,6 +33,7 @@ export function WorkspaceResourceDialog({
   onFailure,
   onEvidence,
   onManageMeeting,
+  onGoal,
 }: {
   kind: "meetings" | "learning";
   resourceId: string;
@@ -37,7 +44,9 @@ export function WorkspaceResourceDialog({
   onFailure: (failure: unknown) => void;
   onEvidence: (booking: ApiAppointment) => void;
   onManageMeeting: (booking: ApiAppointment) => void;
+  onGoal?: (goalId: string) => void;
 }) {
+  const detailId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const alert = useRef<HTMLDivElement>(null);
@@ -53,6 +62,25 @@ export function WorkspaceResourceDialog({
   const readRequest = useRef<AbortController | null>(null);
   const [attempt, setAttempt] = useState(0);
   const exportFile = usePrivateWorkspaceExport();
+  const focusFrame = useRef<number | null>(null);
+  const errorOrigin = useRef<Element | null>(null);
+  const readingOrigin = useRef<Element | null>(null);
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const bookingDate = saved
+    ? meetingDateParts(saved.booking.startsAt, timeZone)
+    : undefined;
+  const now = useMeetingClock(
+    [saved?.booking.startsAt, saved?.booking.endsAt],
+    Boolean(saved),
+  );
+  const bookingState = !saved
+    ? undefined
+    : saved.booking.status === "cancelled"
+      ? "cancelled"
+      : saved.booking.status === "ended" ||
+          Date.parse(saved.booking.endsAt) <= now
+        ? "ended"
+        : "reserved";
 
   useLayoutEffect(() => {
     const element = dialog.current;
@@ -66,6 +94,8 @@ export function WorkspaceResourceDialog({
     return () => {
       mounted.current = false;
       mutation.current?.abort();
+      readRequest.current?.abort();
+      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
       element?.close();
       if (
         opener?.isConnected &&
@@ -98,12 +128,28 @@ export function WorkspaceResourceDialog({
                 controller.signal,
               )
             : undefined;
-        if (!controller.signal.aborted) {
+        if (mounted.current && !controller.signal.aborted) {
           setSaved({ booking, record, preparation });
           setError("");
+          const origin = readingOrigin.current;
+          readingOrigin.current = null;
+          if (origin) {
+            if (focusFrame.current !== null)
+              cancelAnimationFrame(focusFrame.current);
+            focusFrame.current = requestAnimationFrame(() => {
+              focusFrame.current = null;
+              if (
+                mounted.current &&
+                !controller.signal.aborted &&
+                (document.activeElement === origin ||
+                  document.activeElement === document.body)
+              )
+                heading.current?.focus({ preventScroll: true });
+            });
+          }
         }
       } catch (failure) {
-        if (controller.signal.aborted) return;
+        if (!mounted.current || controller.signal.aborted) return;
         setSaved(undefined);
         setError(safeTalaApiError(failure).message);
         if (
@@ -119,14 +165,20 @@ export function WorkspaceResourceDialog({
           onFailure(new TalaApiError("FORBIDDEN"));
       } finally {
         if (readRequest.current === controller) readRequest.current = null;
-        if (!controller.signal.aborted) setReading(false);
+        if (mounted.current && !controller.signal.aborted) setReading(false);
       }
     })();
     return () => controller.abort();
   }, [kind, resourceId, ownerUid, readOnly, attempt, onFailure]);
 
   useEffect(() => {
-    if (error) alert.current?.focus();
+    if (
+      error &&
+      (document.activeElement === errorOrigin.current ||
+        document.activeElement === heading.current ||
+        document.activeElement === document.body)
+    )
+      alert.current?.focus();
   }, [error]);
 
   async function run(
@@ -135,6 +187,7 @@ export function WorkspaceResourceDialog({
   ) {
     if (running.current || readRequest.current || reading || !saved) return;
     running.current = true;
+    errorOrigin.current = document.activeElement;
     setPending(key);
     setError("");
     setNotice("");
@@ -167,6 +220,7 @@ export function WorkspaceResourceDialog({
   function acknowledge(outcomeId: string) {
     if (readOnly || !saved?.record) return;
     const record = saved.record;
+    const origin = document.activeElement;
     void run(`ack:${record.id}:${outcomeId}`, async (signal, id) => {
       await talaApi.acknowledgeOutcome(
         record.id,
@@ -190,7 +244,21 @@ export function WorkspaceResourceDialog({
             }
           : current,
       );
-      setNotice("Your acknowledgement was saved.");
+      setNotice("Marked as read.");
+      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+      focusFrame.current = requestAnimationFrame(() => {
+        focusFrame.current = null;
+        if (
+          !mounted.current ||
+          signal.aborted ||
+          (document.activeElement !== origin &&
+            document.activeElement !== document.body)
+        )
+          return;
+        document
+          .getElementById(`${detailId}-outcome-${outcomeId}`)
+          ?.focus({ preventScroll: true });
+      });
       onChanged();
     });
   }
@@ -216,7 +284,7 @@ export function WorkspaceResourceDialog({
       }, signal);
       if (mounted.current && !signal.aborted)
         setNotice(
-          "Your private calendar file was prepared. Later booking changes do not update an imported file.",
+          "Calendar downloaded. Later booking changes won’t sync automatically.",
         );
     });
   }
@@ -225,7 +293,7 @@ export function WorkspaceResourceDialog({
     <dialog
       ref={dialog}
       className="workspace-resource-dialog"
-      aria-labelledby="workspace-detail-heading"
+      aria-labelledby={`${detailId}-heading`}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -234,7 +302,7 @@ export function WorkspaceResourceDialog({
       <header>
         <h2
           ref={heading}
-          id="workspace-detail-heading"
+          id={`${detailId}-heading`}
           tabIndex={-1}
           aria-label={
             kind === "learning" ? "Learning summary" : "Meeting details"
@@ -259,7 +327,10 @@ export function WorkspaceResourceDialog({
             type="button"
             disabled={Boolean(pending) || reading}
             aria-label="Reload details"
-            onClick={() => {
+            onClick={(event) => {
+              readingOrigin.current = errorOrigin.current = event.currentTarget;
+              setError("");
+              setNotice("");
               setReading(true);
               setAttempt((value) => value + 1);
             }}
@@ -271,52 +342,67 @@ export function WorkspaceResourceDialog({
       {!saved && !error && <p role="status">Loading…</p>}
       {saved && (
         <>
-          <p className="workspace-detail-time">
-            {meetingTime(saved.booking.startsAt, saved.booking.endsAt)}
-          </p>
-          <p className="workspace-detail-state">
-            {saved.booking.status === "cancelled"
-              ? "Cancelled"
-              : saved.booking.status === "ended"
-                ? "Ended"
-                : "Reserved"}
-          </p>
+          <div className="workspace-detail-context">
+            <div className="workspace-detail-date" aria-hidden="true">
+              <span>{bookingDate?.month}</span>
+              <strong>{bookingDate?.day}</strong>
+            </div>
+            <div>
+              <p className="workspace-detail-day">{bookingDate?.full}</p>
+              <p className="workspace-detail-time">
+                <time dateTime={saved.booking.startsAt}>
+                  {meetingTimeLabel(saved.booking, timeZone)}
+                </time>
+              </p>
+              <p className="workspace-detail-zone">
+                {meetingDurationLabel(saved.booking)} · {timeZone}
+              </p>
+            </div>
+            <span className="workspace-detail-state" data-state={bookingState}>
+              {bookingStatusLabel(saved.booking, now)}
+            </span>
+          </div>
           {kind === "meetings" ? (
             <>
-              <p>Live link unavailable. Attendance unconfirmed.</p>
-              {saved.booking.status !== "cancelled" && (
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  disabled={Boolean(pending) || reading}
-                  onClick={calendar}
-                  aria-label={
-                    pending.startsWith("calendar:")
-                      ? "Preparing calendar…"
-                      : "Save to calendar"
-                  }
-                >
-                  {pending.startsWith("calendar:")
-                    ? "Preparing…"
-                    : "Save to calendar"}
-                </button>
-              )}
-              {!readOnly && saved.booking.status === "reserved" && (
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  disabled={Boolean(pending) || reading}
-                  onClick={() => onManageMeeting(saved.booking)}
-                  aria-label="Manage booking"
-                >
-                  Manage
-                </button>
-              )}
+              <p className="workspace-detail-integration">
+                <LearningGlyph name="calendar" />
+                Live link unavailable. Attendance unconfirmed.
+              </p>
+              <div className="workspace-detail-actions">
+                {saved.booking.status !== "cancelled" && (
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={Boolean(pending) || reading}
+                    onClick={calendar}
+                    aria-label={
+                      pending.startsWith("calendar:")
+                        ? "Preparing calendar…"
+                        : "Save to calendar"
+                    }
+                  >
+                    {pending.startsWith("calendar:")
+                      ? "Preparing…"
+                      : "Save to calendar"}
+                  </button>
+                )}
+                {!readOnly && bookingState === "reserved" && (
+                  <button
+                    type="button"
+                    className="button"
+                    disabled={Boolean(pending) || reading}
+                    onClick={() => onManageMeeting(saved.booking)}
+                    aria-label="Manage booking"
+                  >
+                    Manage
+                  </button>
+                )}
+              </div>
               <section
                 className="workspace-detail-preparation"
-                aria-labelledby="detail-preparation-heading"
+                aria-labelledby={`${detailId}-preparation-heading`}
               >
-                <h3 id="detail-preparation-heading">Preparation</h3>
+                <h3 id={`${detailId}-preparation-heading`}>Preparation</h3>
                 {saved.preparation?.version ? (
                   <>
                     {saved.preparation.note && (
@@ -324,15 +410,36 @@ export function WorkspaceResourceDialog({
                         {saved.preparation.note}
                       </p>
                     )}
-                    <p>
-                      {saved.preparation.ready
-                        ? "Materials ready."
-                        : "Materials not ready."}
-                    </p>
-                    {saved.preparation.goalId && <p>Goal linked.</p>}
+                    <div className="workspace-detail-preparation-meta">
+                      <span data-ready={saved.preparation.ready}>
+                        {saved.preparation.ready && (
+                          <LearningGlyph name="check" />
+                        )}
+                        {saved.preparation.ready
+                          ? "Materials ready"
+                          : "Materials not ready"}
+                      </span>
+                      {saved.preparation.goalId &&
+                        (onGoal ? (
+                          <button
+                            type="button"
+                            disabled={Boolean(pending) || reading}
+                            onClick={() => onGoal(saved.preparation!.goalId!)}
+                            aria-label="View linked learning goal"
+                          >
+                            View goal <LearningGlyph name="arrow" />
+                          </button>
+                        ) : (
+                          <span>Goal linked</span>
+                        ))}
+                    </div>
                     <p className="workspace-detail-help">
                       Saved{" "}
-                      {new Date(saved.preparation.updatedAt!).toLocaleString()}.
+                      <time dateTime={saved.preparation.updatedAt!}>
+                        {new Date(
+                          saved.preparation.updatedAt!,
+                        ).toLocaleString()}
+                      </time>
                     </p>
                   </>
                 ) : (
@@ -345,21 +452,28 @@ export function WorkspaceResourceDialog({
               <>
                 <p className="workspace-detail-help">
                   TALA summary ·{" "}
-                  {new Date(saved.record.updatedAt).toLocaleString()}
+                  <time dateTime={saved.record.updatedAt}>
+                    {new Date(saved.record.updatedAt).toLocaleString()}
+                  </time>
                 </p>
                 <ol className="workspace-detail-outcomes">
                   {saved.record.outcomes.map((outcome) => (
                     <li key={outcome.id}>
-                      <p>{outcome.summary}</p>
+                      <p dir="auto">{outcome.summary}</p>
                       {saved.record!.acknowledgedOutcomeIds.includes(
                         outcome.id,
                       ) ? (
-                        <span className="workspace-detail-reviewed">
-                          Reviewed
+                        <span
+                          className="workspace-detail-reviewed"
+                          id={`${detailId}-outcome-${outcome.id}`}
+                          tabIndex={-1}
+                        >
+                          <LearningGlyph name="check" />
+                          Read
                         </span>
                       ) : readOnly ? (
                         <span className="workspace-detail-help">
-                          Awaiting student review.
+                          Not yet read by student.
                         </span>
                       ) : (
                         <button
@@ -370,12 +484,12 @@ export function WorkspaceResourceDialog({
                           aria-label={
                             pending === `ack:${saved.record!.id}:${outcome.id}`
                               ? "Saving acknowledgement…"
-                              : "I have reviewed this summary"
+                              : "Mark as read — I have read this summary"
                           }
                         >
                           {pending === `ack:${saved.record!.id}:${outcome.id}`
                             ? "Saving…"
-                            : "Reviewed"}
+                            : "Mark as read"}
                         </button>
                       )}
                     </li>

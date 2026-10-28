@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { newRequestId, safeTalaApiError, talaApi } from "../api";
 import type { ReflectionDraft, ReflectionDraftInput } from "../api";
 
@@ -36,10 +42,10 @@ export function useReflectionDraft({
   const mutation = useRef<AbortController | null>(null);
   const running = useRef(false);
   const latest = useRef({ enabled, visible, onFailure });
-  useEffect(() => {
+  useLayoutEffect(() => {
     latest.current = { enabled, visible, onFailure };
   }, [enabled, visible, onFailure]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     active.current = true;
     return () => {
       active.current = false;
@@ -62,6 +68,8 @@ export function useReflectionDraft({
       const value = await talaApi.getReflectionDraft(controller.signal);
       if (
         !active.current ||
+        !latest.current.enabled ||
+        !latest.current.visible ||
         controller.signal.aborted ||
         epoch !== generation.current
       )
@@ -71,6 +79,8 @@ export function useReflectionDraft({
     } catch (failure) {
       if (
         !active.current ||
+        !latest.current.enabled ||
+        !latest.current.visible ||
         controller.signal.aborted ||
         epoch !== generation.current
       )
@@ -82,6 +92,7 @@ export function useReflectionDraft({
         latest.current.onFailure(failure);
       }
     } finally {
+      if (readRequest.current === controller) readRequest.current = null;
       if (active.current && epoch === generation.current) setLoading(false);
     }
   }, []);
@@ -122,6 +133,8 @@ export function useReflectionDraft({
           : await talaApi.clearReflectionDraft(next.input, controller.signal);
       if (
         !active.current ||
+        !latest.current.enabled ||
+        !latest.current.visible ||
         controller.signal.aborted ||
         epoch !== generation.current
       )
@@ -134,6 +147,8 @@ export function useReflectionDraft({
     } catch (failure) {
       if (
         !active.current ||
+        !latest.current.enabled ||
+        !latest.current.visible ||
         controller.signal.aborted ||
         epoch !== generation.current
       )

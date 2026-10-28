@@ -1,0 +1,726 @@
+/* Meetings own their layout and controls; shared CSS supplies only common theme. */
+.student-workspace .meeting-panel.meeting-experience .meeting-booking-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-primary-actions {
+  margin-top: 24px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-secondary-actions {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px 20px;
+  margin-top: 12px;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  :is(.meeting-secondary-actions, .meeting-history-actions)
+  > :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  padding-block: 10px;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-history-actions {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px 20px;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-quick-times {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-times
+  legend {
+  margin-bottom: 12px;
+  padding: 0;
+  font-weight: 600;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-quick-time {
+  display: flex;
+  align-items: center;
+  color: var(--student-ink, #1d1d1f);
+  cursor: pointer;
+  position: relative;
+  padding: 16px;
+  border: 1px solid var(--student-control-line, #788d80);
+  border-bottom-width: 3px;
+  border-radius: 14px;
+  background: #fff;
+  gap: 10px;
+  min-height: 82px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-time
+  input[type="radio"] {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--student-accent, #174139);
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-time
+  > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-time
+  strong {
+  font-weight: 600;
+  font-size: calc(1rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-time
+  > span
+  > span {
+  color: var(--student-muted, #626268);
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-times:disabled
+  .meeting-quick-time {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-time:focus-within {
+  outline: 3px solid var(--student-accent, #174139);
+  outline-offset: 3px;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-all-times {
+  margin-top: 12px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-all-times
+  > summary {
+  width: fit-content;
+  min-height: 44px;
+  padding-block: 10px;
+  color: var(--student-accent, #174139);
+  cursor: pointer;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-all-times
+  > summary:focus-visible {
+  outline: 3px solid var(--student-accent, #174139);
+  outline-offset: 3px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-all-times
+  .form-field {
+  margin-block: 8px 16px;
+}
+.student-workspace .meeting-panel.meeting-experience #meeting-preparation,
+.student-workspace
+  .meeting-panel.meeting-experience
+  #available-meetings-heading {
+  scroll-margin-top: 24px;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-panel-heading h2,
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-history-heading
+  h3 {
+  margin-bottom: 0;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-help {
+  max-width: 58ch;
+  line-height: 1.5;
+}
+
+/* Meetings: browse a local calendar day, then choose its available time. */
+.student-workspace .meeting-panel.meeting-experience {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-booking-layout.meeting-operations-layout {
+  max-width: none;
+  gap: 24px;
+  margin-block: 24px 32px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-current
+  .meeting-booking-status {
+  color: #31502a;
+  background: #dcebcf;
+  border-radius: 20px;
+  padding: 5px 12px;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-availability {
+  padding: 24px;
+  border: 1px solid #dce5df;
+  border-radius: 22px;
+  background: #fff;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-availability
+  form
+  > .button {
+  min-width: 180px;
+  margin-top: 8px;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-day-picker {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 6px 4px 12px;
+  margin: 0 -4px 12px;
+  scrollbar-width: thin;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-day {
+  flex: 0 0 70px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 100px;
+  padding: 12px 8px;
+  border: 1px solid var(--student-control-line, #788d80);
+  border-bottom-width: 3px;
+  border-radius: 16px;
+  background: #fff;
+  color: #596b62;
+  font: inherit;
+  cursor: pointer;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-day[aria-pressed="true"] {
+  border-color: #214c3b;
+  background: #214c3b;
+  color: #fff;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-day:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-day strong {
+  font-size: calc(1.5rem * var(--student-type-scale, 1));
+  line-height: 1.1;
+  font-weight: 650;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-day > span {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-day-label {
+  font-weight: 600;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  margin: 0 0 14px;
+  color: #19352b;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-time[data-selected="true"] {
+  border-color: #315f47;
+  background: #eff5e9;
+  box-shadow: none;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-time
+  > span:nth-of-type(1) {
+  flex: 1;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-time
+  > .meeting-slot-check {
+  display: none;
+  color: #31502a;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-quick-time[data-selected="true"]
+  .meeting-slot-check {
+  display: flex;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-slot-check
+  .learning-glyph {
+  width: 18px;
+  height: 18px;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-history {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid #dce5df;
+  border-radius: 22px;
+  background: #fff;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-history-filters {
+  padding: 5px;
+  border: 1px solid #e2e9e4;
+  border-radius: 12px;
+  background: #f5f8f3;
+  width: fit-content;
+  max-width: 100%;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-history-filter[aria-pressed="true"] {
+  border-color: #d0deca;
+  background: #fff;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-empty {
+  padding: 28px 20px;
+  background: #f5f8f3;
+  border: 1px dashed #c7d9bf;
+  border-radius: 16px;
+  text-align: center;
+}
+
+/* Meeting-specific hierarchy: saved reservation, date choice, then time. */
+.student-workspace .meeting-panel.meeting-experience .meeting-time-zone {
+  max-width: 100%;
+  color: #56655f;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  overflow-wrap: anywhere;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-next-reservation {
+  border: 1px solid #cbdcc4;
+  border-bottom-width: 3px;
+  padding: clamp(20px, 3vw, 28px);
+  border-radius: 22px;
+  background: #eef5e7;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-next-reservation
+  > h3 {
+  margin: 0 0 20px;
+}
+.student-workspace .meeting-reservation-summary {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  min-width: 0;
+}
+.student-workspace .meeting-reservation-date {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  flex: 0 0 82px;
+  min-height: 96px;
+  gap: 3px;
+  border: 1px solid #d4dfce;
+  border-radius: 18px;
+  background: #fff;
+  color: #214c3b;
+}
+.student-workspace .meeting-reservation-date > span {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  font-weight: 600;
+}
+.student-workspace .meeting-reservation-date > strong {
+  font-size: calc(2.25rem * var(--student-type-scale, 1));
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+}
+.student-workspace .meeting-reservation-timing {
+  min-width: 0;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-reservation-weekday {
+  margin: 10px 0 3px;
+  color: #405343;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  overflow-wrap: anywhere;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-current-time {
+  margin: 0;
+  font-size: clamp(1.15rem, 2vw, 1.65rem);
+  line-height: 1.4;
+  letter-spacing: -0.035em;
+}
+.student-workspace .meeting-duration {
+  display: inline-block;
+  margin-top: 4px;
+  color: #405343;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.student-workspace .meeting-connection-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 22px 0 0;
+  color: #405343;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.student-workspace .meeting-connection-note .learning-glyph {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-day-label
+  > span:last-child {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  font-weight: 400;
+  color: #56655f;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-day:focus-visible {
+  outline: 3px solid #174139;
+  outline-offset: 3px;
+}
+.student-workspace .meeting-selection-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 66px;
+  margin: 16px 0 0;
+  color: #56655f;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.student-workspace .meeting-selection-summary > .learning-glyph {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  color: #31502a;
+}
+.student-workspace .meeting-selection-summary > span > span {
+  display: block;
+  margin-top: 2px;
+}
+.student-workspace .meeting-selection-summary strong {
+  color: #214c3b;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-empty
+  .learning-glyph {
+  width: 32px;
+  height: 32px;
+  color: #597c49;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-empty h4 {
+  font-size: calc(1rem * var(--student-type-scale, 1));
+  margin: 12px 0 4px;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-empty p {
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  margin: 0;
+}
+.student-workspace .meeting-history-date-tools {
+  margin-top: 16px;
+}
+.student-workspace .meeting-history-date-tools > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 44px;
+  color: #174139;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.student-workspace
+  .meeting-history-date-tools
+  > summary::-webkit-details-marker {
+  display: none;
+}
+.student-workspace .meeting-history-date-tools > summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: 3px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+.student-workspace .meeting-history-date-tools[open] > summary::after {
+  transform: translateY(2px) rotate(225deg);
+}
+.student-workspace .meeting-history-date-tools > summary .learning-glyph {
+  width: 18px;
+  height: 18px;
+}
+.student-workspace .meeting-history-date-tools .meeting-date-range {
+  margin: 4px 0 20px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #f5f8f3;
+}
+.student-workspace .meeting-history-date-tools .meeting-date-range legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.student-workspace .meeting-history-date-tools .meeting-date-range-fields {
+  margin-top: 10px;
+}
+.student-workspace .meeting-filter-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #31502a;
+}
+.student-workspace .meeting-active-dates {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 10px;
+  color: #214c3b;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.student-workspace .meeting-active-dates > span {
+  overflow-wrap: anywhere;
+}
+.student-workspace .meeting-history-date-tools > summary:focus-visible {
+  outline: 3px solid #174139;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.student-workspace
+  .meeting-confirmation[data-intent="cancel"]
+  .meeting-confirm-actions
+  > .button:not(.button-secondary) {
+  background: #9d342c;
+  border-color: #9d342c;
+}
+.student-workspace
+  .meeting-confirmation
+  .meeting-confirm-times
+  > div:last-child {
+  border-bottom: 0;
+}
+.student-workspace .meeting-confirmation :is(p, dd) {
+  overflow-wrap: anywhere;
+}
+.student-workspace
+  .meeting-confirmation[data-intent="reschedule"]
+  .meeting-confirm-times
+  > div:last-child {
+  padding: 16px;
+  border: 1px solid #cbdcc4;
+  border-radius: 14px;
+  background: #eef5e7;
+}
+@media (max-width: 540px) {
+  .student-workspace .meeting-reservation-summary {
+    gap: 14px;
+    align-items: start;
+  }
+  .student-workspace .meeting-reservation-date {
+    flex-basis: 62px;
+    min-height: 78px;
+    border-radius: 14px;
+  }
+  .student-workspace .meeting-reservation-date > strong {
+    font-size: calc(1.875rem * var(--student-type-scale, 1));
+  }
+  .student-workspace .meeting-panel.meeting-experience .meeting-quick-times {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .student-workspace .meeting-confirmation .meeting-confirm-actions > .button {
+    flex: 1 1 100%;
+  }
+  .student-workspace .meeting-history-date-tools .meeting-date-range {
+    padding: 14px;
+  }
+  .student-workspace .meeting-panel.meeting-experience .meeting-availability,
+  .student-workspace .meeting-panel.meeting-experience .meeting-history,
+  .student-workspace
+    .meeting-panel.meeting-experience
+    .meeting-next-reservation {
+    padding: 20px;
+    border-radius: 18px;
+  }
+  .student-workspace
+    .meeting-panel.meeting-experience
+    .meeting-availability
+    form
+    > .button {
+    width: 100%;
+    min-width: 0;
+  }
+  .student-workspace
+    .meeting-panel.meeting-experience
+    .meeting-primary-actions {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .student-workspace
+    .meeting-panel.meeting-experience
+    .meeting-primary-actions
+    .button {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  .student-workspace .meeting-panel.meeting-experience .meeting-quick-time {
+    padding: 12px;
+  }
+  .student-workspace
+    .meeting-panel.meeting-experience
+    :is(.meeting-date-range, .meeting-history-heading)
+    input,
+  .student-workspace
+    .meeting-panel.meeting-experience
+    .meeting-all-times
+    select {
+    font-size: calc(1rem * var(--student-type-scale, 1));
+  }
+  .student-workspace
+    .meeting-panel.meeting-experience
+    .meeting-confirmation
+    h2 {
+    font-size: calc(1.5rem * var(--student-type-scale, 1));
+    line-height: 1.3;
+    margin-bottom: 12px;
+  }
+  .student-workspace
+    .meeting-panel.meeting-experience
+    .meeting-confirmation
+    > p:first-of-type {
+    margin-top: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .student-workspace .meeting-panel.meeting-experience *,
+  .student-workspace .meeting-confirmation * {
+    scroll-behavior: auto;
+    transition: none;
+    animation: none;
+  }
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-stale-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 8px 16px;
+  border: 1px solid #e5d7b6;
+  border-radius: 12px;
+  background: #fcf7e9;
+  color: #76551b;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-stale-note > p {
+  margin: 0;
+  color: inherit;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-unavailable {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  padding-block: 28px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-unavailable
+  .learning-glyph {
+  width: 32px;
+  height: 32px;
+  color: #597c49;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-unavailable > p {
+  margin: 0;
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-history-context {
+  margin: 10px 0 0;
+  color: #56655f;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-history-time-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-history-time-line
+  > time {
+  font-weight: 600;
+  font-size: calc(0.9375rem * var(--student-type-scale, 1));
+}
+.student-workspace
+  .meeting-panel.meeting-experience
+  .meeting-history-time-line
+  > span {
+  color: #56655f;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.student-workspace .meeting-panel.meeting-experience .meeting-blocked-help {
+  color: #76551b;
+}
+
+.student-workspace .meeting-panel.meeting-experience .button.button-secondary {
+  color: #214c3b;
+  background: #fff;
+  border: 1px solid #9aad9f;
+  border-radius: 12px;
+  box-shadow: none;
+  font-weight: 600;
+}
+@media (hover: hover) {
+  .student-workspace
+    .meeting-panel.meeting-experience
+    .button.button-secondary:hover:not(:disabled) {
+    background: #f5f8f3;
+    border-color: #597c65;
+  }
+}
