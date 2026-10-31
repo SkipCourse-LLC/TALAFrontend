@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "skip-class-slsru4"
+  },
+  "targets": {
+    "skip-class-slsru4": {
+      "hosting": {
+        "tala": [
+          "tucsonala"
+        ]
+      }
+    }
+  }
+}

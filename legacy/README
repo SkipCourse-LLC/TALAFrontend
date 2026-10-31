@@ -1,0 +1,100 @@
+# TALA Frontend
+
+The public-facing website for **Tucson Adaptive Learning Academy (TALA)**, a year-round school serving medically fragile and wheelchair-dependent children in Tucson, Arizona.
+
+## Live site
+
+[View the deployed website](https://talaedu.vercel.app)
+
+## Overview
+
+This repository contains a responsive, accessible landing page and About Us experience for TALA. The site introduces the academy's mission, explains the admissions process, demonstrates a sample student schedule, and provides contact, biography, and registration calls to action.
+
+## Features
+
+- Responsive layout for mobile, tablet, and desktop screens
+- Accessible navigation with skip link, keyboard support, focus states, and semantic landmarks
+- Light and dark theme support based on system preferences
+- Interactive mobile navigation menu
+- Admissions process overview and document checklist
+- FAQ accordion sections
+- Interactive sample weekly schedule with booking and waiting-list states
+- Sample attendance-hours calendar
+- Tabbed “Learn more” content panels
+- Dedicated About Us page for TALA, Tina, and Karl
+- Community member login preview dialog
+- Direct phone and registration/payment links
+- Reduced-motion support
+- Inline SVG illustrations and icons
+
+## Project structure
+
+```text
+.
+├── index.html   # Complete static website, including styles and JavaScript
+├── about.html   # Long-form About Us page
+└── README.md
+```
+
+The current implementation is self-contained: HTML, CSS, JavaScript, and SVG artwork are all included in `index.html`.
+
+## Run locally
+
+No package manager or build step is required.
+
+### Open directly
+
+Open `index.html` in a modern web browser.
+
+### Use a local HTTP server
+
+```bash
+python3 -m http.server 8000
+```
+
+Then visit <http://localhost:8000>.
+
+## Development notes
+
+- Edit `index.html` to update the page content, styles, or interactions.
+- The sample schedule is demo-only; selections are stored in browser memory and are not persisted.
+- The member login is a UI preview and is not connected to an authentication service.
+- Several sections are marked “Coming soon.”
+- Registration currently uses an external HubSpot payment link.
+- The primary contact number is `+1 520 639 5411`.
+
+## Deployment
+
+The site can be deployed to any static hosting provider. The production site is currently hosted at Vercel.
+
+Supported deployment options include:
+
+- Vercel
+- GitHub Pages
+- Netlify
+- Cloudflare Pages
+- Any static web server
+
+For Vercel, import this repository and use the project root as the deployment directory. No build command is needed.
+
+## Accessibility
+
+The page includes:
+
+- Semantic HTML landmarks and headings
+- A skip-to-content link
+- Keyboard-accessible controls
+- Visible focus styles
+- ARIA labels and live regions
+- Reduced-motion handling
+- Responsive layouts for smaller screens
+
+When adding interactive content, preserve keyboard access, focus management, meaningful labels, and sufficient color contrast.
+
+## Content and privacy
+
+This website includes information related to children, families, health support, enrollment, and education. Do not add personally identifiable information or protected health information to the repository. Production authentication, enrollment, scheduling, and messaging should use approved secure services.
+
+## Contact
+
+For questions about TALA, call **+1 520 639 5411** or use the contact options on the [live site](https://talaedu.vercel.app).
