@@ -32,6 +32,25 @@ Open **http://127.0.0.1:5173/#/register**. The launcher starts the website on po
 
 Accounts, sessions and application records persist in ignored `server/.runtime/tala.sqlite`; uploaded files stay under the same private runtime directory. `TALA_DATA_DIR` selects another directory. Data survives refresh, sign-out and server restart, but is stored on this machine with no cloud synchronization. Selected files and unsaved writing remain in memory until submitted or explicitly saved as a reflection draft.
 
+## Admin page
+
+`/#/admin` lets allowlisted TALA admins draft, publish, unpublish and delete events and opportunities (Firebase Auth, Firestore `tala_drafts` and `jobs`, Storage `tala_uploads`). Set the `VITE_FIREBASE_*` values from `frontend/.env.example`; rules and schema are in [docs/firebase-rules-snippet.md](docs/firebase-rules-snippet.md).
+
+## Project structure
+
+```text
+frontend/src/
+  public-site/   public pages
+  onboarding/    Contact me form, public open times
+  product/       signed-in app and admin tools
+  api/           API client
+  admin/         Firebase-backed events and opportunities admin
+  shared/        layout, header, form controls, styles
+  authentication/ registration/ payment/ classes/ dashboard/   demo screens
+server/          local API (see server/README.md)
+docs/            onboarding flow map; sign-in and data model proposal
+legacy/          original one-page site
+```
 The schema 5 upgrade verifies a private SQLite backup before upgrading an older database. See [server/README.md](server/README.md) for local backup, restore and operator commands, and [server/contract.json](server/contract.json) for API contracts.
 
 ## Local operator setup

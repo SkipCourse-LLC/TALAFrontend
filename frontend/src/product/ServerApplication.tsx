@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -22,8 +29,15 @@ import { readWorkspaceView, workspaceViews } from "./workspaceViews";
 import "./product.css";
 import "./quietAccount.css";
 
-function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
-  const { pathname, search } = useLocation();
+// Firebase is only downloaded when an administrator opens /admin.
+const AdminPage = lazy(() =>
+  import("../admin/AdminPage").then((module) => ({
+    default: module.AdminPage,
+  })),
+);
+
+function IndependentRouteFocus() {
+  const { pathname } = useLocation();
   useEffect(() => {
     if (pathname !== "/dashboard" && pathname !== "/two-factor") return;
     const view = readWorkspaceView(new URLSearchParams(search).get("view"));
@@ -284,6 +298,20 @@ export function ServerApplication() {
               <Route
                 path="dashboard"
                 element={user ? null : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="admin"
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="container state-panel" role="status">
+                        Loading admin…
+                      </div>
+                    }
+                  >
+                    <AdminPage />
+                  </Suspense>
+                }
               />
               <Route path="about" element={<AboutPage />} />
               <Route path="learn-more" element={<AboutPage />} />
