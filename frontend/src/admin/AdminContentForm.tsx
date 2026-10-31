@@ -295,6 +295,7 @@ export default function AdminContentForm({
         <button
           type="button"
           className="button button-outline"
+          disabled={busy}
           onClick={onCancel}
         >
           Back to drafts
