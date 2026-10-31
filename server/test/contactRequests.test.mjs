@@ -1,14 +1,59 @@
 // SCRUM-77: "Contact me" requests. Test IDs T3-51..T3-55 are noted per test.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import {
-  SyntheticHttpClient,
-  registerSyntheticAccount,
-  startIsolatedApplication,
-} from "./support.mjs";
+import { SyntheticHttpClient } from "./support.mjs";
 
+async function fixture() {
+  const dataDir = await mkdtemp(join(tmpdir(), "tala-contact-requests-"));
+  const application = createApplication({ dataDir });
+  try {
+    await new Promise((resolve, reject) => {
+      application.server.once("error", reject);
+      application.server.listen(0, "127.0.0.1", resolve);
+    });
+  } catch (error) {
+    await application.close();
+    await rm(dataDir, { recursive: true, force: true });
+    throw error;
+  }
+  const url = `http://127.0.0.1:${application.server.address().port}`;
+  return {
+    application,
+    url,
+    async register(accountType = "student", options = {}) {
+      const client = new SyntheticHttpClient(url);
+      await client.bootstrap();
+      const account = {
+        name: `Synthetic ${accountType}`,
+        email: `${randomUUID()}@example.test`,
+        password: `Synthetic-only-${randomUUID()}`,
+        accountType,
+      };
+      const response = await client.request("/api/auth/register", {
+        method: "POST",
+        json: account,
+      });
+      assert.equal(response.status, 201);
+      if (options.operator) {
+        application.operator.promote(account.email);
+        await client.bootstrap();
+      }
+      return { client, user: response.json.session, account };
+    },
+    async close() {
+      try {
+        await application.close();
+      } finally {
+        await rm(dataDir, { recursive: true, force: true });
+      }
+    },
+  };
+}
 const validRequest = (overrides = {}) => ({
   parentName: "Synthetic Parent",
   email: `${randomUUID()}@example.test`,
@@ -33,7 +78,7 @@ const list = (client, query = "") =>
   client.request(`/api/operations/contact-requests${query}`);
 
 test("T3-51 a parent without an account submits a request and gets a receipt only", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
     const parent = await visitor(context);
     const body = validRequest();
@@ -49,7 +94,7 @@ test("T3-51 a parent without an account submits a request and gets a receipt onl
     for (const value of [body.email, body.phone, body.parentName, body.notes])
       assert.equal(serialized.includes(value), false);
 
-    const admin = await registerSyntheticAccount(context, "student", {
+    const admin = await context.register("student", {
       operator: true,
     });
     const saved = await list(admin.client);
@@ -78,7 +123,7 @@ test("T3-51 a parent without an account submits a request and gets a receipt onl
 });
 
 test("T3-52 the server rejects missing or invalid fields and stores nothing", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
     const parent = await visitor(context);
     const invalid = [
@@ -156,7 +201,7 @@ test("T3-52 the server rejects missing or invalid fields and stores nothing", as
 });
 
 test("T3-53 retries and double submits do not create duplicate requests", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
     const parent = await visitor(context);
     const body = validRequest();
@@ -184,7 +229,7 @@ test("T3-53 retries and double submits do not create duplicate requests", async 
 });
 
 test("T3-53 submissions are rate limited per client", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
     const parent = await visitor(context);
     for (let index = 0; index < 10; index++)
@@ -198,12 +243,12 @@ test("T3-53 submissions are rate limited per client", async () => {
 });
 
 test("T3-54 an admin pages requests by status and marks them contacted or closed", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
     const parent = await visitor(context);
     const first = (await submit(parent, validRequest())).json;
     const second = (await submit(parent, validRequest())).json;
-    const admin = await registerSyntheticAccount(context, "student", {
+    const admin = await context.register("student", {
       operator: true,
     });
     const all = await list(admin.client);
@@ -262,12 +307,12 @@ test("T3-54 an admin pages requests by status and marks them contacted or closed
 });
 
 test("T3-55 no endpoint lets a parent, student or visitor read any request", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
     const parentA = await visitor(context);
     const receipt = (await submit(parentA, validRequest())).json;
-    const parentAccount = await registerSyntheticAccount(context, "parent");
-    const student = await registerSyntheticAccount(context, "student");
+    const parentAccount = await context.register("parent");
+    const student = await context.register("student");
     const parentB = await visitor(context);
     for (const [client, status] of [
       [parentB, 401],
