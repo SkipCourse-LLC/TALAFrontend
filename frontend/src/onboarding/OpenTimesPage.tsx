@@ -17,6 +17,17 @@ const toYYYYMMDD = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const dateKeyInTimeZone = (date: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((value) => value.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
+};
+
 const formatMonthYear = (date: Date) => {
   return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 };
@@ -58,8 +69,9 @@ export function OpenTimesPage() {
         if (!controller.signal.aborted) {
           setLoad({ state: "ready", value });
           if (value.times.length > 0 && value.times[0] && !selectedDateStr) {
-             const firstDate = new Date(value.times[0].startsAt);
-             setSelectedDateStr(toYYYYMMDD(firstDate));
+             const firstDateKey = dateKeyInTimeZone(new Date(value.times[0].startsAt), value.timeZone);
+             const firstDate = new Date(`${firstDateKey}T12:00:00`);
+             setSelectedDateStr(firstDateKey);
              setViewedMonth(new Date(firstDate.getFullYear(), firstDate.getMonth(), 1));
           }
         }
@@ -83,14 +95,7 @@ export function OpenTimesPage() {
 
   const activeSlots = groupedDays.flatMap(day => day.times).filter(slot => {
     if (!selectedDateStr || load.state !== "ready") return false;
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: load.value.timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(new Date(slot.startsAt));
-    const part = (type: string) => parts.find(value => value.type === type)?.value;
-    return `${part("year")}-${part("month")}-${part("day")}` === selectedDateStr;
+    return dateKeyInTimeZone(new Date(slot.startsAt), load.value.timeZone) === selectedDateStr;
   });
   const selectedSlot = activeSlots.find(s => s.id === selectedSlotId);
 
@@ -186,7 +191,7 @@ export function OpenTimesPage() {
                   {days.map((dayNum) => {
                     const dateObj = new Date(year, month, dayNum);
                     const dateString = toYYYYMMDD(dateObj);
-                    const hasSlotsOnThisDate = load.state === "ready" && load.value.times.some(time => toYYYYMMDD(new Date(time.startsAt)) === dateString);
+                    const hasSlotsOnThisDate = load.state === "ready" && load.value.times.some(time => dateKeyInTimeZone(new Date(time.startsAt), load.value.timeZone) === dateString);
                     const isSelected = selectedDateStr === dateString;
 
                     return (

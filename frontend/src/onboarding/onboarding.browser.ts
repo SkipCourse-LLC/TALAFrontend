@@ -196,6 +196,36 @@ test("T3-47 the public calendar shows open times, an empty state and a retryable
   ).toBeVisible();
 });
 
+test.describe("calendar in UTC", () => {
+  test.use({ timezoneId: "UTC" });
+
+  test("calendar day and month follow the API timezone", async ({ page }) => {
+    await mockApi(page, {
+      "GET /api/session": (route) => route.fulfill({ json: anonymous }),
+      "GET /api/public/open-times": (route) =>
+        route.fulfill({
+          json: {
+            times: [
+              {
+                id: "slot-a",
+                startsAt: "2027-01-06T01:00:00.000Z",
+                endsAt: "2027-01-06T01:30:00.000Z",
+              },
+            ],
+            hasMore: false,
+            timeZone: "America/Phoenix",
+          },
+        }),
+    });
+    await page.goto("/#/schedule");
+    await expect(
+      page.getByRole("heading", { name: "Tuesday, January 5" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "January 2027" })).toBeVisible();
+    await expect(page.getByText("6:00 PM – 6:30 PM")).toBeVisible();
+  });
+});
+
 const futureSlot = {
   id: "slot-a",
   startsAt: "2027-01-05T17:00:00.000Z",
