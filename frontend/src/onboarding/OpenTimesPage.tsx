@@ -461,7 +461,7 @@ export function OpenTimesPage() {
                 <button onClick={() => window.location.href = "/"} style={{ background: "none", border: "none", color: "#4b5563", fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem" }}>&larr; Back to home</button>
                 <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.5rem" }}>Need a hand? Reply to your confirmation email and Tina will help.</p>
               </div>
-              <button onClick={() => alert("Add to calendar clicked")} style={{ padding: "0.75rem 2rem", borderRadius: "6px", fontWeight: 500, border: "none", backgroundColor: "#1a3c34", color: "white", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem" }}>Add to calendar &rarr;</button>
+              <button disabled title="Calendar export is not available yet" style={{ padding: "0.75rem 2rem", borderRadius: "6px", fontWeight: 500, border: "none", backgroundColor: "#e5e7eb", color: "#6b7280", cursor: "not-allowed", display: "flex", alignItems: "center", gap: "0.5rem" }}>Add to calendar &rarr;</button>
             </div>
           </>
         )}
