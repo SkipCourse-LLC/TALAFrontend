@@ -356,9 +356,9 @@ export function OpenTimesPage() {
                   <div style={{ color: "#6b7280" }}>Date</div>
                   <div style={{ color: "#111827" }}>{displayDate}</div>
                   <div style={{ color: "#6b7280" }}>Time</div>
-                  <div style={{ color: "#111827" }}>{selectedSlot?.label} • 30 minutes</div>
+                  <div style={{ color: "#111827" }}>{selectedSlot?.label}</div>
                   <div style={{ color: "#6b7280" }}>Timezone</div>
-                  <div style={{ color: "#111827" }}>Eastern Time (UTC-05:00)</div>
+                  <div style={{ color: "#111827" }}>{load.value.timeZone}</div>
                   <div style={{ color: "#6b7280" }}>Meeting Method</div>
                   <div style={{ color: "#111827" }}>{displayMethod}</div>
                 </div>
