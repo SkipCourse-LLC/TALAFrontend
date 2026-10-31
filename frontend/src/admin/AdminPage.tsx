@@ -199,7 +199,6 @@ export function AdminPage() {
       )}
       {creating || selected ? (
         <AdminContentForm
-          key={selected?.id ?? "new"}
           draft={selected}
           user={user}
           onSaved={(saved) => {
