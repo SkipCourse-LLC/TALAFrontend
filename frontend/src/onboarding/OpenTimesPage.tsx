@@ -72,7 +72,7 @@ export function OpenTimesPage() {
   };
 
   useEffect(() => {
-    fetchTimes();
+    return fetchTimes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt, useMockData]);
 
