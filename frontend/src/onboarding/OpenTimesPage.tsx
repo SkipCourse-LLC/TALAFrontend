@@ -105,7 +105,15 @@ export function OpenTimesPage() {
   const handlePrevMonth = () => { setViewedMonth(new Date(year, month - 1, 1)); setSelectedDateStr(null); setSelectedSlotId(null); };
   const handleNextMonth = () => { setViewedMonth(new Date(year, month + 1, 1)); setSelectedDateStr(null); setSelectedSlotId(null); };
 
-  const isFormValid = name.trim().length > 0 && email.includes("@") && phone.trim().length >= 7;
+  const phoneDigits = phone.replace(/\D/g, "").length;
+  const isFormValid =
+    name.trim().length > 0 &&
+    email.trim().length <= 254 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
+    phone.trim().length <= 30 &&
+    /^[0-9+().\s-]+$/.test(phone.trim()) &&
+    phoneDigits >= 10 &&
+    phoneDigits <= 15;
 
   const handleConfirmBooking = async () => {
     if (!selectedSlotId) return;
