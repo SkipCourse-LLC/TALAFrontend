@@ -43,7 +43,9 @@ export function AdminPage() {
   useEffect(() => {
     document.title = "TALA admin | TALA";
     if (!auth || !db) return;
-    return onAuthStateChanged(auth, async (current) => {
+    let authRevision = 0;
+    const unsubscribe = onAuthStateChanged(auth, async (current) => {
+      const revision = ++authRevision;
       setUser(current);
       setAuthorized(false);
       setError("");
@@ -54,17 +56,23 @@ export function AdminPage() {
       setLoading(true);
       try {
         const allowed = await hasTalaAdminAccess(current);
+        if (revision !== authRevision) return;
         setAuthorized(allowed);
         if (!allowed)
           setError(
             "This Google account is not authorized. Access requires an allowlisted email and users/{uid}.role = talaadmin.",
           );
       } catch {
-        setError("Unable to verify your administrator role. Please try again.");
+        if (revision === authRevision)
+          setError("Unable to verify your administrator role. Please try again.");
       } finally {
-        setLoading(false);
+        if (revision === authRevision) setLoading(false);
       }
     });
+    return () => {
+      ++authRevision;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
