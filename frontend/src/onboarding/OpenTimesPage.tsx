@@ -81,10 +81,17 @@ export function OpenTimesPage() {
     return groupOpenTimes(load.value);
   }, [load]);
 
-  const activeDay = groupedDays.find(d => 
-    selectedDateStr && d.label.includes(new Date(selectedDateStr + "T12:00:00").getDate().toString())
-  );
-  const activeSlots = activeDay ? activeDay.times : [];
+  const activeSlots = groupedDays.flatMap(day => day.times).filter(slot => {
+    if (!selectedDateStr || load.state !== "ready") return false;
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: load.value.timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date(slot.startsAt));
+    const part = (type: string) => parts.find(value => value.type === type)?.value;
+    return `${part("year")}-${part("month")}-${part("day")}` === selectedDateStr;
+  });
   const selectedSlot = activeSlots.find(s => s.id === selectedSlotId);
 
   // --- CALENDAR MATH ---
