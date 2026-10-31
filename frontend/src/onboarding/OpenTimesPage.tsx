@@ -290,25 +290,25 @@ export function OpenTimesPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Name *</label>
+                  <label htmlFor="booking-name" style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Name *</label>
                   <div style={{ position: "relative" }}>
-                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={{ width: "100%", padding: "0.75rem 2.5rem 0.75rem 0.75rem", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "1rem" }} />
+                    <input id="booking-name" required type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={{ width: "100%", padding: "0.75rem 2.5rem 0.75rem 0.75rem", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "1rem" }} />
                     {name.trim().length > 0 && <span style={{ position: "absolute", right: "10px", top: "12px", color: "#166534" }}>✓</span>}
                   </div>
                 </div>
                 <div>
-                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Phone *</label>
+                  <label htmlFor="booking-phone" style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Phone *</label>
                   <div style={{ position: "relative" }}>
-                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ width: "100%", padding: "0.75rem 2.5rem 0.75rem 0.75rem", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "1rem" }} />
+                    <input id="booking-phone" required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ width: "100%", padding: "0.75rem 2.5rem 0.75rem 0.75rem", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "1rem" }} />
                     {phone.trim().length >= 7 && <span style={{ position: "absolute", right: "10px", top: "12px", color: "#166534" }}>✓</span>}
                   </div>
                 </div>
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Email *</label>
+                <label htmlFor="booking-email" style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Email *</label>
                 <div style={{ position: "relative" }}>
-                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: "100%", padding: "0.75rem 2.5rem 0.75rem 0.75rem", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "1rem" }} />
+                  <input id="booking-email" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: "100%", padding: "0.75rem 2.5rem 0.75rem 0.75rem", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "1rem" }} />
                   {email.includes("@") && <span style={{ position: "absolute", right: "10px", top: "12px", color: "#166534" }}>✓</span>}
                 </div>
                 <p style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: "0.5rem" }}>We'll send your confirmation and Zoom link here.</p>
