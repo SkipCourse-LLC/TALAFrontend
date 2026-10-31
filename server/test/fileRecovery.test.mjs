@@ -51,7 +51,8 @@ test("an identical explicit PUT can recover a pending upload after a partial dis
     const legacy = await client.request("/api/evidence/uploads", { method: "POST", json: { appointmentId: booking.json.id, title: "Synthetic legacy partial", contentType: "text/plain", size: bytes.length, sha256, requestId: randomUUID() } });
     assert.equal(legacy.status, 201);
     const legacyId = legacy.json.uploadId, staging = join(dataDir, "uploads", `${legacyId}.bin`), scratch = join(dataDir, "uploads", `${legacyId}.part`);
-    // Simulate leftovers from interrupted writers.
+    // Simulate files left by abrupt old/new writers, not a modified committed
+    // Evidence record. Only this pending upload belongs to the synthetic user.
     fs.writeFileSync(staging, bytes.subarray(0, 7), { mode: 0o600 });
     fs.writeFileSync(scratch, bytes.subarray(0, 11), { mode: 0o600 });
     const wrong = Buffer.from(bytes); wrong[0] ^= 1;

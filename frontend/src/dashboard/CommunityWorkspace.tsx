@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import type { DemoSession } from "../shared/services/serviceTypes";
-import type { EnrollmentReceipt } from "../registration/enrollmentContract";
+import type { EnrollmentReceipt } from "../registration/enrollmentService";
 import { sampleSession } from "../shared/services/demoData";
 import { Icon } from "../shared/Icon";
+import { DemoMeetingsPanel } from "../meetings/DemoMeetingsPanel";
 
 export function CommunityWorkspace({
   session,
@@ -30,7 +31,20 @@ export function CommunityWorkspace({
           <h1>{session.role} workspace</h1>
           <p className="lead">Welcome, {session.name}.</p>
         </div>
-        <span className="demo-pill">Demo preview</span>
+        <div className="demo-meetings-entry">
+          {parent && (
+            <button
+              className="button button-outline"
+              type="button"
+              onClick={() =>
+                document.getElementById("demo-meetings-heading")?.focus()
+              }
+            >
+              Book a meeting
+            </button>
+          )}
+          <span className="demo-pill">Demo preview</span>
+        </div>
       </header>
       <div className="community-demo-note">
         <Icon name="leaf" />
@@ -40,6 +54,7 @@ export function CommunityWorkspace({
             : "Explore the community preview. This sample role does not grant permissions or access to school records."}
         </p>
       </div>
+      {parent && <DemoMeetingsPanel identity={studentEmail} />}
       {parent ? (
         <div className="community-grid">
           <section

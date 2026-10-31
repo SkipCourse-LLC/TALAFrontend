@@ -10,12 +10,11 @@ import type {
   ApiUser,
 } from "../api";
 import { meetingTime } from "./format";
-import { localMeetingInput, parseLocalMeetingTime } from "./meetingHelpers";
-import { ContactRequestsPanel } from "./ContactRequestsPanel";
+import { parseLocalMeetingTime } from "./meetingHelpers";
 import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
 import "./operator.css";
 
-type Panel = "review" | "meetings" | "learning" | "requests";
+type Panel = "review" | "meetings" | "learning";
 type ReviewFilter = "not_reviewed" | "needs_revision" | "reviewed" | "all";
 type ReviewDraft = {
   status: "reviewed" | "needs_revision";
@@ -26,7 +25,6 @@ const panels: Array<{ id: Panel; label: string }> = [
   { id: "review", label: "Review evidence" },
   { id: "meetings", label: "Meetings" },
   { id: "learning", label: "Learning summaries" },
-  { id: "requests", label: "Contact requests" },
 ];
 const reviewLabel = {
   not_reviewed: "Awaiting review",
@@ -79,7 +77,8 @@ function useOperatorPage<T extends { id: string }>(
       request.abort();
       more.current?.abort();
     };
-    // Keep cleanup registered on return so a pending Load more can still be cancelled.
+    // Cached first pages still own any later Load more request. Keep cleanup
+    // registered on a panel return, even when no first-page fetch is needed.
     if (!enabled || completed.current === `${key}:${attempt}`) return cleanup;
     void load(undefined, request.signal)
       .then((page) => {
@@ -253,12 +252,15 @@ function PageMore({
           className="operator-text-button"
           disabled={blocked || page.moreBusy}
           onClick={() => void requestMore()}
+          aria-label={
+            page.moreBusy
+              ? "Loading more…"
+              : page.moreError
+                ? `Retry ${label.toLowerCase()}`
+                : label
+          }
         >
-          {page.moreBusy
-            ? "Loading more…"
-            : page.moreError
-              ? `Retry ${label.toLowerCase()}`
-              : label}
+          {page.moreBusy ? "Loading…" : page.moreError ? "Retry" : "More"}
         </button>
       )}
     </div>
@@ -287,8 +289,6 @@ export function OperatorWorkspace({
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [label, setLabel] = useState("");
-  const [editingSlot, setEditingSlot] = useState<ApiManagedSlot | null>(null);
-  const editorHeading = useRef<HTMLHeadingElement>(null);
   const [appointmentId, setAppointmentId] = useState("");
   const [summaryDrafts, setSummaryDrafts] = useState<Record<string, string>>(
     {},
@@ -444,9 +444,7 @@ export function OperatorWorkspace({
         : [evidencePage]
       : panel === "meetings"
         ? [availabilityPage, bookingsPage]
-        : panel === "learning"
-          ? [endedPage, recordsPage]
-          : [];
+        : [endedPage, recordsPage];
   const loading = relevantPages.some((page) => page.loading);
   const loadError = relevantPages
     .map((page) => page.error)
@@ -587,9 +585,7 @@ export function OperatorWorkspace({
     <div className="container operator-workspace">
       <header className="operator-heading">
         <div>
-          <p className="operator-identity">TALA operations</p>
-          <h1>Learning operations</h1>
-          <p>Review student work and prepare the next conversation.</p>
+          <h1 aria-label="Learning operations">Operations</h1>
         </div>
         <div className="operator-header-actions">
           <span>{user.name}</span>
@@ -613,6 +609,7 @@ export function OperatorWorkspace({
               key={item.id}
               type="button"
               role="tab"
+              aria-label={item.label}
               id={`operator-tab-${item.id}`}
               aria-selected={panel === item.id}
               aria-controls={`operator-panel-${item.id}`}
@@ -635,7 +632,11 @@ export function OperatorWorkspace({
                 }
               }}
             >
-              {item.label}
+              {item.id === "review"
+                ? "Review"
+                : item.id === "learning"
+                  ? "Summaries"
+                  : item.label}
               {item.id === "review" && unreviewed.length > 0 && (
                 <span
                   className="operator-tab-count"
@@ -702,8 +703,7 @@ export function OperatorWorkspace({
       >
         <div className="operator-section-heading">
           <div>
-            <h2>Review student work</h2>
-            <p>Review the document, then leave a clear next step.</p>
+            <h2 aria-label="Review student work">Review</h2>
           </div>
           <span className="operator-caption">
             {operations
@@ -714,9 +714,10 @@ export function OperatorWorkspace({
         <div className="operator-split">
           <aside className="operator-queue" aria-label="Evidence queue">
             <label className="form-field operator-search">
-              <span>Find student work</span>
+              <span>Search</span>
               <input
                 type="search"
+                aria-label="Search — Find student work"
                 maxLength={80}
                 placeholder="Student or document"
                 value={search}
@@ -784,17 +785,12 @@ export function OperatorWorkspace({
               </ul>
             ) : (
               <div className="operator-empty">
-                <h3>
+                <p>
                   {search
                     ? "No matching work"
                     : filter === "not_reviewed"
-                      ? "Your review queue is clear."
+                      ? "No work awaiting review."
                       : "No work in this view."}
-                </h3>
-                <p>
-                  {search
-                    ? "Try another student name or document title."
-                    : "New submissions will appear here."}
                 </p>
                 {filter !== "all" && evidence.length > 0 && (
                   <button
@@ -846,6 +842,11 @@ export function OperatorWorkspace({
                 <button
                   className="button button-secondary"
                   disabled={blocked}
+                  aria-label={
+                    busy === `download:${selectedEvidence.id}`
+                      ? "Preparing download…"
+                      : `Download ${selectedEvidence.title}`
+                  }
                   onClick={() =>
                     void run(
                       `download:${selectedEvidence.id}`,
@@ -857,7 +858,7 @@ export function OperatorWorkspace({
                 >
                   {busy === `download:${selectedEvidence.id}`
                     ? "Preparing download…"
-                    : `Download ${selectedEvidence.title}`}
+                    : "Download"}
                 </button>
                 {selectedEvidence.reviewNote && (
                   <div className="operator-previous-review">
@@ -872,10 +873,9 @@ export function OperatorWorkspace({
                 )}
                 {selectedEvidence.supersededByEvidenceId ? (
                   <div className="operator-previous-review">
-                    <h4>A newer version has been submitted.</h4>
+                    <h4>Newer version available</h4>
                     <p>
-                      This version and its feedback remain in the history.
-                      Review the latest version instead.
+                      This version stays in history. Review the latest version.
                     </p>
                     <button
                       className="operator-text-button"
@@ -955,10 +955,10 @@ export function OperatorWorkspace({
                   >
                     {staleReview && (
                       <div className="operator-previous-review" role="status">
-                        <h4>Another review changed this document.</h4>
+                        <h4>Review changed elsewhere</h4>
                         <p>
-                          Your draft is kept. Compare the latest feedback above
-                          before continuing.
+                          Draft kept. Compare the latest feedback before
+                          continuing.
                         </p>
                         <button
                           type="button"
@@ -979,7 +979,9 @@ export function OperatorWorkspace({
                       className="operator-fields"
                       disabled={blocked || staleReview}
                     >
-                      <legend>Review submitted evidence</legend>
+                      <legend className="sr-only">
+                        Review submitted evidence
+                      </legend>
                       <div className="form-field">
                         <label htmlFor="operator-review-status">
                           Review status
@@ -1008,17 +1010,24 @@ export function OperatorWorkspace({
                           onChange={(event) =>
                             updateReview({ note: event.target.value })
                           }
-                          placeholder="What worked well? What should the student do next?"
+                          placeholder="Feedback and next step"
                         />
                       </label>
                       <p className="operator-field-help">
-                        This is a manual review. It does not award a grade or
-                        academic credit.
+                        Manual review. No grade or credit awarded.
                       </p>
-                      <button className="button" disabled={!draft.note.trim()}>
+                      <button
+                        className="button"
+                        disabled={!draft.note.trim()}
+                        aria-label={
+                          busy?.startsWith("review:")
+                            ? "Saving review…"
+                            : "Save review by staff"
+                        }
+                      >
                         {busy?.startsWith("review:")
                           ? "Saving review…"
-                          : "Save manual review"}
+                          : "Save review"}
                       </button>
                     </fieldset>
                   </form>
@@ -1029,11 +1038,7 @@ export function OperatorWorkspace({
                 <span className="operator-empty-mark" aria-hidden="true">
                   ✓
                 </span>
-                <h3>Choose a document to review.</h3>
-                <p>
-                  Choose a document from the queue to read it and leave
-                  feedback.
-                </p>
+                <p>Choose a document.</p>
               </div>
             )}
           </div>
@@ -1049,8 +1054,7 @@ export function OperatorWorkspace({
       >
         <div className="operator-section-heading">
           <div>
-            <h2>Meetings and availability</h2>
-            <p>Publish clear availability and keep track of booked meetings.</p>
+            <h2 aria-label="Meetings and availability">Meetings</h2>
           </div>
           <span className="operator-caption">
             {Intl.DateTimeFormat().resolvedOptions().timeZone}
@@ -1106,49 +1110,28 @@ export function OperatorWorkspace({
                     </div>
                     <p>{meetingTime(slot.startsAt, slot.endsAt)}</p>
                     {slot.canWithdraw ? (
-                      <div className="operator-slot-actions">
-                        <button
-                          type="button"
-                          className="operator-text-button"
-                          disabled={blocked}
-                          aria-label={`Edit ${meetingTime(slot.startsAt, slot.endsAt)}`}
-                          onClick={() => {
-                            setEditingSlot(slot);
-                            setStartsAt(localMeetingInput(slot.startsAt));
-                            setEndsAt(localMeetingInput(slot.endsAt));
-                            setLabel(slot.label);
-                            setMessage("");
-                            setError("");
-                            requestAnimationFrame(() =>
-                              editorHeading.current?.focus(),
-                            );
-                          }}
-                        >
-                          Edit time
-                        </button>
-                        <button
-                          type="button"
-                          className="operator-text-button"
-                          disabled={blocked}
-                          onClick={() =>
-                            void run(
-                              `withdraw:${slot.id}`,
-                              async (signal, requestId) => {
-                                await talaApi.withdrawAvailability(
-                                  slot.id,
-                                  { requestId },
-                                  signal,
-                                );
-                              },
-                              "Meeting time withdrawn. Existing bookings were kept.",
-                            )
-                          }
-                        >
-                          {busy === `withdraw:${slot.id}`
-                            ? "Withdrawing…"
-                            : "Withdraw time"}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        className="operator-text-button"
+                        disabled={blocked}
+                        onClick={() =>
+                          void run(
+                            `withdraw:${slot.id}`,
+                            async (signal, requestId) => {
+                              await talaApi.withdrawAvailability(
+                                slot.id,
+                                { requestId },
+                                signal,
+                              );
+                            },
+                            "Meeting time withdrawn. Existing bookings were kept.",
+                          )
+                        }
+                      >
+                        {busy === `withdraw:${slot.id}`
+                          ? "Withdrawing…"
+                          : "Withdraw time"}
+                      </button>
                     ) : slot.status === "withdrawn" ? (
                       <button
                         type="button"
@@ -1186,10 +1169,7 @@ export function OperatorWorkspace({
               </ul>
             ) : (
               <div className="operator-empty">
-                <h3>No upcoming times.</h3>
-                <p>
-                  Publish a time so students can reserve their next meeting.
-                </p>
+                <p>No upcoming times.</p>
               </div>
             )}
             <PageMore
@@ -1235,8 +1215,7 @@ export function OperatorWorkspace({
                 </p>
               )}
               <p className="operator-field-help">
-                A reservation or elapsed time does not confirm attendance. Live
-                meeting links are not connected.
+                Attendance is unconfirmed. Live meeting links are unavailable.
               </p>
               <PageMore
                 page={bookingsPage}
@@ -1246,28 +1225,16 @@ export function OperatorWorkspace({
             </details>
           </div>
           <div className="operator-editor">
-            <h3 ref={editorHeading} tabIndex={-1}>
-              {editingSlot ? "Edit meeting time" : "Publish a meeting time"}
-            </h3>
-            {editingSlot && (
-              <p className="operator-field-help">
-                Editing {meetingTime(editingSlot.startsAt, editingSlot.endsAt)}.
-                Changing the times gives it a new ID. Booked and past times
-                cannot be edited.
-              </p>
-            )}
+            <h3>Publish a time</h3>
             <p className="operator-field-help" id="operator-time-zone-help">
-              Device time zone: {deviceTimeZone}. Choose 15 minutes to 4 hours;
-              published times cannot overlap. Times skipped or repeated when
-              clocks change are not accepted. Choose a different, unambiguous
-              time.
+              {deviceTimeZone}. 15 minutes–4 hours. No overlaps or ambiguous
+              daylight-saving times.
             </p>
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                const editing = editingSlot;
                 void run(
-                  `${editing ? `edit:${editing.id}` : "availability"}:${startsAt}:${endsAt}:${label.trim()}`,
+                  `availability:${startsAt}:${endsAt}:${label.trim()}`,
                   async (signal, id) => {
                     const start = parseLocalMeetingTime(startsAt),
                       end = parseLocalMeetingTime(endsAt);
@@ -1279,27 +1246,22 @@ export function OperatorWorkspace({
                       end.getTime() - start.getTime() > 4 * 60 * 60_000
                     )
                       throw new TalaApiError("INVALID_INPUT");
-                    const input = {
-                      startsAt: start.toISOString(),
-                      endsAt: end.toISOString(),
-                      label: label.trim() || undefined,
-                      requestId: id,
-                    };
-                    if (editing)
-                      await talaApi.updateAvailability(
-                        editing.id,
-                        input,
-                        signal,
-                      );
-                    else await talaApi.addAvailability(input, signal);
+                    await talaApi.addAvailability(
+                      {
+                        startsAt: start.toISOString(),
+                        endsAt: end.toISOString(),
+                        label: label.trim() || undefined,
+                        requestId: id,
+                      },
+                      signal,
+                    );
                     if (active.current && !signal.aborted) {
                       setStartsAt("");
                       setEndsAt("");
                       setLabel("");
-                      setEditingSlot(null);
                     }
                   },
-                  editing ? "Meeting time updated." : "Meeting time published.",
+                  "Meeting time published.",
                 );
               }}
             >
@@ -1336,34 +1298,18 @@ export function OperatorWorkspace({
                     />
                   </label>
                 </div>
-                <button className="button">
+                <button
+                  className="button"
+                  aria-label={
+                    busy?.startsWith("availability:")
+                      ? "Publishing…"
+                      : "Publish availability"
+                  }
+                >
                   {busy?.startsWith("availability:")
                     ? "Publishing…"
-                    : busy?.startsWith("edit:")
-                      ? "Saving…"
-                      : editingSlot
-                        ? "Save changes"
-                        : "Publish availability"}
+                    : "Publish"}
                 </button>
-                {editingSlot && (
-                  <button
-                    type="button"
-                    className="button button-outline"
-                    onClick={() => {
-                      setEditingSlot(null);
-                      setStartsAt("");
-                      setEndsAt("");
-                      setLabel("");
-                    }}
-                  >
-                    Cancel editing
-                  </button>
-                )}
-                <p className="operator-field-help">
-                  Use Edit time on an available time to change it. Publishing
-                  the same withdrawn time again keeps its original title and
-                  history.
-                </p>
               </fieldset>
             </form>
           </div>
@@ -1379,15 +1325,12 @@ export function OperatorWorkspace({
       >
         <div className="operator-section-heading">
           <div>
-            <h2>Staff learning summaries</h2>
-            <p>
-              Turn a completed scheduled period into a staff-reviewed summary.
-            </p>
+            <h2 aria-label="Staff learning summaries">Learning summaries</h2>
           </div>
         </div>
         <div className="operator-split">
           <aside className="operator-queue">
-            <h3>Ended meeting periods</h3>
+            <h3>Ended periods</h3>
             <div className="form-field">
               <label htmlFor="operator-publication-filter">
                 Meeting summary status
@@ -1473,11 +1416,7 @@ export function OperatorWorkspace({
               </ul>
             ) : (
               <div className="operator-empty">
-                <h3>No periods match this view.</h3>
-                <p>
-                  When a scheduled meeting period ends, refresh this page to
-                  prepare its learning summary.
-                </p>
+                <p>No matching periods.</p>
               </div>
             )}
             <PageMore
@@ -1530,9 +1469,8 @@ export function OperatorWorkspace({
                       </div>
                     ))}
                     <p className="operator-field-help">
-                      This summary is saved and visible to the student and
-                      authorized family readers. Published summaries cannot be
-                      edited here.
+                      Shared with the student and authorized family. Read-only
+                      once published.
                     </p>
                   </div>
                 ) : selectedAppointment?.learningRecordId ? (
@@ -1599,7 +1537,9 @@ export function OperatorWorkspace({
                       }}
                     >
                       <fieldset className="operator-fields" disabled={blocked}>
-                        <legend>Publish a staff learning summary</legend>
+                        <legend className="sr-only">
+                          Publish a staff learning summary
+                        </legend>
                         <label className="form-field">
                           <span>Reviewed learning summary</span>
                           <textarea
@@ -1613,19 +1553,25 @@ export function OperatorWorkspace({
                             }
                             maxLength={1000}
                             rows={7}
-                            placeholder="Describe the learning discussed and an actionable next step."
+                            placeholder="Learning and next step"
                           />
                         </label>
                         <p className="operator-field-help">
-                          Publishing makes this summary visible to the student
-                          and authorized family readers. It cannot be edited
-                          here and does not certify attendance or academic
-                          credit.
+                          Shares with the student and authorized family. Cannot
+                          be edited here. Does not certify attendance or credit.
                         </p>
-                        <button className="button" disabled={!summary.trim()}>
+                        <button
+                          className="button"
+                          disabled={!summary.trim()}
+                          aria-label={
+                            busy?.startsWith("summary:")
+                              ? "Publishing summary…"
+                              : "Publish summary reviewed by staff"
+                          }
+                        >
                           {busy?.startsWith("summary:")
                             ? "Publishing summary…"
-                            : "Publish reviewed summary"}
+                            : "Publish summary"}
                         </button>
                       </fieldset>
                     </form>
@@ -1634,40 +1580,27 @@ export function OperatorWorkspace({
               </>
             ) : (
               <div className="operator-editor-empty">
-                <h3>Summaries start with a real booking.</h3>
-                <p>
-                  Choose an ended scheduled period to publish an accurate
-                  account of the student’s learning.
-                </p>
+                <p>Choose an ended meeting period.</p>
               </div>
             )}
           </div>
         </div>
       </section>
-
-      <section
-        id="operator-panel-requests"
-        role="tabpanel"
-        aria-labelledby="operator-tab-requests"
-        hidden={panel !== "requests"}
-        className="operator-panel"
-      >
-        <ContactRequestsPanel
-          active={panel === "requests"}
-          attempt={attempt}
-          onExpired={onExpired}
-        />
-      </section>
       <footer className="operator-footer">
+        <p>Private staff workspace. Approved information only.</p>
         <p>
-          Private staff workspace. Record only information approved for this
-          TALA instance.
+          Email, video, AI and payments unavailable. Attendance is not tracked
+          automatically.
         </p>
         <details>
-          <summary>Service availability</summary>
+          <summary>About</summary>
           <p>
-            Email delivery, live video, automatic attendance, AI assessment and
-            payments are not connected.
+            To change a published time, withdraw it and publish another. Reusing
+            the same withdrawn time keeps its original title and history.
+          </p>
+          <p>
+            Reviews and learning summaries are written by staff. They do not
+            award grades, certify attendance or grant academic credit.
           </p>
         </details>
       </footer>

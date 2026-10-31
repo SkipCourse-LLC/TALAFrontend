@@ -216,7 +216,8 @@ async function register(
     .fill(account.password);
   if (loseSavedResponse)
     await page.route("**/api/auth/register", async (route) => {
-      // Lose the response after the server committed; recovery must not register twice.
+      // Complete the real server write/cookie rotation, then lose its browser
+      // response. Recovery must inspect the saved session, not register twice.
       const saved = await route.fetch();
       expect(saved.ok()).toBe(true);
       await route.abort("connectionfailed");
@@ -473,7 +474,8 @@ test("student registration, booking changes, private file persistence and mobile
   await submitEvidence(page, false);
   await chooseView(page, "progress");
   const progress = page
-    .locator(".product-stats > div")
+    .getByRole("region", { name: "Saved learning work", exact: true })
+    .locator("dl > div")
     .filter({ hasText: "Evidence submitted" })
     .locator("dd");
   await expect(progress).toHaveText("1");
@@ -962,25 +964,25 @@ test("operator review, availability controls and learning summaries lead to a pr
     revisedBytes,
   );
   await chooseView(page, "progress");
-  const stats = page.locator("#progress .product-stats");
+  const stats = page.getByRole("region", {
+    name: "Saved learning work",
+    exact: true,
+  });
   await expect(
     stats
-      .locator("div")
+      .locator("dl > div")
       .filter({ hasText: "Evidence submitted" })
       .locator("dd"),
   ).toHaveText("2");
   await expect(
     stats
-      .locator("div")
+      .locator("dl > div")
       .filter({ hasText: "Revisions submitted" })
       .locator("dd"),
   ).toHaveText("1");
   await expect(
-    stats
-      .locator("div")
-      .filter({ hasText: "Summaries acknowledged" })
-      .locator("dd"),
-  ).toHaveText("1");
+    page.getByText("1 learning note marked as reviewed.", { exact: true }),
+  ).toBeVisible();
   await chooseView(page, "evidence");
   await page
     .getByRole("button", {
@@ -1315,7 +1317,8 @@ test("unfinished Evidence survives refresh and recovers submitted or missing-fil
   await chooseView(page, "progress");
   await expect(
     page
-      .locator(".product-stats > div")
+      .getByRole("region", { name: "Saved learning work", exact: true })
+      .locator("dl > div")
       .filter({ hasText: "Evidence submitted" })
       .locator("dd"),
   ).toHaveText("2");
@@ -1681,7 +1684,8 @@ test("session privacy revalidates after a delayed password body instead of reusi
       .getByRole("button", { name: "Change password", exact: true })
       .click();
     await passwordReady;
-    // Rotate the cookie in tab two while tab one's GET is held.
+    // Adopt the server's newly rotated cookie in the second tab, then hold the
+    // first tab's current GET before ending that same shared session.
     await other.reload();
     await expect(
       other.getByRole("heading", {

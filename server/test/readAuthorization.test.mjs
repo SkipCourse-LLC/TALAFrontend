@@ -36,7 +36,9 @@ test("legacy private reads recheck actor permissions in the same snapshot as the
     assert.equal((await student.client.request(`/api/evidence/uploads/${uploadId}/submit`, { method: "POST", json: { requestId: randomUUID() } })).status, 200);
     writer = new DatabaseSync(join(dataDir, "tala.sqlite"), { timeout: 1000 });
     let armed = null;
-    // A second connection changes it right after the actor read.
+    // A second SQLite connection performs the change immediately after the
+    // HTTP actor read. This is a deterministic inter-process scheduling fault,
+    // not a mocked authorization result or a production data change.
     app.db.prepare = (sql) => {
       const statement = originalPrepare(sql);
       if (sql === "SELECT * FROM users WHERE uid=? AND disabled=0") {

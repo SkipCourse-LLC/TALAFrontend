@@ -5,6 +5,117 @@ export type MeetingChange =
   | { kind: "cancel"; booking: ApiAppointment }
   | { kind: "reschedule"; booking: ApiAppointment; replacement: ApiSlot };
 
+type CivilMeetingDate = { year: number; month: number; day: number };
+
+function civilMeetingDate(value: string): CivilMeetingDate | null {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!parts) return null;
+  const year = Number(parts[1]);
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+  if (year < 1 || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const reference = new Date(0);
+  reference.setUTCFullYear(year, month - 1, day);
+  reference.setUTCHours(0, 0, 0, 0);
+  if (
+    reference.getUTCFullYear() !== year ||
+    reference.getUTCMonth() !== month - 1 ||
+    reference.getUTCDate() !== day
+  )
+    return null;
+  return { year, month, day };
+}
+
+/** Midnight transitions use the first real instant of the chosen local day. */
+function startOfMeetingDate(value: string): Date | null {
+  const civil = civilMeetingDate(value);
+  if (!civil) return null;
+  const start = new Date(0);
+  // Noon prevents setFullYear from landing in an unrelated skipped hour.
+  // setFullYear also preserves literal calendar years 0001–0099.
+  start.setHours(12, 0, 0, 0);
+  start.setFullYear(civil.year, civil.month - 1, civil.day);
+  start.setHours(0, 0, 0, 0);
+  if (
+    start.getFullYear() !== civil.year ||
+    start.getMonth() !== civil.month - 1 ||
+    start.getDate() !== civil.day
+  )
+    return null;
+  return start;
+}
+
+export type BookingHistoryDateRange =
+  | { valid: true; from?: string; to?: string }
+  | { valid: false; field: "from" | "through"; message: string };
+
+/** From is inclusive; Through includes its full local civil day, across DST. */
+export function bookingHistoryDateRange(
+  fromDate: string,
+  throughDate: string,
+): BookingHistoryDateRange {
+  const from = fromDate ? startOfMeetingDate(fromDate) : undefined;
+  if (fromDate && !from)
+    return {
+      valid: false,
+      field: "from",
+      message: "Choose a valid From date that exists in your time zone.",
+    };
+  const through = throughDate ? startOfMeetingDate(throughDate) : undefined;
+  if (throughDate && !through)
+    return {
+      valid: false,
+      field: "through",
+      message: "Choose a valid Through date that exists in your time zone.",
+    };
+  if (fromDate && throughDate && fromDate > throughDate)
+    return {
+      valid: false,
+      field: "through",
+      message: "Choose a Through date on or after the From date.",
+    };
+  if (throughDate === "9999-12-31")
+    return {
+      valid: false,
+      field: "through",
+      message: "Choose a Through date before December 31, 9999.",
+    };
+  const to = through ? new Date(through.getTime()) : undefined;
+  if (to) {
+    // Calendar arithmetic preserves 23/25-hour days and skipped local dates.
+    // Adding 86,400,000 milliseconds would select the wrong boundary on DST.
+    to.setDate(to.getDate() + 1);
+    to.setHours(0, 0, 0, 0);
+  }
+  if (from && (from.getUTCFullYear() < 1 || from.getUTCFullYear() > 9999))
+    return {
+      valid: false,
+      field: "from",
+      message: "Choose a later From date within the supported year range.",
+    };
+  if (to && (to.getUTCFullYear() < 1 || to.getUTCFullYear() > 9999))
+    return {
+      valid: false,
+      field: "through",
+      message: "Choose a Through date within the supported year range.",
+    };
+  return { valid: true, from: from?.toISOString(), to: to?.toISOString() };
+}
+
+/** Format a civil label without applying a second time-zone conversion. */
+export function bookingDateLabel(value: string, locale?: string): string {
+  const civil = civilMeetingDate(value);
+  if (!civil) return value;
+  const reference = new Date(0);
+  reference.setUTCFullYear(civil.year, civil.month - 1, civil.day);
+  reference.setUTCHours(0, 0, 0, 0);
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(reference);
+}
+
+/** Reject invalid, skipped or repeated device-local minutes instead of guessing. */
 export function parseLocalMeetingTime(value: string): Date | null {
   const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
   if (!parts) return null;
@@ -18,7 +129,8 @@ export function parseLocalMeetingTime(value: string): Date | null {
     minute! > 59
   )
     return null;
-  // UTC is only a calendar reference; setUTCFullYear avoids Date's two-digit-year quirk.
+  // Use UTC only as a civil-calendar reference, not as the chosen time zone.
+  // setUTCFullYear also avoids Date's special interpretation of years 00–99.
   const civil = new Date(0);
   civil.setUTCFullYear(year!, month! - 1, day!);
   civil.setUTCHours(hour!, minute!, 0, 0);
@@ -31,7 +143,9 @@ export function parseLocalMeetingTime(value: string): Date | null {
   )
     return null;
   let match: Date | null = null;
-  // Try every minute offset in a day to catch both sides of a clock rollback without a time-zone library.
+  // Enumerate possible minute offsets within a whole day. This checks both
+  // mappings of a rollback (including non-hour clock changes) without relying
+  // on Date's automatic earlier-offset choice or adding a time-zone library.
   for (let offset = -24 * 60; offset <= 24 * 60; offset++) {
     const candidate = new Date(civil.getTime() + offset * 60_000);
     if (candidate.getTimezoneOffset() !== offset) continue;
@@ -48,12 +162,6 @@ export function parseLocalMeetingTime(value: string): Date | null {
     match = candidate;
   }
   return match;
-}
-
-export function localMeetingInput(value: string): string {
-  const date = new Date(value);
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function bookingPeriod(
@@ -239,6 +347,7 @@ function foldCalendarLine(line: string): string {
   return folded;
 }
 
+/** A private personal copy of a server-authorized saved booking, never an invitation. */
 export function buildBookingCalendar(
   booking: ApiAppointment,
   timeZone: string,

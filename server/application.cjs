@@ -20,7 +20,7 @@ function createApplication(options = {}) {
   const allowedOrigins = new Set(options.allowedOrigins || ["http://127.0.0.1:5173", "http://127.0.0.1:5176", "http://localhost:5173", "http://localhost:5176", "http://127.0.0.1:8787"]);
   if (!allowedOrigins.size || [...allowedOrigins].some((origin) => { try { return new URL(origin).origin !== origin; } catch { return true; } })) throw new Error("Configure explicit application origins, never a wildcard.");
   const db = openDatabase(dataDir);
-  const { services, operator, lists, contactRequests } = createServices(db, dataDir);
+  const { services, operator, lists, goals, updates, preparations, reflectionDrafts } = createServices(db, dataDir);
   const sessionTtl = options.sessionTtlMs || 12 * 3600000;
   const cookieName = "tala_session";
   function currentSession(req) {
@@ -37,13 +37,15 @@ function createApplication(options = {}) {
     const opaque = token(), csrfToken = token(), ttl = user ? sessionTtl : 3600000;
     let responseUser;
     transaction(db, () => {
-      // Re-read after acquiring the writer lock; earlier reads can't authorize the new session.
+      // Acquiring SQLite's writer lock can wait for another local process.
+      // Values read before that wait cannot authorize the replacement session.
       if (req.method !== "GET") {
         mutation(req);
         if (req.headers["x-tala-user"] !== undefined) actorFor(req);
       }
       const previous = currentSession(req), now = Date.now();
-      // Create the account in the same transaction so a failed session write doesn't reserve the email.
+      // Registration creates the account under the same writer fence as the
+      // session. A session-write failure must not reserve an unusable email.
       responseUser = typeof user === "function" ? user() : user;
       if (responseUser) {
         const fresh = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(responseUser.uid);
@@ -60,8 +62,8 @@ function createApplication(options = {}) {
   function setSessionCookie(res, opaque, ttl) {
     res.setHeader("Set-Cookie", `${cookieName}=${opaque}; Path=/api; Max-Age=${Math.floor(ttl / 1000)}; HttpOnly; SameSite=Strict`);
   }
-  function rate(req, group, max = 40, client = req.socket.remoteAddress || "unknown") {
-    const key = hash(`${group}\0${client}`), now = Date.now(), window = 15 * 60000;
+  function rate(req, group, max = 40) {
+    const key = hash(`${group}\0${req.socket.remoteAddress || "unknown"}`), now = Date.now(), window = 15 * 60000;
     transaction(db, () => {
       const previous = db.prepare("SELECT * FROM rate_limits WHERE key=?").get(key);
       if (!previous || previous.window_start <= now - window) db.prepare("INSERT INTO rate_limits VALUES(?,?,1) ON CONFLICT(key) DO UPDATE SET window_start=excluded.window_start,hits=1").run(key, now);
@@ -135,9 +137,11 @@ function createApplication(options = {}) {
       const route = url.pathname;
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 5, schemaVersion: 3, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 7, schemaVersion: 5, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
       if (req.method === "GET" && route === "/api/session") {
-        // Cross-site navigations omit SameSite=Strict cookies; don't replace a signed-in session.
+        // A cross-site top-level navigation omits SameSite=Strict cookies but
+        // can still accept Set-Cookie. Do not overwrite a signed-in browser
+        // with an anonymous session when it follows an external link here.
         if (req.headers["sec-fetch-site"] === "cross-site") fail(403, "ORIGIN_DENIED", "This application origin is not authorized.");
         const existing = currentSession(req);
         if (existing) return json(res, { session: existing.user ? userDTO(existing.user) : null, csrfToken: existing.csrf_token });
@@ -177,17 +181,6 @@ function createApplication(options = {}) {
         if (req.headers["x-tala-user"] !== undefined) actorFor(req);
         return json(res, rotate(req, res, null));
       }
-      if (req.method === "GET" && route === "/api/public/open-times") {
-        rate(req, "public-open-times", 300);
-        if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "The public calendar does not accept filters.");
-        return json(res, services.publicOpenTimes());
-      }
-      if (req.method === "POST" && route === "/api/contact-requests") {
-        const input = contactRequests.validate(await body(req));
-        rate(req, "contact-request", 10);
-        rate(req, "contact-request-all", 200, "all-clients");
-        return json(res, contactRequests.submit(input), 201);
-      }
       const actor = actorFor(req);
       let match;
       if (req.method === "GET" && route === "/api/account/sessions") {
@@ -219,14 +212,11 @@ function createApplication(options = {}) {
       if (req.method === "GET" && route === "/api/available-times") return json(res, lists.availableTimes(actor, url.searchParams));
       if (req.method === "GET" && route === "/api/operations/evidence") return json(res, lists.operatorEvidence(actor, url.searchParams));
       if (req.method === "GET" && route === "/api/operations/appointments") return json(res, lists.operatorAppointments(actor, url.searchParams));
-      if (req.method === "GET" && route === "/api/operations/contact-requests") return json(res, contactRequests.list(actor, url.searchParams));
-      if (req.method === "POST" && (match = route.match(/^\/api\/operations\/contact-requests\/([^/]+)\/status$/))) return json(res, await perform(req, (fresh, input) => contactRequests.setStatus(fresh, match[1], input)));
       if (req.method === "GET" && route === "/api/operations/learning") return json(res, lists.operatorLearning(actor, url.searchParams));
       if (req.method === "PATCH" && route === "/api/profile") return json(res, await perform(req, (fresh, input) => services.updateProfile(fresh, input)));
       if (req.method === "GET" && route === "/api/availability") return json(res, lists.availability(actor, url.searchParams));
       if (req.method === "POST" && route === "/api/availability") return json(res, await perform(req, (fresh, input) => services.availability(fresh, input)), 201);
       if (req.method === "POST" && route === "/api/appointments") return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input)), 201);
-      if (req.method === "PATCH" && (match = route.match(/^\/api\/availability\/([^/]+)$/))) return json(res, await perform(req, (fresh, input) => services.updateAvailability(fresh, match[1], input)));
       if (req.method === "POST" && (match = route.match(/^\/api\/availability\/([^/]+)\/withdraw$/))) return json(res, await perform(req, (fresh, input) => services.withdrawAvailability(fresh, match[1], input)));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/reschedule$/))) return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input, match[1])));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/cancel$/))) return json(res, await perform(req, (fresh, input) => services.cancelBooking(fresh, match[1], input)));
@@ -248,7 +238,8 @@ function createApplication(options = {}) {
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)\/content$/))) {
         if (downloads >= 4) fail(429, "RATE_LIMITED", "Too many file downloads. Try again shortly.");
         downloads += 1;
-        // requestTimeout doesn't cover slow readers; enforce an absolute deadline.
+        // requestTimeout bounds incoming requests, not a client that stops
+        // reading a response. An absolute deadline also defeats slow drips.
         const deadline = setTimeout(() => res.destroy(), downloadTtl);
         deadline.unref();
         let released = false;
@@ -266,6 +257,19 @@ function createApplication(options = {}) {
       }
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)$/))) return json(res, lists.read(actor, () => services.evidence(actor, match[1])));
       if (req.method === "GET" && route === "/api/learning") return json(res, lists.learning(actor, url.searchParams));
+      if (req.method === "GET" && route === "/api/reflection-draft") return json(res, lists.read(actor, () => reflectionDrafts.get(actor, url.searchParams)));
+      if (req.method === "POST" && route === "/api/reflection-draft") return json(res, await perform(req, (fresh, input) => reflectionDrafts.save(fresh, input, url.searchParams)));
+      if (req.method === "POST" && route === "/api/reflection-draft/clear") return json(res, await perform(req, (fresh, input) => reflectionDrafts.clear(fresh, input, url.searchParams)));
+      if (req.method === "GET" && (match = route.match(/^\/api\/appointments\/([^/]+)\/preparation$/))) return json(res, lists.read(actor, () => preparations.get(actor, match[1], url.searchParams)));
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/appointments\/([^/]+)\/preparation$/))) return json(res, await perform(req, (fresh, input) => preparations.save(fresh, match[1], input)));
+      if (req.method === "GET" && route === "/api/learning-goals") return json(res, lists.read(actor, () => goals.list(actor, url.searchParams)));
+      if (req.method === "POST" && route === "/api/learning-goals") return json(res, await perform(req, (fresh, input) => goals.create(fresh, input)), 201);
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/learning-goals\/([^/]+)$/))) return json(res, await perform(req, (fresh, input) => goals.update(fresh, match[1], input)));
+      if (req.method === "GET" && (match = route.match(/^\/api\/learning-goals\/([^/]+)\/evidence$/))) return json(res, lists.read(actor, () => goals.evidence(actor, match[1], url.searchParams)));
+      if (req.method === "POST" && (match = route.match(/^\/api\/learning-goals\/([^/]+)\/evidence$/))) return json(res, await perform(req, (fresh, input) => goals.linkEvidence(fresh, match[1], input)));
+      if (req.method === "GET" && route === "/api/updates") return json(res, lists.read(actor, () => updates.list(actor, url.searchParams)));
+      if (req.method === "POST" && route === "/api/updates/read-all") return json(res, await perform(req, (fresh, input) => updates.readAll(fresh, input)));
+      if (req.method === "POST" && (match = route.match(/^\/api\/updates\/([^/]+)\/read$/))) return json(res, await perform(req, (fresh, input) => updates.markRead(fresh, match[1], input)));
       if (req.method === "GET" && (match = route.match(/^\/api\/learning\/([^/]+)$/))) return json(res, lists.learningRecord(actor, match[1]));
       if (req.method === "POST" && route === "/api/outcomes") return json(res, await perform(req, (fresh, input) => services.publish(fresh, input)), 201);
       if (req.method === "POST" && (match = route.match(/^\/api\/outcomes\/([^/]+)\/acknowledge$/))) return json(res, await perform(req, (fresh, input) => services.acknowledge(fresh, match[1], input)));

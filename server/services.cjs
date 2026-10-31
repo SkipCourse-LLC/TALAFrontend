@@ -5,18 +5,19 @@ const { randomUUID } = require("node:crypto");
 const { TextDecoder } = require("node:util");
 const { transaction } = require("./database.cjs");
 const { createListServices } = require("./listServices.cjs");
-const { createContactRequestServices } = require("./contactRequests.cjs");
+const { createLearningGoalServices } = require("./learningGoals.cjs");
+const { createWorkspaceUpdates } = require("./workspaceUpdates.cjs");
+const { createMeetingPreparationServices } = require("./meetingPreparation.cjs");
+const { createReflectionDraftServices } = require("./reflectionDrafts.cjs");
 const { fail, object, text, paragraph, identifier, requestId, hash } = require("./security.cjs");
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const OWNER_STORAGE_BYTES = 100 * 1024 * 1024;
 const INSTANCE_STORAGE_BYTES = 2 * 1024 * 1024 * 1024;
-// Tucson does not observe daylight saving time, so this zone has one offset.
-const SCHOOL_TIME_ZONE = "America/Phoenix";
-const PUBLIC_CALENDAR_DAYS = 90;
 const iso = (value) => new Date(value).toISOString();
 const userDTO = (row) => ({ uid: row.uid, name: row.name, email: row.email, role: row.role, emailVerified: row.email_verified === 1 });
 function createServices(db, dataDir) {
-  // Recheck under the write lock, since another process may have changed the session.
+  // Recheck under the write fence, after waiting for another local process.
+  // The non-enumerable session reference is added only by actorFor(req).
   function currentWriter(actor) {
     const current = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(actor.uid);
     const session = typeof actor.sessionTokenHash === "string" && db.prepare("SELECT uid FROM sessions WHERE token_hash=? AND expires_at>?").get(actor.sessionTokenHash, Date.now());
@@ -61,11 +62,13 @@ function createServices(db, dataDir) {
       previous = stagingArtifact(file);
       try { storedFile(file, row); syncDirectory(directory); return; }
       catch (error) {
-        // Only a checksum-bound retry may replace leftovers from an interrupted write.
+        // Only an explicit checksum-bound retry of an uncommitted pending
+        // upload may replace a remnant from an interrupted older writer.
         if (row.status !== "pending" || error.code !== "INTEGRITY_ERROR") throw error;
       }
     } else if (fs.existsSync(promoted)) {
-      // A failed submit may have renamed the bytes already; keep them for the retry.
+      // A prior submit can have renamed the private bytes before its SQLite
+      // transaction failed. Preserve that exact verified artifact for retry.
       storedFile(promoted, row); syncDirectory(path.dirname(promoted)); return;
     }
     let descriptor, created;
@@ -89,7 +92,8 @@ function createServices(db, dataDir) {
       syncDirectory(directory);
     } finally {
       if (descriptor !== undefined) fs.closeSync(descriptor);
-      // Scratch file for this PUT; cleanup handles crash leftovers.
+      // This is only the bounded scratch file for this explicit PUT. A crash
+      // can leave it behind; the next PUT/cancel/expired cleanup handles it.
       if (created && fs.existsSync(partial) && sameArtifact(created, fs.lstatSync(partial))) fs.rmSync(partial, { force: true });
     }
   }
@@ -176,23 +180,21 @@ function createServices(db, dataDir) {
     const [, year, month, day, hour, minute, second, , offsetHour, offsetMinute] = parts;
     const leap = Number(year) % 4 === 0 && (Number(year) % 100 !== 0 || Number(year) % 400 === 0);
     const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    // Date.parse silently rolls Feb 29 and 24:00 into other dates; reject them.
+    // Date.parse normalizes February 29 in a non-leap year and 24:00 into
+    // another date. Reject those inputs instead of silently moving a meeting.
     if (Number(month) < 1 || Number(month) > 12 || Number(day) < 1 || Number(day) > days[Number(month) - 1] || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59 || Number(offsetHour || 0) > 23 || Number(offsetMinute || 0) > 59) return NaN;
     return Date.parse(value);
   }
-  function meetingRange(input) {
+  function addAvailability(input, actorUid = null) {
     const starts = zonedTimestamp(input.startsAt), ends = zonedTimestamp(input.endsAt);
     if (!Number.isFinite(starts) || !Number.isFinite(ends) || starts <= Date.now() || ends - starts < 15 * 60000 || ends - starts > 4 * 3600000) fail(400, "INVALID_INPUT", "Publish a valid future calendar date with an explicit timezone, lasting 15 minutes to 4 hours.");
-    return { starts, ends };
-  }
-  function addAvailability(input, actorUid = null) {
-    const { starts, ends } = meetingRange(input);
     const label = input.label ? text(input.label, "meeting label", 100) : "Advising meeting";
     if (db.prepare("SELECT s.id FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at<? AND s.ends_at>?").get(ends, starts)) fail(409, "CONFLICT", "This availability overlaps a published meeting time.");
     const previous = db.prepare("SELECT * FROM slots WHERE starts_at=? AND ends_at=?").get(starts, ends);
     if (previous) {
       if (db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(previous.id)) fail(409, "CONFLICT", "This meeting time already has a booking.");
-      // Reactivate the existing slot so past appointments keep pointing at it.
+      // Reactivation preserves the original ID, times and label. Cancelled
+      // appointments still point to the same historical meeting definition.
       db.prepare("UPDATE availability_state SET status='published',updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actorUid, previous.id);
       return slotDTO(previous);
     }
@@ -223,7 +225,8 @@ function createServices(db, dataDir) {
         AND NOT EXISTS(SELECT 1 FROM operations o WHERE o.uid=u.owner_uid AND o.kind='expired-cleanup' AND o.request_id=u.id)
         ORDER BY u.expires_at,u.id LIMIT ?`).all(...params);
       for (const row of rows) {
-        // The write transaction fences submit and cancel; submitted Evidence is never removed.
+        // The same SQLite write transaction fences submit/cancel across processes.
+        // A submitted evidence row is never selected or removed.
         db.prepare("UPDATE uploads SET status='failed' WHERE id=?").run(row.id);
         for (const directory of ["uploads", "evidence"]) fs.rmSync(path.join(dataDir, directory, `${row.id}.bin`), { force: true });
         fs.rmSync(path.join(dataDir, "uploads", `${row.id}.part`), { force: true });
@@ -272,31 +275,6 @@ function createServices(db, dataDir) {
       });
       return managedSlotDTO(db.prepare("SELECT * FROM slots WHERE id=?").get(id));
     },
-    updateAvailability(actor, id, input) {
-      requireOperator(actor); object(input, ["startsAt", "endsAt", "label", "requestId"]); identifier(id);
-      const saved = operation(actor, "update-availability", input.requestId, [id, input.startsAt, input.endsAt, input.label || ""], () => {
-        const slot = db.prepare("SELECT s.*,state.status AS state FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE s.id=?").get(id);
-        if (!slot) fail(404, "NOT_FOUND", "This meeting time is unavailable.");
-        if (slot.state !== "published" || slot.starts_at <= Date.now() || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(id)) fail(409, "CONFLICT", "Only unbooked, published future meeting times can be edited.");
-        const { starts, ends } = meetingRange(input);
-        const label = input.label ? text(input.label, "meeting label", 100) : slot.label;
-        if (starts === slot.starts_at && ends === slot.ends_at) {
-          db.prepare("UPDATE slots SET label=? WHERE id=?").run(label, id);
-          db.prepare("UPDATE availability_state SET updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actor.uid, id);
-          return { id };
-        }
-        // Slot times are immutable (old bookings point at them): retire this one and publish a new one.
-        db.prepare("UPDATE availability_state SET status='withdrawn',updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actor.uid, id);
-        return { id: addAvailability({ startsAt: input.startsAt, endsAt: input.endsAt, label }, actor.uid).id };
-      });
-      return managedSlotDTO(db.prepare("SELECT * FROM slots WHERE id=?").get(saved.id));
-    },
-    publicOpenTimes() {
-      const now = Date.now();
-      const rows = db.prepare("SELECT s.id,s.starts_at,s.ends_at FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at>? AND s.starts_at<=? AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') ORDER BY s.starts_at,s.id LIMIT 101").all(now, now + PUBLIC_CALENDAR_DAYS * 86400000);
-      // Labels, booking state and staff fields stay private to the admin view.
-      return { times: rows.slice(0, 100).map((row) => ({ id: row.id, startsAt: iso(row.starts_at), endsAt: iso(row.ends_at) })), hasMore: rows.length > 100, timeZone: SCHOOL_TIME_ZONE };
-    },
     reserve(actor, input, replacesId) {
       requireWriter(actor);
       object(input, replacesId ? ["slotId", "requestId"] : ["slotId", "requestId", "studentUid"]);
@@ -330,6 +308,7 @@ function createServices(db, dataDir) {
         expire(booking.owner_uid);
         const current = getAppointment(booking.id);
         if (current.status === "ended") fail(409, "CONFLICT", "An ended meeting cannot be cancelled.");
+        if (current.status === "cancelled") return appointmentDTO(current);
         db.prepare("UPDATE appointments SET status='cancelled',updated_at=? WHERE id=?").run(Date.now(), booking.id);
         return appointmentDTO(getAppointment(booking.id));
       });
@@ -385,7 +364,9 @@ function createServices(db, dataDir) {
       if (status === "uploaded") {
         const staging = path.join(dataDir, "uploads", `${row.id}.bin`);
         const privateFile = path.join(dataDir, "evidence", `${row.id}.bin`);
-        // After a crash: re-upload a missing file via PUT; keep a committed rename for submit.
+        // A crash may leave the committed uploaded marker without a file, or
+        // leave a private rename awaiting SQLite commit. Recover the former
+        // through the same checksum-bound PUT; preserve the latter for submit.
         const existing = fs.existsSync(staging) ? staging : fs.existsSync(privateFile) ? privateFile : null;
         if (!existing) status = "pending";
         else {
@@ -436,6 +417,7 @@ function createServices(db, dataDir) {
           fs.renameSync(source, destination);
         }
         fs.rmSync(path.join(dataDir, "uploads", `${row.id}.part`), { force: true });
+        // Also fsync a recovered rename before committing its database row.
         syncDirectory(path.dirname(source));
         syncDirectory(path.dirname(destination));
         const now = Date.now();
@@ -566,8 +548,11 @@ function createServices(db, dataDir) {
     },
   };
   const lists = createListServices(db, { authorize, requireOperator, currentWriter, evidenceDTO, appointmentDTO, slotDTO, managedSlotDTO, recordDTO });
-  const contactRequests = createContactRequestServices(db, { operation, requireOperator, lists });
-  return { services, operator, lists, contactRequests };
+  const goals = createLearningGoalServices(db, { authorize, operation, evidenceDTO });
+  const updates = createWorkspaceUpdates(db, { authorize, operation });
+  const preparations = createMeetingPreparationServices(db, { authorize, operation });
+  const reflectionDrafts = createReflectionDraftServices(db, { operation, read: lists.read });
+  return { services, operator, lists, goals, updates, preparations, reflectionDrafts };
 }
 function validateContent(bytes, type) {
   if (type === "application/pdf") {

@@ -34,7 +34,8 @@ async function fixture() {
   async function put(id) { return student.client.request(`/api/evidence/uploads/${id}/content`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: bytes }); }
   async function submit(id, requestId = randomUUID()) { return student.client.request(`/api/evidence/uploads/${id}/submit`, { method: "POST", json: { requestId } }); }
   function seedStoredRecords(count, size) {
-    // Fake stored metadata to test quotas without writing hundreds of MiB.
+    // Simulate previously stored metadata to exercise quota checks at the HTTP
+    // boundary without generating hundreds of MiB of unrelated private files.
     const now = Date.now();
     app.db.exec("BEGIN IMMEDIATE");
     try {

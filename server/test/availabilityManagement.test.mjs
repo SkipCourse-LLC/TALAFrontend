@@ -1,15 +1,60 @@
 // SCRUM-76: Tina's availability. Test IDs T3-45..T3-50 are noted per test.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import {
-  SyntheticHttpClient,
-  registerSyntheticAccount,
-  startIsolatedApplication,
-} from "./support.mjs";
+import { SyntheticHttpClient } from "./support.mjs";
 
 const hour = 3_600_000;
+async function fixture() {
+  const dataDir = await mkdtemp(join(tmpdir(), "tala-availability-"));
+  const application = createApplication({ dataDir });
+  try {
+    await new Promise((resolve, reject) => {
+      application.server.once("error", reject);
+      application.server.listen(0, "127.0.0.1", resolve);
+    });
+  } catch (error) {
+    await application.close();
+    await rm(dataDir, { recursive: true, force: true });
+    throw error;
+  }
+  const url = `http://127.0.0.1:${application.server.address().port}`;
+  return {
+    application,
+    url,
+    async register(accountType = "student", options = {}) {
+      const client = new SyntheticHttpClient(url);
+      await client.bootstrap();
+      const account = {
+        name: `Synthetic ${accountType}`,
+        email: `${randomUUID()}@example.test`,
+        password: `Synthetic-only-${randomUUID()}`,
+        accountType,
+      };
+      const response = await client.request("/api/auth/register", {
+        method: "POST",
+        json: account,
+      });
+      assert.equal(response.status, 201);
+      if (options.operator) {
+        application.operator.promote(account.email);
+        await client.bootstrap();
+      }
+      return { client, user: response.json.session, account };
+    },
+    async close() {
+      try {
+        await application.close();
+      } finally {
+        await rm(dataDir, { recursive: true, force: true });
+      }
+    },
+  };
+}
 const futureRange = (offsetHours, minutes = 30) => {
   const start = new Date(Date.now() + 2 * 86_400_000 + offsetHours * hour);
   start.setUTCSeconds(0, 0);
@@ -35,9 +80,9 @@ async function anonymous(context) {
 }
 
 test("T3-45 an admin publishes a time and parents see it on the public calendar without an account", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
-    const admin = await registerSyntheticAccount(context, "student", {
+    const admin = await context.register("student", {
       operator: true,
     });
     const range = futureRange(1);
@@ -64,9 +109,9 @@ test("T3-45 an admin publishes a time and parents see it on the public calendar 
 });
 
 test("T3-46 an admin edits an unbooked future time; booked, withdrawn and past times are refused", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
-    const admin = await registerSyntheticAccount(context, "student", {
+    const admin = await context.register("student", {
       operator: true,
     });
     const first = (await publish(admin.client, futureRange(1), "First")).json;
@@ -104,7 +149,7 @@ test("T3-46 an admin edits an unbooked future time; booked, withdrawn and past t
     const stale = await edit(admin.client, first.id, futureRange(4));
     assert.equal(stale.status, 409, "The original slot is no longer published");
 
-    const student = await registerSyntheticAccount(context);
+    const student = await context.register();
     const booked = await student.client.request("/api/appointments", {
       method: "POST",
       json: { slotId: retimed.json.id, requestId: randomUUID() },
@@ -143,9 +188,9 @@ test("T3-46 an admin edits an unbooked future time; booked, withdrawn and past t
 });
 
 test("T3-46 an edit cannot overlap another published time and replays idempotently", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
-    const admin = await registerSyntheticAccount(context, "student", {
+    const admin = await context.register("student", {
       operator: true,
     });
     const first = (await publish(admin.client, futureRange(1))).json;
@@ -187,9 +232,9 @@ test("T3-46 an edit cannot overlap another published time and replays idempotent
 });
 
 test("T3-47 the public calendar lists only future, published, unbooked times in order", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
-    const admin = await registerSyntheticAccount(context, "student", {
+    const admin = await context.register("student", {
       operator: true,
     });
     const later = (await publish(admin.client, futureRange(5))).json;
@@ -200,7 +245,7 @@ test("T3-47 the public calendar lists only future, published, unbooked times in 
       method: "POST",
       json: { requestId: randomUUID() },
     });
-    const student = await registerSyntheticAccount(context);
+    const student = await context.register();
     await student.client.request("/api/appointments", {
       method: "POST",
       json: { slotId: booked.id, requestId: randomUUID() },
@@ -239,9 +284,9 @@ test("T3-47 the public calendar lists only future, published, unbooked times in 
 });
 
 test("T3-48 a withdrawn time disappears from the public calendar; booked times cannot be withdrawn", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
-    const admin = await registerSyntheticAccount(context, "student", {
+    const admin = await context.register("student", {
       operator: true,
     });
     const slot = (await publish(admin.client, futureRange(1))).json;
@@ -257,7 +302,7 @@ test("T3-48 a withdrawn time disappears from the public calendar; booked times c
     assert.deepEqual(open.json.times, []);
 
     const booked = (await publish(admin.client, futureRange(2))).json;
-    const student = await registerSyntheticAccount(context);
+    const student = await context.register();
     await student.client.request("/api/appointments", {
       method: "POST",
       json: { slotId: booked.id, requestId: randomUUID() },
@@ -273,9 +318,9 @@ test("T3-48 a withdrawn time disappears from the public calendar; booked times c
 });
 
 test("T3-49 invalid ranges are rejected for both new and edited times", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
-    const admin = await registerSyntheticAccount(context, "student", {
+    const admin = await context.register("student", {
       operator: true,
     });
     const valid = (await publish(admin.client, futureRange(1))).json;
@@ -311,14 +356,14 @@ test("T3-49 invalid ranges are rejected for both new and edited times", async ()
 });
 
 test("T3-50 only admins can add, edit, list or withdraw availability", async () => {
-  const context = await startIsolatedApplication(createApplication);
+  const context = await fixture();
   try {
-    const admin = await registerSyntheticAccount(context, "student", {
+    const admin = await context.register("student", {
       operator: true,
     });
     const slot = (await publish(admin.client, futureRange(1))).json;
-    const student = await registerSyntheticAccount(context, "student");
-    const parent = await registerSyntheticAccount(context, "parent");
+    const student = await context.register("student");
+    const parent = await context.register("parent");
     const visitor = await anonymous(context);
     for (const [client, status] of [
       [student.client, 403],

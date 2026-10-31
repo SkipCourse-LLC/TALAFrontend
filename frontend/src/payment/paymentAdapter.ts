@@ -1,5 +1,5 @@
-import { demoEnabled, demoToolsEnabled } from "../shared/services/demoConfig";
-// Demo view models; a real adapter must enforce authorization, idempotency and provider state.
+// Owned SCRUM-48/49 view models, not an assumed backend API schema.
+// A real adapter must enforce server authorization, idempotency and provider state.
 export interface PaymentSession {
   mode: "demo" | "live";
   accountId?: string;
@@ -9,8 +9,9 @@ export interface PaymentSession {
 }
 export type ApprovalStatus =
   "pending" | "approved" | "not-approved" | "rejected";
-// Old drafts may hold ESA or STO; checkout now accepts Private only.
+// Historical draft values remain readable; current checkout accepts Private only.
 export type FundingMethod = "ESA" | "STO" | "Private";
+// Fixed demo choices, never provider tokens or user-supplied financial details.
 export type SamplePaymentMethod = "card" | "bank";
 export const samplePaymentMethodSummary: Readonly<
   Record<SamplePaymentMethod, string>
@@ -75,6 +76,7 @@ export class PaymentError extends Error {
     this.code = safeCode;
   }
 }
+// Raw API/provider exception messages may contain private data and are never rendered.
 export function paymentErrorMessage(
   error: unknown,
   environment: "demo" | "live" = "demo",
@@ -118,8 +120,10 @@ export interface PaymentService {
     signal: AbortSignal,
     simulateError?: boolean,
   ): Promise<PaymentReceipt>;
+  // Stable immutable snapshot until a change; notify subscribed views after changes.
   getSnapshot(session: PaymentSession): PaymentSnapshot;
   subscribe(session: PaymentSession, listener: () => void): () => void;
+  // Cancels this frontend attempt. A live adapter must reconcile provider outcome.
   cancel(session: PaymentSession): void;
   restart(session: PaymentSession): void;
   selectApprovalDemo?(session: PaymentSession, status: ApprovalStatus): void;
@@ -181,6 +185,7 @@ export function createMockPaymentAdapter(
   const snapshots = new Map<string, PaymentSnapshot>();
   const listeners = new Map<string, Set<() => void>>();
   const active = new Map<string, AbortController>();
+  // Monotonic generation survives clearing every per-account revision.
   let generation = 0;
   function requireDemo(session: PaymentSession) {
     if (options.enabled === false || session.mode !== "demo")
@@ -295,7 +300,7 @@ export function createMockPaymentAdapter(
       if (original.receipt) return { ...original.receipt };
       if (active.has(identity)) throw new PaymentError("BUSY");
       if (original.status === "cancelled") throw new PaymentError("CANCELLED");
-      // Capture before awaiting so caller changes can't alter the submission.
+      // Capture before awaiting so a caller mutation cannot change the submitted choice.
       const funding = draft.funding as FundingMethod;
       const demoMethod = funding === "Private" ? draft.demoMethod : undefined;
       const controller = new AbortController();
@@ -312,7 +317,7 @@ export function createMockPaymentAdapter(
       try {
         await wait(options.paymentDelayMs ?? 700, controller.signal);
         signal.throwIfAborted();
-        // Waits may ignore cancellation, so check both generation and attempt.
+        // Injected waits can ignore cancellation; check both generation and attempt token.
         const value = current(identity, original);
         if (active.get(identity) !== controller || controller.signal.aborted)
           throw new PaymentError("CANCELLED");
@@ -344,18 +349,4 @@ export function createMockPaymentAdapter(
       }
     },
   };
-}
-
-export const paymentService = createMockPaymentAdapter({
-  enabled: demoEnabled,
-  toolsEnabled: demoToolsEnabled,
-});
-export function resetPaymentDemo(): void {
-  paymentService.resetDemo?.();
-}
-export function selectApprovalDemo(
-  session: PaymentSession,
-  status: ApprovalStatus,
-): void {
-  paymentService.selectApprovalDemo?.(session, status);
 }

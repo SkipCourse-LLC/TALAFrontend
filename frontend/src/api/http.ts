@@ -95,6 +95,7 @@ export async function readBoundedResponse(
   return output;
 }
 
+/** Same-origin cookies only; no browser token store or cross-origin API option. */
 export function createHttpTransport(options: {
   getCsrfToken: (signal: AbortSignal) => Promise<string>;
   fetcher?: typeof fetch;
@@ -120,6 +121,7 @@ export function createHttpTransport(options: {
       if (input.expectedUser) {
         if (!/^[a-zA-Z0-9_-]{1,128}$/.test(input.expectedUser))
           throw new TalaApiError("INVALID_INPUT");
+        // UI identity binding only. Server cookies and permissions authorize.
         headers.set("X-TALA-User", input.expectedUser);
       }
       if (method !== "GET") {
@@ -159,7 +161,9 @@ export function createHttpTransport(options: {
             const code = knownApiErrorCode(raw.error.code);
             if (code) failure = new TalaApiError(code, response.status);
           }
-        } catch {}
+        } catch {
+          /* HTTP status remains safe even for HTML or invalid error bodies. */
+        }
         throw failure;
       }
       const value = await consume(response, controller.signal);
@@ -176,7 +180,7 @@ export function createHttpTransport(options: {
       )
         throw new TalaApiError("CANCELLED");
       if (error instanceof TalaApiError) throw error;
-      // Fetch errors can leak URLs or account data; never surface them.
+      // Fetch errors can contain URLs, account data or server diagnostics.
       throw new TalaApiError("NETWORK");
     } finally {
       clearTimeout(timer);

@@ -1,9 +1,10 @@
+/* Student and community workspaces. */
 .dashboard,
 .community-workspace {
-  --workspace-ink: var(--color-ink);
+  --workspace-ink: #1d1d1f;
   --workspace-muted: #6e6e73;
-  --workspace-line: var(--color-line);
-  --workspace-accent: var(--color-accent);
+  --workspace-line: #d2d2d7;
+  --workspace-accent: #174139;
   color: var(--workspace-ink);
 }
 .dashboard {
@@ -63,7 +64,7 @@
 }
 .dashboard-sidebar nav a:hover {
   color: var(--workspace-ink);
-  background: var(--color-paper);
+  background: #f5f5f7;
 }
 .sidebar-bottom {
   display: grid;
@@ -116,7 +117,7 @@
   font-size: 0.875rem;
 }
 .signout-button:hover {
-  background: var(--color-paper);
+  background: #f5f5f7;
 }
 .dashboard-heading {
   display: flex;
@@ -135,6 +136,29 @@
 .dashboard-heading p:last-child {
   font-size: 0.95rem;
   color: var(--workspace-muted);
+}
+.workspace-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid var(--workspace-line);
+  border-radius: 18px;
+  padding: 20px 24px;
+  background: white;
+  margin-bottom: 16px;
+}
+.workspace-entry strong {
+  font-size: 1rem;
+}
+.workspace-entry p {
+  margin: 6px 0 0;
+  color: var(--workspace-muted);
+  font-size: 0.875rem;
+}
+.workspace-entry .text-link {
+  flex-shrink: 0;
+  min-height: 56px;
 }
 .integration-notice {
   display: flex;
@@ -204,7 +228,7 @@
   min-width: 0;
 }
 .stat-number {
-  color: var(--workspace-ink, var(--color-ink));
+  color: var(--workspace-ink, #1d1d1f);
   font-size: clamp(2rem, 3.8vw, 3rem);
   font-weight: 600;
   line-height: 1.15;
@@ -238,7 +262,7 @@
 }
 .profile-panel {
   padding: 32px;
-  border: 1px solid var(--color-line);
+  border: 1px solid #d2d2d7;
   border-radius: 22px;
   background: white;
   overflow-wrap: anywhere;
@@ -266,7 +290,7 @@
 }
 .profile-panel dl > div {
   padding-block: 18px;
-  border-top: 1px solid var(--color-line);
+  border-top: 1px solid #d2d2d7;
 }
 .profile-panel dt {
   font-size: 0.8rem;
@@ -286,7 +310,7 @@
   display: grid;
   place-items: center;
   background: #e9efed;
-  color: var(--color-accent);
+  color: #174139;
   border-radius: 16px;
   margin-bottom: 24px;
 }
@@ -497,6 +521,11 @@
     grid-template-columns: 210px minmax(0, 1fr);
     gap: 24px;
   }
+  .workspace-entry {
+    flex-direction: column;
+    align-items: start;
+    gap: 12px;
+  }
 }
 @media (max-width: 850px) {
   .dashboard {
@@ -598,6 +627,7 @@
   .stat-number {
     margin: 0;
   }
+  .workspace-entry,
   .community-demo-note,
   .profile-panel {
     padding: 20px;
@@ -614,10 +644,19 @@
     gap: 8px;
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .dashboard *,
+  .community-workspace * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
 @media (forced-colors: active) {
   .dashboard-sidebar,
   .workspace-card,
   .profile-panel,
+  .workspace-entry,
   .stats-row > div {
     border-color: CanvasText;
   }

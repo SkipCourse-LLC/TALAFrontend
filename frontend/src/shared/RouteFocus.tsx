@@ -6,7 +6,6 @@ const titles: Record<string, string> = {
   "/learn-more": "Learn More",
   "/events": "Community Events",
   "/contact": "Contact TALA",
-  "/schedule": "Open meeting times",
   "/programs": "Ways to learn",
   "/login": "Log in",
   "/register": "Start your journey",

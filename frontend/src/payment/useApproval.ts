@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { paymentService } from "./paymentAdapter";
+import { paymentService } from "./paymentService";
 import { paymentErrorMessage, paymentIdentity } from "./paymentAdapter";
 import { usePaymentSnapshot } from "./usePaymentSnapshot";
 import type {

@@ -1,3 +1,4 @@
+/** Independent TALA server contracts. These types do not grant authorization. */
 export type AccountRole = "student" | "parent" | "operator";
 export interface User {
   uid: string;
@@ -9,6 +10,79 @@ export interface User {
 export interface SessionState {
   session: User | null;
   csrfToken: string;
+}
+export interface LearningGoal {
+  id: string;
+  ownerUid: string;
+  title: string;
+  notes: string;
+  dueDate: string | null;
+  status: "active" | "completed";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  steps: LearningGoalStep[];
+  linkedEvidenceCount: number;
+}
+export interface LearningGoalStep {
+  id: string;
+  title: string;
+  completed: boolean;
+}
+export interface LearningGoals {
+  goals: LearningGoal[];
+  limit: 100;
+}
+export interface LearningGoalInput {
+  title: string;
+  notes: string;
+  dueDate: string | null;
+  steps?: LearningGoalStep[];
+}
+/** One private, unsubmitted reflection per student; never shared with parents. */
+export interface ReflectionDraft {
+  ownerUid: string;
+  title: string;
+  text: string;
+  status: "empty" | "saved";
+  version: number;
+  updatedAt: string | null;
+}
+export interface ReflectionDraftInput {
+  title: string;
+  text: string;
+  version: number;
+  requestId: string;
+}
+export interface LearningGoalEvidence {
+  goalId: string;
+  ownerUid: string;
+  evidence: Evidence[];
+  limit: 20;
+}
+export interface WorkspaceUpdate {
+  id: string;
+  type: "appointment" | "learning" | "review";
+  title: string;
+  summary: string;
+  occurredAt: string;
+  read: boolean;
+  target: {
+    view: "meetings" | "learning" | "evidence";
+    resourceId: string;
+  };
+}
+export interface WorkspaceUpdatesPage {
+  ownerUid: string;
+  items: WorkspaceUpdate[];
+  nextCursor: string | null;
+  unreadCount: number;
+}
+export interface WorkspaceUpdatesQuery {
+  studentUid?: string;
+  filter?: "all" | "unread";
+  cursor?: string;
 }
 export interface AccountSession {
   id: string;
@@ -65,13 +139,21 @@ export interface EvidencePageQuery {
 export interface AppointmentPageQuery {
   studentUid?: string;
   status?: "all" | "reserved" | "cancelled" | "ended";
+  /** Appointment start at/after this explicit-zone instant. */
+  from?: string;
+  /** Appointment start before this explicit-zone instant. */
+  to?: string;
   cursor?: string;
 }
-export interface OperatorAppointmentQuery extends AppointmentPageQuery {
+export interface OperatorAppointmentQuery extends Omit<
+  AppointmentPageQuery,
+  "from" | "to"
+> {
   publication?: "all" | "published" | "unpublished";
   q?: string;
 }
 export interface LearningPageQuery {
+  q?: string;
   studentUid?: string;
   limit?: number;
   cursor?: string;
@@ -93,6 +175,22 @@ export interface Appointment {
   meetingIntegration: "unavailable";
   updatedAt: string;
   learningRecordId?: string;
+}
+export interface AppointmentPreparation {
+  appointmentId: string;
+  ownerUid: string;
+  note: string;
+  goalId: string | null;
+  ready: boolean;
+  version: number;
+  updatedAt: string | null;
+}
+export interface AppointmentPreparationInput {
+  note: string;
+  goalId: string | null;
+  ready: boolean;
+  version: number;
+  requestId: string;
 }
 export type EvidenceContentType = "text/plain" | "application/pdf";
 export interface Evidence {
@@ -228,57 +326,4 @@ export interface Operations {
   learningRecords: Array<
     LearningRecord & { studentUid: string; studentName: string }
   >;
-}
-/** A public calendar time. Parents see no labels or booking details. */
-export interface OpenTime {
-  id: string;
-  startsAt: string;
-  endsAt: string;
-}
-export interface OpenTimes {
-  times: OpenTime[];
-  hasMore: boolean;
-  timeZone: string;
-}
-export type Weekday =
-  | "monday"
-  | "tuesday"
-  | "wednesday"
-  | "thursday"
-  | "friday"
-  | "saturday"
-  | "sunday";
-export type ContactMethod = "email" | "phone" | "text";
-export type ContactRequestStatus = "new" | "contacted" | "closed";
-export interface ContactWindow {
-  day: Weekday;
-  startTime: string;
-  endTime: string;
-}
-export interface ContactRequestInput {
-  parentName: string;
-  email: string;
-  phone: string;
-  preferredMethod: ContactMethod;
-  availability: ContactWindow[];
-  notes?: string;
-  requestId: string;
-}
-export interface ContactRequestReceipt {
-  id: string;
-  status: "received";
-  receivedAt: string;
-}
-export interface ContactRequest {
-  id: string;
-  parentName: string;
-  email: string;
-  phone: string;
-  preferredMethod: ContactMethod;
-  availability: ContactWindow[];
-  timeZone: string;
-  notes?: string;
-  status: ContactRequestStatus;
-  receivedAt: string;
-  updatedAt: string;
 }

@@ -1,11 +1,30 @@
 .product-workspace.student-workspace {
   --student-surface: #ffffff;
-  --student-tint: var(--color-green);
-  --student-accent: var(--color-accent);
-  --student-ink: var(--color-ink);
-  --student-muted: var(--color-muted);
-  --student-line: var(--color-line);
+  --student-tint: #edf2ef;
+  --student-accent: #174139;
+  --student-ink: #1d1d1f;
+  --student-muted: #626268;
+  --student-line: #d2d2d7;
   padding-top: 36px;
+}
+.student-workspace .product-heading {
+  margin-bottom: 12px;
+}
+.student-workspace .product-heading h1 {
+  font-size: clamp(1.8rem, 2.8vw, 2.7rem);
+  line-height: 1.18;
+  max-width: 30ch;
+  overflow-wrap: anywhere;
+}
+.student-workspace .product-heading > .product-actions .button-secondary,
+.student-workspace .student-workspace-toolbar .button-secondary {
+  background: transparent;
+  border: 1px solid #83938b;
+  color: var(--student-accent);
+}
+.student-workspace .product-heading > .product-actions .button-secondary:hover,
+.student-workspace .student-workspace-toolbar .button-secondary:hover {
+  background: #e5ede8;
 }
 
 .student-workspace .meeting-panel-heading,
@@ -160,8 +179,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px 24px;
+  flex-wrap: wrap;
   padding-block: 20px;
   border-bottom: 1px solid var(--student-line);
+}
+.student-workspace .meeting-history-actions {
+  max-width: 100%;
+  gap: 8px 16px;
 }
 .student-workspace .meeting-history-list p {
   margin-block: 0 10px;
@@ -285,6 +309,11 @@
   min-height: 44px;
   padding-block: 12px;
 }
+.student-workspace .student-account:not([open]) {
+  border-bottom: 0;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
 .student-account > p {
   max-width: 65ch;
 }
@@ -327,6 +356,21 @@
   background: currentColor;
   margin-left: 8px;
 }
+.student-updates-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  min-height: 22px;
+  padding-inline: 6px;
+  margin-left: 8px;
+  border-radius: 7px;
+  font-size: 0.75em;
+  font-weight: 650;
+  background: #174139;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
 .student-workspace .student-workspace-toolbar {
   justify-content: space-between;
   gap: 12px 24px;
@@ -349,12 +393,17 @@
   display: block;
 }
 .student-focused-content .product-card {
-  padding: clamp(24px, 4vw, 40px);
-  border-color: #e0e2e1;
-  border-radius: 24px;
+  padding: clamp(22px, 3vw, 32px);
+  border-color: #e5e5e9;
+  border-radius: 20px;
 }
 .student-focused-content .product-card > p {
   max-width: 76ch;
+}
+.student-workspace .product-card > .student-evidence-privacy {
+  color: var(--student-muted);
+  font-size: 0.8125rem;
+  margin-block: -8px 20px;
 }
 .student-focused-content .product-fields {
   max-width: 690px;
@@ -392,149 +441,44 @@
   color: var(--student-accent);
   border-radius: 12px;
 }
-.student-section-heading {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 4px 0 24px;
-}
-.student-section-heading h2 {
-  font-size: 1.7rem;
-  margin-bottom: 8px;
-}
-.student-section-heading p {
-  margin-bottom: 0;
-}
-.student-connection {
-  white-space: nowrap;
-  color: var(--student-muted);
-  font-size: 0.82rem;
-  padding-top: 8px;
-}
-.student-overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
-  gap: 32px;
-  align-items: stretch;
-}
-.student-next-meeting {
-  background: var(--student-accent);
-  padding: clamp(28px, 4vw, 40px);
-  border-radius: 24px;
-  color: white;
-}
-.student-next-meeting h3 {
-  font-size: clamp(1.65rem, 3vw, 2.2rem);
-  color: white;
-  line-height: 1.2;
-  max-width: 20ch;
-  margin-bottom: 16px;
-}
-.student-next-meeting p {
-  color: #e2ede6;
-  max-width: 60ch;
-}
-.student-next-meeting .student-feature-label {
-  color: white;
-  font-size: 0.94rem;
-  font-weight: 550;
-  margin-bottom: 28px;
-}
-.student-next-meeting .student-meeting-time {
-  color: white;
-  font-weight: 600;
-  line-height: 1.7;
-}
-.student-next-meeting .button {
-  background: white;
-  color: var(--student-accent);
-  border: 1px solid white;
-}
-.student-next-meeting :focus-visible {
-  outline-color: white;
-}
-.student-activity-summary {
-  padding: 16px 0;
-}
-.student-activity-summary h3 {
-  font-size: 1.15rem;
-  margin: 0 0 20px;
-}
-.student-activity-summary dl {
-  margin: 0 0 16px;
-}
-.student-activity-summary dl > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding-block: 18px;
-  border-bottom: 1px solid var(--student-line);
-}
-.student-activity-summary dt {
-  color: var(--student-muted);
-}
-.student-activity-summary dd {
-  margin: 0;
-  font-size: 1.8rem;
-  font-weight: 600;
-  color: var(--student-ink);
-}
-.student-text-action {
-  padding: 12px 0;
-  min-height: 44px;
-  color: var(--student-accent);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-  font: inherit;
-  background: transparent;
-  border: 0;
-}
-.student-follow-ups {
-  margin-top: 36px;
-}
-.student-follow-ups > h3 {
-  font-size: 1.25rem;
-  margin-bottom: 12px;
-}
-.student-follow-up {
-  width: 100%;
-  padding: 24px 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 24px;
-  border: 0;
-  border-top: 1px solid var(--student-line);
-  background: transparent;
-  text-align: left;
-}
-.student-follow-up > span:first-child {
-  display: grid;
-  gap: 8px;
-  max-width: 72ch;
-}
-.student-follow-up strong {
-  font-size: 1.05rem;
-  font-weight: 600;
-}
-.student-follow-up span span {
-  color: var(--student-muted);
-  font-size: 0.94rem;
-  line-height: 1.65;
-}
-.student-follow-up-link {
-  color: var(--student-accent);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-  flex-shrink: 0;
-}
 .student-service-details {
   margin-top: 32px;
   padding-top: 16px;
   border-top: 1px solid var(--student-line);
   max-width: 85ch;
+}
+.student-workspace .product-card h2 {
+  font-size: clamp(1.4rem, 2.4vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  margin-bottom: 20px;
+}
+.student-workspace .product-card :is(p, label, select, input, textarea) {
+  font-size: 0.9375rem;
+}
+.student-workspace .product-card p {
+  line-height: 1.5;
+}
+.student-workspace .product-actions .button {
+  font-size: 0.875rem;
+  min-height: 44px;
+  padding: 11px 18px;
+}
+.student-workspace .student-workspace-toolbar {
+  padding-block: 8px 16px;
+}
+.student-workspace .student-page-controls.is-idle {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.student-workspace .student-page-controls.is-idle > .sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  margin-top: 12px;
+  clip-path: none;
+  white-space: normal;
 }
 .student-service-details summary {
   min-height: 44px;
@@ -627,10 +571,10 @@
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
   background: white;
-  border: 1px solid var(--color-line);
+  border: 1px solid #d2d2d7;
   border-radius: 24px;
   padding: clamp(24px, 4vw, 40px);
-  color: var(--color-ink);
+  color: #1d1d1f;
 }
 .student-history-dialog::backdrop {
   background: rgb(22 39 33 / 45%);
@@ -656,20 +600,6 @@
 @media (max-width: 760px) {
   .product-workspace.student-workspace {
     padding-top: 24px;
-  }
-  .student-overview-grid {
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-  .student-activity-summary {
-    padding: 0;
-  }
-  .student-section-heading {
-    flex-direction: column;
-    gap: 8px;
-  }
-  .student-next-meeting {
-    padding: 28px;
   }
   .student-workspace .product-heading {
     gap: 16px;
@@ -701,11 +631,6 @@
   }
   .student-workspace-toolbar > span {
     width: 100%;
-  }
-  .student-follow-up {
-    align-items: start;
-    flex-direction: column;
-    gap: 12px;
   }
   .student-workspace .product-stats {
     grid-template-columns: 1fr;
@@ -777,5 +702,8 @@
 @media (max-width: 540px) {
   .student-workspace .student-page-controls > button {
     width: 100%;
+  }
+  .student-workspace .product-card :is(input, select, textarea) {
+    font-size: 1rem;
   }
 }
