@@ -36,8 +36,8 @@ const AdminPage = lazy(() =>
   })),
 );
 
-function IndependentRouteFocus() {
-  const { pathname } = useLocation();
+function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
+  const { pathname, search } = useLocation();
   useEffect(() => {
     if (pathname !== "/dashboard" && pathname !== "/two-factor") return;
     const view = readWorkspaceView(new URLSearchParams(search).get("view"));
@@ -184,17 +184,17 @@ export function ServerApplication() {
         Restoring session…
       </div>
     );
-  if (error)
-    return (
-      <ApplicationConnectionNotice
-        error={error}
-        onRetry={() => {
-          setLoading(true);
-          setError("");
-          setAttempt((value) => value + 1);
-        }}
-      />
-    );
+  // Public pages and /admin do not need the API; only account pages show this.
+  const unavailable = error ? (
+    <ApplicationConnectionNotice
+      error={error}
+      onRetry={() => {
+        setLoading(true);
+        setError("");
+        setAttempt((value) => value + 1);
+      }}
+    />
+  ) : null;
   const workspace = user ? (
     user.role === "operator" ? (
       <OperatorWorkspace
@@ -274,10 +274,12 @@ export function ServerApplication() {
                   user ? (
                     <Navigate to="/dashboard" replace />
                   ) : (
-                    <ServerAccessPage
-                      key="login"
-                      onAuthenticated={authenticated}
-                    />
+                    (unavailable ?? (
+                      <ServerAccessPage
+                        key="login"
+                        onAuthenticated={authenticated}
+                      />
+                    ))
                   )
                 }
               />
@@ -287,17 +289,23 @@ export function ServerApplication() {
                   user ? (
                     <Navigate to="/dashboard" replace />
                   ) : (
-                    <ServerAccessPage
-                      key="register"
-                      register
-                      onAuthenticated={authenticated}
-                    />
+                    (unavailable ?? (
+                      <ServerAccessPage
+                        key="register"
+                        register
+                        onAuthenticated={authenticated}
+                      />
+                    ))
                   )
                 }
               />
               <Route
                 path="dashboard"
-                element={user ? null : <Navigate to="/login" replace />}
+                element={
+                  user
+                    ? null
+                    : (unavailable ?? <Navigate to="/login" replace />)
+                }
               />
               <Route
                 path="admin"
@@ -334,7 +342,7 @@ export function ServerApplication() {
                       returnTo={workspaceReturn}
                     />
                   ) : (
-                    <Navigate to="/login" replace />
+                    (unavailable ?? <Navigate to="/login" replace />)
                   )
                 }
               />
