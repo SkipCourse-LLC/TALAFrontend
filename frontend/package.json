@@ -29,6 +29,7 @@
     "test:editor-recovery": "playwright test -c src/product/learningEditorRecovery.config.ts",
     "test:evidence-notes": "playwright test -c src/product/evidenceNotesBrowser.config.ts",
     "build": "npm run typecheck && vite build",
+    "build:hosting": "vite build --outDir ../public --emptyOutDir",
     "preview": "vite preview --host 127.0.0.1",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
