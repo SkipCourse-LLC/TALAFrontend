@@ -9,7 +9,8 @@ const cursorError = () => fail(400, "INVALID_INPUT", CURSOR_MESSAGE);
 function createListServices(db, helpers) {
   const { authorize, requireOperator, currentWriter, evidenceDTO, appointmentDTO, slotDTO, managedSlotDTO, recordDTO } = helpers;
   function read(actor, action) {
-    // One read snapshot per request; GETs never take the writer lock.
+    // One DEFERRED snapshot covers credentials, relationships, filters and rows.
+    // No GET performs lifecycle cleanup or holds the SQLite writer fence.
     db.exec("BEGIN");
     try {
       currentWriter(actor);
@@ -35,6 +36,26 @@ function createListServices(db, helpers) {
     return value;
   }
   const literalLike = (value) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
+  function appointmentBound(params, name) {
+    if (!params.has(name)) return null;
+    const value = params.get(name);
+    const parts = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|([+-])(\d{2}):(\d{2}))$/);
+    const invalid = () => fail(400, "INVALID_INPUT", "Choose valid meeting date bounds with an explicit timezone.");
+    if (!parts) invalid();
+    const [, yearText, monthText, dayText, hourText, minuteText, secondText, , offsetHour, offsetMinute] = parts;
+    const year = Number(yearText), month = Number(monthText), day = Number(dayText);
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    // Date.parse silently rolls impossible dates and 24:00 into another day.
+    // Validate civil fields first; explicit offsets make this independent of
+    // the server's timezone and any local daylight-saving transition.
+    if (year < 1 || month < 1 || month > 12 || day < 1 || day > days[month - 1] ||
+        Number(hourText) > 23 || Number(minuteText) > 59 || Number(secondText) > 59 ||
+        Number(offsetHour || 0) > 23 || Number(offsetMinute || 0) > 59) invalid();
+    const instant = Date.parse(value);
+    if (!Number.isSafeInteger(instant)) invalid();
+    return instant;
+  }
   function learningLimit(params) {
     const value = params.get("limit");
     if (value === null) return 20;
@@ -109,31 +130,45 @@ function createListServices(db, helpers) {
   }
   function appointments(actor, params, operator) {
     return read(actor, () => {
-      query(params, operator ? ["studentUid", "status", "publication", "q", "cursor"] : ["studentUid", "status", "cursor"]);
+      query(params, operator ? ["studentUid", "status", "publication", "q", "cursor"] : ["studentUid", "status", "from", "to", "cursor"]);
       if (operator) requireOperator(actor);
       const requested = optionalId(params, "studentUid"), owner = operator ? requested : authorize(actor, requested || actor.uid);
       const status = choice(params, "status", ["all", "reserved", "cancelled", "ended"], operator ? "ended" : "all");
       const publication = operator ? choice(params, "publication", ["all", "published", "unpublished"], "unpublished") : "all";
       const q = operator ? search(params) : "", now = Date.now(), where = [], values = [];
+      const from = operator ? null : appointmentBound(params, "from"), to = operator ? null : appointmentBound(params, "to");
+      if (from !== null && to !== null && from >= to) fail(400, "INVALID_INPUT", "The meeting date range must end after it starts.");
       if (owner) { where.push("a.owner_uid=?"); values.push(owner); }
       if (status === "reserved") { where.push("a.status='reserved' AND s.ends_at>?"); values.push(now); }
       else if (status === "ended") { where.push("(a.status='ended' OR (a.status='reserved' AND s.ends_at<=?))"); values.push(now); }
       else if (status === "cancelled") where.push("a.status='cancelled'");
       if (publication !== "all") where.push(publication === "published" ? "r.id IS NOT NULL" : "r.id IS NULL");
       if (q) { where.push("(s.label LIKE ? ESCAPE '\\' OR u.name LIKE ? ESCAPE '\\')"); values.push(literalLike(q), literalLike(q)); }
-      return page(actor, params, operator ? "operations-appointments" : "appointments", owner, { status, publication, q }, {
+      if (from !== null) { where.push("s.starts_at>=?"); values.push(from); }
+      if (to !== null) { where.push("s.starts_at<?"); values.push(to); }
+      // Keep the original filter object byte-for-byte when bounds are absent,
+      // so existing clients can continue using their unbounded page cursors.
+      const filters = { status, publication, q };
+      if (from !== null) filters.from = from;
+      if (to !== null) filters.to = to;
+      return page(actor, params, operator ? "operations-appointments" : "appointments", owner, filters, {
         select: appointmentSelect, where, values, time: "s.starts_at", timeField: "starts_at", id: "a.id", limit: PAGE_SIZE, dto: (row) => appointmentView(row, now, operator),
       });
     });
   }
   function learning(actor, params, operator) {
     return read(actor, () => {
-      query(params, operator ? ["studentUid", "q", "limit", "cursor"] : ["studentUid", "limit", "cursor"]);
+      query(params, ["studentUid", "q", "limit", "cursor"]);
       if (operator) requireOperator(actor);
-      const requested = optionalId(params, "studentUid"), owner = operator ? requested : authorize(actor, requested || actor.uid), q = operator ? search(params) : "";
+      const requested = optionalId(params, "studentUid"), owner = operator ? requested : authorize(actor, requested || actor.uid), q = search(params);
       const limit = learningLimit(params), where = [], values = [];
       if (owner) { where.push("r.owner_uid=?"); values.push(owner); }
-      if (q) { where.push("(u.name LIKE ? ESCAPE '\\' OR EXISTS(SELECT 1 FROM json_each(r.outcomes_json) outcome WHERE json_extract(outcome.value,'$.summary') LIKE ? ESCAPE '\\'))"); values.push(literalLike(q), literalLike(q)); }
+      if (q) {
+        const summaryMatch = "EXISTS(SELECT 1 FROM json_each(r.outcomes_json) outcome WHERE json_extract(outcome.value,'$.summary') LIKE ? ESCAPE '\\')";
+        where.push(operator ? `(u.name LIKE ? ESCAPE '\\' OR ${summaryMatch})` : summaryMatch);
+        if (operator) values.push(literalLike(q));
+        values.push(literalLike(q));
+      }
       const result = page(actor, params, operator ? "operations-learning" : "learning", owner, { q, limit }, {
         select: "SELECT r.*,u.name AS student_name FROM learning_records r JOIN users u ON u.uid=r.owner_uid", where, values,
         time: "r.published_at", timeField: "published_at", id: "r.id", limit,
@@ -160,7 +195,7 @@ function createListServices(db, helpers) {
     });
   }
   return {
-    read, page, query, choice,
+    read,
     evidence: (actor, params) => evidence(actor, params, false),
     operatorEvidence: (actor, params) => evidence(actor, params, true),
     appointments: (actor, params) => appointments(actor, params, false),

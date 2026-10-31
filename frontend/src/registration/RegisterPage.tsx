@@ -1,8 +1,8 @@
 import { demoEnabled, demoToolsEnabled } from "../shared/services/demoConfig";
-import { enrollmentSteps } from "./enrollmentContract";
+import { enrollmentSteps } from "./enrollmentService";
 import { useRegistration } from "./useRegistration";
 import { RegistrationFields } from "./RegistrationFields";
-import type { EnrollmentReceipt } from "./enrollmentContract";
+import type { EnrollmentReceipt } from "./enrollmentService";
 
 export function RegisterPage({
   onComplete,

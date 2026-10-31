@@ -1,3 +1,4 @@
+/* The public site and workspaces share one calm, compact frame. */
 .preview-banner {
   padding: 9px 20px;
   background: #eef2ef;
@@ -74,7 +75,7 @@
 .nav-hub-link {
   padding: 8px 16px;
   color: var(--color-accent);
-  background: var(--color-green);
+  background: #edf2ef;
   border: 1px solid transparent;
   border-radius: 10px;
   font-weight: 600;
@@ -210,46 +211,6 @@
     min-height: 48px;
     white-space: normal;
     text-align: center;
-  }
-}
-@media (min-width: 961px) {
-  .nav-row {
-    gap: 48px;
-  }
-  .primary-nav {
-    gap: 32px;
-    font-size: 0.9375rem;
-    font-weight: 500;
-  }
-  .primary-nav > a {
-    color: var(--color-muted);
-  }
-  .primary-nav > a:hover,
-  .primary-nav > a.active {
-    color: var(--color-accent);
-  }
-  .nav-actions > .nav-hub-link {
-    min-height: 40px;
-    padding: 0 16px;
-    background: var(--color-surface);
-    border-color: var(--color-line);
-    transition:
-      background-color 150ms ease,
-      border-color 150ms ease;
-  }
-  .nav-actions > .nav-hub-link:hover,
-  .nav-actions > .nav-hub-link.active {
-    background: var(--color-green);
-    border-color: var(--color-accent);
-  }
-}
-@media (min-width: 961px) and (max-width: 1100px) {
-  .nav-row {
-    gap: 32px;
-  }
-  .primary-nav {
-    gap: 20px;
-    font-size: 0.875rem;
   }
 }
 @media (max-width: 600px) {

@@ -4,6 +4,7 @@ import { useWorkspaceVisible } from "./workspaceVisibility";
 
 type PrivateArtifact = { blob: Blob; filename: string };
 
+/** Cancel read-only exports when cached workspace records become concealed. */
 export function usePrivateWorkspaceExport() {
   const visible = useWorkspaceVisible();
   const lifecycle = useRef({ visible, mounted: false, generation: 0 });
@@ -52,7 +53,8 @@ export function usePrivateWorkspaceExport() {
           state.generation !== generation
         )
           throw new TalaApiError("CANCELLED");
-        // Check visibility and click in one sync step so a stale account can't export.
+        // The final visibility check and click share one synchronous continuation;
+        // a delayed Promise consumer must not export a previous account's data.
         const url = URL.createObjectURL(artifact.blob);
         const anchor = document.createElement("a");
         anchor.href = url;

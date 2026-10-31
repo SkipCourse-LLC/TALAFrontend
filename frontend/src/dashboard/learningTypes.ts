@@ -1,5 +1,6 @@
 import type { DemoScenario } from "../shared/services/serviceTypes";
 
+// Frontend learning view models, not a confirmed backend schema.
 export interface Course {
   id: string;
   title: string;

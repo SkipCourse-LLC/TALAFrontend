@@ -11,6 +11,7 @@
 @import "../../registration/registration.css";
 @import "../../payment/payment.css";
 
+/* Keep all motion optional, including future component transitions. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -1,4 +1,3 @@
-import { demoEnabled } from "../shared/services/demoConfig";
 import { demoClassSlots } from "./demoClassSlots";
 
 export type ClassSlot = (typeof demoClassSlots)[number];
@@ -61,6 +60,7 @@ export interface MockScheduleOptions {
   storage?: Pick<Storage, "getItem" | "setItem"> | null;
   wait?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
 }
+// Local demo selections are not school bookings or a real scheduling API.
 export function createMockScheduleService(
   options: MockScheduleOptions = {},
 ): ScheduleService {
@@ -97,7 +97,9 @@ export function createMockScheduleService(
             ),
           ),
         ];
-    } catch {}
+    } catch {
+      /* A blocked or malformed store falls back to this module's memory. */
+    }
     return [];
   }
   return {
@@ -146,7 +148,9 @@ export function createMockScheduleService(
             `tala.demo.classes.${student}`,
             JSON.stringify(next),
           );
-        } catch {}
+        } catch {
+          /* Keep the in-memory demo usable. */
+        }
         return [...next];
       } finally {
         signal.removeEventListener("abort", release);
@@ -155,7 +159,3 @@ export function createMockScheduleService(
     },
   };
 }
-
-export const scheduleService = createMockScheduleService({
-  enabled: demoEnabled,
-});

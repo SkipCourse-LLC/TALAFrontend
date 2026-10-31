@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiUser } from "../api";
 import { safeTalaApiError, talaApi } from "../api";
 
-/** Cross-tab notifications carry no account data. */
+/** Same-origin notifications contain no UID, cookie, password or profile data. */
 export function useSessionPrivacy({
   user,
   ready,
@@ -86,20 +86,28 @@ export function useSessionPrivacy({
           expectedIntent !== intent.current
         )
           return;
-        // A newer cookie change supersedes this check; stay hidden until it finishes.
+        // A later cookie-change signal supersedes this in-flight snapshot.
+        // Keep private content hidden until the queued fresh check completes.
         if (queued.current) return;
         if (signature !== familySignature.current) {
           familySignature.current = signature;
           setAccessEpoch((value) => value + 1);
         }
         latest.current.onRestored(saved);
+        const restoredIntent = intent.current;
         setError("");
         concealed.current = false;
         setBlocked(false);
         const previous = focus.current;
         focus.current = null;
         requestAnimationFrame(() => {
-          if (!mounted.current) return;
+          if (
+            !mounted.current ||
+            generation.current !== version ||
+            intent.current !== restoredIntent ||
+            concealed.current
+          )
+            return;
           if (
             saved?.uid === expectedUid &&
             previous?.isConnected &&
@@ -122,6 +130,7 @@ export function useSessionPrivacy({
           return;
         if (queued.current) return;
         setError(safeTalaApiError(failure).message);
+        // A network failure cannot authorize showing a previous account's cache.
         if (latest.current.user) {
           concealed.current = true;
           setBlocked(true);
@@ -151,7 +160,8 @@ export function useSessionPrivacy({
     focus.current = null;
   }, []);
   const changedHere = useCallback(() => {
-    // A late mutation response can't cancel a privacy check started after another tab changed the cookie.
+    // A successful mutation may have been sent before a different tab changed
+    // the cookie. Its delayed body cannot cancel an ongoing privacy check.
     const verify = concealed.current || request.current !== null;
     invalidate();
     setChecking(false);
@@ -191,6 +201,7 @@ export function useSessionPrivacy({
     window.addEventListener("focus", focused);
     window.addEventListener("pageshow", pageshow);
     document.addEventListener("visibilitychange", visibility);
+    // Expiry is also checked in a visible, idle tab without clearing its forms.
     const timer = window.setInterval(() => {
       if (latest.current.user && document.visibilityState === "visible")
         void check(false);
@@ -216,14 +227,19 @@ export function useSessionPrivacy({
       cancelled = true;
     };
   }, [ready, user?.uid, user?.role, check]);
+  const retry = useCallback(() => {
+    // AUTH_REQUIRED can also fence an obsolete response after a same-account
+    // cookie rotation. Hide records now; only a fresh authoritative session
+    // read may decide whether that identity and its in-memory work survive.
+    // If another check predates this signal, queue a newer read behind it.
+    void check(true, true);
+  }, [check]);
   return {
     blocked,
     checking,
     error,
     accessEpoch,
     changedHere,
-    retry: () => {
-      void check(true);
-    },
+    retry,
   };
 }

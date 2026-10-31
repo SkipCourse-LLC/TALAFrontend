@@ -1,0 +1,273 @@
+.student-progress {
+  color: var(--student-ink, #1d1d1f);
+}
+.student-progress-heading {
+  margin: 4px 0 28px;
+}
+.student-progress-heading h2 {
+  font-size: clamp(1.6rem, 2.6vw, 2rem);
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+.student-progress-heading p {
+  margin-bottom: 0;
+}
+.student-progress-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 32px;
+}
+.student-progress-plan {
+  border: 1px solid #d8dce0;
+  border-radius: 18px;
+  background: #fff;
+  padding: clamp(24px, 4vw, 32px);
+  min-width: 0;
+}
+.student-progress-work {
+  padding: 12px 0;
+  min-width: 0;
+}
+.student-progress h3 {
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+  margin: 0 0 24px;
+}
+.student-progress .student-progress-number {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #30564a;
+  margin-bottom: 20px;
+}
+.student-progress-number strong {
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 550;
+  letter-spacing: -0.055em;
+  color: #174139;
+}
+.student-progress progress {
+  width: 100%;
+  height: 8px;
+  border: 0;
+  border-radius: 8px;
+  display: block;
+  overflow: hidden;
+  background: #c7d8cf;
+  accent-color: #174139;
+}
+.student-progress progress::-webkit-progress-bar {
+  background: #c7d8cf;
+  border-radius: 8px;
+}
+.student-progress progress::-webkit-progress-value {
+  background: #174139;
+  border-radius: 8px;
+}
+.student-progress progress::-moz-progress-bar {
+  background: #174139;
+  border-radius: 8px;
+}
+.student-progress-step-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block: 28px 12px;
+  color: #30564a;
+  font-size: 0.9rem;
+}
+.student-progress-step-total strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.student-progress .student-progress-help {
+  font-size: 0.85rem;
+  color: #52645a;
+  line-height: 1.65;
+  max-width: 60ch;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+.student-progress-work dl {
+  margin: 0;
+}
+.student-progress-work dl > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-block: 16px;
+  border-bottom: 1px solid #d2d8d4;
+}
+.student-progress-work dt {
+  font-size: 0.9rem;
+  color: #626268;
+}
+.student-progress-work dd {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 550;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.student-progress-link {
+  min-height: 44px;
+  padding: 10px 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: left;
+  background: transparent;
+  color: #174139;
+  border: 0;
+  border-radius: 4px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.student-progress-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.student-progress-targets {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid #d2d8d4;
+}
+.student-progress-targets > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.student-progress-targets h3 {
+  margin-bottom: 8px;
+}
+.student-progress-targets > header p {
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.student-progress-targets ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.student-progress-targets li > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0;
+  width: 100%;
+  min-height: 64px;
+  border: 0;
+  border-bottom: 1px solid #d2d8d4;
+  color: #1d1d1f;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.student-progress-targets li > button:hover {
+  background: #edf2ef;
+}
+.student-progress-targets button > span:first-child {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  max-width: 64ch;
+}
+.student-progress-targets strong {
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.student-progress-targets button span span {
+  color: #626268;
+  font-size: 0.875rem;
+}
+.student-progress-targets button > span:last-child {
+  color: #30564a;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.student-progress-targets button > span[data-overdue="true"] {
+  color: #74511d;
+}
+.student-progress-summary {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-block: 28px;
+}
+.student-progress-summary h3 {
+  margin-bottom: 8px;
+}
+.student-progress-summary p {
+  font-size: 0.9rem;
+  margin-bottom: 0;
+}
+.student-progress .student-progress-boundary {
+  color: #626268;
+  font-size: 0.85rem;
+  max-width: 76ch;
+  line-height: 1.7;
+  border-top: 1px solid #d2d8d4;
+  padding-top: 18px;
+  margin-bottom: 8px;
+}
+.student-progress-details > summary {
+  display: list-item;
+  width: fit-content;
+  min-height: 44px;
+  align-content: center;
+  color: #174139;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.student-progress-details > summary:focus-visible {
+  outline: 3px solid #174139;
+  outline-offset: 4px;
+}
+.student-progress-details > p {
+  max-width: 65ch;
+  margin: 4px 0 16px;
+  color: #626268;
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+.student-progress-plan-error p {
+  color: #743a2a;
+  font-size: 0.9rem;
+}
+@media (max-width: 760px) {
+  .student-progress-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .student-progress-plan {
+    border-radius: 16px;
+  }
+  .student-progress-work {
+    padding: 0;
+  }
+  .student-progress-targets li > button {
+    align-items: start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .student-progress * {
+    animation: none;
+    transition: none;
+    scroll-behavior: auto;
+  }
+}

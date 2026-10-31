@@ -13,7 +13,9 @@ export function ProgramCards() {
           <h3>{program.title}</h3>
           <p>{program.description}</p>
           <Link className="text-link" to={`/programs?program=${program.id}`}>
-            Explore {program.category.toLowerCase()} <Icon name="arrow" />
+            Explore{" "}
+            <span className="sr-only">{program.category.toLowerCase()}</span>
+            <Icon name="arrow" />
           </Link>
         </article>
       ))}

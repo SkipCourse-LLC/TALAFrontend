@@ -1,6 +1,6 @@
 import type { StudentOverview } from "./learningTypes";
 
-// Sample learning data for the demo.
+// Fictional learning examples, centralized for removal when a real adapter exists.
 export const demoStudent: StudentOverview = {
   focus: "Build confidence through curiosity and practice.",
   courses: [

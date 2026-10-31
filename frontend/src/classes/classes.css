@@ -10,7 +10,7 @@
   align-items: center;
   gap: 24px;
   padding: 24px;
-  border: 1px solid var(--color-line);
+  border: 1px solid #d2d2d7;
   border-radius: 20px;
   background: white;
   min-width: 0;
@@ -22,7 +22,7 @@
   font-size: 0.875rem;
 }
 .class-time strong {
-  color: var(--color-accent);
+  color: #174139;
   font-size: 1rem;
 }
 .class-time span {
@@ -49,7 +49,7 @@
 }
 .schedule-feedback {
   min-height: 0;
-  color: var(--color-accent);
+  color: #174139;
   font-size: 0.875rem;
 }
 .schedule-feedback:empty {
@@ -58,7 +58,7 @@
 .schedule-loading {
   padding: 32px;
   background: white;
-  border: 1px solid var(--color-line);
+  border: 1px solid #d2d2d7;
   border-radius: 22px;
 }
 .schedule-skeleton {
@@ -69,7 +69,7 @@
 .schedule-skeleton > span {
   height: 72px;
   border-radius: 14px;
-  background: var(--color-paper);
+  background: #f5f5f7;
   border: 1px solid #e6e6e9;
 }
 @media (max-width: 1050px) {

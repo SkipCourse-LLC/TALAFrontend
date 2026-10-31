@@ -1,9 +1,14 @@
 # Installed dependencies
 node_modules/
 
+# Personal tools and notes: keep on disk, never commit
+/.agents/
+/AGENTS.md
+/docs/skills/
+/会议演示.md
+/汇报给老板.md
+
 # Build output and tool caches
-/public/
-.firebase/
 dist/
 build/
 out/
@@ -51,6 +56,11 @@ blob-report/
 
 # Local logs
 *.log
+# Local Firebase emulator data contains test identities and authentication state.
+backend/.emulator-data/
+backend/.persistence-fixture.json
+backend/.firebase/
+firebase-export-*/
 
 # Independent backend records, opaque sessions, private uploads and SQLite data.
 server/.runtime/

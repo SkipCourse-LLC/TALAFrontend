@@ -1,74 +1,57 @@
-# TALA Frontend
+# TALA Hub
 
-The public-facing website for **Tucson Adaptive Learning Academy (TALA)**, a year-round school serving medically fragile and wheelchair-dependent children in Tucson, Arizona.
+React and TypeScript frontend with an independent Node.js API, SQLite database and private file storage. The default application does not require Firebase or a cloud account.
 
-## Live site
+## Screenshots
 
-<https://talaedu.com> (Firebase Hosting). The earlier one-page site ran at [talaedu.vercel.app](https://talaedu.vercel.app); its code and original README are in `legacy/`.
+Captured from the local application using fictional accounts and files.
 
-## Overview
+![Student workspace](project/screenshots/student-dashboard.png)
 
-The website and student hub: public pages, a "Contact me" request form, Tina's open meeting times, and a signed-in workspace for students, parents and admins. Built with React and TypeScript (Vite), plus a local Node.js/SQLite API for development. Sign-in and other backend features are not hosted yet.
+[Learning plan](project/screenshots/learning-plan.png) · [Meetings](project/screenshots/meetings.png) · [Evidence](project/screenshots/evidence.png) · [Mobile workspace](project/screenshots/student-mobile.png)
 
-## Run locally
+## Install and run
 
-Node.js 24+.
+Use **Node.js 24 or newer**.
 
 ```sh
 npm ci --prefix frontend
 npm run dev --prefix frontend
 ```
 
-Site: <http://127.0.0.1:5173>. API: `127.0.0.1:8787`. Data: `server/.runtime/` (git-ignored).
-Sample data, no API: `npm run dev:demo --prefix frontend`.
+Open **http://127.0.0.1:5173/#/register**. The launcher starts the website on port 5173 and the API on port 8787, and checks an existing API before reusing it. Ctrl+C stops the processes it started. No `.env` file is required; example environment files contain public placeholders only.
 
-**Admin:** register on the site, then `node server/operator.cjs promote --email you@example.test` and sign in again.
+## Current functionality
 
-## Status
+- Server-backed student and parent registration, login, logout and account security. Passwords use scrypt; sessions use HttpOnly cookies and mutations require CSRF protection. Email ownership verification, email recovery and MFA are not connected.
+- Student sidebar with an Overview, Today tasks, updates, learning plans, meetings, learning records, Evidence and progress. Counts and records come from saved data.
+- Staff-published availability with student booking, rescheduling and cancellation. A reservation does not create a Zoom meeting or prove attendance.
+- Private text/PDF Evidence up to 5 MiB, written reflections, revision history and manual staff review. Private reflection drafts can be explicitly saved and resumed after signing in; drafts do not count as submitted Evidence.
+- Personal goals, preparation notes and learning progress. Goal completion is self-reported; staff notes and review counts do not represent AI assessment or academic credit.
+- Parent read-only access to a linked student's permitted records after an operator records an approved family connection. A connection is not proof of legal guardianship.
 
-| Real (local API) | Demo only | Not connected |
-| --- | --- | --- |
-| Accounts and sessions; meeting availability (add, edit, withdraw); public open times (`/schedule`); Contact me requests (`/contact`) and the admin request list; student booking; Evidence uploads and review; parent read access | Two-factor, payment, class schedule, enrollment wizard | Email, Zoom, payments, SkipCourse backend |
+Accounts, sessions and application records persist in ignored `server/.runtime/tala.sqlite`; uploaded files stay under the same private runtime directory. `TALA_DATA_DIR` selects another directory. Data survives refresh, sign-out and server restart, but is stored on this machine with no cloud synchronization. Selected files and unsaved writing remain in memory until submitted or explicitly saved as a reflection draft.
 
-## Project structure
+The schema 5 upgrade verifies a private SQLite backup before upgrading an older database. See [server/README.md](server/README.md) for local backup, restore and operator commands, and [server/contract.json](server/contract.json) for API contracts.
 
-```text
-frontend/src/
-  public-site/   public pages
-  onboarding/    Contact me form, public open times
-  product/       signed-in app and admin tools
-  api/           API client
-  shared/        layout, header, form controls, styles
-  authentication/ registration/ payment/ classes/ dashboard/   demo screens
-server/          local API (see server/README.md)
-docs/            onboarding flow map; sign-in and data model proposal
-legacy/          original one-page site
-```
+## Local operator setup
 
-## Checks
+Register an invented account first, then promote that existing local account:
 
 ```sh
-npm run typecheck --prefix frontend
-npm run lint --prefix frontend
-npm run build --prefix frontend
-npm test --prefix server
-npm run test:onboarding --prefix frontend
+node server/operator.cjs promote --email existing@example.test
 ```
 
-## Deployment
+Sign out and back in to publish availability, learning notes and manual reviews. Operator permissions cannot be granted through a registration role selector.
 
-Firebase Hosting, project `skip-class-slsru4`, target `tala`. `npm run build:hosting --prefix frontend` builds into `public/`, which `firebase.json` serves. The **Deploy to Firebase Hosting (tala)** workflow runs only when started from the Actions tab. Hosting is static: public pages work there, while sign-in, booking and contact requests need a hosted backend.
+## Checks and service limits
 
-## Accessibility
+```sh
+npm run check --prefix server
+npm run lint --prefix frontend
+npm run build --prefix frontend
+```
 
-The site includes semantic landmarks and headings, a skip-to-content link, keyboard-accessible controls, visible focus styles, ARIA labels and live regions, reduced-motion handling, and responsive layouts.
+The earlier visual demo remains available through `npm run dev:demo --prefix frontend`. Its identities, availability and payments are fixtures. Legacy Firebase tooling is opt-in and separate from the default independent backend.
 
-When adding interactive content, preserve keyboard access, focus management, meaningful labels, and sufficient color contrast.
-
-## Content and privacy
-
-This website includes information related to children, families, health support, enrollment, and education. Do not add personally identifiable information or protected health information to the repository. Production authentication, enrollment, scheduling, and messaging should use approved secure services. Test with invented data only, and never commit `server/.runtime/`.
-
-## Contact
-
-For questions about TALA, call **+1 520 639 5411**.
+Zoom, email delivery/recovery, production MFA, AI assessment and real payments are not connected. The payment interface is a preview and makes no charge. The server binds to loopback and refuses production mode until hosting, HTTPS, recovery, backups and privacy controls are reviewed. Use invented accounts and files; real minors' records, medical information and recordings require sponsor-approved collection and access policies. These commands do not deploy the application.

@@ -1,11 +1,11 @@
 "use strict";
+// Explicit, local-only operator tooling. No HTTP route exposes a backup.
 const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-// Schema 3 only adds contact_requests, so schema 2 backups stay restorable.
-const SCHEMAS = [2, 3];
+const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5]);
 const MAX_FILE = 5 * 1024 * 1024;
 function refuse(message) { throw new Error(message); }
 function localOnly() {
@@ -58,7 +58,8 @@ function readManifest(filename) {
   const original = fs.lstatSync(filename);
   if (!original.isFile() || original.isSymbolicLink() || original.size < 1 || original.size > maximum)
     refuse("The backup manifest must be a bounded regular file.");
-  // Open without following links or blocking, since the path can change after lstat.
+  // A path can be replaced after lstat. Nonblocking/no-follow open prevents a
+  // substituted FIFO or symlink from hanging the command or redirecting reads.
   const fd = fs.openSync(filename, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
     const before = fs.fstatSync(fd);
@@ -85,6 +86,7 @@ function readManifest(filename) {
   } finally { fs.closeSync(fd); }
 }
 function copyPrivate(source, target, expectedSize) {
+  // Open the original with O_NOFOLLOW; exclusive target creation cannot replace a file.
   const original = fs.lstatSync(source);
   if (!original.isFile() || original.isSymbolicLink()) refuse("Only regular private files can be copied.");
   const input = fs.openSync(source, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
@@ -105,9 +107,9 @@ function copyPrivate(source, target, expectedSize) {
     fs.fsyncSync(output);
   } finally { if (output !== undefined) fs.closeSync(output); fs.closeSync(input); }
 }
-function checkDatabase(db) {
-  const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (!SCHEMAS.includes(version)) refuse("This backup tool requires database schema 2 or 3. No migration was performed.");
+function checkDatabase(db, expectedSchema) {
+  const schema = db.prepare("PRAGMA user_version").get().user_version;
+  if (!SUPPORTED_SCHEMAS.has(schema) || (expectedSchema !== undefined && expectedSchema !== schema)) refuse("This backup tool supports database schemas 2, 3, 4 and 5, matching the manifest. No migration was performed.");
   if (db.prepare("PRAGMA quick_check").get().quick_check !== "ok" || db.prepare("PRAGMA foreign_key_check").get()) refuse("The database failed its consistency check.");
   if (db.prepare("SELECT name FROM sqlite_master WHERE type IN ('trigger','view') LIMIT 1").get()) refuse("This schema does not use triggers or views. Review unsupported database objects before backup or restore.");
   if (db.prepare(`SELECT u.id FROM uploads u LEFT JOIN evidence e ON e.id=u.id
@@ -116,7 +118,71 @@ function checkDatabase(db) {
         OR u.appointment_id!=e.appointment_id OR u.content_type!=e.content_type
         OR u.size!=e.size OR u.sha256!=e.sha256 OR u.title!=e.title)) LIMIT 1`).get())
     refuse("Submitted Evidence and upload records are inconsistent. No backup or restore was accepted.");
-  return version;
+  if (schema >= 3 && db.prepare(`SELECT g.id FROM learning_goals g LEFT JOIN users u ON u.uid=g.owner_uid
+    WHERE u.uid IS NULL OR length(trim(g.title)) NOT BETWEEN 1 AND 120 OR length(g.notes)>600
+      OR (g.due_date IS NOT NULL AND (g.due_date<'0001-01-01' OR g.due_date>'9999-12-31' OR date(g.due_date,'+0 days') IS NULL OR g.due_date!=date(g.due_date,'+0 days')))
+      OR g.version<1 OR g.updated_at<g.created_at
+      OR g.status NOT IN ('active','completed')
+      OR (g.status='active' AND g.completed_at IS NOT NULL)
+      OR (g.status='completed' AND (g.completed_at IS NULL OR g.completed_at<g.created_at OR g.completed_at>g.updated_at))
+    LIMIT 1`).get()) refuse("Learning goal records are inconsistent. No backup or restore was accepted.");
+  const validId = (value) => typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+  const plain = (value, maximum, empty, paragraphs = false) => typeof value === "string" && value.length <= maximum &&
+    (empty || Boolean(value.trim())) && !(paragraphs ? /[\x00-\x08\x0b-\x1f\x7f]/ : /[\x00-\x1f\x7f]/).test(value);
+  const instant = (value) => Number.isSafeInteger(value) && value >= 0 && value <= 253402300799999;
+  if (schema >= 3) {
+    if (db.prepare("SELECT owner_uid FROM learning_goals GROUP BY owner_uid HAVING count(*)>100 LIMIT 1").get()) refuse("Saved goal counts exceed the supported bound. No backup or restore was accepted.");
+    for (const goal of db.prepare("SELECT * FROM learning_goals").iterate()) {
+      if (!validId(goal.id) || !validId(goal.owner_uid) || !plain(goal.title, 120, false) || !plain(goal.notes, 600, true, true) ||
+          !["active", "completed"].includes(goal.status) ||
+          !Number.isSafeInteger(goal.version) || goal.version < 1 || !instant(goal.created_at) || !instant(goal.updated_at) ||
+          (goal.completed_at !== null && !instant(goal.completed_at))) refuse("A learning goal contains unsupported metadata. No backup or restore was accepted.");
+    }
+  }
+  if (schema >= 4) {
+    if (db.prepare(`SELECT goal_id FROM learning_goal_steps GROUP BY goal_id
+      HAVING count(*)>8 OR min(position)!=0 OR max(position)+1!=count(*) LIMIT 1`).get()) refuse("Goal checklist ordering is inconsistent. No backup or restore was accepted.");
+    if (db.prepare("SELECT goal_id,id FROM learning_goal_steps GROUP BY goal_id,id HAVING count(*)>1 LIMIT 1").get()) refuse("Goal checklist identifiers are inconsistent. No backup or restore was accepted.");
+    for (const step of db.prepare("SELECT s.*,g.id AS existing_goal FROM learning_goal_steps s LEFT JOIN learning_goals g ON g.id=s.goal_id").iterate()) {
+      if (!step.existing_goal || !validId(step.id) || !plain(step.title, 120, false) || !Number.isSafeInteger(step.position) || step.position < 0 || step.position > 7 || ![0, 1].includes(step.completed)) refuse("A goal checklist contains unsupported metadata. No backup or restore was accepted.");
+    }
+    if (db.prepare(`SELECT links.goal_id FROM learning_goal_evidence links LEFT JOIN learning_goals goals ON goals.id=links.goal_id
+      LEFT JOIN evidence e ON e.id=links.evidence_id LEFT JOIN uploads u ON u.id=e.id
+      WHERE goals.id IS NULL OR e.id IS NULL OR u.id IS NULL OR u.status!='submitted' OR goals.owner_uid!=e.owner_uid LIMIT 1`).get() ||
+      db.prepare("SELECT goal_id FROM learning_goal_evidence GROUP BY goal_id HAVING count(*)>20 LIMIT 1").get() ||
+      db.prepare("SELECT goal_id,evidence_id FROM learning_goal_evidence GROUP BY goal_id,evidence_id HAVING count(*)>1 LIMIT 1").get()) refuse("Goal Evidence ownership or link counts are inconsistent. No backup or restore was accepted.");
+    for (const link of db.prepare("SELECT * FROM learning_goal_evidence").iterate()) if (!validId(link.goal_id) || !validId(link.evidence_id) || !instant(link.linked_at)) refuse("An Evidence link contains unsupported metadata. No backup or restore was accepted.");
+    for (const read of db.prepare("SELECT r.*,u.uid AS existing_owner FROM workspace_update_reads r LEFT JOIN users u ON u.uid=r.owner_uid").iterate()) {
+      if (!read.existing_owner || !validId(read.owner_uid) || typeof read.update_id !== "string" || !/^update_[a-f0-9]{64}$/.test(read.update_id) || !instant(read.read_at)) refuse("Workspace update read receipts are inconsistent. No backup or restore was accepted.");
+    }
+    for (const prepared of db.prepare(`SELECT p.*,a.owner_uid AS booking_owner,g.owner_uid AS goal_owner,u.uid AS existing_owner
+      FROM appointment_preparations p LEFT JOIN appointments a ON a.id=p.appointment_id
+      LEFT JOIN learning_goals g ON g.id=p.goal_id LEFT JOIN users u ON u.uid=p.owner_uid`).iterate()) {
+      if (!prepared.existing_owner || !validId(prepared.appointment_id) || !validId(prepared.owner_uid) || prepared.owner_uid !== prepared.booking_owner ||
+          (prepared.goal_id !== null && (!validId(prepared.goal_id) || prepared.goal_owner !== prepared.owner_uid)) ||
+          !plain(prepared.note, 1000, true, true) || ![0, 1].includes(prepared.ready) || !Number.isSafeInteger(prepared.version) || prepared.version < 1 || !instant(prepared.updated_at)) refuse("Meeting preparation ownership or metadata is inconsistent. No backup or restore was accepted.");
+    }
+  }
+  if (schema >= 5) {
+    const draftText = (value, maximum, paragraphs) => typeof value === "string" && value.isWellFormed() && value.length <= maximum &&
+      !(paragraphs ? /[\x00-\x08\x0b-\x1f\x7f]/ : /[\x00-\x1f\x7f]/).test(paragraphs ? value.replace(/\r\n/g, "\n") : value);
+    for (const draft of db.prepare("SELECT d.*,u.uid AS existing_owner FROM reflection_drafts d LEFT JOIN users u ON u.uid=d.owner_uid").iterate()) {
+      if (!draft.existing_owner || !validId(draft.owner_uid) || !draftText(draft.title, 120, false) || !draftText(draft.body, 5000, true) ||
+          !["empty", "saved"].includes(draft.status) || !Number.isSafeInteger(draft.version) || draft.version < 1 || !instant(draft.updated_at) ||
+          (draft.status === "empty" ? draft.title !== "" || draft.body !== "" : !draft.title.trim() && !draft.body.trim())) refuse("A private reflection draft contains inconsistent metadata. No backup or restore was accepted.");
+    }
+    // These operations deliberately confirm only a version. Restoring a ledger
+    // that accumulated prior draft text would defeat clearing the current draft.
+    for (const receipt of db.prepare(`SELECT o.*,d.version AS current_version FROM operations o
+      LEFT JOIN reflection_drafts d ON d.owner_uid=o.uid WHERE o.kind IN ('save-reflection-draft','clear-reflection-draft')`).iterate()) {
+      let metadata;
+      try { metadata = JSON.parse(receipt.result_json); } catch { refuse("A reflection draft receipt is invalid. No backup or restore was accepted."); }
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata) || Object.keys(metadata).join(",") !== "version" ||
+          !Number.isSafeInteger(metadata.version) || metadata.version < 1 || !Number.isSafeInteger(receipt.current_version) || metadata.version > receipt.current_version ||
+          !validId(receipt.request_id) || receipt.request_id.length < 16 || !/^[a-f0-9]{64}$/.test(receipt.fingerprint)) refuse("Private draft receipts must contain confirmation metadata only. No backup or restore was accepted.");
+    }
+  }
+  return schema;
 }
 function openExisting(filename, readOnly) {
   const stat = fs.lstatSync(filename);
@@ -157,8 +223,9 @@ function createLocalBackup({ dataDir, outputDir }) {
   const writer = openExisting(path.join(source, "tala.sqlite"), false);
   let target, reader, locked = false, complete = false;
   try {
-    const schemaVersion = checkDatabase(writer);
-    // HTTP file writes hold this write lock; a read-only connection snapshots committed WAL.
+    const schema = checkDatabase(writer);
+    // All HTTP file writes/renames and deletes hold this same SQLite write
+    // fence. A second read-only connection can snapshot committed WAL pages.
     writer.exec("BEGIN IMMEDIATE"); locked = true;
     target = newDirectory(outputDir, source); prepareChildren(target);
     reader = openExisting(path.join(source, "tala.sqlite"), true);
@@ -173,7 +240,7 @@ function createLocalBackup({ dataDir, outputDir }) {
       if (copied.sha256 !== file.sha256 || copied.size !== file.size) refuse("A copied file failed verification.");
     }
     const createdAt = new Date().toISOString();
-    const manifest = { format: "tala-local-backup", version: 1, schemaVersion, createdAt,
+    const manifest = { format: "tala-local-backup", version: 1, schemaVersion: schema, createdAt,
       files: [{ path: "tala.sqlite", ...digestFile(path.join(target, "tala.sqlite")) }, ...files] };
     fs.writeFileSync(path.join(target, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { flag: "wx", mode: 0o600 });
     for (const file of ["tala.sqlite", "manifest.json"]) {
@@ -197,7 +264,7 @@ function inspectLocalBackup(input) {
   for (const child of ["uploads", "evidence"]) directory(path.join(root, child));
   const manifestPath = path.join(root, "manifest.json");
   const manifest = readManifest(manifestPath);
-  if (manifest?.format !== "tala-local-backup" || manifest.version !== 1 || !SCHEMAS.includes(manifest.schemaVersion) || !Array.isArray(manifest.files) || !manifest.files.length) refuse("Unsupported backup manifest.");
+  if (manifest?.format !== "tala-local-backup" || manifest.version !== 1 || !SUPPORTED_SCHEMAS.has(manifest.schemaVersion) || !Array.isArray(manifest.files) || !manifest.files.length) refuse("Unsupported backup manifest.");
   const entries = new Map();
   for (const file of manifest.files) {
     if (!file || typeof file.path !== "string" || !/^(tala\.sqlite|(?:uploads|evidence)\/[A-Za-z0-9_-]{1,128}\.bin)$/.test(file.path) || entries.has(file.path) || !Number.isSafeInteger(file.size) || file.size < 0 || !/^[a-f0-9]{64}$/.test(file.sha256)) refuse("The backup manifest contains an invalid file entry.");
@@ -208,7 +275,7 @@ function inspectLocalBackup(input) {
   if (!entries.has("tala.sqlite")) refuse("The backup database is missing.");
   const db = openExisting(path.join(root, "tala.sqlite"), true);
   try {
-    if (checkDatabase(db) !== manifest.schemaVersion) refuse("The backup manifest does not match its database schema.");
+    checkDatabase(db, manifest.schemaVersion);
     const files = expectedFiles(db, root);
     if (files.length + 1 !== entries.size || files.some((file) => !entries.has(file.path))) refuse("The backup file list does not match its database.");
   } finally { db.close(); }
@@ -231,6 +298,7 @@ function restoreLocalBackup({ directory: input, outputDir }) {
     }
     db = openExisting(path.join(target, "tala.sqlite"), false);
     checkDatabase(db);
+    // Restoring history must never resurrect an old authenticated session.
     db.exec("DELETE FROM sessions; PRAGMA wal_checkpoint(TRUNCATE)");
     db.close(); db = undefined;
     flushTree(target); complete = true;
@@ -251,7 +319,7 @@ if (require.main === module) {
     if (!allowed[command] || Object.keys(input).some((key) => !allowed[command].includes(key)) || allowed[command].some((key) => !input[key])) refuse("Commands: create --dataDir DIR --outputDir NEW_DIR; verify --directory BACKUP; restore --directory BACKUP --outputDir NEW_DIR.");
     console.log(JSON.stringify(({ create: createLocalBackup, verify: verifyLocalBackup, restore: restoreLocalBackup })[command](input)));
   } catch {
-    // fs and SQLite errors may include private paths or records.
+    // Errors from fs/SQLite may embed private filesystem or record details.
     console.error("Local backup operation failed. Source and existing destinations were not overwritten. Check the paths, permissions, database schema and private file checksums.");
     process.exitCode = 1;
   }

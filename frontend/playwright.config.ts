@@ -1,9 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Authentication pages contain ephemeral setup material. Explicit visual
+// checks mask it; automatic traces and failure-page copies stay disabled.
 process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
+  // Allow browser scheduling delays on local machines; assertions still auto-wait.
   expect: { timeout: 10000 },
   forbidOnly: !!process.env.CI,
   retries: 0,
@@ -11,7 +14,6 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://127.0.0.1:4173",
-    // Auth pages show one-time setup secrets, so traces and screenshots stay off.
     trace: "off",
     screenshot: "off",
     video: "off",

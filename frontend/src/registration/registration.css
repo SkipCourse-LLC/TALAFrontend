@@ -284,3 +284,11 @@
     column-gap: 12px;
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .enrollment-registration *,
+  .enrollment-registration *::before,
+  .enrollment-registration *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

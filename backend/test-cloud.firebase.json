@@ -1,0 +1,16 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "tala-approved-test",
+      "runtime": "nodejs24"
+    }
+  ],
+  "firestore": {
+    "rules": "test-cloud.firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "test-cloud.storage.rules"
+  }
+}

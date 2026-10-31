@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { randomUUID, createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { DatabaseSync } from "node:sqlite";
 import { createApplication } from "../application.cjs";
 import { createLocalBackup, verifyLocalBackup, restoreLocalBackup } from "../backup.cjs";
 import { SyntheticHttpClient } from "./support.mjs";
@@ -36,7 +37,17 @@ async function fixture() {
   const id = await upload("Saved synthetic reflection");
   assert.equal((await client.request(`/api/evidence/uploads/${id}/submit`, { method: "POST", json: { requestId: randomUUID() } })).status, 200);
   const pendingId = await upload("Unfinished synthetic reflection");
+  const goal = await client.request("/api/learning-goals", { method: "POST", json: { title: "Synthetic durable learning plan", notes: "Private synthetic planning notes for backup coverage.", dueDate: "2028-02-29", steps: [{ id: randomUUID(), title: "A durable checklist step", completed: true }], requestId: randomUUID() } });
+  assert.equal(goal.status, 201);
+  const linkedGoal = await client.request(`/api/learning-goals/${goal.json.id}/evidence`, { method: "POST", json: { evidenceId: id, action: "link", version: goal.json.version, requestId: randomUUID() } });
+  assert.equal(linkedGoal.status, 200);
+  const updates = await client.request("/api/updates"); assert.equal(updates.status, 200);
+  const readUpdate = updates.json.items[0]; assert.equal(readUpdate.type, "appointment");
+  assert.equal((await client.request(`/api/updates/${readUpdate.id}/read`, { method: "POST", json: { requestId: randomUUID() } })).status, 200);
+  const preparation = await client.request(`/api/appointments/${booking.json.id}/preparation`, { method: "PATCH", json: { note: "A private synthetic preparation note.\nOne question for this meeting.", goalId: linkedGoal.json.id, ready: true, version: 0, requestId: randomUUID() } });
+  assert.equal(preparation.status, 200);
   return { root, source, app, client, account, bytes, id, pendingId,
+    goal: linkedGoal.json, readUpdateId: readUpdate.id, preparation: preparation.json,
     backup: join(root, "tala-backup-snapshot"), restored: join(root, "tala-backup-restored"),
     async close() { await app.close(); await rm(root, { recursive: true, force: true }); } };
 }
@@ -69,8 +80,112 @@ test("verified local backup includes private files and restores to a separate di
     assert.equal(workspace.json.progress.submittedEvidenceCount, 1);
     assert.deepEqual((await login.request(`/api/evidence/${f.id}/content`)).bytes, f.bytes);
     assert.equal((await login.request(`/api/evidence/uploads/${f.pendingId}`)).json.status, "uploaded");
+    assert.deepEqual((await login.request("/api/learning-goals")).json.goals, [f.goal], "Restored schema-4 backups preserve goals and checklist steps");
+    assert.equal((await login.request(`/api/learning-goals/${f.goal.id}/evidence`)).json.evidence[0].id, f.id);
+    const updates = (await login.request("/api/updates")).json;
+    assert.equal(updates.items.find((update) => update.id === f.readUpdateId).read, true);
+    assert.equal(updates.unreadCount, 0);
+    assert.deepEqual((await login.request(`/api/appointments/${f.preparation.appointmentId}/preparation`)).json, f.preparation, "Backup restores the student's private meeting-preparation fields");
     assert.equal((await f.client.request("/api/workspace")).status, 200, "Backing up must not log the source account out");
   } finally { await restored?.close(); await f.close(); }
+});
+
+test("schema-2 backups remain verifiable and restore separately before a checked additive schema-4 upgrade", { timeout: 30000 }, async () => {
+  const f = await fixture(); let upgraded;
+  try {
+    // Removing only the new additive table recreates the exact preceding
+    // schema. All preexisting real API-generated synthetic history remains.
+    await f.app.close();
+    const legacy = new DatabaseSync(join(f.source, "tala.sqlite"));
+    legacy.exec("DROP TABLE appointment_preparations; DROP TABLE learning_goal_steps; DROP TABLE learning_goal_evidence; DROP TABLE workspace_update_reads; DROP TABLE learning_goals; DROP INDEX learning_records_owner; PRAGMA user_version=2");
+    const before = {};
+    for (const { name } of legacy.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all()) before[name] = legacy.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all();
+    legacy.close();
+    createLocalBackup({ dataDir: f.source, outputDir: f.backup });
+    assert.equal(JSON.parse(await readFile(join(f.backup, "manifest.json"), "utf8")).schemaVersion, 2);
+    assert.equal(verifyLocalBackup({ directory: f.backup }).status, "verified");
+    restoreLocalBackup({ directory: f.backup, outputDir: f.restored });
+    const restored = new DatabaseSync(join(f.restored, "tala.sqlite"), { readOnly: true });
+    assert.equal(restored.prepare("PRAGMA user_version").get().user_version, 2, "Restore verifies but never silently migrates");
+    assert.equal(restored.prepare("SELECT count(*) AS n FROM sessions").get().n, 0); restored.close();
+    upgraded = createApplication({ dataDir: f.source });
+    assert.equal(upgraded.db.prepare("PRAGMA user_version").get().user_version, 4);
+    for (const [name, rows] of Object.entries(before)) assert.deepEqual(upgraded.db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows, `Schema upgrade preserves all existing ${name} rows`);
+    assert.equal(upgraded.db.prepare("SELECT count(*) AS n FROM learning_goals").get().n, 0);
+    assert.deepEqual(await readFile(join(f.source, `evidence/${f.id}.bin`)), f.bytes);
+    assert.deepEqual(await readFile(join(f.source, `uploads/${f.pendingId}.bin`)), f.bytes);
+    const { readdir } = await import("node:fs/promises");
+    const snapshots = (await readdir(join(f.source, "backups"))).filter((name) => /^tala-v2-.*\.sqlite$/.test(name));
+    assert.equal(snapshots.length, 1);
+    const snapshot = new DatabaseSync(join(f.source, "backups", snapshots[0]), { readOnly: true });
+    assert.equal(snapshot.prepare("PRAGMA user_version").get().user_version, 2);
+    for (const [name, rows] of Object.entries(before)) assert.deepEqual(snapshot.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows);
+    assert.equal(snapshot.prepare("PRAGMA quick_check").get().quick_check, "ok"); snapshot.close();
+    assert.equal((await stat(join(f.source, "backups", snapshots[0]))).mode & 0o777, 0o600);
+    await upgraded.close(); upgraded = undefined;
+    upgraded = createApplication({ dataDir: f.source });
+    assert.equal((await readdir(join(f.source, "backups"))).length, 1, "An already-current schema is not migrated or backed up again");
+  } finally { await upgraded?.close(); await f.close(); }
+});
+
+test("a schema-4 backup cannot claim schema-2 in its manifest", { timeout: 30000 }, async () => {
+  const f = await fixture();
+  try {
+    createLocalBackup({ dataDir: f.source, outputDir: f.backup });
+    const manifestPath = join(f.backup, "manifest.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")); manifest.schemaVersion = 2;
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    assert.throws(() => verifyLocalBackup({ directory: f.backup }), /matching the manifest/);
+    assert.throws(() => restoreLocalBackup({ directory: f.backup, outputDir: f.restored }), /matching the manifest/);
+    await assert.rejects(access(f.restored));
+  } finally { await f.close(); }
+});
+
+test("schema-3 goals and old idempotency receipts survive the checked schema-4 upgrade and compatible backup restore", { timeout: 30000 }, async () => {
+  const f = await fixture(); let upgraded;
+  try {
+    await f.app.close();
+    const old = new DatabaseSync(join(f.source, "tala.sqlite"));
+    old.exec("DROP TABLE appointment_preparations; DROP TABLE learning_goal_steps; DROP TABLE learning_goal_evidence; DROP TABLE workspace_update_reads; DROP INDEX learning_records_owner; PRAGMA user_version=3");
+    // Schema-3 goal receipts lacked the newly introduced fields. Preserve that
+    // real historical shape to test upgrade-compatible uncertain-write retry.
+    const createReceipt = old.prepare("SELECT * FROM operations WHERE kind='create-learning-goal'").get();
+    const oldResult = JSON.parse(createReceipt.result_json); delete oldResult.steps; delete oldResult.linkedEvidenceCount;
+    const oldFingerprint = createHash("sha256").update(JSON.stringify([oldResult.title, oldResult.notes, oldResult.dueDate])).digest("hex");
+    old.prepare("UPDATE operations SET result_json=?,fingerprint=? WHERE uid=? AND kind=? AND request_id=?").run(JSON.stringify(oldResult), oldFingerprint, createReceipt.uid, createReceipt.kind, createReceipt.request_id);
+    const before = {};
+    for (const { name } of old.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all()) before[name] = old.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all();
+    old.close();
+    createLocalBackup({ dataDir: f.source, outputDir: f.backup });
+    assert.equal(JSON.parse(await readFile(join(f.backup, "manifest.json"), "utf8")).schemaVersion, 3);
+    assert.equal(verifyLocalBackup({ directory: f.backup }).status, "verified");
+    restoreLocalBackup({ directory: f.backup, outputDir: f.restored });
+    const restored = new DatabaseSync(join(f.restored, "tala.sqlite"), { readOnly: true });
+    assert.equal(restored.prepare("PRAGMA user_version").get().user_version, 3); assert.equal(restored.prepare("SELECT count(*) AS n FROM sessions").get().n, 0); restored.close();
+    upgraded = createApplication({ dataDir: f.source });
+    assert.equal(upgraded.db.prepare("PRAGMA user_version").get().user_version, 4);
+    for (const [name, rows] of Object.entries(before)) assert.deepEqual(upgraded.db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows);
+    assert.equal(upgraded.db.prepare("SELECT count(*) AS n FROM learning_goal_steps").get().n, 0);
+    assert.equal(upgraded.db.prepare("SELECT count(*) AS n FROM learning_goal_evidence").get().n, 0);
+    await new Promise((resolve) => upgraded.server.listen(0, "127.0.0.1", resolve));
+    const client = f.client.copy(); client.baseUrl = `http://127.0.0.1:${upgraded.server.address().port}`;
+    const goal = (await client.request("/api/learning-goals")).json.goals[0];
+    assert.equal(goal.id, f.goal.id); assert.deepEqual(goal.steps, []); assert.equal(goal.linkedEvidenceCount, 0);
+    const replay = await client.request("/api/learning-goals", { method: "POST", json: { title: oldResult.title, notes: oldResult.notes, dueDate: oldResult.dueDate, requestId: createReceipt.request_id } });
+    assert.equal(replay.status, 201); assert.deepEqual(replay.json, { ...oldResult, steps: [], linkedEvidenceCount: 0 });
+    // This intentionally uses a fresh old-client request for the old goal
+    // shape; omitted steps must remain a supported backward-compatible input.
+    const edited = await client.request(`/api/learning-goals/${goal.id}`, { method: "PATCH", json: { title: goal.title, notes: goal.notes, dueDate: goal.dueDate, status: goal.status, version: goal.version, requestId: randomUUID() } });
+    assert.equal(edited.status, 200); assert.deepEqual(edited.json.steps, []);
+    const { readdir } = await import("node:fs/promises");
+    const snapshots = (await readdir(join(f.source, "backups"))).filter((name) => /^tala-v3-.*\.sqlite$/.test(name));
+    assert.equal(snapshots.length, 1);
+    const snapshot = new DatabaseSync(join(f.source, "backups", snapshots[0]), { readOnly: true });
+    assert.equal(snapshot.prepare("PRAGMA user_version").get().user_version, 3);
+    for (const [name, rows] of Object.entries(before)) assert.deepEqual(snapshot.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows); snapshot.close();
+    assert.equal((await stat(join(f.source, "backups", snapshots[0]))).mode & 0o777, 0o600);
+    assert.deepEqual(await readFile(join(f.source, `evidence/${f.id}.bin`)), f.bytes);
+  } finally { await upgraded?.close(); await f.close(); }
 });
 
 test("backup corruption, missing files and symlinks fail closed without creating a restore", { timeout: 30000 }, async () => {
@@ -167,4 +282,51 @@ test("manifest FIFOs and oversized files are refused before any blocking read or
     assert.throws(() => verifyLocalBackup({ directory: root }), /bounded regular file/);
     assert.equal((await stat(manifest)).size, 16 * 1024 * 1024 + 1, "Verification must not truncate or replace its source");
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("checksummed backups still refuse malformed checklist and preparation metadata before creating any restore", { timeout: 30000 }, async () => {
+  const f = await fixture();
+  try {
+    createLocalBackup({ dataDir: f.source, outputDir: f.backup });
+    const filename = join(f.backup, "tala.sqlite"), manifestPath = join(f.backup, "manifest.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    async function refreshDatabaseChecksum() {
+      const bytes = await readFile(filename);
+      manifest.files = manifest.files.map((entry) => entry.path === "tala.sqlite" ? { path: entry.path, size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") } : entry);
+      await writeFile(manifestPath, JSON.stringify(manifest));
+    }
+    let tampered = new DatabaseSync(filename);
+    const stepId = tampered.prepare("SELECT id FROM learning_goal_steps WHERE goal_id=?").get(f.goal.id).id;
+    tampered.prepare("UPDATE learning_goal_steps SET id='' WHERE goal_id=?").run(f.goal.id);
+    assert.equal(tampered.prepare("PRAGMA quick_check").get().quick_check, "ok", "The malformed identifier does not violate SQLite's structural checks");
+    tampered.exec("PRAGMA wal_checkpoint(TRUNCATE)"); tampered.close();
+    await refreshDatabaseChecksum();
+    assert.throws(() => verifyLocalBackup({ directory: f.backup }), /checklist.*metadata/);
+    assert.throws(() => restoreLocalBackup({ directory: f.backup, outputDir: f.restored }), /checklist.*metadata/); await assert.rejects(access(f.restored));
+    tampered = new DatabaseSync(filename);
+    tampered.prepare("UPDATE learning_goal_steps SET id=? WHERE goal_id=?").run(stepId, f.goal.id);
+    tampered.prepare("UPDATE appointment_preparations SET note=? WHERE appointment_id=?").run("An unsupported\u0001control character", f.preparation.appointmentId);
+    assert.equal(tampered.prepare("PRAGMA quick_check").get().quick_check, "ok");
+    tampered.exec("PRAGMA wal_checkpoint(TRUNCATE)"); tampered.close();
+    await refreshDatabaseChecksum();
+    assert.throws(() => verifyLocalBackup({ directory: f.backup }), /preparation.*metadata/);
+    assert.throws(() => restoreLocalBackup({ directory: f.backup, outputDir: f.restored }), /preparation.*metadata/); await assert.rejects(access(f.restored));
+    assert.deepEqual(await readFile(join(f.source, `evidence/${f.id}.bin`)), f.bytes, "Refusing a restore does not change the live synthetic source");
+  } finally { await f.close(); }
+});
+
+test("goal Evidence and meeting-preparation ownership mismatches are refused even with valid SQLite foreign keys", { timeout: 30000 }, async () => {
+  const f = await fixture();
+  try {
+    const otherUid = randomUUID(), otherGoal = randomUUID(), now = Date.now();
+    f.app.db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)").run(otherUid, `${randomUUID()}@example.test`, "Synthetic second owner", "unused-synthetic-fixture", "student", now);
+    f.app.db.prepare("INSERT INTO learning_goals VALUES(?,?,?,'',NULL,'active',1,?,?,NULL)").run(otherGoal, otherUid, "Synthetic foreign planning record", now, now);
+    f.app.db.prepare("UPDATE learning_goal_evidence SET goal_id=? WHERE evidence_id=?").run(otherGoal, f.id);
+    assert.deepEqual(f.app.db.prepare("PRAGMA foreign_key_check").all(), []);
+    assert.throws(() => createLocalBackup({ dataDir: f.source, outputDir: f.backup }), /Evidence ownership/); await assert.rejects(access(f.backup));
+    f.app.db.prepare("UPDATE learning_goal_evidence SET goal_id=? WHERE evidence_id=?").run(f.goal.id, f.id);
+    f.app.db.prepare("UPDATE appointment_preparations SET goal_id=? WHERE appointment_id=?").run(otherGoal, f.preparation.appointmentId);
+    assert.deepEqual(f.app.db.prepare("PRAGMA foreign_key_check").all(), []);
+    assert.throws(() => createLocalBackup({ dataDir: f.source, outputDir: f.backup }), /preparation ownership/); await assert.rejects(access(f.backup));
+  } finally { await f.close(); }
 });

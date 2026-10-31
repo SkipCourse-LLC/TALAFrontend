@@ -5,12 +5,12 @@ import {
   enrollmentErrorMessage,
   enrollmentService,
   validateEnrollment,
-} from "./enrollmentContract";
+} from "./enrollmentService";
 import type {
   EnrollmentDraft,
   EnrollmentErrors,
   EnrollmentReceipt,
-} from "./enrollmentContract";
+} from "./enrollmentService";
 export function useRegistration(
   onComplete: (receipt: EnrollmentReceipt) => void,
 ) {
