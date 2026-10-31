@@ -196,6 +196,110 @@ test("T3-47 the public calendar shows open times, an empty state and a retryable
   ).toBeVisible();
 });
 
+test.describe("calendar in UTC", () => {
+  test.use({ timezoneId: "UTC" });
+
+  test("calendar day and month follow the API timezone", async ({ page }) => {
+    await mockApi(page, {
+      "GET /api/session": (route) => route.fulfill({ json: anonymous }),
+      "GET /api/public/open-times": (route) =>
+        route.fulfill({
+          json: {
+            times: [
+              {
+                id: "slot-a",
+                startsAt: "2027-01-06T01:00:00.000Z",
+                endsAt: "2027-01-06T01:30:00.000Z",
+              },
+            ],
+            hasMore: false,
+            timeZone: "America/Phoenix",
+          },
+        }),
+    });
+    await page.goto("/#/schedule");
+    await expect(
+      page.getByRole("heading", { name: "Tuesday, January 5" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "January 2027" })).toBeVisible();
+    await expect(page.getByText("6:00 PM – 6:30 PM")).toBeVisible();
+  });
+});
+
+test("a selected public time sends a contact request and shows success only after its receipt", async ({
+  page,
+}) => {
+  const requests: Array<Record<string, unknown>> = [];
+  let accept = false;
+  await mockApi(page, {
+    "GET /api/session": (route) => route.fulfill({ json: anonymous }),
+    "GET /api/public/open-times": (route) =>
+      route.fulfill({
+        json: {
+          times: [
+            {
+              id: "slot-a",
+              startsAt: "2027-01-05T17:00:00.000Z",
+              endsAt: "2027-01-05T17:30:00.000Z",
+            },
+          ],
+          hasMore: false,
+          timeZone: "America/Phoenix",
+        },
+      }),
+    "POST /api/contact-requests": (route) => {
+      requests.push(route.request().postDataJSON());
+      return accept
+        ? route.fulfill({
+            status: 201,
+            json: {
+              id: "request-receipt",
+              status: "received",
+              receivedAt: "2026-10-21T18:00:00.000Z",
+            },
+          })
+        : route.fulfill({
+            status: 503,
+            json: { error: { code: "INTERNAL_ERROR", message: "x" } },
+          });
+    },
+  });
+
+  await page.goto("/#/schedule");
+  await page.getByRole("button", { name: "5", exact: true }).click();
+  await page.getByRole("button", { name: "10:00 AM – 10:30 AM" }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue →" }).click();
+  await page.getByLabel("Name *").fill("Synthetic Parent");
+  await page.getByLabel("Phone *").fill("520-555-0100");
+  await page.getByLabel("Email *").fill("parent@example.test");
+  await page.getByRole("button", { name: "Continue →" }).click();
+  await page.getByRole("button", { name: "Send meeting request" }).click();
+
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Request received" }),
+  ).toHaveCount(0);
+  accept = true;
+  await page.getByRole("button", { name: "Send meeting request" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Request received" }),
+  ).toBeVisible();
+  await expect(page.getByText("your time is not reserved yet")).toBeVisible();
+  expect(requests).toHaveLength(2);
+  expect(requests[0]).toMatchObject({
+    parentName: "Synthetic Parent",
+    email: "parent@example.test",
+    phone: "520-555-0100",
+    preferredMethod: "email",
+    availability: [
+      { day: "tuesday", startTime: "10:00", endTime: "10:30" },
+    ],
+  });
+  expect(requests[1]?.requestId).toBe(requests[0]?.requestId);
+  expect(requests[0]?.notes).toContain("Requested Zoom Video meeting");
+});
+
 const futureSlot = {
   id: "slot-a",
   startsAt: "2027-01-05T17:00:00.000Z",
