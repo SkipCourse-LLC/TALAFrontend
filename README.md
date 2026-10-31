@@ -30,6 +30,10 @@ Sample data, no API: `npm run dev:demo --prefix frontend`.
 | --- | --- | --- |
 | Accounts and sessions; meeting availability (add, edit, withdraw); public open times (`/schedule`); Contact me requests (`/contact`) and the admin request list; student booking; Evidence uploads and review; parent read access | Two-factor, payment, class schedule, enrollment wizard | Email, Zoom, payments, SkipCourse backend |
 
+## Admin page
+
+`/#/admin` lets allowlisted TALA admins draft, publish, unpublish and delete events and opportunities (Firebase Auth, Firestore `tala_drafts` and `jobs`, Storage `tala_uploads`). Set the `VITE_FIREBASE_*` values from `frontend/.env.example`; rules and schema are in [docs/firebase-rules-snippet.md](docs/firebase-rules-snippet.md).
+
 ## Project structure
 
 ```text
@@ -38,6 +42,7 @@ frontend/src/
   onboarding/    Contact me form, public open times
   product/       signed-in app and admin tools
   api/           API client
+  admin/         Firebase-backed events and opportunities admin
   shared/        layout, header, form controls, styles
   authentication/ registration/ payment/ classes/ dashboard/   demo screens
 server/          local API (see server/README.md)

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -20,6 +27,13 @@ import { AccountSecurityPage } from "./AccountSecurityPage";
 import { useSessionPrivacy } from "./useSessionPrivacy";
 import { WorkspaceVisibility } from "./workspaceVisibility";
 import "./product.css";
+
+// Firebase is only downloaded when an administrator opens /admin.
+const AdminPage = lazy(() =>
+  import("../admin/AdminPage").then((module) => ({
+    default: module.AdminPage,
+  })),
+);
 
 function IndependentRouteFocus() {
   const { pathname } = useLocation();
@@ -283,6 +297,20 @@ export function ServerApplication() {
                   user
                     ? null
                     : (unavailable ?? <Navigate to="/login" replace />)
+                }
+              />
+              <Route
+                path="admin"
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="container state-panel" role="status">
+                        Loading admin…
+                      </div>
+                    }
+                  >
+                    <AdminPage />
+                  </Suspense>
                 }
               />
               <Route path="about" element={<AboutPage />} />
