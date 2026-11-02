@@ -8,6 +8,8 @@ const { createServices, userDTO, MAX_FILE_BYTES } = require("./services.cjs");
 const { createAccountServices } = require("./accountServices.cjs");
 const { ApiError, fail, object, text, email, password, hash, token, hashPassword, verifyPassword, constantEqual } = require("./security.cjs");
 assertCurrentRevision();
+const { getEnrollmentConfirmationEmail } = require('./emailTemplates.cjs');
+const { createMeetLink } = require('./googleMeet.cjs');
 
 function createApplication(options = {}) {
   if (Number(process.versions.node.split(".")[0]) < 24) throw new Error("Node.js 24 or newer is required.");
@@ -182,12 +184,52 @@ function createApplication(options = {}) {
         if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "The public calendar does not accept filters.");
         return json(res, services.publicOpenTimes());
       }
-      if (req.method === "POST" && route === "/api/contact-requests") {
+            if (req.method === "POST" && route === "/api/contact-requests") {
         const input = contactRequests.validate(await body(req));
         rate(req, "contact-request", 10);
         rate(req, "contact-request-all", 200, "all-clients");
-        return json(res, contactRequests.submit(input), 201);
+        
+        const receipt = contactRequests.submit(input);
+        const parentDetails = input.details;
+        
+        const parentAddress = parentDetails.notes 
+          ? parentDetails.notes.replace("Parent Registration & Enrollment Meeting. Address: ", "")
+          : "Address not provided";
+
+        // --- GENERATE REAL GOOGLE MEET LINK ---
+        // We hardcode the times for testing right now, but you should pass the real dates
+        const startTime = new Date("2026-11-03T10:00:00").toISOString();
+        const endTime = new Date("2026-11-03T10:30:00").toISOString();
+        
+        console.log("Generating Google Meet link...");
+        const realMeetLink = await createMeetLink(
+          startTime, 
+          endTime, 
+          parentDetails.email, 
+          parentDetails.parentName
+        );
+        
+        // Fallback if Google API fails
+        const finalLink = realMeetLink || "https://meet.google.com/fallback-link";
+
+        const emailHtml = getEnrollmentConfirmationEmail({
+          parentName: parentDetails.parentName,
+          parentEmail: parentDetails.email,
+          parentPhone: parentDetails.phone,
+          parentAddress: parentAddress,
+          meetingDate: "Tuesday, November 3, 2026", 
+          meetingTime: "10:00 AM - 10:30 AM",      
+          meetingLink: finalLink 
+        });
+
+        console.log("\n=============================================");
+        console.log(`MOCK EMAIL SENT TO: ${parentDetails.email}`);
+        console.log(`MEET LINK: ${finalLink}`);
+        console.log("=============================================\n");
+
+        return json(res, receipt, 201);
       }
+
       const actor = actorFor(req);
       let match;
       if (req.method === "GET" && route === "/api/account/sessions") {

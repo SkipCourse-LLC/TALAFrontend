@@ -20,6 +20,7 @@ import { AccountSecurityPage } from "./AccountSecurityPage";
 import { useSessionPrivacy } from "./useSessionPrivacy";
 import { WorkspaceVisibility } from "./workspaceVisibility";
 import "./product.css";
+import { RegisterPage } from "../registration/RegisterPage";
 
 function IndependentRouteFocus() {
   const { pathname } = useLocation();
@@ -267,13 +268,7 @@ export function ServerApplication() {
                   user ? (
                     <Navigate to="/dashboard" replace />
                   ) : (
-                    (unavailable ?? (
-                      <ServerAccessPage
-                        key="register"
-                        register
-                        onAuthenticated={authenticated}
-                      />
-                    ))
+                    (unavailable ?? <RegisterPage />)
                   )
                 }
               />

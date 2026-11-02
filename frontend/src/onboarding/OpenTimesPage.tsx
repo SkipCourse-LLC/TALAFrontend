@@ -34,7 +34,7 @@ const formatMonthYear = (date: Date) => {
 
 export function OpenTimesPage() {
   // Wizard State
-  const [step, setStep] = useState<"time" | "method" | "details" | "review" | "success">("time");
+  const [step, setStep] = useState<"time" | "method" | "details" | "review" | "success" | "request">("time");
   
   // Data State
   const [load, setLoad] = useState<Load>({ state: "loading" });
@@ -52,6 +52,12 @@ export function OpenTimesPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+
+  // Request Form State
+  const [reqDay, setReqDay] = useState("monday");
+  const [reqStart, setReqStart] = useState("09:00");
+  const [reqEnd, setReqEnd] = useState("12:00");
+  const [reqNotes, setReqNotes] = useState("");
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -125,6 +131,7 @@ export function OpenTimesPage() {
     phoneDigits >= 10 &&
     phoneDigits <= 15;
 
+  // --- SUBMIT STANDARD BOOKING ---
   const handleSubmitRequest = async () => {
     if (!selectedSlot || !selectedOpenTime || load.state !== "ready") return;
     setIsSubmitting(true);
@@ -172,6 +179,44 @@ export function OpenTimesPage() {
     }
   };
 
+  // --- SUBMIT CUSTOM TIME REQUEST ---
+  const handleSubmitCustomRequest = async () => {
+    if (!name || !email || !phone) {
+      setErrorMsg("Please fill out your contact details first.");
+      return;
+    }
+    setIsSubmitting(true);
+    setErrorMsg("");
+
+    try {
+      const request: Omit<ContactRequestInput, "requestId"> = {
+        parentName: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        preferredMethod: "email",
+        availability: [{
+          day: reqDay as any,
+          startTime: reqStart,
+          endTime: reqEnd,
+        }],
+        notes: `Specific time request: ${reqNotes}`,
+      };
+      const key = JSON.stringify(request);
+      if (requestAttempt.current?.key !== key)
+        requestAttempt.current = { key, id: newRequestId() };
+      const receipt = await talaApi.submitContactRequest({
+        ...request,
+        requestId: requestAttempt.current.id,
+      });
+      setRequestReceipt(receipt);
+      setStep("success");
+    } catch (error) {
+      setErrorMsg(safeTalaApiError(error).message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (load.state === "loading") return <div style={{ padding: "3rem", textAlign: "center" }}>Loading…</div>;
   if (load.state === "error") return <div style={{ padding: "3rem", textAlign: "center", color: "red" }}>Error: {load.message}</div>;
 
@@ -200,7 +245,9 @@ export function OpenTimesPage() {
             </div>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: "2rem", alignItems: "stretch" }}>
-              <div style={{ flex: "1 1 350px", backgroundColor: "white", padding: "2rem", borderRadius: "12px", border: "1px solid #e5e7eb" }}>
+              
+              {/* LEFT: Calendar Grid */}
+              <div style={{ flex: "1 1 350px", backgroundColor: "white", padding: "2rem", borderRadius: "12px", border: "1px solid #e5e7eb", display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
                   <h2 style={{ fontWeight: 600, fontSize: "1.125rem", color: "#111827" }}>{formatMonthYear(viewedMonth)}</h2>
                   <div style={{ display: "flex", gap: "0.5rem", color: "#9ca3af" }}>
@@ -230,8 +277,19 @@ export function OpenTimesPage() {
                     );
                   })}
                 </div>
+
+                {/* NEW BUTTON UNDER CALENDAR */}
+                <div style={{ marginTop: "auto", paddingTop: "2rem", borderTop: "1px solid #e5e7eb", textAlign: "center" }}>
+                  <button 
+                    onClick={() => setStep("request")} 
+                    style={{ background: "none", border: "none", color: "#1a3c34", fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontSize: "0.9rem" }}
+                  >
+                    Can't find a time? Request a specific time
+                  </button>
+                </div>
               </div>
 
+              {/* RIGHT: Time Slots */}
               <div style={{ flex: "1 1 300px", display: "flex", flexDirection: "column" }}>
                 {activeSlots.length > 0 ? (
                   <>
@@ -260,6 +318,70 @@ export function OpenTimesPage() {
 
             <div style={{ marginTop: "2rem", display: "flex", justifyContent: "flex-end" }}>
               <button disabled={!selectedSlotId} onClick={() => { setErrorMsg(""); setStep("method"); }} style={{ padding: "0.75rem 2rem", borderRadius: "6px", fontWeight: 500, border: "none", backgroundColor: selectedSlotId ? "#111827" : "#e5e7eb", color: selectedSlotId ? "white" : "#9ca3af", cursor: selectedSlotId ? "pointer" : "not-allowed" }}>Continue</button>
+            </div>
+          </>
+        )}
+
+        {/* NEW STEP: CUSTOM TIME REQUEST */}
+        {step === "request" && (
+          <>
+            <div style={{ marginBottom: "2rem" }}>
+              <h1 style={{ fontSize: "2.5rem", fontWeight: 500, color: "#111827", marginBottom: "0.5rem", fontFamily: "Georgia, serif" }}>Request a specific time</h1>
+              <p style={{ color: "#6b7280", fontSize: "1.125rem" }}>Can't find a slot that works? Tell us when you're free and Tina will reach out.</p>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Your Name *</label>
+                  <input required type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "6px" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Phone *</label>
+                  <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "6px" }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Email *</label>
+                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "6px" }} />
+              </div>
+
+              <div style={{ borderTop: "1px solid #e5e7eb", margin: "1rem 0" }}></div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Day of Week</label>
+                  <select value={reqDay} onChange={(e) => setReqDay(e.target.value)} style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "6px" }}>
+                    <option value="monday">Monday</option>
+                    <option value="tuesday">Tuesday</option>
+                    <option value="wednesday">Wednesday</option>
+                    <option value="thursday">Thursday</option>
+                    <option value="friday">Friday</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Start Time (24h)</label>
+                  <input type="time" value={reqStart} onChange={(e) => setReqStart(e.target.value)} style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "6px" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>End Time (24h)</label>
+                  <input type="time" value={reqEnd} onChange={(e) => setReqEnd(e.target.value)} style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "6px" }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 600, color: "#374151", marginBottom: "0.5rem" }}>Additional Notes</label>
+                <textarea value={reqNotes} onChange={(e) => setReqNotes(e.target.value)} placeholder="Let us know if you have any specific constraints..." style={{ width: "100%", padding: "0.75rem", border: "1px solid #d1d5db", borderRadius: "6px", minHeight: "80px" }} />
+              </div>
+            </div>
+
+            <div style={{ marginTop: "3rem", paddingTop: "1.5rem", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <button onClick={() => setStep("time")} style={{ background: "none", border: "none", color: "#4b5563", fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem" }}>&larr; Back to calendar</button>
+              <button disabled={isSubmitting || !isFormValid} onClick={handleSubmitCustomRequest} style={{ padding: "0.75rem 2rem", borderRadius: "6px", fontWeight: 500, border: "none", backgroundColor: "#1a3c34", color: "white", cursor: (isSubmitting || !isFormValid) ? "not-allowed" : "pointer", opacity: (isSubmitting || !isFormValid) ? 0.7 : 1 }}>
+                {isSubmitting ? "Sending..." : "Send Request"}
+              </button>
             </div>
           </>
         )}
@@ -359,7 +481,9 @@ export function OpenTimesPage() {
             <div style={{ marginTop: "2rem", paddingTop: "1.5rem", borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <button onClick={() => setStep("method")} style={{ background: "none", border: "none", color: "#4b5563", fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem" }}>&larr; Back</button>
               <div style={{ textAlign: "right" }}>
-                <button disabled={!isFormValid} onClick={() => setStep("review")} style={{ padding: "0.75rem 2rem", borderRadius: "6px", fontWeight: 500, border: "none", backgroundColor: isFormValid ? "#1a3c34" : "#e5e7eb", color: isFormValid ? "white" : "#9ca3af", cursor: isFormValid ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: "0.5rem" }}>Continue &rarr;</button>
+                                <button disabled={!isFormValid} onClick={() => setStep("review")} style={{ padding: "0.75rem 2rem", borderRadius: "6px", fontWeight: 500, border: "none", backgroundColor: isFormValid ? "#1a3c34" : "#e5e7eb", color: isFormValid ? "white" : "#9ca3af", cursor: isFormValid ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  Continue &rarr;
+                </button>
                 <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "0.5rem" }}>TALA will follow up to confirm availability.</p>
               </div>
             </div>

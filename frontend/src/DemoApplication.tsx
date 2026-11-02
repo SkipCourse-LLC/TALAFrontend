@@ -10,57 +10,34 @@ import { RegisterPage } from "./registration/RegisterPage";
 import { ApprovalPage } from "./payment/ApprovalPage";
 import { PaymentPage } from "./payment/PaymentPage";
 import { resetPaymentDemo } from "./payment/paymentAdapter";
-import { TwoFactorPage } from "./authentication/TwoFactorPage";
-import type { EnrollmentReceipt } from "./registration/enrollmentContract";
 import { LoginPage } from "./authentication/LoginPage";
+import { NotFoundPage } from "./public-site/NotFoundPage";
+import { readDemoSession, saveDemoSession } from "./authentication/authService";
+import type { DemoSession } from "./shared/services/serviceTypes";
+
 const StudentDashboard = lazy(() =>
   import("./dashboard/StudentDashboard").then((module) => ({
     default: module.StudentDashboard,
   })),
 );
-import { NotFoundPage } from "./public-site/NotFoundPage";
-import { readDemoSession, saveDemoSession } from "./authentication/authService";
-import type { DemoSession } from "./shared/services/serviceTypes";
 
 export function DemoApplication() {
   const [session, setSession] = useState(readDemoSession);
   const navigate = useNavigate();
-  const [signup, setSignup] = useState<EnrollmentReceipt | null>(null);
-  const needsVerification = !!signup && !session;
-  function beginVerification(receipt: EnrollmentReceipt) {
-    resetPaymentDemo();
-    saveDemoSession(null);
-    setSession(null);
-    setSignup(receipt);
-    navigate("/two-factor", { replace: true });
-  }
-  function verified() {
-    if (!signup) return;
-    const next: DemoSession = {
-      mode: "demo",
-      role: "Parent",
-      name: signup.parentName,
-      email: signup.parentEmail,
-      studentName: signup.studentName,
-      studentEmail: signup.studentEmail,
-    };
-    resetPaymentDemo();
-    saveDemoSession(next);
-    setSession(next);
-  }
+
   function login(next: DemoSession) {
-    setSignup(null);
     resetPaymentDemo();
     saveDemoSession(next);
     setSession(next);
   }
+
   function logout() {
     resetPaymentDemo();
-    setSignup(null);
     saveDemoSession(null);
     setSession(null);
     navigate("/login", { replace: true });
   }
+
   return (
     <>
       <Routes>
@@ -71,37 +48,20 @@ export function DemoApplication() {
           <Route path="events" element={<CommunityPage kind="events" />} />
           <Route path="contact" element={<CommunityPage kind="contact" />} />
           <Route path="programs" element={<ProgramsPage />} />
-          <Route
-            path="register"
-            element={<RegisterPage onComplete={beginVerification} />}
-          />
-          <Route
-            path="two-factor"
-            element={
-              <TwoFactorPage
-                receipt={signup}
-                verified={!!session}
-                onVerified={verified}
-                onCancel={logout}
-              />
-            }
-          />
+          
+          {/* Render the new self-contained RegisterPage */}
+          <Route path="register" element={<RegisterPage />} />
+          
+          {/* Skip the fake 2FA and go straight to login */}
           <Route
             path="login"
-            element={
-              needsVerification ? (
-                <Navigate to="/two-factor" replace />
-              ) : (
-                <LoginPage onLogin={login} />
-              )
-            }
+            element={<LoginPage onLogin={login} />}
           />
+          
           <Route
             path="dashboard"
             element={
-              needsVerification ? (
-                <Navigate to="/two-factor" replace />
-              ) : session ? (
+              session ? (
                 <Suspense
                   fallback={
                     <div className="container state-panel" role="status">
@@ -111,7 +71,6 @@ export function DemoApplication() {
                 >
                   <StudentDashboard
                     session={session}
-                    enrollment={signup ?? undefined}
                     onLogout={logout}
                   />
                 </Suspense>
@@ -123,9 +82,7 @@ export function DemoApplication() {
           <Route
             path="enrollment-status"
             element={
-              needsVerification ? (
-                <Navigate to="/two-factor" replace />
-              ) : session ? (
+              session ? (
                 <ApprovalPage
                   key={`${session.role}-${session.email}`}
                   session={session}
@@ -138,9 +95,7 @@ export function DemoApplication() {
           <Route
             path="payment"
             element={
-              needsVerification ? (
-                <Navigate to="/two-factor" replace />
-              ) : session ? (
+              session ? (
                 <PaymentPage
                   key={`${session.role}-${session.email}`}
                   session={session}
