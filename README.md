@@ -8,7 +8,7 @@ Captured from the local application using fictional accounts and files.
 
 ![Student workspace](project/screenshots/student-dashboard.png)
 
-[Learning plan](project/screenshots/learning-plan.png) · [Meetings](project/screenshots/meetings.png) · [Evidence](project/screenshots/evidence.png) · [Mobile workspace](project/screenshots/student-mobile.png)
+[Learning plan](project/screenshots/learning-plan.png) · [Meetings](project/screenshots/meetings.png) · [Evidence](project/screenshots/evidence.png) · [Mobile workspace](project/screenshots/student-mobile.png) · [HubSpot payments](project/screenshots/tala-hubspot-payments.png)
 
 ## Install and run
 
