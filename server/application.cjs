@@ -184,7 +184,7 @@ function createApplication(options = {}) {
         if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "The public calendar does not accept filters.");
         return json(res, services.publicOpenTimes());
       }
-            if (req.method === "POST" && route === "/api/contact-requests") {
+      if (req.method === "POST" && route === "/api/contact-requests") {
         const input = contactRequests.validate(await body(req));
         rate(req, "contact-request", 10);
         rate(req, "contact-request-all", 200, "all-clients");
@@ -196,22 +196,25 @@ function createApplication(options = {}) {
           ? parentDetails.notes.replace("Parent Registration & Enrollment Meeting. Address: ", "")
           : "Address not provided";
 
-        // --- GENERATE REAL GOOGLE MEET LINK ---
-        // We hardcode the times for testing right now, but you should pass the real dates
+        // --- 1. CALL THE GOOGLE MEET FUNCTION ---
+        // We use the real start and end times (you can hardcode for now, or pass the selected slot times)
         const startTime = new Date("2026-11-03T10:00:00").toISOString();
         const endTime = new Date("2026-11-03T10:30:00").toISOString();
         
-        console.log("Generating Google Meet link...");
+        const { createMeetLink } = require('./googleMeet.cjs');
+        
+        console.log("Requesting Meet link from Google...");
         const realMeetLink = await createMeetLink(
           startTime, 
           endTime, 
           parentDetails.email, 
           parentDetails.parentName
         );
-        
-        // Fallback if Google API fails
+
+        // If Google fails, it returns null. We use the fallback link if that happens.
         const finalLink = realMeetLink || "https://meet.google.com/fallback-link";
 
+        // --- 2. PASS THE REAL LINK TO THE EMAIL ---
         const emailHtml = getEnrollmentConfirmationEmail({
           parentName: parentDetails.parentName,
           parentEmail: parentDetails.email,
