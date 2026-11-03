@@ -45,6 +45,7 @@ export type FirebaseAuthErrorCode =
   | "MFA_UNAVAILABLE"
   | "CONFIGURATION"
   | "BUSY"
+  | "ACTIVE_SESSION"
   | "UNAVAILABLE";
 
 const messages: Record<FirebaseAuthErrorCode, string> = {
@@ -91,6 +92,8 @@ const messages: Record<FirebaseAuthErrorCode, string> = {
   CONFIGURATION:
     "Firebase configuration is incomplete or has not been approved for this environment.",
   BUSY: "An authentication request is already in progress.",
+  ACTIVE_SESSION:
+    "You are already signed in. Sign out before creating another account.",
   UNAVAILABLE: "Authentication is temporarily unavailable. Try again.",
 };
 

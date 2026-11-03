@@ -1,0 +1,570 @@
+.tala-role-classes {
+  color: #233e35;
+  min-width: 0;
+}
+.tala-role-classes .button-secondary {
+  color: #315b48;
+  background: #fff;
+  border-color: #b6c9bd;
+}
+.tala-role-classes .button-secondary:hover:not(:disabled) {
+  background: #eaf2e8;
+}
+.tala-role-heading,
+.tala-staff-roster > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.tala-role-classes h2 {
+  margin: 0 0 0.4rem;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.tala-role-classes h3 {
+  margin: 0 0 0.65rem;
+  font-size: calc(1.05rem * var(--student-type-scale, 1));
+  font-weight: 600;
+}
+.tala-role-classes p {
+  margin: 0.3rem 0;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  color: #586d63;
+}
+.tala-role-count {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0.4rem 0.65rem;
+  border-radius: 7px;
+  background: #eaf1ed;
+  color: #315b48;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-role-classes .tala-role-prototype {
+  margin-top: 0.9rem;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-role-feedback:empty {
+  display: none;
+}
+.tala-role-classes .tala-role-feedback:not(:empty) {
+  margin-block: 1rem;
+  padding: 0.8rem 1rem;
+  background: #edf6ef;
+  border-left: 3px solid #426c52;
+  color: #264f38;
+}
+.tala-role-classes .tala-role-error {
+  margin-block: 1rem;
+  padding: 0.8rem 1rem;
+  background: #fff2ed;
+  border-left: 3px solid #b35b40;
+  color: #843e2c;
+}
+.tala-role-classes .tala-role-error button,
+.tala-role-footer > button {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #b6c9bd;
+  border-radius: 5px;
+  background: #fff;
+  color: #315b48;
+  min-height: 44px;
+  font: inherit;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+.tala-role-classes .tala-role-empty {
+  margin-block: 1.2rem;
+  padding: 1.1rem;
+  border: 1px dashed #cbd9d0;
+  border-radius: 8px;
+  background: #f7faf7;
+}
+.tala-parent-classes {
+  margin-bottom: 1.75rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid #d5e0d9;
+  border-radius: 16px;
+  background: #fff;
+}
+.tala-parent-class-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2rem;
+}
+.tala-parent-class-summary .button {
+  min-height: 44px;
+  flex: 0 0 auto;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  padding: 0.7rem 0.9rem;
+}
+.tala-parent-class-summary h2 {
+  font-size: calc(1.2rem * var(--student-type-scale, 1));
+}
+.tala-parent-class-summary .tala-parent-summary-error {
+  color: #89533a;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-parent-request-list {
+  display: grid;
+}
+.tala-parent-request-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 1rem 0.2rem;
+}
+.tala-parent-request-filters button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #cbd8cf;
+  border-radius: 7px;
+  background: #fff;
+  color: #486351;
+  font: inherit;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+.tala-parent-request-filters button[aria-pressed="true"] {
+  background: #eaf2e9;
+  border-color: #76967d;
+  color: #284f35;
+}
+.tala-parent-request-filters button > span {
+  background: #eef2ec;
+  min-width: 19px;
+  padding: 0.15rem 0.2rem;
+  border-radius: 5px;
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+}
+.tala-parent-classes .tala-role-footer > span {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: #637766;
+}
+.tala-parent-request {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.1rem 0;
+  border-bottom: 1px solid #e3eae5;
+}
+.tala-parent-request h3 {
+  margin: 0.55rem 0 0.35rem;
+}
+.tala-parent-request > div:first-child {
+  min-width: 0;
+}
+.tala-role-status {
+  display: inline-flex;
+  padding: 0.25rem 0.55rem;
+  border-radius: 5px;
+  background: #eef2f0;
+  color: #4b6257;
+  font-size: calc(0.72rem * var(--student-type-scale, 1));
+  line-height: 1.45;
+}
+.tala-role-status[data-status="pending_approval"],
+.tala-role-status[data-status="pending_payment"] {
+  background: #fcf2da;
+  color: #75551a;
+}
+.tala-role-status[data-status="confirmed"] {
+  background: #e6f2e9;
+  color: #2b6040;
+}
+.tala-role-status[data-status="waitlisted"] {
+  background: #edf0f8;
+  color: #495a80;
+}
+.tala-role-status[data-status="declined"],
+.tala-role-status[data-status="cancelled"] {
+  background: #f4ece9;
+  color: #80594b;
+}
+.tala-parent-request-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  max-width: 255px;
+}
+.tala-parent-request-actions .button {
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  min-height: 44px;
+  padding: 0.6rem 0.8rem;
+}
+.tala-parent-request .tala-role-payment-note {
+  font-size: calc(0.78rem * var(--student-type-scale, 1));
+  max-width: 58ch;
+}
+.tala-role-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.8rem;
+}
+.tala-role-footer label,
+.tala-role-check,
+.tala-role-modes label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 44px;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  color: #526a5b;
+}
+.tala-role-classes input[type="checkbox"] {
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin: 0;
+  accent-color: #315f48;
+}
+.tala-staff-class-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.8fr);
+  align-items: start;
+  gap: 1.75rem;
+  margin-top: 1.5rem;
+}
+.tala-staff-class-catalog,
+.tala-staff-class-form {
+  min-width: 0;
+}
+.tala-role-search {
+  display: grid;
+  gap: 0.45rem;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+.tala-role-classes input:not([type="checkbox"]),
+.tala-role-classes select,
+.tala-role-classes textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #bfcec4;
+  border-radius: 7px;
+  background: #fff;
+  color: #254234;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+}
+.tala-role-classes input:focus-visible,
+.tala-role-classes select:focus-visible,
+.tala-role-classes textarea:focus-visible,
+.tala-role-classes button:focus-visible,
+.tala-role-classes summary:focus-visible {
+  outline: 3px solid #32634d;
+  outline-offset: 3px;
+}
+.tala-staff-class-list {
+  display: grid;
+  gap: 0.6rem;
+}
+.tala-staff-class-option {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #d7e1da;
+  border-radius: 9px;
+  text-align: left;
+  background: #fff;
+  color: #254234;
+  font: inherit;
+}
+.tala-staff-class-option[aria-pressed="true"] {
+  border-color: #49765c;
+  box-shadow: inset 3px 0 #49765c;
+  background: #f4f8f2;
+}
+.tala-staff-class-option > span {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.tala-staff-class-option > span:last-child {
+  justify-items: end;
+}
+.tala-staff-class-option strong {
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
+  overflow-wrap: anywhere;
+}
+.tala-staff-class-option small {
+  color: #586f61;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+}
+.tala-staff-roster {
+  margin-top: 1.25rem;
+  padding: 1.2rem;
+  border: 1px solid #d8e2dc;
+  border-radius: 10px;
+}
+.tala-staff-roster ul {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+}
+.tala-staff-roster-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+.tala-staff-roster-actions > button,
+.tala-class-edit-conflict button {
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #adc6b6;
+  border-radius: 6px;
+  background: #fff;
+  color: #29503b;
+  font: inherit;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  cursor: pointer;
+}
+.tala-staff-roster-totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #dde7df;
+  color: #536b5c;
+  font-size: calc(0.73rem * var(--student-type-scale, 1));
+}
+.tala-staff-roster-totals strong {
+  display: inline-block;
+  min-width: 1.2em;
+  margin-right: 0.25rem;
+  color: #244e38;
+  font-size: calc(1rem * var(--student-type-scale, 1));
+}
+.tala-class-edit-dialog {
+  width: min(700px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  padding: clamp(1.1rem, 3vw, 1.8rem);
+  border: 1px solid #c0d4c7;
+  border-radius: 16px;
+  background: #fff;
+  color: #264638;
+  box-shadow: 0 20px 70px #173a282b;
+}
+.tala-class-edit-dialog::backdrop {
+  background: #15392b66;
+  backdrop-filter: blur(2px);
+}
+.tala-class-edit-dialog > header {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+.tala-class-edit-dialog h2:focus {
+  outline: none;
+}
+.tala-class-edit-dialog header > button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #f0f5f1;
+  color: #3b5d4c;
+  font-size: calc(1.6rem * var(--student-type-scale, 1));
+  cursor: pointer;
+}
+.tala-class-edit-dialog .tala-class-edit-policy {
+  margin-bottom: 1.25rem;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid #537e65;
+  border-radius: 0 7px 7px 0;
+  background: #eff6f0;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+.tala-class-edit-dialog form > fieldset {
+  display: grid;
+  gap: 1rem;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.tala-class-edit-dialog label {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+.tala-class-edit-dialog .tala-role-modes > label {
+  display: inline-flex;
+  margin-right: 1rem;
+}
+.tala-class-edit-dialog :disabled {
+  cursor: not-allowed;
+}
+.tala-class-edit-dialog input:disabled,
+.tala-class-edit-dialog select:disabled {
+  background: #f2f5f2;
+  color: #63786a;
+  border-color: #dce5df;
+}
+.tala-class-edit-dialog footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e8e2;
+}
+.tala-class-edit-dialog .tala-class-edit-footnote {
+  margin-top: 1rem;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-class-edit-conflict {
+  padding: 0.85rem;
+  border: 1px solid #d8be86;
+  border-radius: 7px;
+  background: #fff7e8;
+  margin-bottom: 1rem;
+}
+.tala-class-edit-conflict button {
+  margin-top: 0.65rem;
+}
+.tala-staff-roster li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid #e0e8e2;
+}
+.tala-staff-roster li > div {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.tala-staff-roster li strong {
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+  overflow-wrap: anywhere;
+}
+.tala-staff-roster li small {
+  color: #667b6c;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-class-withdraw {
+  margin-top: 1.2rem;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+.tala-class-withdraw summary {
+  min-height: 44px;
+  cursor: pointer;
+  color: #7e5746;
+}
+.tala-class-withdraw .button {
+  margin-top: 0.75rem;
+}
+.tala-staff-class-form {
+  padding: 1.25rem;
+  border: 1px solid #d9e3d9;
+  border-radius: 12px;
+  background: #f4f8f2;
+}
+.tala-staff-class-form > p {
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  margin-bottom: 1.3rem;
+}
+.tala-staff-class-form form > fieldset {
+  border: 0;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+.tala-staff-class-form form > fieldset > label,
+.tala-role-form-row > label {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  font-weight: 550;
+}
+.tala-role-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.8rem;
+}
+.tala-role-modes {
+  border: 1px solid #d1ded2;
+  padding: 0.7rem;
+  border-radius: 8px;
+}
+.tala-role-modes legend {
+  padding-inline: 0.3rem;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+@media (max-width: 900px) {
+  .tala-staff-class-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .tala-parent-class-summary {
+    align-items: start;
+    flex-direction: column;
+  }
+  .tala-parent-request {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.8rem;
+  }
+  .tala-parent-request-actions {
+    max-width: none;
+  }
+  .tala-role-heading {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .tala-staff-class-option {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .tala-staff-class-option > span:last-child {
+    grid-auto-flow: column;
+    justify-items: start;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .tala-staff-roster {
+    padding: 0.9rem;
+  }
+  .tala-staff-roster li {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .tala-role-form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

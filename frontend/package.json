@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "node scripts/startApplication.mjs",
     "dev:app": "node scripts/startApplication.mjs",
+    "dev:review": "node scripts/startReviewPreview.cjs",
     "dev:demo": "node scripts/startApplication.mjs --demo",
     "dev:firebase": "node scripts/firebase-dev.mjs",
     "dev:test-cloud": "vite --mode firebase-test --host 127.0.0.1 --port 5177 --strictPort",
@@ -26,6 +27,8 @@
     "test:workspace-updates": "playwright test -c src/product/workspaceUpdatesBrowser.config.ts",
     "test:learning-workflow": "playwright test -c src/product/learningWorkflowBrowser.config.ts",
     "test:learning-organization": "playwright test -c src/product/learningOrganizationBrowser.config.ts",
+    "test:learning-experience": "playwright test -c src/product/learningExperienceBrowser.config.ts",
+    "test:learning-experience-unit": "playwright test -c src/product/learningExperienceUnit.config.ts",
     "test:editor-recovery": "playwright test -c src/product/learningEditorRecovery.config.ts",
     "test:evidence-notes": "playwright test -c src/product/evidenceNotesBrowser.config.ts",
     "build": "npm run typecheck && vite build",

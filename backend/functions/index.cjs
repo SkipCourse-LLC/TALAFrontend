@@ -5,7 +5,7 @@ const { TextDecoder } = require("node:util");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { initializeApp, getApps } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
-const { getFirestore, Timestamp } = require("firebase-admin/firestore");
+const { getFirestore, Timestamp, FieldPath } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
 const { MAX_EVIDENCE_BYTES, resolveRuntime } = require("./local-runtime.cjs");
 
@@ -122,10 +122,10 @@ async function identity(request, { student = true } = {}) {
   return { ...services, user, uid: user.uid };
 }
 
-function callable(handler) {
+function callable(handler, options = {}) {
   let cors = false;
   try { cors = resolveRuntime().cors; } catch { /* Invalid runtime remains unavailable, including discovery. */ }
-  return onCall({ region: "us-central1", cors, maxInstances: 10, concurrency: 20 }, handler);
+  return onCall({ region: "us-central1", cors, maxInstances: 10, concurrency: 20, ...options }, handler);
 }
 
 exports.provisionTalaStudent = callable(async (request) => {
@@ -270,6 +270,7 @@ exports.createTalaEvidenceUpload = callable(async (request) => {
     const existing = await tx.get(intentRef);
     if (existing.exists) {
       if (existing.data().fingerprint !== fingerprint) throw new HttpsError("already-exists", "This upload request identifier was already used.");
+      if (!["pending", "finalizing", "submitted"].includes(existing.data().status)) throw new HttpsError("failed-precondition", "This upload was closed. Start a new upload with a new request identifier.");
       return existing.data();
     }
     const appointment = await tx.get(db.doc(path(runtime, "appointments", appointmentId)));
@@ -309,6 +310,126 @@ function validateEvidenceContent(bytes, contentType) {
 function storedEvidencePath(runtime, uid, uploadId, contentType) {
   return `${runtime.storagePrefix}-private/${uid}/${uploadId}/document.${contentType === "application/pdf" ? "pdf" : "txt"}`;
 }
+
+function uploadPaths(runtime, uid, uploadId, intent) {
+  if (!["text/plain", "application/pdf"].includes(intent.contentType)) throw new HttpsError("failed-precondition", "This upload needs a server review before cleanup.");
+  const extension = intent.contentType === "application/pdf" ? "pdf" : "txt";
+  const staging = `${runtime.storagePrefix}/${uid}/${uploadId}/document.${extension}`;
+  if (intent.storagePath !== staging) throw new HttpsError("failed-precondition", "This upload needs a server review before cleanup.");
+  return [staging, storedEvidencePath(runtime, uid, uploadId, intent.contentType)];
+}
+
+/** Terminal intent state is the fence that prevents a competing finalizer publishing. */
+async function closeUnsubmittedUpload(db, runtime, uid, uploadId, mode) {
+  const intentRef = db.doc(path(runtime, "uploads", uploadId));
+  const evidenceRef = db.doc(path(runtime, "evidence", uploadId));
+  return db.runTransaction(async (tx) => {
+    const [intentSnapshot, evidence] = await Promise.all([tx.get(intentRef), tx.get(evidenceRef)]);
+    const intent = intentSnapshot.data();
+    if (!intent || intent.ownerUid !== uid) throw new HttpsError("not-found", "This upload is unavailable.");
+    if (evidence.exists || intent.status === "submitted") {
+      if (mode === "cancel") throw new HttpsError("failed-precondition", "Submitted evidence cannot be cancelled or deleted. Refresh your evidence records.");
+      return null;
+    }
+    uploadPaths(runtime, uid, uploadId, intent);
+    const expired = typeof intent.expiresAt?.toMillis === "function" && intent.expiresAt.toMillis() <= Date.now();
+    const terminal = ["cancelled", "expired", "failed"].includes(intent.status);
+    if (mode === "expired" && !terminal && !expired) return null;
+    if (!["pending", "finalizing", "cancelled", "expired", "failed"].includes(intent.status)) throw new HttpsError("failed-precondition", "This upload requires a server review.");
+    const status = mode === "cancel" ? "cancelled" : terminal ? intent.status : "expired";
+    tx.update(intentRef, { status, closedAt: intent.closedAt || Timestamp.now(), updatedAt: Timestamp.now() });
+    return { ...intent, status };
+  });
+}
+
+/** Deletes only the observed generation after the intent has been terminalized. */
+async function cleanClosedUpload(db, bucket, runtime, uid, uploadId, intent) {
+  let checked = true;
+  for (const storagePath of uploadPaths(runtime, uid, uploadId, intent)) {
+    try {
+      const [metadata] = await bucket.file(storagePath).getMetadata();
+      const generation = String(metadata.generation);
+      if (!/^[0-9]{1,30}$/.test(generation)) { checked = false; continue; }
+      await bucket.file(storagePath, { generation, preconditionOpts: { ifGenerationMatch: generation } }).delete({ ignoreNotFound: true });
+    } catch (error) {
+      if (Number(error.code) !== 404) checked = false;
+    }
+  }
+  // A finished resumable client upload may appear after this check. This is not
+  // an automatic retention guarantee; repeated owner cleanup remains available.
+  await db.runTransaction(async (tx) => {
+    const intentRef = db.doc(path(runtime, "uploads", uploadId));
+    const [current, evidence] = await Promise.all([tx.get(intentRef), tx.get(db.doc(path(runtime, "evidence", uploadId)))]);
+    if (!evidence.exists && current.data()?.ownerUid === uid && ["cancelled", "expired", "failed"].includes(current.data().status)) {
+      tx.update(intentRef, { cleanupCheckedAt: Timestamp.now(), cleanupRetryRequired: !checked });
+    }
+  });
+  return checked ? "checked" : "retry_required";
+}
+
+exports.cancelTalaEvidenceUpload = callable(async (request) => {
+  const data = dataObject(request.data, ["uploadId"]);
+  const uploadId = identifier(data.uploadId, "upload");
+  const { db, bucket, uid, runtime } = await identity(request);
+  const intent = await closeUnsubmittedUpload(db, runtime, uid, uploadId, "cancel");
+  const cleanupStatus = await cleanClosedUpload(db, bucket, runtime, uid, uploadId, intent);
+  return { uploadId, status: "cancelled", cleanupStatus };
+});
+
+exports.cleanupExpiredTalaUploads = callable(async (request) => {
+  const data = dataObject(request.data, ["limit", "cursor"]);
+  const limit = data.limit === undefined ? 10 : data.limit;
+  if (!Number.isInteger(limit) || limit < 1 || limit > 25) throw new HttpsError("invalid-argument", "Cleanup pages must contain between one and twenty-five records.");
+  if (data.cursor != null && (typeof data.cursor !== "string" || !/^[a-f0-9]{64}$/.test(data.cursor))) throw new HttpsError("invalid-argument", "This cleanup cursor is invalid.");
+  const { db, bucket, uid, runtime } = await identity(request);
+  let query = db.collection(`${runtime.collectionPrefix}uploads`).where("ownerUid", "==", uid).orderBy(FieldPath.documentId()).limit(limit);
+  if (data.cursor) query = query.startAfter(data.cursor);
+  const page = await query.get();
+  let closed = 0, cleaned = 0, retryRequired = 0;
+  for (const snapshot of page.docs) {
+    const intent = await closeUnsubmittedUpload(db, runtime, uid, snapshot.id, "expired");
+    if (!intent) continue;
+    closed += 1;
+    if (await cleanClosedUpload(db, bucket, runtime, uid, snapshot.id, intent) === "checked") cleaned += 1;
+    else retryRequired += 1;
+  }
+  return { scanned: page.size, closed, cleaned, retryRequired, nextCursor: page.size === limit ? page.docs[page.docs.length - 1].id : null };
+});
+
+exports.downloadTalaEvidence = callable(async (request) => {
+  const data = dataObject(request.data, ["evidenceId"]);
+  const evidenceId = identifier(data.evidenceId, "evidence");
+  const { db, bucket, uid, runtime } = await identity(request);
+  const recordRef = db.doc(path(runtime, "evidence", evidenceId));
+  const record = (await recordRef.get()).data();
+  if (!record || record.ownerUid !== uid) throw new HttpsError("not-found", "This evidence is unavailable.");
+  const generation = String(record.objectGeneration || "");
+  if (record.status !== "submitted" || !["text/plain", "application/pdf"].includes(record.contentType)
+    || !Number.isInteger(record.size) || record.size < 1 || record.size > MAX_EVIDENCE_BYTES
+    || !/^[a-f0-9]{64}$/.test(record.sha256 || "") || !/^[0-9]{1,30}$/.test(generation)
+    || record.storagePath !== storedEvidencePath(runtime, uid, evidenceId, record.contentType)) {
+    throw new HttpsError("failed-precondition", "This evidence is not available through the private download service. Ask the team to review its storage record.");
+  }
+  let bytes;
+  try {
+    const object = bucket.file(record.storagePath, { generation });
+    const [metadata] = await object.getMetadata();
+    if (String(metadata.generation) !== generation || Number(metadata.size) !== record.size || metadata.contentType !== record.contentType
+      || metadata.metadata?.sha256 !== record.sha256 || metadata.metadata?.ownerUid !== uid || metadata.metadata?.uploadId !== evidenceId
+      || metadata.metadata?.firebaseStorageDownloadTokens) throw new HttpsError("failed-precondition", "This private evidence file changed and needs a server review.");
+    [bytes] = await object.download({ validation: false });
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    if (Number(error.code) === 404) throw new HttpsError("not-found", "This private evidence file is unavailable. Its record was preserved.");
+    throw new HttpsError("unavailable", "The private evidence download could not be completed. Try again.");
+  }
+  if (bytes.length !== record.size || bytes.length > MAX_EVIDENCE_BYTES || digest(bytes) !== record.sha256) throw new HttpsError("failed-precondition", "This evidence checksum changed and needs a server review.");
+  validateEvidenceContent(bytes, record.contentType);
+  const current = (await recordRef.get()).data();
+  if (current?.ownerUid !== uid || current.status !== "submitted" || current.objectGeneration !== record.objectGeneration || current.sha256 !== record.sha256) throw new HttpsError("failed-precondition", "This evidence record changed. Refresh before downloading.");
+  return { evidenceId, contentType: record.contentType, size: bytes.length, sha256: record.sha256,
+    bytesBase64: bytes.toString("base64"), filename: `evidence-${evidenceId.slice(0, 16)}.${record.contentType === "application/pdf" ? "pdf" : "txt"}` };
+}, { concurrency: 4 });
 
 exports.getTalaEvidenceUploadStatus = callable(async (request) => {
   const data = dataObject(request.data, ["uploadId"]);
@@ -436,7 +557,7 @@ exports.submitTalaEvidence = callable(async (request) => {
       const mayDelete = await db.runTransaction(async (tx) => {
         const [saved, current] = await Promise.all([tx.get(evidenceRef), tx.get(intentRef)]);
         if (saved.exists || !current.exists || current.data().ownerUid !== uid || current.data().status === "submitted") return false;
-        tx.update(intentRef, { status: "failed", failureCode: "FINALIZATION_REJECTED", updatedAt: Timestamp.now() });
+        if (["pending", "finalizing"].includes(current.data().status)) tx.update(intentRef, { status: "failed", failureCode: "FINALIZATION_REJECTED", updatedAt: Timestamp.now() });
         return true;
       });
       if (mayDelete) await privateObject.delete({ ignoreNotFound: true });

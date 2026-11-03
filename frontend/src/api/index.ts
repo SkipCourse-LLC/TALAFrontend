@@ -9,6 +9,11 @@ export {
 export { TalaApiError, safeTalaApiError } from "./errors";
 export type { TalaApiErrorCode } from "./errors";
 export type * from "./types";
+export type * from "./calendarContract";
+export type * from "./admissionsContract";
+export type * from "./paymentContract";
+import { talaApi } from "./client";
+export const admissionsApi = talaApi.admissions;
 export type {
   User as ApiUser,
   Workspace as ApiWorkspace,

@@ -58,9 +58,11 @@ export function workspaceUpdateTime(occurredAt: string): string {
 export function workspaceUpdateType(type: WorkspaceUpdate["type"]): string {
   return type === "appointment"
     ? "Meeting"
-    : type === "learning"
-      ? "Learning record"
-      : "Evidence review";
+    : type === "class"
+      ? "Class enrollment"
+      : type === "learning"
+        ? "Learning record"
+        : "Evidence review";
 }
 
 export function mergeWorkspaceUpdates(

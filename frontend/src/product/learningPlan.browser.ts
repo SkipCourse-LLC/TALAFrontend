@@ -180,12 +180,9 @@ async function register(page: Page, role: "student" | "parent" = "student") {
   };
   await page.goto("/#/register");
   await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByLabel("Account type", { exact: true }).selectOption(role);
+  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(account.password);
   await page
     .getByRole("button", { name: "Create account", exact: true })
     .click();
@@ -240,7 +237,7 @@ test("a personal goal persists through navigation, refresh, and signing in again
   await addGoal(page, "Explain one solution in my own words");
   await page
     .getByRole("navigation", { name: "Workspace sections", exact: true })
-    .getByRole("button", { name: "Overview", exact: true })
+    .getByRole("button", { name: "Today", exact: true })
     .click();
   await choosePlan(page);
   await page.reload();
@@ -538,7 +535,7 @@ test("the plan supports keyboard use and readable mobile, tablet, and desktop la
     }
     await page
       .getByRole("navigation", { name: "Workspace sections", exact: true })
-      .getByRole("button", { name: "Overview", exact: true })
+      .getByRole("button", { name: "Today", exact: true })
       .click();
     await expect(page.locator("#overview-heading")).toBeFocused();
     await expect(

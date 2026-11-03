@@ -6,6 +6,7 @@ export interface ApiRequest {
   contentType?: string;
   accept?: string;
   expectedUser?: string;
+  expectedApplication?: string;
   signal?: AbortSignal;
 }
 export interface HttpTransport {
@@ -123,6 +124,11 @@ export function createHttpTransport(options: {
           throw new TalaApiError("INVALID_INPUT");
         // UI identity binding only. Server cookies and permissions authorize.
         headers.set("X-TALA-User", input.expectedUser);
+      }
+      if (input.expectedApplication) {
+        if (!/^[a-zA-Z0-9_-]{1,128}$/.test(input.expectedApplication))
+          throw new TalaApiError("INVALID_INPUT");
+        headers.set("X-TALA-Application", input.expectedApplication);
       }
       if (method !== "GET") {
         const csrf = await options.getCsrfToken(controller.signal);

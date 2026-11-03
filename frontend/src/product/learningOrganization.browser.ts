@@ -181,12 +181,9 @@ async function register(page: Page, role: "student" | "parent" = "student") {
   };
   await page.goto("/#/register");
   await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByLabel("Account type", { exact: true }).selectOption(role);
+  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(account.password);
   await page
     .getByRole("button", { name: "Create account", exact: true })
     .click();

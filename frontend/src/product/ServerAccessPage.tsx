@@ -25,6 +25,8 @@ export function ServerAccessPage({
     "student",
   );
   const [pending, setPending] = useState(false);
+  const [previewAvailable, setPreviewAvailable] = useState(false);
+  const [openingPreview, setOpeningPreview] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<AccessErrors>({});
   const [capsLock, setCapsLock] = useState(false);
@@ -46,6 +48,52 @@ export function ServerAccessPage({
   useEffect(() => {
     if (error) alert.current?.focus();
   }, [error]);
+  useEffect(() => {
+    if (register) return;
+    const request = new AbortController();
+    void talaApi
+      .localStudentPreviewAvailable(request.signal)
+      .then((available) => {
+        if (!request.signal.aborted) setPreviewAvailable(available);
+      })
+      .catch(() => {
+        // An unavailable or unconfigured service must not advertise demo access.
+      });
+    return () => request.abort();
+  }, [register]);
+  async function openStudentPreview() {
+    if (busy.current || !previewAvailable) return;
+    busy.current = true;
+    setPending(true);
+    setOpeningPreview(true);
+    setError("");
+    setFieldErrors({});
+    setRecoveryAvailable(false);
+    const request = new AbortController();
+    controller.current = request;
+    try {
+      const user = await talaApi.enterLocalStudentPreview(request.signal);
+      if (!active.current || request.signal.aborted) return;
+      setPassword("");
+      onAuthenticated(user);
+      navigate("/dashboard?view=calendar", { replace: true });
+    } catch (failure) {
+      if (active.current && !request.signal.aborted) {
+        const problem = safeTalaApiError(failure);
+        setError(problem.message);
+        setRecoveryAvailable(true);
+        setRecoveryUncertain(true);
+      }
+    } finally {
+      busy.current = false;
+      if (active.current) {
+        setPending(false);
+        setOpeningPreview(false);
+        setPassword("");
+        setPasswordVisible(false);
+      }
+    }
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy.current) return;
@@ -150,7 +198,7 @@ export function ServerAccessPage({
         navigate("/dashboard", { replace: true });
       } else
         setError(
-          "No active session was found. Sign in or create your account.",
+          "No active session was found. Sign in or start your registration.",
         );
     } catch (failure) {
       if (active.current && !request.signal.aborted)
@@ -177,6 +225,25 @@ export function ServerAccessPage({
             ? "A space for your next step."
             : "Your learning is waiting."}
         </p>
+        {!register && previewAvailable && (
+          <section
+            className="product-access-preview"
+            aria-label="Local student demo"
+          >
+            <button
+              type="button"
+              className="button button-primary button-full"
+              disabled={pending}
+              onClick={() => void openStudentPreview()}
+            >
+              {openingPreview ? "Opening…" : "Open student demo"}
+            </button>
+            <p>No email or password. Local test account.</p>
+            <span className="product-access-divider">
+              Or sign in to your account
+            </span>
+          </section>
+        )}
         <form onSubmit={submit} aria-busy={pending} noValidate>
           <fieldset className="product-fields" disabled={pending}>
             <legend className="sr-only">
@@ -401,7 +468,7 @@ export function ServerAccessPage({
           {register ? (
             <Link to="/login">Sign in</Link>
           ) : (
-            <Link to="/register">Create account</Link>
+            <Link to="/register">Start registration</Link>
           )}
         </p>
         {!register && (

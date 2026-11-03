@@ -63,13 +63,13 @@ export interface LearningGoalEvidence {
 }
 export interface WorkspaceUpdate {
   id: string;
-  type: "appointment" | "learning" | "review";
+  type: "appointment" | "learning" | "review" | "class";
   title: string;
   summary: string;
   occurredAt: string;
   read: boolean;
   target: {
-    view: "meetings" | "learning" | "evidence";
+    view: "meetings" | "learning" | "evidence" | "classes";
     resourceId: string;
   };
 }
@@ -197,6 +197,8 @@ export interface Evidence {
   id: string;
   ownerUid: string;
   appointmentId: string;
+  /** Empty appointmentId and an explicit classId identify class-linked work. */
+  classId?: string;
   title: string;
   contentType: EvidenceContentType;
   size: number;
@@ -244,6 +246,7 @@ export interface PendingUpload {
   uploadId: string;
   title: string;
   appointmentId: string;
+  classId?: string;
   contentType: EvidenceContentType;
   size: number;
   sha256: string;

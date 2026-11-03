@@ -183,9 +183,10 @@ function createListServices(db, helpers) {
       if (management) requireOperator(actor);
       const status = management ? choice(params, "status", ["all", "available", "reserved", "withdrawn"], "all") : "available";
       const where = ["s.starts_at>?"], values = [Date.now()];
-      if (!management || status === "available") where.push("state.status='published' AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved')");
+      if (!management) where.push("NOT EXISTS(SELECT 1 FROM admissions_slots p WHERE p.slot_id=s.id)");
+      if (!management || status === "available") where.push("state.status='published' AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') AND NOT EXISTS(SELECT 1 FROM admissions_appointments a JOIN slots occupied ON occupied.id=a.slot_id WHERE a.status='reserved' AND occupied.starts_at<s.ends_at AND occupied.ends_at>s.starts_at)");
       else if (status === "withdrawn") where.push("state.status='withdrawn'");
-      else if (status === "reserved") where.push("state.status='published' AND EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved')");
+      else if (status === "reserved") where.push("state.status='published' AND (EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') OR EXISTS(SELECT 1 FROM admissions_appointments a JOIN slots occupied ON occupied.id=a.slot_id WHERE a.status='reserved' AND occupied.starts_at<s.ends_at AND occupied.ends_at>s.starts_at))");
       const result = page(actor, params, management ? "availability-management" : "available-times", null, { status }, {
         select: "SELECT s.* FROM slots s JOIN availability_state state ON state.slot_id=s.id", where, values,
         time: "s.starts_at", timeField: "starts_at", id: "s.id", limit: PAGE_SIZE, ascending: true,

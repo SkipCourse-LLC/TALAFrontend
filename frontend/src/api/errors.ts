@@ -22,6 +22,13 @@ export type TalaApiErrorCode =
   | "INTEGRITY_ERROR"
   | "STORAGE_FULL"
   | "INTEGRATION_UNAVAILABLE"
+  | "ENROLLMENT_INVITATION_REQUIRED"
+  | "APPLICATION_ACCESS_REQUIRED"
+  | "APPLICATION_EXISTS"
+  | "INVITATION_INVALID"
+  | "INVITATION_ALREADY_ISSUED"
+  | "INVALID_FILE"
+  | "CAPACITY_REACHED"
   | "INTERNAL_ERROR";
 
 const messages: Record<TalaApiErrorCode, string> = {
@@ -57,6 +64,20 @@ const messages: Record<TalaApiErrorCode, string> = {
     "Evidence storage is full. Contact an authorized operator before uploading more files. Your saved documents have been kept.",
   INTEGRATION_UNAVAILABLE:
     "This integration is not connected. No external action was confirmed.",
+  ENROLLMENT_INVITATION_REQUIRED:
+    "Start with an interest form. Your account requires an approved enrollment invitation.",
+  APPLICATION_ACCESS_REQUIRED:
+    "Your private application access expired. Contact TALA; do not send private files by email.",
+  APPLICATION_EXISTS:
+    "This browser already has an application. Refresh to continue it.",
+  INVITATION_INVALID:
+    "This invitation has expired, was replaced, or was already used. Ask Tina for a new link.",
+  INVITATION_ALREADY_ISSUED:
+    "An invitation was already created. Refresh, then explicitly replace it if you need a new link.",
+  INVALID_FILE:
+    "Choose a complete PDF or a UTF-8 text file that matches the prepared upload.",
+  CAPACITY_REACHED:
+    "New applications are temporarily unavailable. Contact TALA for help.",
   INTERNAL_ERROR:
     "The action could not be confirmed. Try again when the service is available.",
 };

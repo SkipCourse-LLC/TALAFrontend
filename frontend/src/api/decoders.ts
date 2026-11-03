@@ -156,6 +156,7 @@ export function workspaceUpdate(raw: unknown): WorkspaceUpdate {
     appointment: "meetings",
     learning: "learning",
     review: "evidence",
+    class: "classes",
   } as const;
   if (
     typeof value.type !== "string" ||
@@ -421,6 +422,15 @@ export function appointment(raw: unknown, expectedOwner?: string): Appointment {
       : { learningRecordId: id(value.learningRecordId) }),
   };
 }
+function evidenceContext(value: Record<string, unknown>) {
+  const classId = value.classId === undefined ? undefined : id(value.classId);
+  if (classId) {
+    if (value.appointmentId !== "") throw new TalaApiError("INVALID_RESPONSE");
+    return { appointmentId: "", classId };
+  }
+  return { appointmentId: id(value.appointmentId) };
+}
+
 export function evidence(raw: unknown, expectedOwner?: string): Evidence {
   const value = object(raw);
   const ownerUid = id(value.ownerUid);
@@ -455,7 +465,7 @@ export function evidence(raw: unknown, expectedOwner?: string): Evidence {
   return {
     id: evidenceId,
     ownerUid,
-    appointmentId: id(value.appointmentId),
+    ...evidenceContext(value),
     title: text(value.title, 120),
     contentType: contentType(value.contentType),
     size,
@@ -545,7 +555,7 @@ export function pendingUploads(raw: unknown): PendingUploads {
     return {
       uploadId: id(saved.uploadId),
       title: text(saved.title, 120),
-      appointmentId: id(saved.appointmentId),
+      ...evidenceContext(saved),
       contentType: contentType(saved.contentType),
       size,
       sha256: hash(saved.sha256),

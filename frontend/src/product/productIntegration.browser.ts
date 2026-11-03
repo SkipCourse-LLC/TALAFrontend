@@ -1,3 +1,4 @@
+import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -206,14 +207,9 @@ async function register(
   };
   await page.goto("/#/register");
   await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page
-    .getByRole("combobox", { name: /^Account type/ })
-    .selectOption(role);
+  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(account.password);
   if (loseSavedResponse)
     await page.route("**/api/auth/register", async (route) => {
       // Complete the real server write/cookie rotation, then lose its browser
@@ -275,11 +271,8 @@ async function book(page: Page) {
   await page
     .getByRole("button", { name: "Refresh records", exact: true })
     .click();
-  const select = page.getByLabel("Available meeting time", { exact: true });
-  await expect(select).toBeEnabled();
-  const id = await select.locator("option").nth(1).getAttribute("value");
+  const id = await chooseMeetingTime(page);
   expect(Boolean(id)).toBe(true);
-  await select.selectOption(id!);
   await page.getByRole("button", { name: "Book meeting", exact: true }).click();
   await expect(
     page
@@ -426,9 +419,8 @@ test("student registration, booking changes, private file persistence and mobile
   ).toBeVisible();
   await publishTimes();
   await book(page);
-  const select = page.getByLabel("Available meeting time", { exact: true });
   const originalTime = await page.locator(".meeting-current-time").innerText();
-  await select.selectOption({ index: 1 });
+  await chooseMeetingTime(page);
   await page
     .getByRole("button", { name: "Change booking", exact: true })
     .click();

@@ -14,6 +14,7 @@ import {
   workspaceUpdateTime,
   workspaceUpdateType,
 } from "./workspaceUpdatesHelpers";
+import { useClassWorkspaceRevision } from "./calendar/classWorkspaceSync";
 import "./workspaceUpdates.css";
 
 type UpdateFilter = "all" | "unread";
@@ -48,6 +49,10 @@ function UpdateSymbol({ type }: { type: WorkspaceUpdate["type"] }) {
           <rect x="4" y="5" width="16" height="16" rx="3" />
           <path d="M8 3v4m8-4v4M4 11h16m-12 5h3" />
         </>
+      ) : type === "class" ? (
+        <>
+          <path d="m3 9 9-5 9 5-9 5-9-5Zm4 2v6c3 3 7 3 10 0v-6m4-2v8" />
+        </>
       ) : type === "learning" ? (
         <>
           <path d="M12 6c-2-2-5-2-9-1v14c4-1 7-1 9 1 2-2 5-2 9-1V5c-4-1-7-1-9 1Zm0 0v14" />
@@ -66,9 +71,11 @@ function UpdateSymbol({ type }: { type: WorkspaceUpdate["type"] }) {
 function openLabel(type: WorkspaceUpdate["type"]) {
   return type === "appointment"
     ? "View meeting"
-    : type === "learning"
-      ? "View record"
-      : "View evidence";
+    : type === "class"
+      ? "View class"
+      : type === "learning"
+        ? "View record"
+        : "View evidence";
 }
 
 export function WorkspaceUpdates({
@@ -76,7 +83,7 @@ export function WorkspaceUpdates({
   readOnly,
   visible,
   enabled = true,
-  revision,
+  revision: workspaceRevision,
   onFailure,
   onNavigate,
   onUnreadChange,
@@ -88,11 +95,13 @@ export function WorkspaceUpdates({
   revision: number;
   onFailure: (failure: unknown) => void;
   onNavigate: (
-    view: "meetings" | "learning" | "evidence",
+    view: "meetings" | "learning" | "evidence" | "classes",
     resourceId: string,
   ) => void;
   onUnreadChange?: (count: number) => void;
 }) {
+  const classRevision = useClassWorkspaceRevision(enabled);
+  const revision = workspaceRevision + classRevision;
   const baseId = useId();
   const scope = studentUid ?? "self";
   const [filter, setFilter] = useState<UpdateFilter>("all");
@@ -811,7 +820,7 @@ export function WorkspaceUpdates({
           <p>
             {filter === "unread"
               ? "No unread updates."
-              : "Meeting, learning and feedback updates appear here."}
+              : "Class requests, meetings, learning records and feedback appear here."}
           </p>
           {filter === "unread" && (
             <button
@@ -848,7 +857,8 @@ export function WorkspaceUpdates({
           {readOnly
             ? "The student controls read status."
             : "Opening an update doesn’t mark it read."}{" "}
-          Read status is saved. No email or push notifications are sent.
+          Read status is saved. Class updates show the latest request status. No
+          email or push notifications are sent.
         </p>
       </details>
     </section>

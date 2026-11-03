@@ -35,6 +35,12 @@ import { LearningPlanPanel } from "./LearningPlanPanel";
 import { WorkspaceUpdates } from "./WorkspaceUpdates";
 import { WorkspaceResourceDialog } from "./WorkspaceResourceDialog";
 import { StudentProgress } from "./StudentProgress";
+import { OpenClassesPanel } from "./calendar/OpenClassesPanel";
+import {
+  StudentCalendarPanel,
+  type StudentCalendarPreferences,
+} from "./calendar/StudentCalendarPanel";
+import { useStudentCalendar } from "./calendar/useStudentCalendar";
 import { MeetingPreparationPanel } from "./MeetingPreparationPanel";
 import { LearningRecordsPanel } from "./LearningRecordsPanel";
 import { EvidenceHistoryDialog } from "./EvidenceHistoryDialog";
@@ -62,6 +68,10 @@ import { WorkspaceSyncStatus } from "./WorkspaceSyncStatus";
 import { WorkspaceFeedback } from "./WorkspaceFeedback";
 import { LearningGlyph } from "./LearningGlyph";
 import { WorkspaceDisplayOptions } from "./WorkspaceDisplayOptions";
+import { ParentAdmissionSummary } from "./admissions/ParentAdmissionSummary";
+import { ParentClassApprovals } from "./calendar/ParentClassApprovals";
+import { ParentPaymentSummary } from "../payment/ParentPaymentSummary";
+import { useClassWorkspaceRevision } from "./calendar/classWorkspaceSync";
 import { useTodayPreferences } from "./useTodayPreferences";
 import type { TodayPreferences } from "./studentTodayHelpers";
 import { hasTextControls, isWellFormedText } from "./unicodeText";
@@ -86,7 +96,9 @@ export function ServerWorkspace({
   onProfileSaved: (user: ApiUser) => void;
 }) {
   const workspaceVisible = useWorkspaceVisible();
-  const [, setWorkspaceParams] = useSearchParams();
+  const familyRevision = useClassWorkspaceRevision(user.role === "parent");
+  const [workspaceParams, setWorkspaceParams] = useSearchParams();
+  const parentView = readWorkspaceView(workspaceParams.get("view"));
   const [displayPreferences, setDisplayPreferences] = useTodayPreferences();
   const [family, setFamily] = useState<ApiFamilyLinks>();
   const [familyError, setFamilyError] = useState("");
@@ -99,6 +111,8 @@ export function ServerWorkspace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [unsentWork, setUnsentWork] = useState(false);
+  const [studentSetupDraft, setStudentSetupDraft] = useState(false);
+  const [studentSetupBusy, setStudentSetupBusy] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const running = useRef(false);
   const active = useRef(false);
@@ -143,7 +157,7 @@ export function ServerWorkspace({
         else setFamilyError(safeTalaApiError(failure).message);
       });
     return () => controller.abort();
-  }, [user.role, familyAttempt, onExpired]);
+  }, [user.role, familyAttempt, familyRevision, onExpired]);
   async function accountAction(
     action: (signal: AbortSignal) => Promise<void>,
     onFailure?: (message: string) => void,
@@ -185,23 +199,80 @@ export function ServerWorkspace({
     ? studentUid
     : (linkedStudents[0]?.uid ?? "");
   function requestSignOut() {
-    if (unsentWork || profileDirty) {
+    if (studentSetupBusy) return;
+    if (unsentWork || profileDirty || studentSetupDraft) {
       setError("");
       setConfirmSignOut(true);
     } else void accountAction(() => onLogout());
   }
+  const studentProvisioned = useCallback((uid: string) => {
+    setStudentUid(uid);
+    setFamilyAttempt((value) => value + 1);
+  }, []);
   const heading = (
     <>
       <header className="product-heading">
         <div>
           <p className="student-workspace-label">
-            {user.role === "parent" ? "Family" : "Student"}
+            {user.uid === "tala_local_preview_student_v1"
+              ? "Student demo"
+              : user.role === "parent"
+                ? "Family"
+                : "Student"}
           </p>
           <h1>
             Hello, <bdi>{user.name}</bdi>.
           </h1>
         </div>
       </header>
+      {user.role === "parent" && parentView === "overview" && (
+        <ParentPaymentSummary key={user.uid} onExpired={onExpired} />
+      )}
+      {user.role === "parent" && (
+        <div hidden={parentView !== "overview" && Boolean(selectedUid)}>
+          <ParentAdmissionSummary
+            key={user.uid}
+            ownerUid={user.uid}
+            onExpired={onExpired}
+            onStudentProvisioned={studentProvisioned}
+            onSetupDraftChange={setStudentSetupDraft}
+            onSetupBusyChange={setStudentSetupBusy}
+          />
+        </div>
+      )}
+      {user.role === "parent" && selectedUid && (
+        <div hidden={parentView !== "overview" && parentView !== "classes"}>
+          <ParentClassApprovals
+            key={`${user.uid}:${selectedUid}`}
+            ownerUid={user.uid}
+            studentUid={selectedUid}
+            studentName={
+              linkedStudents.find((student) => student.uid === selectedUid)
+                ?.name ?? "your student"
+            }
+            onExpired={onExpired}
+            compact={parentView !== "classes"}
+            onOpenRequests={() => {
+              setWorkspaceParams((previous) => {
+                const params = new URLSearchParams(previous);
+                params.set("view", "classes");
+                for (const key of [
+                  "document",
+                  "record",
+                  "booking",
+                  "from",
+                  "goal",
+                ])
+                  params.delete(key);
+                return params;
+              });
+              requestAnimationFrame(() =>
+                document.getElementById("classes-heading")?.focus(),
+              );
+            }}
+          />
+        </div>
+      )}
       {error && (
         <p className="product-error" role="alert">
           {error}
@@ -325,8 +396,8 @@ export function ServerWorkspace({
             <p role="status">Checking family access…</p>
           ) : !linkedStudents.length ? (
             <p>
-              No linked students. Ask your operator to confirm your relationship
-              and consent.
+              No linked students yet. Complete authorized Family setup, or
+              contact TALA to review an existing student connection.
             </p>
           ) : (
             <div className="form-field">
@@ -334,7 +405,15 @@ export function ServerWorkspace({
               <select
                 id="linked-student"
                 value={selectedUid}
+                disabled={studentSetupBusy}
                 onChange={(event) => {
+                  if (studentSetupDraft) {
+                    setError(
+                      "Finish student account setup or clear its entered details before switching students.",
+                    );
+                    return;
+                  }
+                  setError("");
                   const next = event.target.value;
                   if (!linkedStudents.some((student) => student.uid === next))
                     return;
@@ -404,14 +483,14 @@ export function ServerWorkspace({
           learnerName={
             linkedStudents.find((student) => student.uid === selectedUid)?.name
           }
-          accountBusy={busy}
+          accountBusy={busy || studentSetupBusy}
           onSignOut={requestSignOut}
         />
       ) : (
         <div className="server-dashboard-shell">
           <WorkspaceSidebar
             user={user}
-            busy={busy}
+            busy={busy || studentSetupBusy}
             disabled
             account={sidebarAccount}
             onSignOut={requestSignOut}
@@ -429,8 +508,14 @@ export function ServerWorkspace({
                 >
                   <LearningGlyph name="goal" />
                 </span>
-                <h2 id="family-next-heading">Connect a student</h2>
-                <p>Your operator must confirm the family link and consent.</p>
+                <h2 id="family-next-heading">
+                  Your student’s workspace comes next
+                </h2>
+                <p>
+                  Use Family setup above after Tina authorizes student access.
+                  Creating the student account also records your approved family
+                  connection.
+                </p>
               </section>
             )}
           </div>
@@ -456,6 +541,7 @@ export function ServerWorkspace({
 type PendingUpload = {
   file: File;
   appointmentId: string;
+  classId?: string;
   title: string;
   sha256: string;
   createId: string;
@@ -632,6 +718,7 @@ function LearningWorkspace({
       params.delete("booking");
       params.delete("from");
       params.delete("goal");
+      params.delete("class");
       return params;
     });
     if (next === view && !detailId && !historyId)
@@ -907,8 +994,19 @@ function LearningWorkspace({
     },
     [],
   );
+  function closeClassDetail() {
+    setSearchParams(
+      (previous) => {
+        const params = new URLSearchParams(previous);
+        params.delete("class");
+        params.delete("from");
+        return params;
+      },
+      { replace: true },
+    );
+  }
   function openUpdateResource(
-    next: "meetings" | "learning" | "evidence",
+    next: "meetings" | "learning" | "evidence" | "classes",
     id: string,
   ) {
     rememberDetailOpener();
@@ -920,11 +1018,13 @@ function LearningWorkspace({
       params.delete("booking");
       params.delete("goal");
       params.set(
-        next === "evidence"
-          ? "document"
-          : next === "learning"
-            ? "record"
-            : "booking",
+        next === "classes"
+          ? "class"
+          : next === "evidence"
+            ? "document"
+            : next === "learning"
+              ? "record"
+              : "booking",
         id,
       );
       params.set("from", "updates");
@@ -997,6 +1097,14 @@ function LearningWorkspace({
     return () => window.clearTimeout(timer);
   }, [documentSearch]);
   const pagesEnabled = Boolean(workspace) && !accessBlocked;
+  const [calendarPreferences, setCalendarPreferences] =
+    useState<StudentCalendarPreferences>();
+  const calendar = useStudentCalendar({
+    ownerUid,
+    enabled: pagesEnabled && !readOnly && actor.role === "student",
+    revision,
+    onExpired,
+  });
   const reflectionDraft = useReflectionDraft({
     enabled: pagesEnabled && !readOnly,
     visible: workspaceVisible && !accessBlocked,
@@ -1149,10 +1257,12 @@ function LearningWorkspace({
     void talaApi
       .getEvidence(revisesId, controller.signal)
       .then(async (saved) => {
-        const booking = await talaApi.getAppointment(
-          saved.appointmentId,
-          controller.signal,
-        );
+        const booking = saved.classId
+          ? undefined
+          : await talaApi.getAppointment(
+              saved.appointmentId,
+              controller.signal,
+            );
         if (!active.current || controller.signal.aborted) return;
         setPinnedEvidence(saved);
         setPinnedBooking(booking);
@@ -1168,7 +1278,8 @@ function LearningWorkspace({
     return () => controller.abort();
   }, [revisesId, revision, accessBlocked, pageFailure]);
   useEffect(() => {
-    if (!appointmentId || accessBlocked) return;
+    if (!appointmentId || appointmentId.startsWith("class:") || accessBlocked)
+      return;
     const controller = new AbortController();
     void talaApi
       .getAppointment(appointmentId, controller.signal)
@@ -1234,6 +1345,35 @@ function LearningWorkspace({
     },
     [run, exportPrivateFile],
   );
+  function beginClassEvidence(classId?: string) {
+    if (readOnly || busy || running.current || accessBlockedRef.current) return;
+    navigateView("evidence");
+    if (evidenceWriting.current) {
+      setNotice(
+        "Your current Evidence is kept. Finish it before starting another.",
+      );
+      return;
+    }
+    if (!classId) return;
+    const course = calendar.data?.enrolled.find(
+      (item) =>
+        item.id === classId &&
+        item.enrollmentStatus === "confirmed" &&
+        Date.parse(item.startsAt) <= Date.now(),
+    );
+    if (!course) {
+      setError(
+        "This class is not ready for Evidence. Refresh your classes and try again.",
+      );
+      return;
+    }
+    setAppointmentId(`class:${classId}`);
+    setEvidenceComposerOpen(true);
+    setEvidenceMode("note");
+    setTitle("Reflection");
+    setAutomaticEvidenceTitle("Reflection");
+    setEvidenceFocusRequest((value) => value + 1);
+  }
   async function beginEvidence(bookingId: string) {
     if (readOnly || busy || running.current || accessBlockedRef.current) return;
     const keptMessage =
@@ -1422,9 +1562,26 @@ function LearningWorkspace({
       revisionTarget.supersededByEvidenceId) &&
     !pending,
   );
-  const selectedAppointment = revisionTarget
-    ? revisionTarget.appointmentId
-    : appointmentId || evidenceAppointments[0]?.id || "";
+  const evidenceClasses = (calendar.data?.enrolled ?? []).filter(
+    (course) =>
+      course.source === "local_catalog" &&
+      course.enrollmentStatus === "confirmed" &&
+      Date.parse(course.startsAt) <= Date.now(),
+  );
+  const selectedContext = revisionTarget
+    ? revisionTarget.classId
+      ? `class:${revisionTarget.classId}`
+      : revisionTarget.appointmentId
+    : appointmentId ||
+      evidenceAppointments[0]?.id ||
+      (evidenceClasses[0] ? `class:${evidenceClasses[0].id}` : "");
+  const selectedClassId = selectedContext.startsWith("class:")
+    ? selectedContext.slice(6)
+    : undefined;
+  const selectedClass = evidenceClasses.find(
+    (course) => course.id === selectedClassId,
+  );
+  const selectedAppointment = selectedClassId ? "" : selectedContext;
   const selectedBooking = evidenceAppointments.find(
     (item) => item.id === selectedAppointment,
   );
@@ -1476,7 +1633,9 @@ function LearningWorkspace({
       setEvidenceComposerOpen(true);
       setPinnedEvidence(evidence);
       setRevisesId(evidence.id);
-      setAppointmentId(evidence.appointmentId);
+      setAppointmentId(
+        evidence.classId ? `class:${evidence.classId}` : evidence.appointmentId,
+      );
       setTitle(evidence.title);
       setAutomaticEvidenceTitle("");
       setError("");
@@ -1496,7 +1655,8 @@ function LearningWorkspace({
       reflectionDraft.uncertain
     )
       return;
-    if (selectedBooking) {
+    if (selectedClass) setAppointmentId(`class:${selectedClass.id}`);
+    else if (selectedBooking) {
       setPinnedBooking(selectedBooking);
       setAppointmentId(selectedBooking.id);
     }
@@ -1535,6 +1695,7 @@ function LearningWorkspace({
         upload.intent = await talaApi.createEvidenceUpload(
           {
             appointmentId: upload.appointmentId,
+            ...(upload.classId ? { classId: upload.classId } : {}),
             title: upload.title,
             contentType,
             size: upload.file.size,
@@ -1584,7 +1745,7 @@ function LearningWorkspace({
         formatConfirming ||
         confirmClearEvidence ||
         evidenceTitleProblem ||
-        !selectedAppointment
+        (!selectedBooking && !selectedClass)
       )
         throw new TalaApiError("INVALID_INPUT");
       if (evidenceMode === "note" && evidenceNoteProblem(reflection))
@@ -1601,6 +1762,7 @@ function LearningWorkspace({
         file: sourceFile,
         title: title.trim(),
         appointmentId: selectedAppointment,
+        ...(selectedClassId ? { classId: selectedClassId } : {}),
         sha256,
         createId: newRequestId(),
         submitId: newRequestId(),
@@ -1624,6 +1786,7 @@ function LearningWorkspace({
     if (
       submitted.evidence.ownerUid !== ownerUid ||
       submitted.evidence.appointmentId !== upload.appointmentId ||
+      submitted.evidence.classId !== upload.classId ||
       submitted.evidence.sha256 !== upload.sha256 ||
       submitted.evidence.size !== upload.file.size ||
       submitted.evidence.title !== upload.title ||
@@ -1769,8 +1932,8 @@ function LearningWorkspace({
                 ? "Retry to confirm this same upload."
                 : revisionStale
                   ? "Choose a current document to revise."
-                  : !selectedBooking
-                    ? "Choose a saved meeting."
+                  : !selectedBooking && !selectedClass
+                    ? "Choose a saved meeting or confirmed class that has started."
                     : evidenceTitleProblem
                       ? evidenceTitleProblem
                       : evidenceMode === "note"
@@ -1841,7 +2004,7 @@ function LearningWorkspace({
         onNavigate={navigateView}
         onSignOut={onSignOut}
       />
-      <div className="server-dashboard-main">
+      <div className="server-dashboard-main" data-workspace-view={view}>
         {heading}
         {readOnly && (
           <p className="student-family-notice student-family-context">
@@ -1911,6 +2074,11 @@ function LearningWorkspace({
             }
             unreadUpdates={accessBlocked ? undefined : unreadUpdates}
             onNavigate={navigateView}
+            onOpenClasses={readOnly ? undefined : () => navigateView("classes")}
+            calendar={calendar.data}
+            calendarLoading={calendar.loading}
+            calendarError={calendar.error}
+            onCalendar={readOnly ? undefined : () => navigateView("calendar")}
             onGoal={openPlan}
             onBooking={openTodayBooking}
             onLearning={(id) => openLearningDetails(id, "overview")}
@@ -1920,6 +2088,63 @@ function LearningWorkspace({
               navigateView("evidence");
               setResumeReflectionRequest((value) => value + 1);
             }}
+          />
+        )}
+        {view === "calendar" &&
+          !accessBlocked &&
+          (readOnly ? (
+            <section aria-labelledby="calendar-heading">
+              <h2 id="calendar-heading" tabIndex={-1}>
+                Calendar
+              </h2>
+              <p>Open Calendar from the student’s workspace.</p>
+            </section>
+          ) : (
+            <StudentCalendarPanel
+              initialClassId={searchParams.get("class") ?? undefined}
+              onCloseClass={closeClassDetail}
+              preferences={calendarPreferences}
+              onPreferencesChange={setCalendarPreferences}
+              data={calendar.data}
+              loading={calendar.loading}
+              error={calendar.error}
+              notice={calendar.notice}
+              busyClassId={calendar.busyClassId}
+              readOnly={readOnly || !pagesEnabled || accountBusy}
+              month={calendar.month}
+              onMonthChange={calendar.setMonth}
+              onEnroll={calendar.enroll}
+              onCancel={calendar.cancel}
+              onUpdateRequest={calendar.updateRequest}
+              onRetry={calendar.retry}
+              goals={goals.loaded ? goals.items : undefined}
+              onMeeting={(id) => openBookingId(id, "calendar")}
+              onGoals={() => navigateView("plan")}
+              onProgress={() => navigateView("progress")}
+              onOpenClasses={() => navigateView("classes")}
+              onEvidence={beginClassEvidence}
+            />
+          ))}
+        {view === "classes" && !readOnly && !accessBlocked && (
+          <OpenClassesPanel
+            ownerUid={ownerUid}
+            onExpired={onExpired}
+            initialClassId={searchParams.get("class") ?? undefined}
+            onCloseClass={closeClassDetail}
+            courses={calendar.catalog ?? []}
+            goals={goals.loaded ? goals.items : undefined}
+            loading={calendar.loading}
+            error={calendar.error}
+            notice={calendar.notice}
+            busyClassId={calendar.busyClassId}
+            readOnly={!pagesEnabled || accountBusy}
+            onEnroll={calendar.enroll}
+            onCancel={calendar.cancel}
+            onUpdateRequest={calendar.updateRequest}
+            onRetry={calendar.retry}
+            onCalendar={() => navigateView("calendar")}
+            onGoals={() => navigateView("plan")}
+            onEvidence={beginClassEvidence}
           />
         )}
         <div className="product-grid student-focused-content">
@@ -2258,7 +2483,11 @@ function LearningWorkspace({
                                 (item) => item.id === id,
                               );
                               if (target) {
-                                setAppointmentId(target.appointmentId);
+                                setAppointmentId(
+                                  target.classId
+                                    ? `class:${target.classId}`
+                                    : target.appointmentId,
+                                );
                                 if (!title.trim()) {
                                   setTitle(target.title);
                                   setAutomaticEvidenceTitle("");
@@ -2306,7 +2535,7 @@ function LearningWorkspace({
                       <div className="form-field">
                         <div className="student-evidence-booking-label">
                           <label htmlFor="evidence-appointment">
-                            Related booking
+                            Learning context
                           </label>
                           {selectedBooking && (
                             <button
@@ -2325,7 +2554,7 @@ function LearningWorkspace({
                         <select
                           id="evidence-appointment"
                           required
-                          value={selectedAppointment}
+                          value={selectedContext}
                           disabled={Boolean(revisesId)}
                           onChange={(event) => {
                             setAppointmentId(event.target.value);
@@ -2335,17 +2564,32 @@ function LearningWorkspace({
                             if (saved) setPinnedBooking(saved);
                           }}
                         >
-                          {!evidenceAppointments.length && (
-                            <option value="">
-                              Choose a saved booking before submitting
-                            </option>
-                          )}
+                          {!evidenceAppointments.length &&
+                            !evidenceClasses.length && (
+                              <option value="">
+                                Choose a saved meeting or confirmed class
+                              </option>
+                            )}
                           {evidenceAppointments.map((appointment) => (
                             <option key={appointment.id} value={appointment.id}>
                               {meetingTime(
                                 appointment.startsAt,
                                 appointment.endsAt,
                               )}
+                            </option>
+                          ))}
+                          {evidenceClasses.map((course) => (
+                            <option
+                              key={`class:${course.id}`}
+                              value={`class:${course.id}`}
+                            >
+                              {course.title} ·{" "}
+                              {new Intl.DateTimeFormat("en-US", {
+                                timeZone: "America/Phoenix",
+                                month: "short",
+                                day: "numeric",
+                              }).format(new Date(course.startsAt))}{" "}
+                              · Class
                             </option>
                           ))}
                           {selectedAppointment &&
@@ -2356,16 +2600,26 @@ function LearningWorkspace({
                                 Selected booking — refresh to confirm
                               </option>
                             )}
+                          {selectedClassId && !selectedClass && (
+                            <option value={selectedContext} disabled>
+                              Selected class — refresh to confirm enrollment
+                            </option>
+                          )}
                         </select>
-                        {!selectedBooking && selectedAppointment && (
-                          <p className="product-error">
-                            Refresh records to confirm this booking before
-                            submitting. Your file is kept.
-                          </p>
-                        )}
-                        {!selectedAppointment && (
+                        {!selectedBooking &&
+                          !selectedClass &&
+                          selectedContext && (
+                            <p className="product-error">
+                              Refresh records to confirm this learning context
+                              before submitting. Your file is kept.
+                            </p>
+                          )}
+                        {!selectedContext && (
                           <div className="student-evidence-booking-hint">
-                            <p>A saved meeting is needed to submit.</p>
+                            <p>
+                              Choose a saved meeting, or a confirmed class once
+                              its session starts.
+                            </p>
                             <button
                               type="button"
                               className="student-evidence-meeting-action"
@@ -2374,6 +2628,12 @@ function LearningWorkspace({
                               Find a meeting
                             </button>
                           </div>
+                        )}
+                        {selectedClass && (
+                          <p className="student-evidence-ready">
+                            Linked to your confirmed class. This reflection does
+                            not verify attendance or course credit.
+                          </p>
                         )}
                       </div>
                       <div className="form-field">
@@ -2413,7 +2673,9 @@ function LearningWorkspace({
                           value={reflection}
                           disabled={readOnly || busy || Boolean(pending)}
                           onChange={(value) => {
-                            if (selectedBooking) {
+                            if (selectedClass)
+                              setAppointmentId(`class:${selectedClass.id}`);
+                            else if (selectedBooking) {
                               setPinnedBooking(selectedBooking);
                               setAppointmentId(selectedBooking.id);
                             }
@@ -2458,7 +2720,7 @@ function LearningWorkspace({
                           formatConfirming ||
                           confirmClearEvidence ||
                           revisionStale ||
-                          !selectedBooking ||
+                          (!selectedBooking && !selectedClass) ||
                           (!pending &&
                             (Boolean(evidenceTitleProblem) ||
                               (evidenceMode === "note"
@@ -2602,6 +2864,13 @@ function LearningWorkspace({
           </div>
           <aside className="product-side">
             <StudentProgress
+              onOpenClasses={
+                readOnly ? undefined : () => navigateView("classes")
+              }
+              calendar={calendar.data}
+              calendarLoading={calendar.loading}
+              calendarError={calendar.error}
+              onCalendar={readOnly ? undefined : () => navigateView("calendar")}
               workspace={workspace}
               goals={goals.loaded ? goals.items : undefined}
               loading={loading || goals.loading}

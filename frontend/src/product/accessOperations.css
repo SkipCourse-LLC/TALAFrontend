@@ -192,6 +192,26 @@
   font-weight: 600;
   text-underline-offset: 4px;
 }
+.product-access-preview > p {
+  margin: 10px 0 22px;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+}
+.product-access-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+}
+.product-access-divider::before,
+.product-access-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--color-line);
+}
 .product-access .button-primary {
   min-height: 50px;
   border: 1px solid #214c3b;

@@ -1,0 +1,243 @@
+.student-account-setup {
+  padding: 1.25rem;
+  margin-top: 1.1rem;
+  border: 1px solid #b9d0c0;
+  border-radius: 14px;
+  background: #f4f8f2;
+  color: #294737;
+}
+.student-account-setup > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.student-account-setup h4,
+.student-account-ready h4,
+.student-account-waiting h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.student-account-setup p,
+.student-account-ready p,
+.student-account-waiting p {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: #526a5b;
+  margin: 0.4rem 0;
+}
+.student-account-setup .student-setup-expiry {
+  font-size: 0.75rem;
+  margin: 0.85rem 0 1.1rem;
+}
+.student-account-setup form > fieldset {
+  display: grid;
+  gap: 1rem;
+  max-width: 570px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.student-account-setup form label:not(.student-setup-consent) {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 550;
+}
+.student-setup-field {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.student-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+.parent-enrollment-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.parent-enrollment-heading .button {
+  min-height: 44px;
+  font-size: 0.8rem;
+  padding: 0.6rem 0.8rem;
+}
+.student-account-setup .button-secondary,
+.student-account-waiting .button-secondary,
+.parent-enrollment-heading .button-secondary {
+  color: #31573f;
+  background: #fff;
+  border-color: #b7cbbc;
+}
+.student-account-setup .button-secondary:hover:not(:disabled),
+.student-account-waiting .button-secondary:hover:not(:disabled),
+.parent-enrollment-heading .button-secondary:hover:not(:disabled) {
+  background: #eaf3e8;
+}
+.student-account-setup form input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  border: 1px solid #b2c5b9;
+  border-radius: 7px;
+  padding: 0.7rem;
+  color: #264331;
+  background: #fff;
+  font: inherit;
+}
+.student-setup-password {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  min-width: 0;
+}
+.student-setup-password input {
+  flex: 1;
+}
+.student-setup-password button {
+  min-height: 46px;
+  min-width: 60px;
+  padding: 0.6rem;
+  border: 1px solid #b2c5b9;
+  border-radius: 7px;
+  color: #31573f;
+  background: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.student-setup-field-hint,
+.student-setup-field-error {
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.55;
+}
+.student-setup-field-hint {
+  color: #5d7164;
+}
+.student-setup-field-error {
+  color: #8a4232;
+}
+.student-account-setup input[aria-invalid="true"] {
+  border-color: #a35843 !important;
+}
+.student-account-setup .student-setup-consent {
+  display: flex;
+  align-items: start;
+  gap: 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+.student-setup-consent input {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  margin: 0.2rem 0 0;
+  accent-color: #315f48;
+}
+.student-account-setup .student-setup-error {
+  border-left: 3px solid #a5563f;
+  padding: 0.8rem;
+  color: #843e2d;
+  background: #fff0eb;
+  margin: 1rem 0;
+}
+.student-setup-recovery {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+}
+.student-account-ready {
+  display: flex;
+  align-items: start;
+  gap: 0.8rem;
+  background: #edf6ed;
+  border-radius: 10px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+.student-account-ready > span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #d8e9d9;
+  color: #2b623b;
+}
+.student-account-waiting {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #f7f9f6;
+  border: 1px solid #dce5db;
+  border-radius: 10px;
+}
+.student-account-waiting button {
+  margin-top: 0.7rem;
+}
+.student-account-setup :is(button, input):focus-visible {
+  outline: 3px solid #315f48;
+  outline-offset: 3px;
+}
+.admissions-student-authorization {
+  padding: 1.2rem;
+  border: 1px solid #c9dacd;
+  border-radius: 12px;
+  background: #f4f8f2;
+}
+.admissions-student-authorization .admissions-check {
+  display: flex;
+  align-items: start;
+  gap: 0.6rem;
+  margin-block: 1rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+.admissions-student-authorization input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin-top: 0.2rem;
+  accent-color: #315f48;
+}
+.admissions-student-authorization .button {
+  margin-top: 0.7rem;
+}
+.admissions-student-authorization .admissions-setup-steps {
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0.85rem 0;
+  color: #607365;
+  font-size: 0.8rem;
+}
+.admissions-setup-steps li[data-complete="true"] {
+  color: #326142;
+}
+@media (max-width: 600px) {
+  .parent-enrollment-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .student-setup-actions {
+    flex-direction: column;
+  }
+  .student-account-setup {
+    padding: 1rem;
+  }
+  .student-account-setup > header {
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  .student-setup-actions > .button {
+    width: 100%;
+    font-size: 0.8rem;
+    padding-inline: 0.6rem;
+  }
+}

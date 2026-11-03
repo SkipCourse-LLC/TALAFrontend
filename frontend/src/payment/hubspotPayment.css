@@ -1,0 +1,94 @@
+/* Extends the existing TALA payment layout; the legacy preview stays scoped. */
+.payment-page .hubspot-payment-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 24px;
+  margin-bottom: 20px;
+  border: 1px solid #cadbd5;
+  border-radius: 16px;
+  background: #edf4f1;
+}
+.payment-page .hubspot-payment-intro p { max-width: 70ch; margin-top: 4px; font-size: .875rem; }
+.payment-page .hubspot-provider-label { flex-shrink: 0; color: var(--pay-accent); font-size: .8125rem; font-weight: 600; }
+.payment-page .hubspot-payment-verification { padding: 16px 20px; margin-bottom: 16px; border-left: 3px solid #a77c19; background: #fcf6e8; border-radius: 4px 12px 12px 4px; font-size: .875rem; }
+.payment-page .hubspot-payment-verification p { margin-top: 5px; color: #675522; }
+.payment-page .hubspot-payment-layout { grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; }
+.payment-page .hubspot-payment-items { display: grid; gap: 12px; min-width: 0; padding: 0; margin: 24px 0 0; border: 0; }
+.payment-page .hubspot-payment-item { display: flex; align-items: flex-start; gap: 12px; min-width: 0; padding: 18px; border: 1px solid var(--pay-line); border-radius: 12px; cursor: pointer; }
+.payment-page .hubspot-payment-item.is-selected { border-color: var(--pay-accent); box-shadow: inset 0 0 0 1px var(--pay-accent); background: #f5f9f7; }
+.payment-page .hubspot-payment-item input, .payment-page .hubspot-funding-options input { width: 18px; height: 18px; flex-shrink: 0; margin: 3px 0 0; accent-color: var(--pay-accent); }
+.payment-page .hubspot-payment-item-content { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
+.payment-page .hubspot-payment-item-content > strong { font-size: .9375rem; overflow-wrap: anywhere; }
+.payment-page .hubspot-payment-item-content > span:not(.hubspot-payment-status) { color: var(--pay-muted); font-size: .8125rem; overflow-wrap: anywhere; }
+.payment-page .hubspot-payment-item-price { flex-shrink: 0; font-size: .9375rem; font-weight: 600; }
+.payment-page .hubspot-payment-status { display: inline-block; padding: 3px 9px; color: #66501d; background: #f7edce; border-radius: 6px; font-size: .75rem; font-weight: 600; line-height: 1.5; }
+.payment-page .hubspot-payment-status-paid { color: #20533e; background: #e2f0e7; }
+.payment-page .hubspot-payment-status-failed { color: #8a342b; background: #f8e6e2; }
+.payment-page :is(.hubspot-payment-status-cancelled,.hubspot-payment-status-refunded) { color: #535960; background: #edf0f2; }
+.payment-page .hubspot-payment-status-unpaid { color: #20533e; background: #e5eee9; }
+.payment-page .hubspot-payment-selected { margin-top: 20px; padding-top: 4px; }
+.payment-page .hubspot-payment-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin: 0 0 20px; border-bottom: 1px solid var(--pay-line); }
+.payment-page .hubspot-payment-summary > div { border: 0; }
+.payment-page .hubspot-payment-blocked { padding: 14px 16px; margin: 16px 0; border-radius: 8px; background: var(--pay-paper); font-size: .875rem; }
+.payment-page .hubspot-payment-current { padding: 16px; margin-bottom: 20px; border-radius: 12px; background: var(--pay-paper); }
+.payment-page .hubspot-payment-current p { margin-top: 9px; font-size: .875rem; }
+.payment-page .hubspot-payment-current button { margin-top: 14px; }
+.payment-page .hubspot-funding-options { min-width: 0; margin: 24px 0 20px; padding: 0; border: 0; }
+.payment-page .hubspot-funding-options legend { margin-bottom: 12px; font-size: 1rem; font-weight: 600; }
+.payment-page .hubspot-funding-options label { display: flex; gap: 12px; padding: 13px 0; cursor: pointer; }
+.payment-page .hubspot-funding-options label + label { border-top: 1px solid var(--pay-line); }
+.payment-page .hubspot-funding-options strong { display: block; font-size: .875rem; }
+.payment-page .hubspot-funding-options small { display: block; margin-top: 3px; color: var(--pay-muted); font-size: .8125rem; }
+.payment-page .hubspot-payment-selected > .payment-submit { margin-top: 16px; }
+.payment-page .hubspot-payment-selected .payment-details button { margin-block: 16px 4px; }
+.payment-page .hubspot-payment-empty { padding-block: 28px 8px; }
+.payment-page .hubspot-payment-empty p { font-size: .875rem; }
+.payment-page .hubspot-payment-empty a { display: inline-flex; align-items: center; min-height: 44px; margin-top: 12px; color: var(--pay-accent); text-underline-offset: 3px; }
+.payment-page .hubspot-payment-context h2 { margin-bottom: 20px; }
+.payment-page .hubspot-payment-product + .hubspot-payment-product { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--pay-line); }
+.payment-page .hubspot-product-price { margin: 12px 0 8px; color: var(--pay-ink); font-size: 1.65rem; font-weight: 600; letter-spacing: -.025em; }
+.payment-page .hubspot-product-price span { display: block; color: var(--pay-muted); font-size: .8125rem; font-weight: 400; letter-spacing: 0; }
+.payment-page .hubspot-payment-product > .payment-small { margin-top: 10px; }
+.payment-page .hubspot-payment-next { margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--pay-line); }
+.payment-page .hubspot-payment-next p { font-size: .8125rem; }
+.payment-page .hubspot-payment-next p + p { margin-top: 10px; }
+.payment-page .hubspot-payment-history { margin-top: 24px; }
+.payment-page .hubspot-payment-history-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.payment-page .hubspot-payment-history-heading h2 { margin-bottom: 4px; }
+.payment-page .hubspot-payment-ledger { padding: 0; margin-top: 24px; list-style: none; }
+.payment-page .hubspot-payment-ledger > li { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 22px 0; border-top: 1px solid var(--pay-line); }
+.payment-page .hubspot-payment-ledger-main { min-width: 0; flex: 1; }
+.payment-page .hubspot-payment-ledger-main h3 { overflow-wrap: anywhere; }
+.payment-page .hubspot-payment-ledger-main > p { font-size: .875rem; }
+.payment-page .hubspot-payment-ledger-main > p + p { margin-top: 6px; }
+.payment-page .hubspot-payment-ledger-state { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.payment-page .hubspot-payment-ledger-state > strong { font-size: 1.125rem; }
+.payment-page .hubspot-payment-reference { margin-top: 6px; font-size: .8125rem; }
+.payment-page .hubspot-payment-reference summary { color: var(--pay-muted); }
+.payment-page .hubspot-payment-reference dl { display: grid; gap: 8px; }
+.payment-page .hubspot-payment-reference dt { color: var(--pay-muted); }
+.payment-page .hubspot-payment-reference dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .payment-page .hubspot-payment-layout { grid-template-columns: minmax(0,1fr) 270px; gap: 18px; }
+  .payment-page .hubspot-payment-summary { grid-template-columns: 1fr; gap: 0; }
+  .payment-page .hubspot-payment-summary > div { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: 12px; padding: 7px 0; }
+  .payment-page .hubspot-payment-summary dd { margin: 0; }
+}
+@media (max-width: 760px) {
+  .payment-page .hubspot-payment-layout { grid-template-columns: minmax(0,1fr); }
+  .payment-page .hubspot-payment-intro { align-items: flex-start; flex-direction: column; gap: 10px; padding: 18px; }
+  .payment-page .hubspot-payment-history-heading { flex-direction: column; gap: 16px; }
+}
+@media (max-width: 480px) {
+  .payment-page .hubspot-payment-item { flex-wrap: wrap; padding: 14px; }
+  .payment-page .hubspot-payment-item-price { margin-left: 30px; }
+  .payment-page .hubspot-payment-ledger > li { flex-direction: column; gap: 14px; }
+  .payment-page .hubspot-payment-ledger-state { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .payment-page .hubspot-payment-ledger-state .payment-button { width: 100%; }
+}
+@media (forced-colors: active) {
+  .payment-page :is(.hubspot-payment-status,.hubspot-payment-intro,.hubspot-payment-verification,.hubspot-payment-current) { border: 1px solid CanvasText; }
+  .payment-page .hubspot-payment-item.is-selected { outline: 2px solid Highlight; outline-offset: -3px; }
+}
