@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { Brand } from "./Brand";
 import { Icon } from "./Icon";
+
 export function SiteHeader({
   session,
 }: {
@@ -10,6 +11,7 @@ export function SiteHeader({
   const [open, setOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
   const header = useRef<HTMLElement>(null);
+
   useEffect(() => {
     if (!open) return;
     const closeOutside = (event: Event) => {
@@ -22,6 +24,7 @@ export function SiteHeader({
       document.removeEventListener("focusin", closeOutside);
     };
   }, [open]);
+
   return (
     <header
       className="site-header"
@@ -69,14 +72,38 @@ export function SiteHeader({
           <NavLink to="/register">Enrollment</NavLink>
           <NavLink to="/events">Community Events</NavLink>
           <NavLink to="/contact">Contact</NavLink>
-          <div className="nav-actions">
+          
+          {/* UPDATED NAV ACTIONS */}
+          <div className="nav-actions" style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
             <NavLink
               className="nav-hub-link"
               to={session ? "/dashboard" : "/login"}
+              style={{ textDecoration: "none", color: "var(--color-ink)", fontWeight: 500 }}
             >
               {session ? "My dashboard" : "Community Login"}
             </NavLink>
+            
+            {/* NEW REGISTRATION BUTTON */}
+            <NavLink
+              to="/register"
+              style={{
+                backgroundColor: "#1a3c34",
+                color: "white",
+                padding: "0.6rem 1.25rem",
+                borderRadius: "6px",
+                textDecoration: "none",
+                fontWeight: 500,
+                fontSize: "0.95rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                transition: "background-color 0.2s"
+              }}
+            >
+              Start registration <Icon name="arrow" />
+            </NavLink>
           </div>
+
         </nav>
       </div>
     </header>
