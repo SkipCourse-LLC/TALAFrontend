@@ -7,6 +7,7 @@ import {
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { ReactNode } from "react";
+import { PaymentOptions } from "../payment/PaymentOptions";
 import {
   talaApi,
   TalaApiError,
@@ -457,6 +458,12 @@ export function ServerWorkspace({
             </div>
           )}
         </section>
+      )}
+      {user.role === "parent" && (
+        <PaymentOptions
+          variant="product"
+          enrolled={linkedStudents.length > 0}
+        />
       )}
     </>
   );
