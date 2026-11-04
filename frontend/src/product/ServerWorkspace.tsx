@@ -1,3 +1,4 @@
+import { PaymentOptions } from "../payment/PaymentOptions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -239,6 +240,9 @@ export function ServerWorkspace({
             </div>
           )}
         </section>
+      )}
+       {user.role === "parent" && (
+        <PaymentOptions variant="product" enrolled={linkedStudents.length > 0} />
       )}
       {(user.role === "student" || selectedUid) && (
         <LearningWorkspace

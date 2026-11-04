@@ -27,7 +27,9 @@ jobs:
 
       - name: Build site into public/
         run: npm run build:hosting --prefix frontend
-
+        env:
+          VITE_PAYMENT_LINK_ENROLLMENT: "https://payments-na1.hubspot.com/payments/SMKcGdqR2?referrer=PAYMENT_LINK"
+          VITE_PAYMENT_LINK_INSTRUCTION: "https://payments-na1.hubspot.com/payments/4JW4fSGwNK2p6?referrer=PAYMENT_LINK"
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
