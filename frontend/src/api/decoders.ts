@@ -247,7 +247,7 @@ export function hash(raw: unknown): string {
 export function user(raw: unknown): User {
   const value = object(raw);
   if (
-    !["student", "parent", "operator"].includes(String(value.role)) ||
+    !["student", "parent", "alumni", "operator"].includes(String(value.role)) ||
     typeof value.emailVerified !== "boolean"
   )
     throw new TalaApiError("INVALID_RESPONSE");

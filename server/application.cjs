@@ -156,7 +156,7 @@ function createApplication(options = {}) {
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
       if (route === "/api/auth/local-student-preview" && !localStudentPreview) fail(404, "NOT_FOUND", "This local preview entry is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 12, schemaVersion: 10, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 12, schemaVersion: 11, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
       if (req.method === "GET" && route === "/api/session") {
         // A cross-site top-level navigation omits SameSite=Strict cookies but
         // can still accept Set-Cookie. Do not overwrite a signed-in browser

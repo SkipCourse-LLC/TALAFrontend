@@ -5,7 +5,7 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10]);
+const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 const MAX_FILE = 5 * 1024 * 1024;
 function refuse(message) { throw new Error(message); }
 function localOnly() {
@@ -109,7 +109,7 @@ function copyPrivate(source, target, expectedSize) {
 }
 function checkDatabase(db, expectedSchema) {
   const schema = db.prepare("PRAGMA user_version").get().user_version;
-  if (!SUPPORTED_SCHEMAS.has(schema) || (expectedSchema !== undefined && expectedSchema !== schema)) refuse("This backup tool supports database schemas 2 through 10, matching the manifest. No migration was performed.");
+  if (!SUPPORTED_SCHEMAS.has(schema) || (expectedSchema !== undefined && expectedSchema !== schema)) refuse("This backup tool supports database schemas 2 through 11, matching the manifest. No migration was performed.");
   if (db.prepare("PRAGMA quick_check").get().quick_check !== "ok" || db.prepare("PRAGMA foreign_key_check").get()) refuse("The database failed its consistency check.");
   if (db.prepare("SELECT name FROM sqlite_master WHERE type IN ('trigger','view') LIMIT 1").get()) refuse("This schema does not use triggers or views. Review unsupported database objects before backup or restore.");
   if (db.prepare(`SELECT u.id FROM uploads u LEFT JOIN evidence e ON e.id=u.id

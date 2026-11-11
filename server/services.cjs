@@ -563,6 +563,16 @@ function createServices(db, dataDir, options = {}) {
       db.prepare("UPDATE users SET role='operator' WHERE uid=?").run(row.uid);
       return userDTO(db.prepare("SELECT * FROM users WHERE uid=?").get(row.uid));
     },
+    // Roles are assigned here by an administrator, never by the sign-in form.
+    // "staff" is the display name of the existing operator role.
+    setRole(email, role) {
+      const next = role === "staff" ? "operator" : role;
+      if (!["student", "parent", "alumni", "operator"].includes(next)) fail(400, "INVALID_INPUT", "Choose student, parent, alumni or staff.");
+      const row = db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(text(email, "existing account email", 254));
+      if (!row) fail(404, "NOT_FOUND", "No account uses this email.");
+      db.prepare("UPDATE users SET role=? WHERE uid=?").run(next, row.uid);
+      return userDTO(db.prepare("SELECT * FROM users WHERE uid=?").get(row.uid));
+    },
     addAvailability(input) { return transaction(db, () => addAvailability(input)); },
     linkFamily(input) {
       const studentUid = identifier(input.studentUid), parentUid = identifier(input.parentUid), reference = text(input.consentReference, "consent reference", 120);

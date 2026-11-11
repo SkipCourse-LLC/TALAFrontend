@@ -47,7 +47,7 @@
       "uid": "UUID",
       "name": "string",
       "email": "string",
-      "role": "student|parent|operator",
+      "role": "student|parent|alumni|operator",
       "emailVerified": false
     },
     "Session": {
@@ -270,7 +270,7 @@
         "application": "tala-independent-server",
         "version": 1,
         "contractVersion": 12,
-        "schemaVersion": 10,
+        "schemaVersion": 11,
         "runtimeRevision": "SHA-256 of source captured at process startup; local reuse compatibility only, not authentication",
         "instanceScope": "SHA-256 of selected absolute data directory; no private path or records are exposed",
         "status": "ok",

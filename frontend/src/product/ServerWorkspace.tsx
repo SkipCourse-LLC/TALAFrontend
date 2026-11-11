@@ -2017,7 +2017,7 @@ function LearningWorkspace({
           <p className="student-family-notice student-family-context">
             {learnerName && (
               <strong>
-                <bdi>{learnerName}</bdi>
+                Viewing as <bdi>{learnerName}</bdi>
               </strong>
             )}
             <span>Read-only student records</span>

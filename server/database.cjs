@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 const EXTENSIONS = `
   CREATE TABLE IF NOT EXISTS availability_state (
     slot_id TEXT PRIMARY KEY REFERENCES slots(id),
@@ -245,13 +245,15 @@ function openDatabase(dataDir) {
     const widenEvidenceContext = version > 0 && version < 8 && !db.prepare("PRAGMA table_info(uploads)").all().some((column) => column.name === "class_id");
     // Rebuild two related tables under the migration transaction. References
     // in revision/link tables retain the original final table names.
-    if (widenEvidenceContext) db.exec("PRAGMA foreign_keys=OFF");
+    // Schema 11 adds the alumni role. SQLite cannot change a CHECK in place.
+    const addAlumniRole = version > 0 && version < 11;
+    if (widenEvidenceContext || addAlumniRole) db.exec("PRAGMA foreign_keys=OFF");
     if (version < SCHEMA_VERSION) transaction(db, () => {
       if (db.prepare("PRAGMA user_version").get().user_version !== version) throw new Error("The database changed during startup. Stop other local instances and retry.");
       db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       uid TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL,
-      password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('student','parent','operator')),
+      password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('student','parent','alumni','operator')),
       email_verified INTEGER NOT NULL DEFAULT 0, disabled INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS sessions (
@@ -324,6 +326,17 @@ function openDatabase(dataDir) {
         ALTER TABLE uploads_v8 RENAME TO uploads;
         ALTER TABLE evidence_v8 RENAME TO evidence;
         CREATE INDEX evidence_owner ON evidence(owner_uid,submitted_at DESC);
+      `);
+      if (addAlumniRole) db.exec(`
+        CREATE TABLE users_v11 (
+          uid TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL,
+          password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('student','parent','alumni','operator')),
+          email_verified INTEGER NOT NULL DEFAULT 0, disabled INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
+        ) STRICT;
+        INSERT INTO users_v11(uid,email,name,password_hash,role,email_verified,disabled,created_at)
+          SELECT uid,email,name,password_hash,role,email_verified,disabled,created_at FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_v11 RENAME TO users;
       `);
       // Broaden the existing enrollment record in place while preserving all
       // saved fixture rows. A verified pre-upgrade backup was taken above.

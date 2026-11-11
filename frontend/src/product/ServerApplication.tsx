@@ -25,6 +25,7 @@ import { WorkspaceHeader } from "./WorkspaceHeader";
 import { PaymentPage } from "../payment/PaymentPage";
 import { ServerWorkspace } from "./ServerWorkspace";
 import { OperatorWorkspace } from "./OperatorWorkspace";
+import { AlumniWorkspace } from "./AlumniWorkspace";
 import { AccountSecurityPage } from "./AccountSecurityPage";
 import { ApplicationConnectionNotice } from "./ApplicationConnectionNotice";
 import { useSessionPrivacy } from "./useSessionPrivacy";
@@ -48,7 +49,7 @@ function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
     document.title =
       pathname === "/two-factor"
         ? "Account security | TALA"
-        : role === "operator"
+        : role === "operator" || role === "alumni"
           ? "Your workspace | TALA"
           : `${workspaceViews.find((item) => item.id === view)!.label} | TALA`;
   }, [pathname, search, role]);
@@ -199,6 +200,8 @@ export function ServerApplication() {
       }}
     />
   ) : null;
+  // Role-aware sign-in: the role in the server session, never the sign-in
+  // form, decides which dashboard /dashboard shows.
   const workspace = user ? (
     user.role === "operator" ? (
       <OperatorWorkspace
@@ -206,6 +209,12 @@ export function ServerApplication() {
         user={user}
         onLogout={logout}
         onExpired={expired}
+      />
+    ) : user.role === "alumni" ? (
+      <AlumniWorkspace
+        key={`${user.uid}:${user.role}:${privacy.accessEpoch}`}
+        user={user}
+        onLogout={logout}
       />
     ) : (
       <ServerWorkspace
@@ -380,14 +389,15 @@ export function ServerApplication() {
               <Route
                 path="payment"
                 element={
-                  user ? (
+                  user?.role === "parent" ? (
                     <PaymentPage
                       key={`${user.uid}:${privacy.accessEpoch}`}
                       user={user}
                       onExpired={expired}
                     />
                   ) : (
-                    <Navigate to="/login" replace />
+                    // Family payments belong to parents; other roles go home.
+                    <Navigate to={user ? "/dashboard" : "/login"} replace />
                   )
                 }
               />

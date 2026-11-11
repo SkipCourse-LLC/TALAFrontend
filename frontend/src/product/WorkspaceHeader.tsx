@@ -36,7 +36,9 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
           meetings: "Meetings",
           learning: "Learning summaries",
         }[params.get("panel") ?? "admissions"] ?? "Operations")
-      : workspaceViews.find(
+      : user.role === "alumni"
+        ? "Alumni home"
+        : workspaceViews.find(
           (item) => item.id === readWorkspaceView(params.get("view")),
         )!.label;
   const pageLabel =
@@ -85,7 +87,16 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
             url: "/dashboard?panel=learning",
           },
         ]
-      : workspaceViews
+      : user.role === "alumni"
+        ? [
+            {
+              id: "alumni",
+              label: "Alumni home",
+              detail: "Open your alumni page",
+              url: "/dashboard",
+            },
+          ]
+        : workspaceViews
           .filter((item) => user.role !== "parent" || item.id !== "calendar")
           .map((item) => ({
             id: item.id,
@@ -202,7 +213,9 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
               ? "Family portal"
               : user.role === "operator"
                 ? "Staff portal"
-                : "Learning portal"}
+                : user.role === "alumni"
+                  ? "Alumni portal"
+                  : "Learning portal"}
           </span>
           <span aria-hidden="true">/</span>
           <strong>{pageLabel}</strong>
