@@ -1,3 +1,4 @@
+import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import type { BrowserContext, Locator, Page } from "@playwright/test";
@@ -139,7 +140,6 @@ async function register(page: Page, name: string) {
   await page.getByLabel("Name", { exact: true }).fill(name);
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password", { exact: true }).fill(password);
   await page
     .getByRole("button", { name: "Create account", exact: true })
     .click();
@@ -338,6 +338,10 @@ test("older student records and operator work remain discoverable across real pa
     await expect(
       meetings.getByText("Your current booking", { exact: true }),
     ).toBeVisible();
+    await meetings
+      .getByRole("button", { name: "Change booking", exact: true })
+      .click();
+    await meetings.locator(".meeting-all-times > summary").click();
     const select = meetings.getByLabel("Available meeting time", {
       exact: true,
     });
@@ -571,9 +575,7 @@ test("rejected and unconfirmed Evidence uploads remain recoverable without losin
   await page
     .getByRole("button", { name: "Refresh records", exact: true })
     .click();
-  await page
-    .getByLabel("Available meeting time", { exact: true })
-    .selectOption(slot.id);
+  await chooseMeetingTime(page, slot.id);
   await page.getByRole("button", { name: "Book meeting", exact: true }).click();
   await expect(
     page

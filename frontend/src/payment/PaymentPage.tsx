@@ -5,8 +5,22 @@ import { PaymentForm } from "./PaymentForm";
 import { PaymentLayout } from "./PaymentLayout";
 import { paymentService } from "./paymentService";
 import type { PaymentService, PaymentSession } from "./paymentService";
+import type { ApiUser } from "../api";
+import { HubSpotPaymentPage } from "./HubSpotPaymentPage";
 
-export function PaymentPage({
+type PaymentPageProps =
+  | { user: ApiUser; onExpired: () => void }
+  | { session: PaymentSession; service?: PaymentService };
+
+export function PaymentPage(props: PaymentPageProps) {
+  return "user" in props ? (
+    <HubSpotPaymentPage user={props.user} onExpired={props.onExpired} />
+  ) : (
+    <LegacyPaymentPage {...props} />
+  );
+}
+
+function LegacyPaymentPage({
   session,
   service = paymentService,
 }: {

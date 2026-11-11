@@ -1,3 +1,4 @@
+import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { expect, test } from "@playwright/test";
 import type { Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -90,10 +91,9 @@ async function register(page: Page, role: "student" | "parent" = "student"): Pro
   const suffix = randomUUID(), account = { name: `Synthetic workflow ${role}`, email: `${suffix}@example.test`, password: `Synthetic-only-${suffix}` };
   await page.goto("/#/register");
   await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByLabel("Account type", { exact: true }).selectOption(role);
+  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page.getByLabel("Confirm password", { exact: true }).fill(account.password);
   await page.getByRole("button", { name: "Create account", exact: true }).click();
   await expect(page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true })).toBeVisible();
   return account;
@@ -223,10 +223,7 @@ test("meeting preparation persists on its original reservation and a real resche
   await page.reload(); panel = await preparation(page);
   await expect(panel.getByLabel("Learning notes (optional)", { exact: true })).toHaveValue(note);
   await expect(panel.getByRole("checkbox", { name: "My learning materials are ready", exact: true })).toBeChecked();
-  const times = page.getByLabel("Available meeting time", { exact: true });
-  await expect(times).toBeEnabled();
-  const replacementId = await times.locator('option[value]:not([value=""])').first().getAttribute("value"); expect(replacementId).not.toBeNull();
-  await times.selectOption(replacementId!);
+  const replacementId = await chooseMeetingTime(page); expect(replacementId).not.toBeNull();
   await page.getByRole("button", { name: "Change booking", exact: true }).click();
   const confirmation = page.getByRole("dialog", { name: "Change this booking?", exact: true });
   await expect(confirmation).toBeVisible(); await confirmation.getByRole("button", { name: "Confirm change", exact: true }).click();

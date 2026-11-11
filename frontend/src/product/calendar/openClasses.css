@@ -1,0 +1,896 @@
+.tala-classes {
+  --cal-ink: #203932;
+  --cal-muted: #52675d;
+  --cal-line: #dce4e0;
+}
+.tala-classes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.tala-classes-header h2 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.7rem);
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  max-width: 22ch;
+}
+.tala-classes-header p {
+  font-size: calc(0.95rem * var(--student-type-scale, 1));
+  color: #52675d;
+  margin: 0.65rem 0 0;
+}
+.tala-cal-discover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 0.7rem 1rem;
+  min-height: 44px;
+  background: #225a4e;
+  color: #fff;
+  border: 1px solid #225a4e;
+  border-radius: 8px;
+  font: inherit;
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+  cursor: pointer;
+  text-decoration: none;
+}
+.tala-cal-discover .learning-glyph {
+  width: 18px;
+  height: 18px;
+}
+.tala-classes-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.15rem 1.35rem;
+  background: #edf3ef;
+  border-left: 3px solid #407b66;
+  border-radius: 0 10px 10px 0;
+  margin: 0 0 1.4rem;
+}
+.tala-classes-intro > div {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+.tala-classes-intro .learning-glyph {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  color: #396d56;
+}
+.tala-classes-intro p {
+  margin: 0;
+  max-width: 70ch;
+  font-size: calc(0.83rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.tala-classes-intro p strong {
+  display: block;
+  font-size: calc(0.95rem * var(--student-type-scale, 1));
+  color: #28513f;
+}
+.tala-classes-intro > span {
+  flex-shrink: 0;
+  font-size: calc(0.78rem * var(--student-type-scale, 1));
+  color: #456454;
+}
+.tala-course-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 1rem 0;
+}
+.tala-course-filters label {
+  display: grid;
+  gap: 0.4rem;
+  flex: 1 1 125px;
+  min-width: 0;
+  color: #4e6559;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-course-filters .tala-course-search {
+  flex: 2 1 230px;
+}
+.tala-course-filters :is(input, select) {
+  background: #fff;
+  border: 1px solid #cbd7cf;
+  border-radius: 7px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.55rem 0.7rem;
+  color: #264c3b;
+  font: inherit;
+  font-size: calc(0.83rem * var(--student-type-scale, 1));
+}
+.tala-course-filters .tala-course-reset {
+  border: 0;
+  background: transparent;
+  color: #315e4c;
+  text-decoration: underline;
+  min-height: 44px;
+  font-size: calc(0.78rem * var(--student-type-scale, 1));
+  cursor: pointer;
+}
+.tala-classes-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #dce4e0;
+  padding: 0.8rem 0 1rem;
+}
+.tala-classes-tools > div {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+.tala-classes-tools button {
+  min-height: 44px;
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #52675d;
+  font: inherit;
+  font-size: calc(0.83rem * var(--student-type-scale, 1));
+}
+.tala-classes-tools button[aria-pressed="true"] {
+  background: #e4eee6;
+  color: #25563f;
+  font-weight: 600;
+}
+.tala-classes-tools > label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: #52675d;
+}
+.tala-classes-tools select {
+  font: inherit;
+  color: #244b3b;
+  background: #fff;
+  border: 1px solid #d0dad3;
+  border-radius: 6px;
+  min-height: 44px;
+  padding: 0.5rem;
+}
+.tala-classes-results {
+  font-size: calc(0.78rem * var(--student-type-scale, 1));
+  color: #52675d;
+  min-height: 44px;
+  padding: 0.75rem 0;
+}
+.tala-classes-results p {
+  margin-top: 0.7rem;
+}
+.tala-classes-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 235px;
+  gap: 1.5rem;
+  align-items: start;
+}
+.tala-classes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  min-width: 0;
+}
+.tala-discovery-card {
+  --course-accent: #477e8a;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid #d5dfd8;
+  border-top: 3px solid var(--course-accent);
+  border-radius: 11px;
+  background: #fff;
+  padding: 1.2rem;
+}
+.tala-discovery-card[data-category="clubs_activities"] {
+  --course-accent: #76704c;
+}
+.tala-discovery-card[data-category="learning_support"] {
+  --course-accent: #657956;
+}
+.tala-discovery-card[data-category="live_sessions"] {
+  --course-accent: #456b56;
+}
+.tala-discovery-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  color: #466454;
+}
+.tala-class-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 5px;
+  padding: 0.25rem 0.45rem;
+  background: #edf3ee;
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  color: #38614d;
+}
+.tala-class-status[data-status="pending_approval"],
+.tala-class-status[data-status="pending_payment"] {
+  background: #f8f0dc;
+  color: #76561c;
+}
+.tala-class-status[data-status="waitlisted"] {
+  background: #eef0f6;
+  color: #4c5e7e;
+}
+.tala-discovery-card h3 {
+  font-size: calc(1.25rem * var(--student-type-scale, 1));
+  line-height: 1.25;
+  font-weight: 600;
+  margin: 1rem 0 0.65rem;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+.tala-discovery-card h3 button {
+  border: 0;
+  text-align: left;
+  color: #203e31;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  min-height: 32px;
+}
+.tala-discovery-description {
+  font-size: calc(0.83rem * var(--student-type-scale, 1));
+  line-height: 1.65;
+  color: #52675d;
+  margin: 0 0 1rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tala-discovery-teacher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: calc(0.77rem * var(--student-type-scale, 1));
+  color: #3e6350;
+  margin: auto 0 1rem;
+}
+.tala-discovery-teacher .learning-glyph {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.tala-discovery-card dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+  padding: 1rem 0;
+  border-top: 1px solid #e5ebe6;
+  border-bottom: 1px solid #e5ebe6;
+  margin: 0;
+  font-size: calc(0.76rem * var(--student-type-scale, 1));
+}
+.tala-discovery-card dt {
+  color: #65796c;
+  margin-bottom: 0.35rem;
+}
+.tala-discovery-card dd {
+  margin: 0;
+  color: #284b39;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.tala-discovery-card dd span {
+  display: block;
+  color: #52675d;
+  font-size: calc(0.72rem * var(--student-type-scale, 1));
+}
+.tala-discovery-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
+  font-weight: 600;
+}
+.tala-discovery-card footer > span small {
+  display: block;
+  font-size: calc(0.66rem * var(--student-type-scale, 1));
+  color: #66796e;
+  font-weight: 400;
+  margin-top: 0.2rem;
+}
+.tala-discovery-card footer button {
+  font-size: calc(0.77rem * var(--student-type-scale, 1));
+  padding: 0.55rem 0.7rem;
+  background: transparent;
+  color: #28593f;
+  border-color: #bdcfc1;
+  font-weight: 500;
+}
+.tala-classes-guide {
+  position: sticky;
+  top: 1rem;
+  padding: 1.3rem;
+  background: #f1f5ef;
+  border-radius: 12px;
+}
+.tala-classes-guide h3 {
+  font-size: calc(1.2rem * var(--student-type-scale, 1));
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+  margin: 0 0 1.3rem;
+  color: #31533f;
+}
+.tala-classes-guide ol {
+  padding-left: 1.2rem;
+  margin: 0;
+  color: #497259;
+}
+.tala-classes-guide li {
+  padding: 0 0 1.2rem 0.3rem;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.tala-classes-guide li strong {
+  display: block;
+  color: #345740;
+  font-size: calc(0.82rem * var(--student-type-scale, 1));
+  font-weight: 600;
+}
+.tala-classes-guide li span {
+  display: block;
+  margin-top: 0.3rem;
+  color: #5a6f60;
+}
+.tala-classes-guide button {
+  padding: 0.6rem 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid #d3dfd1;
+  color: #2b5b40;
+  min-height: 44px;
+  text-align: left;
+  font-size: calc(0.78rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.tala-classes-guide > p {
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  color: #5a6f60;
+  line-height: 1.6;
+  margin: 0.8rem 0 0;
+}
+.tala-classes-empty {
+  grid-column: 1/-1;
+  padding: 3rem 1.5rem;
+  background: #fff;
+  border: 1px dashed #bdcfc1;
+  border-radius: 12px;
+  text-align: center;
+}
+.tala-classes-empty > .learning-glyph {
+  width: 36px;
+  height: 36px;
+  color: #6e8c76;
+}
+.tala-classes-empty h3 {
+  font-size: calc(1.2rem * var(--student-type-scale, 1));
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+.tala-classes-empty p {
+  color: #5a6f60;
+  max-width: 50ch;
+  margin: 1rem auto;
+  line-height: 1.65;
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+}
+.tala-cal-discovery-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.tala-cal-discovery-bar .tala-course-filters {
+  flex: 1;
+  min-width: 240px;
+  padding: 0;
+}
+.tala-cal-discovery-bar > .tala-cal-discover {
+  margin-bottom: 0;
+  white-space: nowrap;
+}
+.tala-cal-date-jump input {
+  border: 1px solid #cbd7cf;
+  color: #315742;
+  background: #fff;
+  border-radius: 6px;
+  min-height: 38px;
+  max-width: 140px;
+  padding: 0.4rem;
+  font: inherit;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-class-fee {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #4a6656;
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+  margin: 1.2rem 0;
+}
+.tala-class-modes {
+  border: 0;
+  padding: 0;
+  margin: 1rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.tala-class-modes legend {
+  margin-bottom: 0.65rem;
+  font-size: calc(0.83rem * var(--student-type-scale, 1));
+  color: #355842;
+}
+.tala-class-modes label {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex: 1;
+  min-width: 140px;
+  border: 1px solid #cbd7cf;
+  padding: 0.85rem;
+  border-radius: 8px;
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+  cursor: pointer;
+  background: #fff;
+}
+.tala-class-modes label[data-selected="true"] {
+  background: #edf4ec;
+  border-color: #527e5e;
+  color: #285638;
+}
+.tala-class-modes input {
+  width: 18px;
+  height: 18px;
+  accent-color: #315f47;
+}
+.tala-class-practice {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: #637568;
+}
+.tala-classes :is(button, input, select):focus-visible,
+.tala-cal-detail :is(input, label):focus-visible {
+  outline: 3px solid #245a43;
+  outline-offset: 3px;
+}
+.server-dashboard-main[data-workspace-view="classes"] > .product-heading {
+  display: none;
+}
+@container tala-calendar (max-width:1000px) {
+  .tala-classes-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tala-classes-guide {
+    position: static;
+    display: none;
+  }
+  .tala-cal-period {
+    flex-wrap: wrap;
+  }
+  .tala-cal-date-jump {
+    order: 4;
+  }
+}
+@container tala-calendar (max-width:650px) {
+  .tala-classes-grid {
+    grid-template-columns: 1fr;
+  }
+  .tala-classes-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .tala-classes-header h2 {
+    font-size: calc(2rem * var(--student-type-scale, 1));
+  }
+  .tala-classes-intro {
+    padding: 1rem;
+  }
+  .tala-classes-intro > span {
+    display: none;
+  }
+  .tala-course-filters label {
+    flex: 1 1 110px;
+  }
+  .tala-course-filters .tala-course-search {
+    flex-basis: 100%;
+  }
+  .tala-discovery-card {
+    padding: 1rem;
+  }
+  .tala-classes-tools {
+    align-items: flex-start;
+  }
+  .tala-classes-tools button {
+    padding: 0.5rem 0.65rem;
+    font-size: calc(0.77rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-date-jump input {
+    max-width: 135px;
+  }
+  .tala-cal-discovery-bar > .tala-cal-discover {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tala-classes *,
+  .tala-cal-detail * {
+    scroll-behavior: auto;
+    transition: none;
+    animation: none;
+  }
+}
+
+.tala-discovery-goal-context {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid #d5e0d8;
+  border-radius: 9px;
+  background: #fff;
+  margin-bottom: 0.3rem;
+}
+.tala-discovery-goal-context > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  color: #365e49;
+}
+.tala-discovery-goal-context .learning-glyph {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.tala-discovery-goal-context select {
+  flex: 1;
+  max-width: 360px;
+  min-width: 180px;
+  min-height: 44px;
+  font: inherit;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  border: 1px solid #c7d7cb;
+  border-radius: 6px;
+  color: #315840;
+  background: #f8faf7;
+  padding: 0.5rem;
+}
+.tala-discovery-goal-context p {
+  font-size: calc(0.73rem * var(--student-type-scale, 1));
+  color: #5b7061;
+  flex: 1;
+  margin: 0;
+  line-height: 1.5;
+}
+.tala-discovery-goal-context > button {
+  min-height: 44px;
+  background: transparent;
+  border: 0;
+  color: #315b43;
+  font-size: calc(0.76rem * var(--student-type-scale, 1));
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.tala-class-context-line {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin: 0.55rem 0;
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  color: #536b5c;
+}
+.tala-discovery-linked-goal {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  color: #496b47;
+  font-size: calc(0.73rem * var(--student-type-scale, 1));
+  line-height: 1.4;
+  margin: 0 0 0.75rem;
+}
+.tala-discovery-linked-goal .learning-glyph {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.tala-class-goal-field {
+  border-top: 1px solid #dce4de;
+  padding: 1rem 0;
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.tala-class-goal-field label {
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+  color: #365a44;
+}
+.tala-class-goal-field label span {
+  font-weight: 400;
+  color: #667969;
+}
+.tala-class-goal-field select {
+  width: 100%;
+  min-height: 44px;
+  background: #fff;
+  border: 1px solid #bdcec1;
+  border-radius: 7px;
+  padding: 0.7rem;
+  color: #345a40;
+  font: inherit;
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+}
+.tala-class-goal-field p {
+  margin: 0;
+  font-size: calc(0.77rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  color: #607464;
+}
+.tala-class-goal-mark {
+  margin-right: 0.5rem;
+  color: #47754d;
+}
+.tala-class-calendar-download {
+  padding-top: 1rem;
+  margin-top: 1rem;
+  border-top: 1px solid #dce4de;
+}
+.tala-class-calendar-download button {
+  background: #fff;
+  border: 1px solid #b9cdbc;
+  color: #325c40;
+  border-radius: 7px;
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-size: calc(0.82rem * var(--student-type-scale, 1));
+}
+.tala-class-calendar-download p {
+  color: #617367;
+  font-size: calc(0.74rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+  margin: 0.55rem 0 0;
+}
+.tala-class-calendar-download p[role="alert"] {
+  color: #8d3b2d;
+}
+@container tala-calendar (max-width:650px) {
+  .tala-discovery-goal-context {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .tala-discovery-goal-context select {
+    width: 100%;
+    max-width: none;
+  }
+  .tala-discovery-goal-context > button {
+    text-align: left;
+    padding: 0;
+    width: fit-content;
+  }
+}
+.tala-class-join {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 48px;
+  border-radius: 7px;
+  padding: 0.75rem 1rem;
+  background: #2d624a;
+  color: #fff;
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
+  text-decoration: none;
+  margin-top: 1rem;
+}
+.tala-class-join:focus-visible {
+  outline: 3px solid #254d38;
+  outline-offset: 3px;
+}
+.tala-class-edit-request {
+  background: transparent;
+  border: 0;
+  padding: 0.65rem 0;
+  color: #315e44;
+  font: inherit;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  min-height: 44px;
+}
+.tala-class-edit-help {
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  color: #5c725f;
+  line-height: 1.6;
+  background: #f3f6ef;
+  border-radius: 7px;
+  padding: 0.8rem;
+}
+.tala-course-extra-filters {
+  display: contents;
+}
+.tala-course-filter-toggle {
+  display: none;
+}
+@container tala-calendar (max-width:650px) {
+  .tala-course-filters .tala-course-search {
+    flex: 1 1 180px;
+  }
+  .tala-course-filters .tala-course-filter-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    border: 1px solid #c4d5c7;
+    border-radius: 7px;
+    background: #fff;
+    color: #365f44;
+    padding: 0.6rem 0.8rem;
+    font: inherit;
+    font-size: calc(0.8rem * var(--student-type-scale, 1));
+  }
+  .tala-course-extra-filters {
+    display: none;
+    width: 100%;
+    gap: 0.65rem;
+  }
+  .tala-course-extra-filters[data-expanded="true"] {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding-top: 0.4rem;
+  }
+  .tala-course-extra-filters label {
+    width: 100%;
+  }
+  .tala-discovery-goal-context {
+    grid-template-columns: 1fr auto;
+  }
+  .tala-discovery-goal-context select {
+    grid-column: 1/-1;
+    grid-row: 2;
+  }
+  .tala-discovery-goal-context p {
+    display: none;
+  }
+  .tala-discovery-goal-context > button {
+    font-size: calc(0.72rem * var(--student-type-scale, 1));
+  }
+}
+.tala-classes-tools {
+  row-gap: 0.7rem;
+}
+.tala-classes-tools > div {
+  flex: 1;
+  min-width: 0;
+}
+.tala-classes-tools > label {
+  margin-left: auto;
+}
+.tala-discovery-card > .tala-class-save {
+  margin-top: 0.25rem;
+}
+.tala-class-detail-goal-message {
+  color: #5c715f;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+.tala-class-skeleton {
+  min-height: 320px;
+  padding: 1.2rem;
+  border: 1px solid #dce5de;
+  border-radius: 11px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+}
+.tala-class-skeleton span {
+  display: block;
+  height: 15px;
+  border-radius: 4px;
+  background: #edf2ec;
+  width: 65%;
+}
+.tala-class-skeleton span:nth-child(2) {
+  height: 30px;
+  width: 90%;
+  margin-top: 1rem;
+}
+.tala-class-skeleton span:nth-child(3) {
+  height: 58px;
+  width: 100%;
+}
+.tala-class-skeleton span:last-child {
+  width: 45%;
+  margin-top: auto;
+}
+.server-dashboard[data-spacing="comfortable"] .tala-discovery-card {
+  padding: 1.5rem;
+}
+.server-dashboard[data-spacing="comfortable"] .tala-classes-grid {
+  gap: 1.4rem;
+}
+.server-dashboard[data-spacing="comfortable"] .tala-course-filters {
+  row-gap: 1rem;
+}
+@media (forced-colors: active) {
+  .tala-class-status {
+    border: 1px solid CanvasText;
+  }
+  .tala-class-skeleton span {
+    background: CanvasText;
+    opacity: 0.2;
+  }
+}
+.tala-class-cancel-confirm {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #d9bcad;
+  border-radius: 8px;
+  background: #fff8f2;
+  color: #75452e;
+}
+.tala-class-cancel-confirm > strong {
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
+  font-weight: 600;
+}
+.tala-class-cancel-confirm p {
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  margin: 0.5rem 0 1rem;
+}
+.tala-class-cancel-confirm > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+.tala-class-cancel-confirm button {
+  min-height: 44px;
+  border: 1px solid #ccb5a5;
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+  color: #744b35;
+  font: inherit;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+.tala-class-cancel-confirm button:last-child {
+  color: #fff;
+  background: #80523b;
+  border-color: #80523b;
+}
+.tala-class-cancel-confirm button:focus-visible {
+  outline: 3px solid #80523b;
+  outline-offset: 3px;
+}

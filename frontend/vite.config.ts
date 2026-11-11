@@ -20,18 +20,27 @@ export default defineConfig(({ mode }) => {
   ) {
     resolveFirebaseConfiguration(environment, "localhost");
   }
+  const localApiPort = process.env.TALA_LOCAL_API_PORT || "8787";
+  if (!/^\d{4,5}$/.test(localApiPort) || Number(localApiPort) > 65535)
+    throw new Error("Choose a valid local API port.");
   return {
     plugins: [react()],
     // Relative assets + HashRouter work under both root and project subpaths.
     base: "./",
     server: {
       proxy: {
-        "/api": { target: "http://127.0.0.1:8787", changeOrigin: false },
+        "/api": {
+          target: `http://127.0.0.1:${localApiPort}`,
+          changeOrigin: false,
+        },
       },
     },
     preview: {
       proxy: {
-        "/api": { target: "http://127.0.0.1:8787", changeOrigin: false },
+        "/api": {
+          target: `http://127.0.0.1:${localApiPort}`,
+          changeOrigin: false,
+        },
       },
     },
     build: {

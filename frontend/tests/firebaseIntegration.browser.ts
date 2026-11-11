@@ -577,3 +577,124 @@ test("wrong credentials are announced, UID isolation holds, and mobile keyboard 
     page.getByRole("status").filter({ hasText: "Your booking was cancelled" }),
   ).toBeVisible();
 });
+
+test("profile editing waits for a saved profile, refresh preserves drafts, and signed-in registration cannot replace the account", async ({
+  page,
+  request,
+}) => {
+  const account = await signup(page, request);
+  await verifyLocalEmail(page, request, account.email);
+  await expect(page.getByLabel("Display name", { exact: true })).toBeEnabled();
+  await page.evaluate(async () => {
+    const modulePath = "/src/backend/firebaseAuth.ts";
+    const { firebaseAuthService } = await import(modulePath);
+    const original = firebaseAuthService.getProfile.bind(firebaseAuthService);
+    const control = {
+      calls: 0,
+      ready: false,
+      release: () => {},
+      fail: () => {
+        firebaseAuthService.getProfile = () =>
+          Promise.reject(new Error("Synthetic profile service failure"));
+      },
+      restore: () => {
+        firebaseAuthService.getProfile = original;
+      },
+    };
+    firebaseAuthService.getProfile = async () => {
+      control.calls++;
+      // Delay delivery of an actual owner-scoped Emulator profile response.
+      // No profile data, credentials or tokens are copied into test reports.
+      const profile = await original();
+      await new Promise<void>((resolve) => {
+        control.release = resolve;
+        control.ready = true;
+      });
+      return profile;
+    };
+    Reflect.set(window, "talaSyntheticProfileControl", control);
+    window.location.hash = "/payment";
+  });
+  await expect(
+    page.getByRole("link", { name: "Back to dashboard", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Back to dashboard", exact: true })
+    .click();
+  await page.waitForFunction(
+    () => Reflect.get(window, "talaSyntheticProfileControl")?.ready === true,
+  );
+  const name = page.getByLabel("Display name", { exact: true });
+  const save = page.getByRole("button", {
+    name: "Save display name",
+    exact: true,
+  });
+  await expect(name).toBeDisabled();
+  await expect(save).toBeDisabled();
+  await expect(
+    page.getByText("Loading your saved profile…", { exact: true }),
+  ).toBeVisible();
+  await page.evaluate(() =>
+    Reflect.get(window, "talaSyntheticProfileControl").release(),
+  );
+  await expect(name).toBeEnabled();
+  await name.fill("Unsaved synthetic profile draft");
+  await page
+    .getByRole("button", { name: "Refresh records", exact: true })
+    .click();
+  await expect(
+    page.getByText("Waiting for saved progress…", { exact: true }),
+  ).toHaveCount(0);
+  await expect(name).toHaveValue("Unsaved synthetic profile draft");
+  expect(
+    await page.evaluate(
+      () => Reflect.get(window, "talaSyntheticProfileControl").calls,
+    ),
+    "Refreshing workspace records must not refetch and replace a profile draft",
+  ).toBe(1);
+
+  await page.evaluate(() => {
+    Reflect.get(window, "talaSyntheticProfileControl").fail();
+    window.location.hash = "/payment";
+  });
+  await expect(
+    page.getByRole("link", { name: "Back to dashboard", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Back to dashboard", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Retry profile loading", exact: true }),
+  ).toBeVisible();
+  await expect(name).toBeDisabled();
+  await expect(save).toBeDisabled();
+  await expect(page.getByText("Synthetic profile service failure")).toHaveCount(
+    0,
+  );
+  await page.evaluate(() =>
+    Reflect.get(window, "talaSyntheticProfileControl").restore(),
+  );
+  await page
+    .getByRole("button", { name: "Retry profile loading", exact: true })
+    .click();
+  await expect(name).toBeEnabled();
+  await expect(name).toHaveValue("Synthetic browser learner");
+
+  await page.evaluate(() => {
+    Reflect.deleteProperty(window, "talaSyntheticProfileControl");
+    window.location.hash = "/register";
+  });
+  await expect(page).toHaveURL(/#\/dashboard$/);
+  await expect(
+    page.getByRole("button", { name: "Create test account", exact: true }),
+  ).toHaveCount(0);
+  const currentUid = await page.evaluate(async () => {
+    const modulePath = "/src/backend/firebaseClient.ts";
+    const { getFirebaseClient } = await import(modulePath);
+    return getFirebaseClient().auth.currentUser?.uid;
+  });
+  expect(
+    currentUid === account.uid,
+    "The signed-in Firebase UID is preserved",
+  ).toBe(true);
+});

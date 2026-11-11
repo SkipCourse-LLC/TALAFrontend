@@ -1,3 +1,4 @@
+import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -182,12 +183,9 @@ async function register(page: Page, role: "student" | "parent" = "student") {
   };
   await page.goto("/#/register");
   await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByLabel("Account type", { exact: true }).selectOption(role);
+  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(account.password);
   await page
     .getByRole("button", { name: "Create account", exact: true })
     .click();
@@ -221,9 +219,7 @@ async function prepareReflectionBooking(page: Page, email: string) {
   await page
     .getByRole("button", { name: "Refresh records", exact: true })
     .click();
-  await page
-    .getByLabel("Available meeting time", { exact: true })
-    .selectOption(slot.id);
+  await chooseMeetingTime(page, slot.id);
   await page.getByRole("button", { name: "Book meeting", exact: true }).click();
   await expect(
     page

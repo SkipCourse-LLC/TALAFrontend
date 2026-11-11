@@ -1,0 +1,73 @@
+.tala-class-save {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.tala-class-save .tala-class-save-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  max-width: 100%;
+  border: 1px solid #c5d8cd;
+  border-radius: 7px;
+  padding: 0.5rem 0.7rem;
+  background: #fff;
+  color: #315f4e;
+  font: inherit;
+  font-size: calc(0.78rem * var(--student-type-scale, 1));
+  line-height: 1.4;
+  cursor: pointer;
+}
+.tala-class-save .tala-class-save-button:hover:not(:disabled) {
+  background: #edf5f0;
+  border-color: #7eaa94;
+}
+.tala-class-save .tala-class-save-button[aria-pressed="true"] {
+  background: #eaf3ed;
+  color: #254e3c;
+  border-color: #a5c5b1;
+}
+.tala-class-save .tala-class-save-button svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+.tala-class-save button:focus-visible {
+  outline: 3px solid #32725b;
+  outline-offset: 3px;
+}
+.tala-class-save .tala-class-save-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.tala-class-save .tala-class-save-error {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.5rem;
+  max-width: 42ch;
+  color: #8a452c;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+}
+.tala-class-save-error > button {
+  min-height: 44px;
+  padding: 0.35rem 0;
+  border: 0;
+  background: transparent;
+  color: #6d3d27;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+@media (forced-colors: active) {
+  .tala-class-save .tala-class-save-button[aria-pressed="true"] {
+    outline: 2px solid Highlight;
+  }
+}

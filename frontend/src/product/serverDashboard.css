@@ -72,6 +72,21 @@
 .server-dashboard-sidebar nav button:hover:not(:disabled) {
   background: #f3f5f4;
 }
+.server-dashboard-sidebar nav .server-dashboard-payment-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px;
+  border-radius: 12px;
+  color: #626268;
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+.server-dashboard-sidebar nav .server-dashboard-payment-link:hover {
+  background: #f3f5f4;
+}
+.server-dashboard-payment-link .icon { width: 21px; height: 21px; }
 .server-dashboard-sidebar .student-updates-count {
   min-width: 20px;
   min-height: 20px;
@@ -260,5 +275,16 @@
   }
   .server-dashboard-sidebar .student-account input {
     font-size: 1rem;
+  }
+}
+
+/* Keep account actions reachable when the full learning navigation exceeds the viewport. */
+@media (min-width: 841px) {
+  .server-dashboard-sidebar {
+    max-height: calc(100dvh - 48px);
+    min-height: min(620px, calc(100dvh - 48px));
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
   }
 }

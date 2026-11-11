@@ -46,10 +46,13 @@ export function AboutPage() {
             <h2>Registration</h2>
           </div>
           <div>
-            <p>Create your account. Admission requires separate approval.</p>
+            <p>
+              Share your interest and meet Tina. Create your account after
+              approval.
+            </p>
             <div className="button-row">
               <Link className="button" to="/register">
-                Create account
+                Start registration
               </Link>
               <Link className="text-link" to="/register?intent=waiting-list">
                 Waiting list preview

@@ -5,7 +5,7 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5]);
+const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10]);
 const MAX_FILE = 5 * 1024 * 1024;
 function refuse(message) { throw new Error(message); }
 function localOnly() {
@@ -109,13 +109,13 @@ function copyPrivate(source, target, expectedSize) {
 }
 function checkDatabase(db, expectedSchema) {
   const schema = db.prepare("PRAGMA user_version").get().user_version;
-  if (!SUPPORTED_SCHEMAS.has(schema) || (expectedSchema !== undefined && expectedSchema !== schema)) refuse("This backup tool supports database schemas 2, 3, 4 and 5, matching the manifest. No migration was performed.");
+  if (!SUPPORTED_SCHEMAS.has(schema) || (expectedSchema !== undefined && expectedSchema !== schema)) refuse("This backup tool supports database schemas 2 through 10, matching the manifest. No migration was performed.");
   if (db.prepare("PRAGMA quick_check").get().quick_check !== "ok" || db.prepare("PRAGMA foreign_key_check").get()) refuse("The database failed its consistency check.");
   if (db.prepare("SELECT name FROM sqlite_master WHERE type IN ('trigger','view') LIMIT 1").get()) refuse("This schema does not use triggers or views. Review unsupported database objects before backup or restore.");
   if (db.prepare(`SELECT u.id FROM uploads u LEFT JOIN evidence e ON e.id=u.id
     WHERE (u.status='submitted' AND e.id IS NULL)
       OR (e.id IS NOT NULL AND (u.status!='submitted' OR u.owner_uid!=e.owner_uid
-        OR u.appointment_id!=e.appointment_id OR u.content_type!=e.content_type
+        OR u.appointment_id IS NOT e.appointment_id ${schema >= 8 ? "OR u.class_id IS NOT e.class_id" : ""} OR u.content_type!=e.content_type
         OR u.size!=e.size OR u.sha256!=e.sha256 OR u.title!=e.title)) LIMIT 1`).get())
     refuse("Submitted Evidence and upload records are inconsistent. No backup or restore was accepted.");
   if (schema >= 3 && db.prepare(`SELECT g.id FROM learning_goals g LEFT JOIN users u ON u.uid=g.owner_uid
@@ -181,6 +181,95 @@ function checkDatabase(db, expectedSchema) {
           !Number.isSafeInteger(metadata.version) || metadata.version < 1 || !Number.isSafeInteger(receipt.current_version) || metadata.version > receipt.current_version ||
           !validId(receipt.request_id) || receipt.request_id.length < 16 || !/^[a-f0-9]{64}$/.test(receipt.fingerprint)) refuse("Private draft receipts must contain confirmation metadata only. No backup or restore was accepted.");
     }
+  }
+  if (schema >= 6) {
+    if (db.prepare("SELECT owner_uid FROM calendar_enrollments GROUP BY owner_uid HAVING count(*)>500 LIMIT 1").get()) refuse("Test calendar enrollment counts exceed the supported bound. No backup or restore was accepted.");
+    for (const enrollment of db.prepare("SELECT e.*,u.uid AS existing_owner FROM calendar_enrollments e LEFT JOIN users u ON u.uid=e.owner_uid").iterate()) {
+      const match = typeof enrollment.class_id === "string" && enrollment.class_id.match(/^test_v1_(20\d{2}-\d{2}-\d{2})_(writing|science|support|art|nature)$/);
+      const stamp = match ? Date.parse(`${match[1]}T00:00:00Z`) : NaN;
+      const catalog = schema >= 8 && db.prepare("SELECT id FROM class_catalog WHERE id=?").get(enrollment.class_id);
+      const fixture = Boolean(match && Number.isFinite(stamp) && new Date(stamp).toISOString().slice(0, 10) === match[1]);
+      const statuses = catalog ? ["pending_approval", "pending_payment", "confirmed", "waitlisted", "declined", "cancelled"] : ["enrolled", "cancelled"];
+      if (!enrollment.existing_owner || !validId(enrollment.owner_uid) || (!fixture && !catalog) ||
+          !statuses.includes(enrollment.status) || !Number.isSafeInteger(enrollment.version) || enrollment.version < 1 ||
+          !instant(enrollment.created_at) || !instant(enrollment.updated_at) || enrollment.updated_at < enrollment.created_at)
+        refuse("A test calendar enrollment contains inconsistent metadata. No backup or restore was accepted.");
+      if (catalog && (!["online", "in_person"].includes(enrollment.mode) || (["pending_payment", "confirmed", "declined"].includes(enrollment.status) && db.prepare("SELECT role FROM users WHERE uid=?").get(enrollment.approved_by)?.role !== "parent"))) refuse("A class request has inconsistent format or parent approval metadata.");
+    }
+  }
+  if (schema >= 7) {
+    const digest = value => createHash("sha256").update(value).digest("hex");
+    for (const app of db.prepare("SELECT * FROM admissions_applications").iterate()) {
+      if (!validId(app.id) || !plain(app.parent_name, 80, false) || !plain(app.email, 254, false) || !plain(app.student_name, 80, true) || !plain(app.grade_band, 40, true) || !plain(app.interest, 600, true, true) ||
+          !["pending_interview", "interview_scheduled", "interviewed", "approved", "declined", "enrolled"].includes(app.status) || !["undecided", "bring", "upload"].includes(app.document_preference) ||
+          !Number.isSafeInteger(app.version) || app.version < 1 || !instant(app.created_at) || !instant(app.updated_at) || app.updated_at < app.created_at)
+        refuse("Admissions application metadata is inconsistent. No backup or restore was accepted.");
+      if (["interviewed", "approved", "enrolled"].includes(app.status) && !db.prepare("SELECT application_id FROM admissions_interviews WHERE application_id=?").get(app.id)) refuse("An admissions approval has no recorded interview.");
+      if (app.status === "enrolled" && db.prepare("SELECT role FROM users WHERE uid=?").get(app.enrolled_parent_uid)?.role !== "parent") refuse("An enrolled application is not linked to a parent account.");
+    }
+    if (db.prepare("SELECT application_id FROM admissions_documents GROUP BY application_id HAVING count(*)>10 OR sum(size)>26214400 LIMIT 1").get() || db.prepare("SELECT sum(size) AS bytes FROM admissions_documents").get().bytes > 536870912) refuse("Private admissions document quotas are inconsistent.");
+    for (const file of db.prepare("SELECT * FROM admissions_documents").iterate()) {
+      if (!validId(file.id) || !validId(file.application_id) || !plain(file.name, 160, false) || /[\\/]/.test(file.name) || !["application/pdf", "text/plain"].includes(file.content_type) || !Number.isSafeInteger(file.size) || file.size < 1 || file.size > MAX_FILE || !/^[a-f0-9]{64}$/.test(file.sha256) || !instant(file.created_at) || !instant(file.expires_at)) refuse("A private admissions document has unsupported metadata.");
+      if (file.state === "uploaded" && (!file.content || file.content.length !== file.size || digest(file.content) !== file.sha256 || !instant(file.uploaded_at))) refuse("A private admissions document failed its checksum.");
+      if (file.state === "pending" && (file.content !== null || file.uploaded_at !== null)) refuse("An unfinished admissions upload has inconsistent bytes.");
+    }
+    for (const cap of db.prepare("SELECT * FROM admissions_access").iterate()) if (!/^[a-f0-9]{64}$/.test(cap.token_hash) || !instant(cap.expires_at) || !instant(cap.created_at)) refuse("Application access metadata is inconsistent.");
+    for (const invite of db.prepare("SELECT * FROM admissions_invitations").iterate()) if (!/^[a-f0-9]{64}$/.test(invite.token_hash) || !instant(invite.expires_at) || !instant(invite.created_at) || (invite.used_at !== null && !instant(invite.used_at)) || (invite.revoked_at !== null && !instant(invite.revoked_at))) refuse("Enrollment invitation metadata is inconsistent.");
+    if (db.prepare("SELECT a.id FROM admissions_appointments a JOIN appointments b ON b.slot_id=a.slot_id WHERE a.status='reserved' AND b.status='reserved' LIMIT 1").get()) refuse("An interview time has conflicting reservations.");
+  }
+  if (schema >= 8) {
+    for (const course of db.prepare("SELECT * FROM class_catalog").iterate()) {
+      let modes;
+      try { modes = JSON.parse(course.modalities_json); } catch { refuse("A class has invalid participation formats."); }
+      if (!validId(course.id) || !plain(course.title, 160, false) || !plain(course.description, 1600, false, true) ||
+          !plain(course.teacher, 100, false) || !plain(course.topic, 100, false) || !plain(course.grades, 100, false) || !plain(course.location, 160, false) ||
+          !["coursework", "live_sessions", "learning_support", "clubs_activities"].includes(course.category) ||
+          !instant(course.starts_at) || !instant(course.ends_at) || course.ends_at <= course.starts_at || course.ends_at - course.starts_at > 12 * 3600000 ||
+          !Number.isSafeInteger(course.capacity) || course.capacity < 1 || course.capacity > 1000 || !Number.isSafeInteger(course.price_cents) || course.price_cents < 0 || course.price_cents > 1000000 ||
+          !Array.isArray(modes) || modes.length < 1 || modes.length > 2 || new Set(modes).size !== modes.length || modes.some((mode) => !["online", "in_person"].includes(mode)) ||
+          ![0, 1].includes(course.published) || !Number.isSafeInteger(course.version) || course.version < 1 || !instant(course.created_at) || !instant(course.updated_at) || course.updated_at < course.created_at)
+        refuse("The class catalog contains inconsistent metadata.");
+    }
+    for (const table of ["uploads", "evidence"]) {
+      if (db.prepare(`SELECT f.id FROM ${table} f LEFT JOIN users u ON u.uid=f.owner_uid LEFT JOIN class_catalog c ON c.id=f.class_id
+        WHERE (f.appointment_id IS NULL)=(f.class_id IS NULL) OR (f.class_id IS NOT NULL AND (c.id IS NULL OR u.role!='student')) LIMIT 1`).get()) refuse("Class Evidence has an invalid learning context or owner.");
+    }
+  }
+  if (schema >= 9) {
+    if (db.prepare("SELECT owner_uid FROM class_bookmarks GROUP BY owner_uid HAVING count(*)>500 LIMIT 1").get()) refuse("A saved class collection exceeds its supported bound.");
+    for (const bookmark of db.prepare("SELECT b.*,u.role AS owner_role FROM class_bookmarks b JOIN users u ON u.uid=b.owner_uid").iterate()) {
+      if (!validId(bookmark.owner_uid) || !validId(bookmark.class_id) || bookmark.owner_role !== "student" || !instant(bookmark.created_at)) refuse("A saved class contains invalid metadata or ownership.");
+    }
+
+    if (db.prepare(`SELECT e.class_id FROM calendar_enrollments e LEFT JOIN learning_goals g ON g.id=e.goal_id
+      WHERE e.goal_id IS NOT NULL AND (g.id IS NULL OR g.owner_uid!=e.owner_uid) LIMIT 1`).get()) refuse("A class request links another student's learning goal.");
+    for (const setup of db.prepare("SELECT * FROM admissions_student_setups").iterate()) {
+      const application = db.prepare("SELECT * FROM admissions_applications WHERE id=?").get(setup.application_id);
+      if (!validId(setup.application_id) || !validId(setup.parent_uid) || !validId(setup.issued_by) || !application ||
+          application.status !== "enrolled" || application.enrolled_parent_uid !== setup.parent_uid ||
+          !Number.isSafeInteger(setup.version) || setup.version < 1 || !instant(setup.expires_at) || !instant(setup.authorized_at) || !instant(setup.updated_at) ||
+          setup.expires_at <= setup.authorized_at || setup.updated_at < setup.authorized_at ||
+          !db.prepare("SELECT id FROM admissions_invitations WHERE application_id=? AND used_at IS NOT NULL").get(setup.application_id))
+        refuse("Student setup is not bound to a completed approved parent enrollment.");
+      if (setup.student_uid !== null) {
+        if (!validId(setup.student_uid) || !instant(setup.provisioned_at) || setup.provisioned_at < setup.authorized_at || setup.provisioned_at > setup.updated_at || setup.version < 2 ||
+            db.prepare("SELECT role FROM users WHERE uid=?").get(setup.student_uid)?.role !== "student" ||
+            !db.prepare("SELECT id FROM family_links WHERE parent_uid=? AND student_uid=? AND length(trim(consent_reference))>0").get(setup.parent_uid, setup.student_uid))
+          refuse("Provisioned student and recorded family authorization are inconsistent.");
+      } else if (setup.provisioned_at !== null) refuse("Unfinished student setup contains completion metadata.");
+    }
+  }
+  if (schema >= 10) {
+    for (const item of db.prepare("SELECT i.*,p.role AS payer_role,s.role AS issuer_role FROM payment_items i JOIN users p ON p.uid=i.parent_uid JOIN users s ON s.uid=i.issued_by").iterate()) {
+      if (!validId(item.id) || item.payer_role !== 'parent' || item.issuer_role !== 'operator' || !plain(item.label,160,false) || !plain(item.student_name,80,true) || !plain(item.billing_period,80,false) || !instant(item.created_at) || !Number.isSafeInteger(item.amount_cents) || item.amount_cents < 1 || item.amount_cents > 1000000 || item.currency !== 'USD') refuse("A payment billing item contains invalid ownership or metadata.");
+      if (item.type === 'quarterly_enrollment' && (item.business_key !== `quarterly-initial:${item.application_id}` || item.checkout_link_key !== 'SMKcGdqR2' || db.prepare("SELECT enrolled_parent_uid FROM admissions_applications WHERE id=?").get(item.application_id)?.enrolled_parent_uid !== item.parent_uid)) refuse("A quarterly billing item is not linked to its approved invited family.");
+      if (item.type === 'individual_session' && (item.checkout_link_key !== '4JW4fSGwNK2p6' || db.prepare("SELECT role FROM users WHERE uid=?").get(item.student_uid)?.role !== 'student' || !instant(item.enrollment_created_at) || !Number.isSafeInteger(item.enrollment_version) || item.enrollment_version < 1)) refuse("A class billing item has invalid enrollment metadata.");
+    }
+    for (const payment of db.prepare("SELECT p.*,i.amount_cents AS item_amount,i.currency AS item_currency FROM payments p JOIN payment_items i ON i.id=p.item_id").iterate()) {
+      if (!validId(payment.id) || payment.amount_cents !== payment.item_amount || payment.currency !== payment.item_currency || !instant(payment.created_at) || !instant(payment.updated_at) || payment.updated_at < payment.created_at || (payment.verified_at !== null && (!instant(payment.verified_at) || payment.verified_at < payment.created_at)) || !plain(payment.note,1000,false)) refuse("A saved payment has invalid amount or status metadata.");
+      if (['paid','failed','cancelled','refunded'].includes(payment.status) && !db.prepare("SELECT id FROM payment_receipts WHERE payment_id=? AND provider_payment_id=? AND status=?").get(payment.id,payment.provider_payment_id,payment.status)) refuse("A terminal payment status has no corresponding trusted provider receipt.");
+    }
+    for (const receipt of db.prepare("SELECT * FROM payment_receipts").iterate()) if (!validId(receipt.id) || !validId(receipt.provider_payment_id) || !/^[a-f0-9]{64}$/.test(receipt.digest) || !instant(receipt.occurred_at) || !instant(receipt.received_at)) refuse("A trusted provider receipt has inconsistent metadata.");
   }
   return schema;
 }
@@ -299,7 +388,12 @@ function restoreLocalBackup({ directory: input, outputDir }) {
     db = openExisting(path.join(target, "tala.sqlite"), false);
     checkDatabase(db);
     // Restoring history must never resurrect an old authenticated session.
-    db.exec("DELETE FROM sessions; PRAGMA wal_checkpoint(TRUNCATE)");
+    db.exec("DELETE FROM sessions;");
+    if (db.prepare("PRAGMA user_version").get().user_version >= 7) {
+      db.exec("DELETE FROM admissions_access;");
+      db.prepare("UPDATE admissions_invitations SET revoked_at=? WHERE used_at IS NULL AND revoked_at IS NULL").run(Date.now());
+    }
+    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     db.close(); db = undefined;
     flushTree(target); complete = true;
     return { directory: target, privateFiles: verified.privateFiles, sessions: "signed-out", status: "restored" };

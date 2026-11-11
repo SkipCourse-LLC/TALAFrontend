@@ -12,9 +12,12 @@ import type {
 import { meetingTime } from "./format";
 import { parseLocalMeetingTime } from "./meetingHelpers";
 import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
+import { AdmissionsReviewPanel } from "./admissions/AdmissionsReviewPanel";
+import { ClassesWorkspace } from "./calendar/ClassesWorkspace";
+import { OperatorPaymentsPanel } from "../payment/OperatorPaymentsPanel";
 import "./operator.css";
 
-type Panel = "review" | "meetings" | "learning";
+type Panel = "admissions" | "classes" | "payments" | "review" | "meetings" | "learning";
 type ReviewFilter = "not_reviewed" | "needs_revision" | "reviewed" | "all";
 type ReviewDraft = {
   status: "reviewed" | "needs_revision";
@@ -22,6 +25,9 @@ type ReviewDraft = {
   expectedReviewVersion: number;
 };
 const panels: Array<{ id: Panel; label: string }> = [
+  { id: "admissions", label: "Admissions" },
+  { id: "classes", label: "Classes" },
+  { id: "payments", label: "Payments" },
   { id: "review", label: "Review evidence" },
   { id: "meetings", label: "Meetings" },
   { id: "learning", label: "Learning summaries" },
@@ -281,7 +287,7 @@ export function OperatorWorkspace({
   const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const panel: Panel = panels.some((item) => item.id === requestedPanel)
     ? (requestedPanel as Panel)
-    : "review";
+    : "admissions";
   const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -438,13 +444,15 @@ export function OperatorWorkspace({
     onExpired,
   );
   const relevantPages =
-    panel === "review"
-      ? pinnedEvidence
-        ? [evidencePage, pinnedPage]
-        : [evidencePage]
-      : panel === "meetings"
-        ? [availabilityPage, bookingsPage]
-        : [endedPage, recordsPage];
+    panel === "admissions" || panel === "classes" || panel === "payments"
+      ? []
+      : panel === "review"
+        ? pinnedEvidence
+          ? [evidencePage, pinnedPage]
+          : [evidencePage]
+        : panel === "meetings"
+          ? [availabilityPage, bookingsPage]
+          : [endedPage, recordsPage];
   const loading = relevantPages.some((page) => page.loading);
   const loadError = relevantPages
     .map((page) => page.error)
@@ -692,6 +700,45 @@ export function OperatorWorkspace({
         <div className="operator-loading" role="status">
           Loading your work queue…
         </div>
+      )}
+
+      {panel === "admissions" && (
+        <section
+          id="operator-panel-admissions"
+          role="tabpanel"
+          aria-labelledby="operator-tab-admissions"
+          className="operator-panel"
+        >
+          <AdmissionsReviewPanel
+            key={user.uid}
+            operatorUid={user.uid}
+            attempt={attempt}
+            onExpired={onExpired}
+          />
+        </section>
+      )}
+
+      {panel === "classes" && (
+        <section
+          id="operator-panel-classes"
+          role="tabpanel"
+          aria-labelledby="operator-tab-classes"
+          className="operator-panel"
+        >
+          <ClassesWorkspace
+            key={user.uid}
+            ownerUid={user.uid}
+            staffName={user.name}
+            attempt={attempt}
+            onExpired={onExpired}
+          />
+        </section>
+      )}
+
+      {panel === "payments" && (
+        <section id="operator-panel-payments" role="tabpanel" aria-labelledby="operator-tab-payments" className="operator-panel">
+          <OperatorPaymentsPanel key={user.uid} attempt={attempt} onExpired={onExpired} />
+        </section>
       )}
 
       <section

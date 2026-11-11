@@ -1,0 +1,1178 @@
+/* Calendar responds to the space inside Student Hub, not the browser width. */
+.student-workspace.server-dashboard:has(.tala-calendar) {
+  --container: 1440px;
+}
+.tala-calendar {
+  --cal-ink: #203932;
+  --cal-muted: #5b6e64;
+  --cal-line: #dce4e0;
+  --cal-soft: #f4f7f5;
+  --cal-green: #194b40;
+  --cal-coursework: #3f7888;
+  --cal-live: #627f66;
+  --cal-support: #707b65;
+  --cal-clubs: #4b8591;
+  --cal-holidays: #7b837c;
+  container: tala-calendar / inline-size;
+  color: var(--cal-ink);
+  min-width: 0;
+}
+.server-dashboard
+  .server-dashboard-main[data-workspace-view="calendar"]
+  > .product-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.tala-calendar *,
+.tala-cal-detail * {
+  box-sizing: border-box;
+}
+.tala-calendar button,
+.tala-cal-detail button {
+  font: inherit;
+  cursor: pointer;
+}
+.tala-calendar button:disabled,
+.tala-cal-detail button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.tala-calendar :is(button, input, summary):focus-visible,
+.tala-cal-detail button:focus-visible,
+.tala-cal-week-scroll:focus-visible {
+  outline: 3px solid #194b40;
+  outline-offset: 3px;
+}
+.tala-cal-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.75rem;
+  margin: 0 0 1rem;
+}
+.tala-cal-page-header > div {
+  margin-right: auto;
+}
+.tala-cal-page-header h2 {
+  font-size: clamp(1.75rem, 2.5vw, 2.1rem);
+  letter-spacing: -0.045em;
+  line-height: 1.15;
+  margin: 0;
+  font-weight: 650;
+}
+.tala-cal-page-header p {
+  color: var(--cal-muted);
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  margin: 0.4rem 0 0;
+}
+.tala-cal-source {
+  order: 1;
+  flex-shrink: 0;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  line-height: 1.4;
+  color: #45645a;
+  background: #eaf2ed;
+  border: 1px solid #dce8df;
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+}
+.tala-cal-feedback {
+  color: var(--cal-muted);
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.tala-cal-feedback:empty {
+  display: none;
+}
+.tala-cal-notice {
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.9rem;
+  background: #eaf3ed;
+  border: 1px solid #c9ded0;
+  border-radius: 8px;
+  color: #24513e;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.tala-cal-error {
+  padding: 0.8rem 1rem;
+  border: 1px solid #dcb8ac;
+  border-radius: 9px;
+  background: #fcf5f2;
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+.tala-cal-error p {
+  margin: 0;
+  color: #903d2c;
+}
+.tala-cal-error button {
+  min-height: 44px;
+  border: 1px solid #b88b7f;
+  background: #fff;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  color: #742e20;
+  flex-shrink: 0;
+}
+.tala-cal-filters {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+  order: 2;
+  position: relative;
+  z-index: 30;
+  color: var(--cal-muted);
+}
+.tala-cal-filters > summary {
+  width: fit-content;
+  min-height: 44px;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--cal-line);
+  border-radius: 8px;
+  background: #fff;
+  color: #36584a;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.7;
+  cursor: pointer;
+}
+.tala-cal-filters[open] > summary {
+  background: #edf4ef;
+}
+.tala-cal-filters > div {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: min(360px, calc(100cqw - 16px));
+  gap: 0.15rem;
+  padding: 0.7rem 0.9rem;
+  margin: 0;
+  background: #fff;
+  border: 1px solid var(--cal-line);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px #173d2c14;
+}
+.tala-cal-filters label {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 44px;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  color: #405e4e;
+  cursor: pointer;
+}
+.tala-cal-filters input {
+  accent-color: var(--event-color);
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+}
+.tala-cal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+.tala-cal-board {
+  background: #fff;
+  border: 1px solid var(--cal-line);
+  border-radius: 14px;
+  overflow: hidden;
+  min-width: 0;
+}
+.tala-cal-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--cal-line);
+}
+.tala-cal-period {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.tala-cal-period h3 {
+  margin: 0 auto 0 0;
+  min-width: 0;
+  font-size: calc(1rem * var(--student-type-scale, 1));
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.35;
+}
+.tala-cal-arrows {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+.tala-cal-arrows button {
+  border: 0;
+  background: transparent;
+  color: var(--cal-muted);
+  font-size: calc(1.4rem * var(--student-type-scale, 1));
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  line-height: 1;
+  border-radius: 7px;
+}
+.tala-cal-arrows button:hover {
+  background: var(--cal-soft);
+  color: var(--cal-green);
+}
+.tala-cal-today {
+  padding: 0.4rem 0.65rem;
+  min-height: 44px;
+  flex-shrink: 0;
+  border: 1px solid var(--cal-line);
+  border-radius: 7px;
+  background: #fff;
+  font-size: 0.8125rem !important;
+  color: var(--cal-ink);
+}
+.tala-cal-views {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  background: var(--cal-soft);
+  border: 1px solid #edf1ee;
+  border-radius: 9px;
+}
+.tala-cal-views button {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  color: var(--cal-muted);
+  background: transparent;
+  min-height: 44px;
+  min-width: 0;
+}
+.tala-cal-views button[aria-pressed="true"] {
+  color: var(--cal-green);
+  background: #fff;
+  border-color: #d4dfd7;
+  box-shadow: 0 1px 2px #213b3210;
+  font-weight: 600;
+}
+.tala-cal-board-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.25rem 1.1rem;
+  border-bottom: 1px solid var(--cal-line);
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: var(--cal-muted);
+}
+.tala-cal-board-options > span {
+  white-space: nowrap;
+}
+.tala-cal-scope {
+  display: flex;
+  gap: 1.15rem;
+  min-width: 0;
+}
+.tala-cal-scope button {
+  padding: 0.3rem 0;
+  min-height: 44px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--cal-muted);
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  white-space: nowrap;
+}
+.tala-cal-scope button[aria-pressed="true"] {
+  color: var(--cal-green);
+  border-bottom-color: var(--cal-green);
+  font-weight: 650;
+}
+.tala-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  background: #f8faf9;
+  border-bottom: 1px solid var(--cal-line);
+}
+.tala-cal-weekdays span {
+  padding: 0.65rem 0.6rem;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: #63756d;
+}
+.tala-cal-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.tala-cal-cell {
+  min-width: 0;
+  min-height: 116px;
+  padding: 0.2rem 0.3rem 0.3rem;
+  border-right: 1px solid var(--cal-line);
+  border-bottom: 1px solid var(--cal-line);
+  position: relative;
+}
+.tala-cal-cell:nth-child(7n) {
+  border-right: 0;
+}
+.tala-cal-cell:nth-last-child(-n + 7) {
+  border-bottom: 0;
+}
+.tala-cal-cell[data-weekend="true"] {
+  background: #fafcfb;
+}
+.tala-cal-cell[data-outside="true"] {
+  background: #fafbf9;
+}
+.tala-cal-cell[data-outside="true"] .tala-cal-date {
+  color: #89978d;
+}
+.tala-cal-cell[data-selected="true"] {
+  box-shadow: inset 0 0 0 2px #447967;
+  background: #f2f8f4;
+}
+.tala-cal-date {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #53695b;
+  text-align: left;
+}
+.tala-cal-day-number {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.tala-cal-date[aria-current="date"] .tala-cal-day-number {
+  background: #194b40;
+  color: #fff;
+}
+.tala-cal-date[aria-pressed="true"] {
+  color: #194b40;
+  font-weight: 650;
+}
+.tala-cal-today-label {
+  display: none;
+}
+.tala-cal-cell-events {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+.tala-cal-chip {
+  --event-color: var(--cal-coursework);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 22px;
+  text-align: left;
+  padding: 0.2rem 0.3rem;
+  border: 0;
+  border-left: 2px solid var(--event-color);
+  border-radius: 3px;
+  background: #eef3f4;
+  color: #3f626c;
+  font-size: 0.75rem !important;
+  line-height: 1.25;
+}
+.tala-cal-chip[data-category="live_sessions"],
+.tala-cal-chip[data-category="learning_support"],
+.tala-cal-chip[data-category="holidays"] {
+  background: #eef3ee;
+  color: #47644e;
+}
+.tala-cal-chip-time {
+  display: none;
+}
+.tala-cal-chip-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tala-cal-chip-check {
+  margin-left: auto;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.tala-cal-more {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 22px;
+  background: transparent;
+  border: 0;
+  color: #42685e;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.75rem !important;
+  line-height: 1.3;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tala-cal-mobile-count {
+  display: none;
+}
+.tala-calendar [data-category="coursework"] {
+  --event-color: var(--cal-coursework);
+}
+.tala-calendar [data-category="live_sessions"] {
+  --event-color: var(--cal-live);
+}
+.tala-calendar [data-category="learning_support"] {
+  --event-color: var(--cal-support);
+}
+.tala-calendar [data-category="clubs_activities"] {
+  --event-color: var(--cal-clubs);
+}
+.tala-calendar [data-category="holidays"] {
+  --event-color: var(--cal-holidays);
+}
+.tala-cal-side {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.tala-cal-today-card {
+  background: #fff;
+  border: 1px solid var(--cal-line);
+  padding: 1.15rem;
+  border-radius: 14px;
+  min-width: 0;
+}
+.tala-cal-selected-label {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  color: var(--cal-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+}
+.tala-cal-selected-label > span {
+  border-radius: 5px;
+  background: var(--cal-soft);
+  padding: 0.15rem 0.4rem;
+}
+.tala-cal-today-card > h3 {
+  font-size: calc(1.125rem * var(--student-type-scale, 1));
+  font-weight: 650;
+  margin: 0 0 0.9rem;
+  letter-spacing: -0.03em;
+}
+.tala-cal-muted {
+  color: var(--cal-muted);
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  margin: 0.4rem 0 1rem;
+}
+.tala-cal-day-classes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+.tala-cal-earlier {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--cal-line);
+  min-width: 0;
+}
+.tala-cal-earlier > summary {
+  min-height: 44px;
+  padding: 0.85rem 0;
+  cursor: pointer;
+  color: var(--cal-muted);
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+}
+.tala-cal-earlier[open] > summary {
+  color: var(--cal-green);
+}
+.tala-cal-earlier .tala-cal-open-class {
+  padding-block: 0.9rem;
+}
+.tala-cal-open-class {
+  min-width: 0;
+  padding: 1.1rem 0 1.1rem 0.9rem;
+  border-top: 1px solid var(--cal-line);
+  position: relative;
+}
+.tala-cal-open-class::before {
+  content: "";
+  height: 7px;
+  width: 7px;
+  position: absolute;
+  top: 1.4rem;
+  left: 0;
+  border-radius: 50%;
+  background: var(--event-color);
+}
+.tala-cal-class-time {
+  color: var(--cal-muted);
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  margin: 0 0 0.35rem;
+  line-height: 1.5;
+}
+.tala-cal-class-title {
+  max-width: 100%;
+  min-height: 44px;
+  font-size: 0.9375rem !important;
+  font-weight: 600 !important;
+  line-height: 1.45;
+  color: #294b3b;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+.tala-cal-class-title:hover {
+  text-decoration: underline;
+}
+.tala-cal-class-meta {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  margin: 0.15rem 0 0.7rem;
+  color: var(--cal-muted);
+}
+.tala-cal-class-bottom {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.tala-cal-class-bottom > span:not(.tala-cal-ended) {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  background: #f2f5f2;
+  color: #4a665b;
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  line-height: 1.4;
+}
+.tala-cal-enroll {
+  min-height: 44px;
+  border: 1px solid #254e45;
+  background: #254e45;
+  border-radius: 7px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.875rem !important;
+  color: #fff;
+  font-weight: 550 !important;
+}
+.tala-cal-enroll:hover:not(:disabled) {
+  background: #133f34;
+}
+.tala-cal-enroll.tala-cal-enroll-small {
+  min-height: 44px;
+  font-size: 0.8125rem !important;
+  padding: 0.4rem 0.7rem;
+  margin-left: auto;
+}
+.tala-cal-enroll-cancel {
+  background: #fff;
+  border-color: #b3c4ba;
+  color: #345b4c;
+}
+.tala-cal-enroll-cancel:hover:not(:disabled) {
+  background: #edf5ef;
+}
+.tala-cal-ended {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: var(--cal-muted);
+  margin-left: auto;
+}
+.tala-cal-empty-inline {
+  margin: 0.9rem 0;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  color: var(--cal-muted);
+  line-height: 1.6;
+}
+.tala-cal-full-day {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-top: 1px solid var(--cal-line);
+  background: transparent;
+  color: #365e4d;
+  padding: 0.8rem 0 0.25rem;
+  font-size: 0.8125rem !important;
+  text-align: left;
+}
+.tala-cal-linked {
+  border-top: 1px solid var(--cal-line);
+  padding: 0.8rem 0;
+  min-width: 0;
+}
+.tala-cal-linked h4 {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  margin: 0 0 0.4rem;
+}
+.tala-cal-linked button {
+  background: transparent;
+  border: 0;
+  display: flex;
+  text-align: left;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0;
+  width: 100%;
+  color: #365f53;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  min-height: 44px;
+  overflow-wrap: anywhere;
+}
+.tala-cal-linked button > span:first-child {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: var(--cal-muted);
+  flex-shrink: 0;
+}
+.tala-cal-linked button > span:last-child {
+  margin-left: auto;
+}
+.tala-cal-shortcuts {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+  padding: 0 0.3rem;
+}
+.tala-cal-shortcuts button {
+  background: none;
+  border: 0;
+  color: #42695c;
+  min-height: 44px;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  padding: 0.25rem;
+}
+.tala-cal-shortcuts button span {
+  padding-left: 0.3rem;
+}
+.tala-cal-week-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.tala-cal-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(100px, 1fr));
+  min-width: 700px;
+  min-height: 480px;
+}
+.tala-cal-week-column {
+  min-width: 0;
+  border-right: 1px solid var(--cal-line);
+}
+.tala-cal-week-column:last-child {
+  border-right: 0;
+}
+.tala-cal-week-column[data-selected="true"] {
+  background: #f5faf7;
+}
+.tala-cal-date-week {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 0.25rem;
+  border-bottom: 1px solid var(--cal-line);
+  border-radius: 0;
+  gap: 0.4rem;
+}
+.tala-cal-week-day {
+  color: var(--cal-muted);
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  font-weight: 400;
+}
+.tala-cal-date-week .tala-cal-day-number {
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
+  width: 32px;
+  height: 32px;
+}
+.tala-cal-date-week .tala-cal-today-label {
+  margin: 0;
+}
+.tala-cal-week-events {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.65rem 0.4rem;
+  align-content: start;
+}
+.tala-cal-week-event {
+  display: grid;
+  gap: 0.4rem;
+  min-height: 88px;
+  background: #edf4f1;
+  color: #345b4e;
+  border: 0;
+  border-left: 3px solid var(--event-color);
+  border-radius: 4px;
+  padding: 0.5rem;
+  text-align: left;
+  line-height: 1.4;
+}
+.tala-cal-week-event > span {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-cal-week-event > strong {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.tala-cal-week-event > small {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-cal-week-empty {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: var(--cal-muted);
+  margin: 1rem 0.25rem;
+}
+.tala-cal-day-view {
+  min-height: 430px;
+  padding: 1.25rem;
+}
+.tala-cal-day-view h4 {
+  font-size: calc(1rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  margin: 0 0 1.25rem;
+}
+.tala-cal-event-list {
+  width: 100%;
+  min-width: 0;
+}
+.tala-cal-event-row {
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--cal-line);
+  background: #fff;
+  padding: 1rem 0.4rem;
+  color: var(--cal-ink);
+}
+.tala-cal-event-row:last-child {
+  border-bottom: 0;
+}
+.tala-cal-event-row:hover {
+  background: #f7faf8;
+}
+.tala-cal-event-time {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+  color: var(--cal-muted);
+}
+.tala-cal-event-row > span:nth-child(2) {
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--event-color);
+}
+.tala-cal-event-row strong {
+  display: block;
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+  font-weight: 600;
+}
+.tala-cal-event-row small {
+  display: block;
+  color: var(--cal-muted);
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  margin-top: 0.3rem;
+}
+.tala-cal-row-status {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: #4b6e5d;
+  white-space: nowrap;
+}
+.tala-cal-agenda {
+  padding: 0.25rem 1.1rem;
+  min-height: 400px;
+}
+.tala-cal-agenda-day {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 1rem;
+  border-bottom: 1px solid var(--cal-line);
+  padding: 0.85rem 0;
+}
+.tala-cal-agenda-day:last-child {
+  border-bottom: 0;
+}
+.tala-cal-agenda-date {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: 0;
+  color: var(--cal-muted);
+  padding: 0.7rem 0.15rem;
+  border-radius: 5px;
+}
+.tala-cal-agenda-date span {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-cal-agenda-date strong {
+  font-size: calc(1.5rem * var(--student-type-scale, 1));
+  color: #3a6354;
+  font-weight: 500;
+}
+.tala-cal-agenda .tala-cal-event-row {
+  grid-template-columns: 115px minmax(0, 1fr) auto;
+  gap: 0.6rem;
+}
+.tala-cal-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+  color: var(--cal-muted);
+}
+.tala-cal-empty p {
+  margin: 0 0 0.75rem;
+}
+.tala-cal-empty button {
+  color: var(--cal-green);
+  border: 1px solid var(--cal-line);
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.6rem 0.85rem;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+}
+.tala-cal-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.tala-cal-detail {
+  width: min(510px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 1.6rem;
+  border: 1px solid #c7d5cc;
+  border-radius: 16px;
+  color: #203932;
+  background: #fff;
+  overflow-y: auto;
+  box-shadow: 0 24px 80px #152f2525;
+}
+.tala-cal-detail::backdrop {
+  background: #193b3266;
+  backdrop-filter: blur(3px);
+}
+.tala-cal-detail-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+.tala-cal-detail-top > span {
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  color: #607469;
+}
+.tala-cal-detail-top button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: #f0f5f1;
+  color: #365549;
+  font-size: calc(1.7rem * var(--student-type-scale, 1));
+  padding: 0;
+}
+.tala-cal-detail h2 {
+  margin: 1rem 0 0.8rem;
+  font-size: calc(1.7rem * var(--student-type-scale, 1));
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.tala-cal-detail h2:focus {
+  outline: none;
+}
+.tala-cal-detail > p {
+  font-size: calc(0.88rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  margin: 0.45rem 0;
+}
+.tala-cal-detail-date {
+  color: #45695a;
+  font-weight: 550;
+}
+.tala-cal-detail .tala-cal-detail-description {
+  margin: 1.3rem 0;
+  color: #52655c;
+}
+.tala-cal-detail dl {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid #dce4e0;
+  border-bottom: 1px solid #dce4e0;
+  padding: 1.1rem 0;
+  margin: 0 0 1rem;
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+}
+.tala-cal-detail dl > div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 1rem;
+}
+.tala-cal-detail dt {
+  color: #66796e;
+}
+.tala-cal-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tala-cal-detail .tala-cal-detail-source {
+  color: #66796e;
+  background: #f1f6f2;
+  border-radius: 7px;
+  padding: 0.7rem 0.8rem;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-cal-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 1.3rem;
+}
+.tala-cal-close {
+  min-height: 44px;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid #c8d5cc;
+  border-radius: 6px;
+  background: #fff;
+  color: #3c5c4c;
+  font-size: 0.85rem !important;
+}
+.tala-cal-error-text {
+  color: #8d3b28;
+}
+
+/* Use a side panel only when the month still has room for seven useful columns. */
+@container tala-calendar (min-width: 620px) {
+  .tala-cal-toolbar {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .tala-cal-period {
+    flex: 1;
+  }
+  .tala-cal-views {
+    flex: 0 0 260px;
+  }
+}
+@container tala-calendar (min-width: 1000px) {
+  .tala-cal-layout {
+    grid-template-columns: minmax(650px, 1fr) 280px;
+    gap: 1.15rem;
+  }
+  .tala-cal-toolbar {
+    padding: 1rem;
+  }
+}
+@container tala-calendar (min-width: 620px) and (max-width: 999px) {
+  .tala-cal-day-classes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.75rem;
+  }
+  .tala-cal-period h3 {
+    font-size: calc(0.9375rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-period {
+    gap: 0.2rem;
+  }
+  .tala-cal-arrows button {
+    width: 38px;
+  }
+}
+@container tala-calendar (max-width: 619px) {
+  .tala-cal-filters {
+    margin-inline-start: auto;
+  }
+  .tala-cal-page-header {
+    margin-bottom: 0.7rem;
+    gap: 0.6rem;
+  }
+  .tala-cal-page-header h2 {
+    font-size: calc(1.8rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-layout {
+    gap: 0.9rem;
+  }
+  .tala-cal-toolbar {
+    padding: 0.75rem;
+    gap: 0.65rem;
+  }
+  .tala-cal-period {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.2rem;
+  }
+  .tala-cal-period h3 {
+    font-size: calc(0.9375rem * var(--student-type-scale, 1));
+    overflow-wrap: normal;
+  }
+  .tala-cal-views button {
+    padding-inline: 0.25rem;
+  }
+  .tala-cal-board-options {
+    padding: 0.2rem 0.75rem;
+    gap: 0.5rem;
+    font-size: calc(0.6875rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-scope {
+    gap: 0.75rem;
+  }
+  .tala-cal-scope button {
+    font-size: calc(0.75rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-weekdays span {
+    text-align: center;
+    padding: 0.6rem 0.1rem;
+    font-size: calc(0.75rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-cell {
+    min-height: 72px;
+    padding: 0.15rem 0.1rem 0.45rem;
+  }
+  .tala-cal-month .tala-cal-date {
+    justify-content: center;
+  }
+  .tala-cal-day-number {
+    width: 30px;
+    height: 30px;
+  }
+  .tala-cal-cell-events,
+  .tala-cal-more {
+    display: none;
+  }
+  .tala-cal-mobile-count {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    padding-top: 4px;
+  }
+  .tala-cal-mobile-count i {
+    display: block;
+    height: 5px;
+    width: 5px;
+    border-radius: 50%;
+    background: var(--event-color);
+  }
+  .tala-cal-today-card {
+    padding: 1rem;
+  }
+  .tala-cal-filters > div {
+    width: min(300px, calc(100cqw - 16px));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .tala-cal-filters label {
+    font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-day-view {
+    padding: 1rem 0.8rem;
+    min-height: 250px;
+  }
+  .tala-cal-event-row,
+  .tala-cal-agenda .tala-cal-event-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    padding: 0.9rem 0.2rem;
+  }
+  .tala-cal-event-time {
+    grid-column: 1 / -1;
+  }
+  .tala-cal-event-row strong {
+    font-size: calc(0.875rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-agenda {
+    padding: 0.2rem 0.7rem;
+    min-height: 260px;
+  }
+  .tala-cal-agenda-day {
+    grid-template-columns: 35px minmax(0, 1fr);
+    gap: 0.6rem;
+  }
+  .tala-cal-agenda-date strong {
+    font-size: calc(1.35rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-error {
+    align-items: flex-start;
+    flex-direction: column;
+    font-size: calc(0.875rem * var(--student-type-scale, 1));
+  }
+}
+@media (max-width: 600px) {
+  .tala-cal-detail {
+    padding: 1.2rem;
+  }
+  .tala-cal-detail h2 {
+    font-size: calc(1.5rem * var(--student-type-scale, 1));
+  }
+}
+@media (prefers-contrast: more) {
+  .tala-calendar {
+    --cal-line: #6f8377;
+    --cal-muted: #374d40;
+  }
+  .tala-cal-chip {
+    color: #203b2f !important;
+  }
+  .tala-cal-cell[data-selected="true"] {
+    box-shadow: inset 0 0 0 3px #164b3a;
+  }
+}
+@media (forced-colors: active) {
+  .tala-cal-date[aria-pressed="true"],
+  .tala-cal-views button[aria-pressed="true"],
+  .tala-cal-scope button[aria-pressed="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .tala-cal-cell[data-selected="true"] {
+    box-shadow: none;
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .tala-cal-mobile-count i {
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+}
