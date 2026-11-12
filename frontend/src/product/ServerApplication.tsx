@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import type { ReactNode } from "react";
@@ -25,6 +32,13 @@ import { WorkspaceVisibility } from "./workspaceVisibility";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
 import "./product.css";
 import "./quietAccount.css";
+
+// Firebase is only downloaded when an administrator opens /admin.
+const AdminPage = lazy(() =>
+  import("../admin/AdminPage").then((module) => ({
+    default: module.AdminPage,
+  })),
+);
 
 function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
   const { pathname, search } = useLocation();
@@ -174,17 +188,17 @@ export function ServerApplication() {
         Restoring session…
       </div>
     );
-  if (error)
-    return (
-      <ApplicationConnectionNotice
-        error={error}
-        onRetry={() => {
-          setLoading(true);
-          setError("");
-          setAttempt((value) => value + 1);
-        }}
-      />
-    );
+  // Public pages and /admin do not need the API; only account pages show this.
+  const unavailable = error ? (
+    <ApplicationConnectionNotice
+      error={error}
+      onRetry={() => {
+        setLoading(true);
+        setError("");
+        setAttempt((value) => value + 1);
+      }}
+    />
+  ) : null;
   const workspace = user ? (
     user.role === "operator" ? (
       <OperatorWorkspace
@@ -286,10 +300,12 @@ export function ServerApplication() {
                       replace
                     />
                   ) : (
-                    <ServerAccessPage
-                      key="login"
-                      onAuthenticated={authenticated}
-                    />
+                    (unavailable ?? (
+                      <ServerAccessPage
+                        key="login"
+                        onAuthenticated={authenticated}
+                      />
+                    ))
                   )
                 }
               />
@@ -316,7 +332,25 @@ export function ServerApplication() {
               />
               <Route
                 path="dashboard"
-                element={user ? null : <Navigate to="/login" replace />}
+                element={
+                  user
+                    ? null
+                    : (unavailable ?? <Navigate to="/login" replace />)
+                }
+              />
+              <Route
+                path="admin"
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="container state-panel" role="status">
+                        Loading admin…
+                      </div>
+                    }
+                  >
+                    <AdminPage />
+                  </Suspense>
+                }
               />
               <Route path="about" element={<AboutPage />} />
               <Route path="learn-more" element={<AboutPage />} />
@@ -339,7 +373,7 @@ export function ServerApplication() {
                       returnTo={workspaceReturn}
                     />
                   ) : (
-                    <Navigate to="/login" replace />
+                    (unavailable ?? <Navigate to="/login" replace />)
                   )
                 }
               />
