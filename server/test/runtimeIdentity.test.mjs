@@ -47,7 +47,7 @@ test("both server entry points reject source edits during business-module loadin
   for (const entry of ["application.cjs", "index.cjs"]) {
     const directory = await mkdtemp(join(tmpdir(), "tala-runtime-load-order-"));
     try {
-      for (const file of ["accountServices.cjs", "application.cjs", "calendar.cjs", "contract.json", "database.cjs", "index.cjs", "learningGoals.cjs", "listServices.cjs", "meetingPreparation.cjs", "reflectionDrafts.cjs", "security.cjs", "services.cjs", "workspaceUpdates.cjs"]) await writeFile(join(directory, file), "module.exports = {};\n");
+      for (const file of ["accountServices.cjs", "admissions.cjs", "application.cjs", "calendar.cjs", "contract.json", "database.cjs", "index.cjs", "learningGoals.cjs", "listServices.cjs", "meetingPreparation.cjs", "payments.cjs", "reflectionDrafts.cjs", "security.cjs", "services.cjs", "workspaceUpdates.cjs"]) await writeFile(join(directory, file), "module.exports = {};\n");
       await copyFile(new URL("../runtimeIdentity.cjs", import.meta.url), join(directory, "runtimeIdentity.cjs"));
       await copyFile(new URL(`../${entry}`, import.meta.url), join(directory, entry));
       const changingModule = entry === "application.cjs" ? "services.cjs" : "application.cjs";

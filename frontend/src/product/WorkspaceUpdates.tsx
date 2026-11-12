@@ -22,7 +22,6 @@ type ReadAction = { kind: "one"; id: string } | { kind: "all" };
 type SavedUpdates = {
   key: string;
   scope: string;
-  revision: number;
   ownerUid: string;
   items: WorkspaceUpdate[];
   nextCursor: string | null;
@@ -102,6 +101,7 @@ export function WorkspaceUpdates({
 }) {
   const classRevision = useClassWorkspaceRevision(enabled);
   const revision = workspaceRevision + classRevision;
+  const backgroundRevision = useRef(revision);
   const baseId = useId();
   const scope = studentUid ?? "self";
   const [filter, setFilter] = useState<UpdateFilter>("all");
@@ -122,6 +122,7 @@ export function WorkspaceUpdates({
   const actionGeneration = useRef(0);
   const firstRequest = useRef<AbortController | null>(null);
   const moreRequest = useRef<AbortController | null>(null);
+  const backgroundRequest = useRef<AbortController | null>(null);
   const actionRequest = useRef<AbortController | null>(null);
   const running = useRef(false);
   const requestIds = useRef(new Map<string, string>());
@@ -181,6 +182,7 @@ export function WorkspaceUpdates({
       actionGeneration.current += 1;
       firstRequest.current?.abort();
       moreRequest.current?.abort();
+      backgroundRequest.current?.abort();
       actionRequest.current?.abort();
     };
   }, []);
@@ -303,7 +305,7 @@ export function WorkspaceUpdates({
     const cached = savedRef.current;
     // A hidden, already-current panel need not reread simply because its view
     // closed. First access and a real workspace revision still update the badge.
-    if (!visible && cached?.key === key && cached.revision === revision) {
+    if (!visible && cached?.key === key) {
       const timer = window.setTimeout(() => {
         setLoading(false);
         setLoadingMore(false);
@@ -331,7 +333,7 @@ export function WorkspaceUpdates({
           version !== generation.current
         )
           return;
-        const next = { ...page, key, scope, revision };
+        const next = { ...page, key, scope };
         savedRef.current = next;
         setSaved(next);
         setDeniedScope(undefined);
@@ -377,13 +379,76 @@ export function WorkspaceUpdates({
     scope,
     key,
     filter,
-    revision,
     attempt,
     visible,
     reportFailure,
     baseId,
     updateIssue,
     reconcileReadStatus,
+  ]);
+
+  useEffect(() => {
+    if (backgroundRevision.current === revision) return;
+    backgroundRevision.current = revision;
+    const cached = savedRef.current;
+    if (!visible || !enabled || deniedScope === scope || cached?.key !== key)
+      return;
+    const controller = new AbortController();
+    backgroundRequest.current?.abort();
+    backgroundRequest.current = controller;
+    void talaApi
+      .getWorkspaceUpdates({ studentUid, filter }, controller.signal)
+      .then((page) => {
+        const latest = savedRef.current;
+        if (
+          !mounted.current ||
+          !context.current.enabled ||
+          context.current.key !== key ||
+          controller.signal.aborted ||
+          latest?.key !== key ||
+          page.ownerUid !== latest.ownerUid
+        )
+          return;
+        const items = mergeWorkspaceUpdates(latest.items, page.items).sort(
+          (first, second) =>
+            Date.parse(second.occurredAt) - Date.parse(first.occurredAt) ||
+            second.id.localeCompare(first.id),
+        );
+        const next = {
+          ...latest,
+          items,
+          unreadCount: page.unreadCount,
+        };
+        savedRef.current = next;
+        setSaved(next);
+        const confirmed = reconcileReadStatus(page);
+        if (confirmed) setNotice(confirmed);
+      })
+      .catch((failure: unknown) => {
+        if (
+          mounted.current &&
+          context.current.enabled &&
+          context.current.key === key &&
+          !controller.signal.aborted
+        )
+          reportFailure(failure, "read");
+      })
+      .finally(() => {
+        if (backgroundRequest.current === controller)
+          backgroundRequest.current = null;
+      });
+    return () => controller.abort();
+  }, [
+    revision,
+    visible,
+    enabled,
+    deniedScope,
+    scope,
+    key,
+    studentUid,
+    filter,
+    reconcileReadStatus,
+    reportFailure,
   ]);
 
   useEffect(() => {

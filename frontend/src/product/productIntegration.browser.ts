@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { provisionAndLogin } from "./browserTestAccounts";
 
 interface TestApplication {
   operator: {
@@ -27,6 +28,12 @@ interface TestApplication {
     }): Promise<unknown>;
     promote(email: string): Promise<unknown>;
   };
+  provisionAccount(account: {
+    name: string;
+    email: string;
+    password: string;
+    role: "student" | "parent";
+  }): Promise<unknown>;
   findUid(email: string): Promise<string>;
   endBooking(email: string): Promise<{ appointmentId: string }>;
   dropUnsubmittedFile(uploadId: string): Promise<void>;
@@ -135,6 +142,7 @@ async function startIsolatedApplication(
       revokeFamily: (input) => call("revokeFamily", input),
       promote: (email) => call("promote", email),
     },
+    provisionAccount: (account) => call("provisionAccount", account),
     endBooking: async (email) =>
       (await call("endBooking", email)) as { appointmentId: string },
     dropUnsubmittedFile: async (uploadId) => {
@@ -197,41 +205,36 @@ test.afterEach(async ({ page }) => {
 async function register(
   page: Page,
   role: "student" | "parent" = "student",
-  loseSavedResponse = false,
 ) {
   const suffix = randomUUID();
   const account = {
     name: `Synthetic ${role}`,
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
+    role,
   };
+  return provisionAndLogin(
+    page,
+    (fixture) => application.provisionAccount(fixture),
+    account,
+  );
+}
+async function submitInterestWithLostResponse(page: Page) {
   await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  if (loseSavedResponse)
-    await page.route("**/api/auth/register", async (route) => {
-      // Complete the real server write/cookie rotation, then lose its browser
-      // response. Recovery must inspect the saved session, not register twice.
-      const saved = await route.fetch();
-      expect(saved.ok()).toBe(true);
-      await route.abort("connectionfailed");
-    });
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  if (loseSavedResponse) {
-    await expect(page.getByRole("alert")).toContainText("could not be reached");
-    await page.unroute("**/api/auth/register");
-    await page
-      .getByRole("button", { name: "Check saved session", exact: true })
-      .click();
-  }
-  await expect(
-    page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
-  ).toBeVisible();
-  return account;
+  await page.getByLabel("Parent or guardian name").fill("Synthetic interest parent");
+  await page.getByLabel("Contact email").fill(`${randomUUID()}@example.test`);
+  await page.getByLabel("Student grade").selectOption("6–8");
+  await page.getByLabel("What are you looking for?").fill("A synthetic enrollment inquiry.");
+  await page.route("**/api/admissions/applications", async (route) => {
+    const saved = await route.fetch();
+    expect(saved.ok()).toBe(true);
+    await route.abort("connectionfailed");
+  });
+  await page.getByRole("button", { name: "Continue to meet Tina", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("could not be reached");
+  await page.unroute("**/api/admissions/applications");
+  await page.getByRole("button", { name: "Check saved application", exact: true }).click();
+  await expect(page.getByText("Pending interview", { exact: true })).toBeVisible();
 }
 async function publishTimes() {
   for (let offset = 0; offset < 3; offset++) {
@@ -617,10 +620,11 @@ test("student registration, booking changes, private file persistence and mobile
   await capture(page, "tala-meetings-mobile-qa.png");
 });
 
-test("lost auth responses and rejected upload drafts recover safely, while linked parent access stays read-only", async ({
+test("lost enrollment responses and rejected upload drafts recover safely, while linked parent access stays read-only", async ({
   page,
 }) => {
-  const student = await register(page, "student", true);
+  await submitInterestWithLostResponse(page);
+  const student = await register(page, "student");
   await publishTimes();
   await book(page);
   await chooseView(page, "evidence");

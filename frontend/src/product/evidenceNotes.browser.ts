@@ -8,6 +8,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { provisionAndLogin } from "./browserTestAccounts";
 
 const webOrigin = "http://127.0.0.1:5192";
 const apiOrigin = "http://127.0.0.1:8802";
@@ -180,19 +181,9 @@ async function register(page: Page, role: "student" | "parent" = "student") {
     name: `Synthetic reflection evidence ${role}`,
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
+    role,
   };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
-  ).toBeVisible();
-  return account;
+  return provisionAndLogin(page, (fixture) => callFixture("provisionAccount", fixture), account);
 }
 
 async function chooseView(page: Page, name: "Meetings" | "Evidence") {

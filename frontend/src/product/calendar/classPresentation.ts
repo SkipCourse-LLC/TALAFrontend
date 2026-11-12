@@ -1,4 +1,5 @@
 import type { CalendarClass } from "../../api/calendarContract";
+import { phoenixDateKey } from "./calendarDates";
 
 export const categoryLabels = {
   coursework: "Coursework",
@@ -66,7 +67,11 @@ export function classSchedule(startsAt: string, endsAt: string) {
     hour: "numeric",
     minute: "2-digit",
   });
-  return `${day.format(new Date(startsAt))}, ${time.format(new Date(startsAt))}–${time.format(new Date(endsAt))} MST`;
+  const endDate =
+    phoenixDateKey(startsAt) === phoenixDateKey(endsAt)
+      ? ""
+      : `${day.format(new Date(endsAt))}, `;
+  return `${day.format(new Date(startsAt))}, ${time.format(new Date(startsAt))}–${endDate}${time.format(new Date(endsAt))} MST`;
 }
 export function statusExplanation(course: CalendarClass): string {
   switch (course.enrollmentStatus) {

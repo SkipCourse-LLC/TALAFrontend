@@ -43,7 +43,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev -- --port 4175 --strictPort",
+    command: "npm run dev:demo -- --port 4175 --strictPort",
     cwd: "..",
     url: "http://127.0.0.1:4175/tests/sprint2Harness.html",
     env: { VITE_DEMO_MODE: "true", VITE_DEMO_TOOLS: "true" },

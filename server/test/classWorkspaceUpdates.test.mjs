@@ -58,7 +58,7 @@ test("class status updates reuse the private versioned feed, read receipts and l
     assert.equal((await staff.client.request(`/api/updates?studentUid=${first.uid}`)).status, 403, "Class management does not grant staff arbitrary private feed access");
     await post(first, "/api/calendar/enrollments/cancel", { classId });
     assert.equal((await feed(first)).items[0].title, "Class request cancelled");
-    item = (await feed(second)).items[0]; assert.notEqual(item.id, waitingId); assert.equal(item.title, "Seat available: parent approval needed"); assert.equal(item.read, false);
+    item = (await feed(second)).items[0]; assert.notEqual(item.id, waitingId); assert.equal(item.title, "Parent approval requested"); assert.equal(item.read, false);
     const readAllId = randomUUID(); assert.equal((await post(second, "/api/updates/read-all", { requestId: readAllId })).json.markedCount, 1);
     const paid = await post(staff, "/api/classes", { ...fields, title: "Synthetic paid class", priceCents: 2500 });
     await post(second, "/api/calendar/enrollments", { classId: paid.json.id, mode: "online" });

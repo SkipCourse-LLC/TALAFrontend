@@ -7,6 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { provisionAndLogin } from "./browserTestAccounts";
 
 const webOrigin = "http://127.0.0.1:5190";
 const apiOrigin = "http://127.0.0.1:8800";
@@ -168,23 +169,11 @@ async function register(page: Page) {
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
   };
-  await page.goto("/#/register");
-  await page
-    .getByLabel("Name", { exact: true })
-    .fill("Synthetic editor recovery student");
-  await page.getByRole("radio", { name: "Student", exact: true }).check();
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", {
-      name: "Hello, Synthetic editor recovery student.",
-      exact: true,
-    }),
-  ).toBeVisible();
-  return account;
+  return provisionAndLogin(
+    page,
+    (fixture) => callFixture("provisionAccount", fixture),
+    { ...account, name: "Synthetic editor recovery student", role: "student" },
+  );
 }
 async function chooseView(
   page: Page,

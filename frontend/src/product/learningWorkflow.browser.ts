@@ -8,6 +8,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { provisionAndLogin } from "./browserTestAccounts";
 
 const webOrigin = "http://127.0.0.1:5188";
 const apiOrigin = "http://127.0.0.1:8798";
@@ -89,14 +90,7 @@ test.afterEach(async ({ context }) => {
 
 async function register(page: Page, role: "student" | "parent" = "student"): Promise<Account> {
   const suffix = randomUUID(), account = { name: `Synthetic workflow ${role}`, email: `${suffix}@example.test`, password: `Synthetic-only-${suffix}` };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page.getByRole("button", { name: "Create account", exact: true }).click();
-  await expect(page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true })).toBeVisible();
-  return account;
+  return provisionAndLogin(page, (fixture) => callFixture("provisionAccount", fixture), { ...account, role });
 }
 async function seedSavedWork(page: Page, browser: Browser, student: Account): Promise<Seed> {
   const staffContext = await browser.newContext({ baseURL: webOrigin, timezoneId: "America/Phoenix" });

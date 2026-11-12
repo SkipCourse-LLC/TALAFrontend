@@ -29,7 +29,7 @@ const EVENTS = `WITH events AS (
   UNION ALL
   SELECT tala_update_id(e.owner_uid,'class',e.class_id,CAST(e.version AS TEXT)),
     e.owner_uid,'class',CASE e.status
-      WHEN 'pending_approval' THEN CASE WHEN e.version=1 THEN 'Parent approval requested' ELSE 'Seat available: parent approval needed' END
+      WHEN 'pending_approval' THEN 'Parent approval requested'
       WHEN 'pending_payment' THEN 'Parent approved: payment pending'
       WHEN 'confirmed' THEN 'Your class is confirmed'
       WHEN 'waitlisted' THEN 'You joined the waiting list'
