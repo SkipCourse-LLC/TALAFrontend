@@ -2,6 +2,15 @@ import { createHttpTransport, readBoundedResponse } from "./http";
 import type { HttpTransport } from "./http";
 import { TalaApiError } from "./errors";
 import * as decode from "./decoders";
+import * as calendarDecode from "./calendarDecoders";
+import type {
+  ClassInput,
+  ClassApprovalInput,
+  ClassMode,
+  ClassRequestPreferences,
+} from "./calendarContract";
+import { createAdmissionsClient } from "./admissionsClient";
+import { createPaymentsClient } from "./paymentClient";
 import {
   decodeReflectionDraft,
   reflectionDraftProblem,
@@ -300,6 +309,15 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
     return status;
   }
   return {
+    payments: createPaymentsClient({ authenticated }),
+    admissions: createAdmissionsClient({
+      transport,
+      authenticated,
+      authAction,
+      clearCsrf: () => {
+        csrfToken = "";
+      },
+    }),
     getSession: loadSession,
     getReflectionDraft(signal?: AbortSignal) {
       return authenticated(signal, async (current, transport) => {
@@ -598,6 +616,28 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       if (!result) throw new TalaApiError("INVALID_RESPONSE");
       return result;
     },
+    async localStudentPreviewAvailable(signal?: AbortSignal): Promise<boolean> {
+      return transport.json("/api/health", { signal }, (raw) => {
+        const value = decode.object(raw);
+        if (value.application !== "tala-independent-server")
+          throw new TalaApiError("INVALID_RESPONSE");
+        return value.localStudentPreview === true;
+      });
+    },
+    async enterLocalStudentPreview(signal?: AbortSignal): Promise<User> {
+      const result = await authAction(
+        "/api/auth/local-student-preview",
+        {},
+        signal,
+      );
+      if (
+        !result ||
+        result.role !== "student" ||
+        result.uid !== "tala_local_preview_student_v1"
+      )
+        throw new TalaApiError("INVALID_RESPONSE");
+      return result;
+    },
     async logout(signal?: AbortSignal): Promise<void> {
       if (await authAction("/api/auth/logout", {}, signal))
         throw new TalaApiError("INVALID_RESPONSE");
@@ -739,6 +779,220 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         throw new TalaApiError("AUTH_REQUIRED");
       actor = { ...actor, name: value.name };
       return actor;
+    },
+    getClasses(studentUid?: string, signal?: AbortSignal) {
+      if (studentUid) inputId(studentUid);
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/classes${studentUid ? `?studentUid=${encodeURIComponent(studentUid)}` : ""}`,
+          { signal },
+          calendarDecode.classCatalog,
+        ),
+      );
+    },
+    setClassSaved(
+      classId: string,
+      saved: boolean,
+      requestId: string,
+      signal?: AbortSignal,
+    ) {
+      inputId(classId);
+      inputId(requestId);
+      return authenticated(signal, async (_current, _transport, json) => {
+        const value = await json(
+          "/api/classes/saved",
+          "POST",
+          { classId, saved, requestId },
+          signal,
+          calendarDecode.course,
+        );
+        if (value.id !== classId || value.savedForLater !== saved)
+          throw new TalaApiError("INVALID_RESPONSE");
+        return value;
+      });
+    },
+    getClassEnrollments(signal?: AbortSignal) {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          "/api/classes/enrollments",
+          { signal },
+          calendarDecode.classEnrollments,
+        ),
+      );
+    },
+    createClass(input: ClassInput, requestId: string, signal?: AbortSignal) {
+      inputId(requestId);
+      return authenticated(signal, (_current, _transport, json) =>
+        json(
+          "/api/classes",
+          "POST",
+          { ...input, requestId },
+          signal,
+          calendarDecode.course,
+        ),
+      );
+    },
+    updateClass(
+      classId: string,
+      input: ClassInput,
+      expectedVersion: number,
+      requestId: string,
+      signal?: AbortSignal,
+    ) {
+      inputId(classId);
+      inputId(requestId);
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          `/api/classes/${inputId(classId)}`,
+          "PATCH",
+          { ...input, expectedVersion, requestId },
+          signal,
+          calendarDecode.course,
+        );
+        if (saved.id !== classId) throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    exportClassRoster(classId: string, signal?: AbortSignal) {
+      inputId(classId);
+      return authenticated(signal, async (_current, transport) => {
+        const saved = await transport.json(
+          `/api/classes/${inputId(classId)}/roster-export`,
+          { signal },
+          calendarDecode.classRosterExport,
+        );
+        if (saved.classId !== classId)
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    withdrawClass(
+      classId: string,
+      expectedVersion: number,
+      requestId: string,
+      signal?: AbortSignal,
+    ) {
+      inputId(classId);
+      inputId(requestId);
+      return authenticated(signal, (_current, _transport, json) =>
+        json(
+          "/api/classes/withdraw",
+          "POST",
+          { classId, expectedVersion, requestId },
+          signal,
+          calendarDecode.course,
+        ),
+      );
+    },
+    approveClassEnrollment(
+      input: ClassApprovalInput,
+      requestId: string,
+      signal?: AbortSignal,
+    ) {
+      inputId(input.studentUid);
+      inputId(input.classId);
+      inputId(requestId);
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          "/api/classes/approval",
+          "POST",
+          { ...input, requestId },
+          signal,
+          calendarDecode.classEnrollment,
+        );
+        if (
+          saved.studentUid !== input.studentUid ||
+          saved.classId !== input.classId
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    getStudentCalendar(month: string, signal?: AbortSignal) {
+      if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(month))
+        return Promise.reject(new TalaApiError("INVALID_INPUT"));
+      return authenticated(signal, async (_current, transport) => {
+        const saved = await transport.json(
+          `/api/calendar?month=${encodeURIComponent(month)}`,
+          { signal },
+          calendarDecode.studentCalendar,
+        );
+        if (saved.month !== month) throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    enrollCalendarClass(
+      classId: string,
+      requestId: string,
+      signal?: AbortSignal,
+      mode?: ClassMode,
+      goalId?: string,
+    ) {
+      inputId(classId);
+      inputId(requestId);
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          "/api/calendar/enrollments",
+          "POST",
+          {
+            classId,
+            requestId,
+            ...(mode ? { mode } : {}),
+            ...(goalId ? { goalId: inputId(goalId) } : {}),
+          },
+          signal,
+          calendarDecode.calendarEnrollment,
+        );
+        if (saved.class.id !== classId || !saved.class.enrolled)
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    updateClassRequest(
+      input: ClassRequestPreferences,
+      requestId: string,
+      signal?: AbortSignal,
+    ) {
+      inputId(input.classId);
+      inputId(requestId);
+      if (input.goalId !== null) inputId(input.goalId);
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          "/api/calendar/enrollments/preferences",
+          "POST",
+          { ...input, requestId },
+          signal,
+          calendarDecode.calendarEnrollment,
+        );
+        if (
+          saved.class.id !== input.classId ||
+          !saved.class.enrolled ||
+          saved.class.enrollmentMode !== input.mode ||
+          (saved.class.enrollmentGoalId ?? null) !== input.goalId
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
+    cancelCalendarClass(
+      classId: string,
+      requestId: string,
+      signal?: AbortSignal,
+    ) {
+      inputId(classId);
+      inputId(requestId);
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          "/api/calendar/enrollments/cancel",
+          "POST",
+          { classId, requestId },
+          signal,
+          calendarDecode.calendarEnrollment,
+        );
+        if (saved.class.id !== classId || saved.class.enrolled)
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
     },
     getWorkspace(studentUid?: string, signal?: AbortSignal) {
       return authenticated(signal, (current, transport) =>
@@ -942,6 +1196,7 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
     createEvidenceUpload(
       input: {
         appointmentId: string;
+        classId?: string;
         title: string;
         contentType: EvidenceContentType;
         size: number;

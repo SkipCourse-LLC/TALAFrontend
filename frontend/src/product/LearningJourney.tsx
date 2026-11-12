@@ -7,6 +7,7 @@ import type { TodayTask } from "./studentTodayHelpers";
 export function LearningJourney({
   goalCount,
   bookingCount,
+  classCount,
   evidenceCount,
   reviewedCount,
   nextKind,
@@ -16,6 +17,7 @@ export function LearningJourney({
 }: {
   goalCount?: number;
   bookingCount?: number;
+  classCount?: number;
   evidenceCount?: number;
   reviewedCount?: number;
   nextKind?: TodayTask["kind"];
@@ -50,12 +52,12 @@ export function LearningJourney({
       empty: readOnly ? "No saved goals" : "Start small",
     },
     {
-      view: "meetings",
+      view: readOnly ? "meetings" : "classes",
       icon: "calendar",
-      label: "Meetings",
-      count: bookingCount,
-      unit: "reserved",
-      empty: readOnly ? "No reservations" : "Find a time",
+      label: readOnly ? "Meetings" : "Your classes",
+      count: readOnly ? bookingCount : classCount,
+      unit: readOnly ? "reserved" : "requested",
+      empty: readOnly ? "No reservations" : "Explore a curiosity",
     },
     {
       view: "evidence",

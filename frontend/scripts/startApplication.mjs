@@ -15,6 +15,9 @@ const viteEntry = fileURLToPath(
   new URL("../node_modules/vite/bin/vite.js", import.meta.url),
 );
 const children = new Set();
+// Explicitly opt in only for this loopback development launcher. Direct API
+// startup remains disabled unless the operator sets the same local-only flag.
+const localStudentPreview = process.env.TALA_LOCAL_STUDENT_PREVIEW !== "0";
 const expectedScope = runtimeIdentity.dataScope(
   path.resolve(root, process.env.TALA_DATA_DIR || "server/.runtime"),
 );
@@ -84,11 +87,12 @@ async function healthy() {
     return (
       value?.application === "tala-independent-server" &&
       value.version === 1 &&
-      value.contractVersion === 7 &&
-      value.schemaVersion === 5 &&
+      value.contractVersion === 12 &&
+      value.schemaVersion === 10 &&
       value.runtimeRevision === runtimeIdentity.runtimeRevision &&
       value.instanceScope === expectedScope &&
       value.status === "ok" &&
+      value.localStudentPreview === localStudentPreview &&
       value.authentication === "local-server"
     );
   } catch {
@@ -156,7 +160,7 @@ try {
         "Using the existing verified local TALA API on port 8787.\n",
       );
     } else {
-      const api = launch(serverEntry, [], root, { TALA_SERVER_PORT: "8787" });
+      const api = launch(serverEntry, [], root, { TALA_SERVER_PORT: "8787", TALA_LOCAL_STUDENT_PREVIEW: localStudentPreview ? "1" : "0" });
       let ready = false;
       for (let attempt = 0; attempt < 50 && !stopping; attempt++) {
         if (api.exitCode !== null) break;

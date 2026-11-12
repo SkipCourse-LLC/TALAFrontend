@@ -1,3 +1,4 @@
+import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -7,6 +8,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { provisionAndLogin } from "./browserTestAccounts";
 
 const webOrigin = "http://127.0.0.1:5192";
 const apiOrigin = "http://127.0.0.1:8802";
@@ -179,22 +181,9 @@ async function register(page: Page, role: "student" | "parent" = "student") {
     name: `Synthetic reflection evidence ${role}`,
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
+    role,
   };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByLabel("Account type", { exact: true }).selectOption(role);
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(account.password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
-  ).toBeVisible();
-  return account;
+  return provisionAndLogin(page, (fixture) => callFixture("provisionAccount", fixture), account);
 }
 
 async function chooseView(page: Page, name: "Meetings" | "Evidence") {
@@ -221,9 +210,7 @@ async function prepareReflectionBooking(page: Page, email: string) {
   await page
     .getByRole("button", { name: "Refresh records", exact: true })
     .click();
-  await page
-    .getByLabel("Available meeting time", { exact: true })
-    .selectOption(slot.id);
+  await chooseMeetingTime(page, slot.id);
   await page.getByRole("button", { name: "Book meeting", exact: true }).click();
   await expect(
     page

@@ -11,21 +11,34 @@ const eventId = (owner, type, resource, version) => `update_${hash(JSON.stringif
 const EVENTS = `WITH events AS (
   SELECT tala_update_id(a.owner_uid,'appointment-created',a.id,CAST(a.created_at AS TEXT)) AS id,
     a.owner_uid,'appointment' AS type,'Meeting reservation saved' AS title,
-    s.label AS detail,a.created_at AS occurred_at,'meetings' AS view,a.id AS resource_id
+    s.label AS detail,a.created_at AS occurred_at,'meetings' AS view,a.id AS resource_id,NULL AS class_status
     FROM appointments a JOIN slots s ON s.id=a.slot_id WHERE a.owner_uid=?
   UNION ALL
   SELECT tala_update_id(a.owner_uid,'appointment-cancelled',a.id,CAST(a.updated_at AS TEXT)),
-    a.owner_uid,'appointment','Meeting reservation cancelled',s.label,a.updated_at,'meetings',a.id
+    a.owner_uid,'appointment','Meeting reservation cancelled',s.label,a.updated_at,'meetings',a.id,NULL
     FROM appointments a JOIN slots s ON s.id=a.slot_id WHERE a.owner_uid=? AND a.status='cancelled'
   UNION ALL
   SELECT tala_update_id(r.owner_uid,'learning',r.id,CAST(r.published_at AS TEXT)),
-    r.owner_uid,'learning','Learning summary published','',r.published_at,'learning',r.id
+    r.owner_uid,'learning','Learning summary published','',r.published_at,'learning',r.id,NULL
     FROM learning_records r WHERE r.owner_uid=?
   UNION ALL
   SELECT tala_update_id(e.owner_uid,'review',e.id,CAST(e.reviewed_at AS TEXT)),
     e.owner_uid,'review',CASE WHEN e.review_status='needs_revision' THEN 'Evidence revision requested' ELSE 'Evidence review saved' END,
-    e.title,e.reviewed_at,'evidence',e.id FROM evidence e
+    e.title,e.reviewed_at,'evidence',e.id,NULL FROM evidence e
     WHERE e.owner_uid=? AND e.review_status IN ('reviewed','needs_revision') AND e.reviewed_at IS NOT NULL
+  UNION ALL
+  SELECT tala_update_id(e.owner_uid,'class',e.class_id,CAST(e.version AS TEXT)),
+    e.owner_uid,'class',CASE e.status
+      WHEN 'pending_approval' THEN 'Parent approval requested'
+      WHEN 'pending_payment' THEN 'Parent approved: payment pending'
+      WHEN 'confirmed' THEN 'Your class is confirmed'
+      WHEN 'waitlisted' THEN 'You joined the waiting list'
+      WHEN 'declined' THEN 'Parent declined this class request'
+      WHEN 'cancelled' THEN 'Class request cancelled'
+      ELSE 'Class request updated' END,
+    c.title,e.updated_at,'classes',e.class_id,e.status
+    FROM calendar_enrollments e JOIN class_catalog c ON c.id=e.class_id
+    WHERE e.owner_uid=? AND e.status IN ('pending_approval','pending_payment','confirmed','waitlisted','declined','cancelled')
 ), feed AS (
   SELECT events.*,CASE WHEN receipts.update_id IS NULL THEN 0 ELSE 1 END AS is_read FROM events
     LEFT JOIN workspace_update_reads receipts ON receipts.owner_uid=events.owner_uid AND receipts.update_id=events.id
@@ -33,7 +46,7 @@ const EVENTS = `WITH events AS (
 
 function createWorkspaceUpdates(db, { authorize, operation }) {
   db.function("tala_update_id", { deterministic: true, directOnly: true }, eventId);
-  const ownerParameters = (owner) => [owner, owner, owner, owner];
+  const ownerParameters = (owner) => [owner, owner, owner, owner, owner];
   function studentOnly(actor) {
     if (actor.role !== "student") fail(403, "FORBIDDEN", "Only students can mark their own workspace updates as read. Parent access is read-only.");
   }
@@ -44,6 +57,15 @@ function createWorkspaceUpdates(db, { authorize, operation }) {
     return owner;
   }
   function summary(row) {
+    if (row.type === "class") {
+      const title = `${row.detail}. `;
+      if (row.class_status === "pending_approval") return title + "A seat is reserved while an authorized linked parent reviews this request in the Family hub.";
+      if (row.class_status === "pending_payment") return title + "Parent approval is saved. Trusted payment confirmation is still required. Payment processing is not connected locally.";
+      if (row.class_status === "confirmed") return title + "This class is confirmed. Open its saved format and schedule. Confirmation does not verify attendance or award credit.";
+      if (row.class_status === "waitlisted") return title + "No seat is reserved. If a seat becomes available, the request will still require parent approval.";
+      if (row.class_status === "declined") return title + "Your linked parent declined this request. No seat is reserved.";
+      return title + "This request is cancelled and no seat is reserved. A class withdrawal can also cancel a request.";
+    }
     if (row.type === "learning") return "An authorized team member published a learning summary. Open your learning records to review it.";
     if (row.type === "review") return `${row.detail}. Open the saved Evidence to read the team's feedback. A manual review does not award credit or verify a skill.`;
     return `${row.detail}. This records a meeting reservation only. Live meeting access and attendance are not connected.`;

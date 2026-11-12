@@ -8,6 +8,8 @@ import { useLocalCalendarDay } from "./useLocalCalendarDay";
 import "./studentProgress.css";
 import "./progressJourney.css";
 import { LearningGlyph } from "./LearningGlyph";
+import type { StudentCalendar } from "../api/calendarContract";
+import { CalendarEnrollmentSummary } from "./calendar/CalendarEnrollmentSummary";
 
 export function StudentProgress({
   workspace,
@@ -20,6 +22,11 @@ export function StudentProgress({
   onEvidence,
   onLearning,
   onRetry,
+  calendar,
+  calendarLoading,
+  calendarError,
+  onCalendar,
+  onOpenClasses,
 }: {
   workspace?: ApiWorkspace;
   goals?: LearningGoal[];
@@ -31,6 +38,11 @@ export function StudentProgress({
   onEvidence: () => void;
   onLearning: () => void;
   onRetry: () => void;
+  calendar?: StudentCalendar;
+  calendarLoading?: boolean;
+  calendarError?: string;
+  onCalendar?: () => void;
+  onOpenClasses?: () => void;
 }) {
   const today = useLocalCalendarDay(visible);
   // This panel has no editable content to retain while another section is open.
@@ -247,6 +259,17 @@ export function StudentProgress({
           )}
         </section>
       </div>
+      {onCalendar && (
+        <CalendarEnrollmentSummary
+          data={calendar}
+          loading={calendarLoading}
+          error={calendarError}
+          onCalendar={onCalendar}
+          onOpenClasses={onOpenClasses}
+          onEvidence={readOnly ? undefined : onEvidence}
+          compact
+        />
+      )}
       {(!plansReady || plan.active.length > 0) && (
         <section
           className="student-progress-targets"

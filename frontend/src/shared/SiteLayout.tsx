@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { demoEnabled } from "./services/demoConfig";
 import { Brand } from "./Brand";
@@ -6,7 +7,9 @@ import { SiteHeader } from "./SiteHeader";
 export function SiteLayout({
   session,
   backend,
+  workspaceHeader,
 }: {
+  workspaceHeader?: ReactNode;
   session: { name: string; email: string } | null;
   backend?: "api" | "firebase-emulator" | "firebase-test" | "firebase";
 }) {
@@ -41,7 +44,11 @@ export function SiteLayout({
           </>
         )}
       </div>
-      <SiteHeader key={location.pathname} session={session} />
+      {workspaceHeader && ["/dashboard", "/payment"].includes(location.pathname) ? (
+        workspaceHeader
+      ) : (
+        <SiteHeader key={location.pathname} session={session} />
+      )}
       <main id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
@@ -58,7 +65,7 @@ export function SiteLayout({
               <Link to="/programs">Programs</Link>
               <Link to="/contact">Contact</Link>
             </nav>
-            <small>Local records. Live services not connected.</small>
+            <small>Local records · External services require authorization.</small>
           </div>
         ) : (
           <>

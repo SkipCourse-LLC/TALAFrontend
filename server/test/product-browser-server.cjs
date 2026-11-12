@@ -4,6 +4,7 @@
 const path = require("node:path");
 const fs = require("node:fs");
 const { randomUUID, createHash } = require("node:crypto");
+const { hashPassword } = require("../security.cjs");
 const { createApplication } = require("../application.cjs");
 const dataDir = process.env.TALA_BROWSER_TEST_DATA_DIR;
 if (
@@ -91,7 +92,20 @@ function seedPagination(input) {
 process.on("message", async (request) => {
   try {
     let result;
-    if (request.action === "seedPagination") result = seedPagination(request.input);
+    if (request.action === "provisionAccount" && process.env.NODE_ENV === "test" &&
+        request.input && typeof request.input === "object" &&
+        Object.keys(request.input).sort().join(",") === "email,name,password,role" &&
+        ["student", "parent"].includes(request.input.role) &&
+        typeof request.input.name === "string" && request.input.name.length > 0 && request.input.name.length <= 80 &&
+        typeof request.input.email === "string" && /^[^@]+@example\.test$/.test(request.input.email) &&
+        typeof request.input.password === "string" && request.input.password.length >= 8 && request.input.password.length <= 128) {
+      const { name, email, password, role } = request.input;
+      const passwordHash = await hashPassword(password);
+      application.db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)")
+        .run(randomUUID(), email, name, passwordHash, role, Date.now());
+      result = { provisioned: true };
+    }
+    else if (request.action === "seedPagination") result = seedPagination(request.input);
     else if (request.action === "disableStudent" && typeof request.input === "string" && request.input.endsWith("@example.test")) {
       const updated = application.db.prepare("UPDATE users SET disabled=1 WHERE email=? AND role='student'").run(request.input);
       if (updated.changes !== 1) throw new Error("A synthetic student is required.");

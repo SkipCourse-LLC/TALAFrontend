@@ -159,10 +159,25 @@ export function FirebaseApplication() {
           <Route path="programs" element={<ProgramsPage />} />
           <Route path="events" element={<CommunityPage kind="events" />} />
           <Route path="contact" element={<CommunityPage kind="contact" />} />
-          <Route path="login" element={<FirebaseAccessPage key="login" />} />
+          <Route
+            path="login"
+            element={
+              loading ? (
+                <AccountRestoration />
+              ) : (
+                <AccountEntry key="login" signedIn={!!session} />
+              )
+            }
+          />
           <Route
             path="register"
-            element={<FirebaseAccessPage key="register" register />}
+            element={
+              loading ? (
+                <AccountRestoration />
+              ) : (
+                <AccountEntry key="register" signedIn={!!session} register />
+              )
+            }
           />
           <Route
             path="dashboard"
@@ -238,6 +253,32 @@ export function FirebaseApplication() {
       </Routes>
       <RouteFocus />
     </>
+  );
+}
+
+function AccountRestoration() {
+  return (
+    <div className="container state-panel" role="status">
+      Restoring your authenticated session…
+    </div>
+  );
+}
+
+function AccountEntry({
+  signedIn,
+  register = false,
+}: {
+  signedIn: boolean;
+  register?: boolean;
+}) {
+  // Capture the state when this route is entered. SDK signup emits an Auth user
+  // before server provisioning finishes; redirecting on that update would
+  // unmount the registration form and abandon its remaining setup.
+  const [alreadySignedIn] = useState(signedIn);
+  return alreadySignedIn ? (
+    <Navigate to="/dashboard" replace />
+  ) : (
+    <FirebaseAccessPage register={register} />
   );
 }
 

@@ -5,6 +5,8 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { openDatabase, transaction } = require("./database.cjs");
 const { createServices, userDTO, MAX_FILE_BYTES } = require("./services.cjs");
+const { createAdmissions } = require("./admissions.cjs");
+const { createPayments } = require("./payments.cjs");
 const { createAccountServices } = require("./accountServices.cjs");
 const { ApiError, fail, object, text, email, password, hash, token, hashPassword, verifyPassword, constantEqual } = require("./security.cjs");
 assertCurrentRevision();
@@ -12,6 +14,8 @@ assertCurrentRevision();
 function createApplication(options = {}) {
   if (Number(process.versions.node.split(".")[0]) < 24) throw new Error("Node.js 24 or newer is required.");
   if (process.env.NODE_ENV === "production") throw new Error("Production hosting requires a reviewed HTTPS, mail, backup and data-protection configuration. This launcher is local-only.");
+  const localStudentPreview = options.localStudentPreview === undefined ? process.env.TALA_LOCAL_STUDENT_PREVIEW === "1" : options.localStudentPreview;
+  if (typeof localStudentPreview !== "boolean") throw new Error("Choose an explicit boolean for local student preview mode.");
   const downloadTtl = options.downloadTtlMs === undefined ? 30_000 : options.downloadTtlMs;
   if (!Number.isSafeInteger(downloadTtl) || downloadTtl < 100 || downloadTtl > 30_000) throw new Error("Private download deadlines must be 100 to 30000 milliseconds.");
   process.umask(0o077);
@@ -20,7 +24,7 @@ function createApplication(options = {}) {
   const allowedOrigins = new Set(options.allowedOrigins || ["http://127.0.0.1:5173", "http://127.0.0.1:5176", "http://localhost:5173", "http://localhost:5176", "http://127.0.0.1:8787"]);
   if (!allowedOrigins.size || [...allowedOrigins].some((origin) => { try { return new URL(origin).origin !== origin; } catch { return true; } })) throw new Error("Configure explicit application origins, never a wildcard.");
   const db = openDatabase(dataDir);
-  const { services, operator, lists, goals, updates, preparations, reflectionDrafts } = createServices(db, dataDir);
+  const { services, operator, lists, goals, updates, preparations, reflectionDrafts, calendar, admissionsContext } = createServices(db, dataDir, { localStudentPreview });
   const sessionTtl = options.sessionTtlMs || 12 * 3600000;
   const cookieName = "tala_session";
   function currentSession(req) {
@@ -94,6 +98,20 @@ function createApplication(options = {}) {
       return { user: session.user, session };
     },
   });
+  const admissions = createAdmissions(db, { ...admissionsContext, session: currentSession, mutation });
+  const payments = createPayments(db, { guard: admissionsContext.guard, read: lists.read, config: options.paymentConfig, provider: options.paymentProvider || null });
+  operator.addInterviewTime = input => admissions.addAvailability(input);
+  operator.createTestOperator = async input => {
+    const address = email(input.email), name = input.name ? text(input.name, "operator name", 80) : "Tina · local test";
+    if (!/^[^@]+@(?:[a-z0-9-]+\.)*example\.test$/.test(address)) fail(400, "INVALID_INPUT", "This local provisioning command accepts only fictional example.test addresses.");
+    const secret = `Local-${token()}`, encoded = await hashPassword(secret);
+    return transaction(db, () => {
+      if (db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "ACCOUNT_EXISTS", "This test account already exists; no credentials were changed.");
+      const uid = randomUUID();
+      db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,'operator',?)").run(uid, address, name, encoded, Date.now());
+      return { uid, email: address, password: secret, role: "operator", mode: "local_test", note: "Keep this generated credential private. This account exists only in the local evaluation database." };
+    });
+  };
   async function perform(req, action, raw = false) {
     const input = await body(req, raw);
     mutation(req);
@@ -136,8 +154,9 @@ function createApplication(options = {}) {
       const url = new URL(req.url, "http://127.0.0.1");
       const route = url.pathname;
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
+      if (route === "/api/auth/local-student-preview" && !localStudentPreview) fail(404, "NOT_FOUND", "This local preview entry is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 7, schemaVersion: 5, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 12, schemaVersion: 10, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
       if (req.method === "GET" && route === "/api/session") {
         // A cross-site top-level navigation omits SameSite=Strict cookies but
         // can still accept Set-Cookie. Do not overwrite a signed-in browser
@@ -148,21 +167,101 @@ function createApplication(options = {}) {
         rate(req, "session", 200);
         return json(res, rotate(req, res, null));
       }
+      if (req.method === "POST" && route === "/api/auth/local-student-preview") {
+        // This deliberately public fictional identity exists only in an
+        // explicitly enabled loopback presentation environment. It grants no
+        // school admission, family link or staff access, and never selects an
+        // existing person's account by their supplied email.
+        let previewOrigin;
+        try { previewOrigin = new URL(origin); } catch { fail(403, "ORIGIN_DENIED", "Student preview is available on this computer only."); }
+        if (previewOrigin.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(previewOrigin.hostname)
+          || !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress)) fail(403, "ORIGIN_DENIED", "Student preview is available on this computer only.");
+        rate(req, "local-student-preview", 30);
+        object(await body(req), []);
+        mutation(req);
+        if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the student preview.");
+        const uid = "tala_local_preview_student_v1", address = "student-preview@local.example.test";
+        const old = db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
+        // A fresh unpredictable password verifier prevents normal password
+        // login using a source-code default. The secret is never returned.
+        const encoded = old ? null : await hashPassword(token());
+        return json(res, rotate(req, res, () => {
+          if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the student preview.");
+          let row = db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
+          if (row) {
+            if (row.email !== address || row.role !== "student" || row.disabled) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+          } else {
+            if (!encoded || db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+            db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,'student',?)").run(uid, address, "Alex · student demo", encoded, Date.now());
+            row = db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
+          }
+          return row;
+        }));
+      }
       if (req.method === "POST" && route === "/api/auth/register") {
         rate(req, "authentication");
-        const input = object(await body(req), ["name", "email", "password", "accountType"]);
-        const name = text(input.name, "display name", 80), address = email(input.email), secret = password(input.password);
-        if (!["student", "parent"].includes(input.accountType)) fail(400, "INVALID_INPUT", "Choose a student or parent account.");
-        if (db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "ACCOUNT_EXISTS", "An account with this email already exists. Sign in instead.");
-        if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before creating another account.");
+        fail(403, "ENROLLMENT_INVITATION_REQUIRED", "Start an interest application. An approved enrollment invitation is required to create a TALA account.");
+      }
+      if (req.method === "POST" && route === "/api/auth/enroll") {
+        rate(req, "authentication");
+        const input = object(await body(req), ["token", "name", "password"]);
+        const secret = password(input.password);
+        text(input.name, "parent name", 80);
+        admissions.inspect({ token: input.token });
+        if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before accepting an enrollment invitation.");
         const encoded = await hashPassword(secret);
-        return json(res, rotate(req, res, () => {
-          if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before creating another account.");
-          if (db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "ACCOUNT_EXISTS", "An account with this email already exists. Sign in instead.");
-          const uid = randomUUID();
-          db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)").run(uid, address, name, encoded, input.accountType, Date.now());
-          return db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
-        }), 201);
+        const result = rotate(req, res, () => {
+          if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before accepting an enrollment invitation.");
+          return admissions.enroll(input, encoded);
+        });
+        admissions.clearCookie(res);
+        return json(res, result, 201);
+      }
+      if (req.method === "GET" && route === "/api/admissions/current") return json(res, admissions.current(req));
+      if (req.method === "POST" && route === "/api/admissions/applications") {
+        rate(req, "admissions-submit", 12);
+        return json(res, admissions.submit(req, res, await body(req)), 201);
+      }
+      if (req.method === "POST" && route === "/api/admissions/interview") {
+        rate(req, "admissions-write", 100);
+        return json(res, admissions.book(req, await body(req)));
+      }
+      if (req.method === "POST" && route === "/api/admissions/document-preference") return json(res, admissions.preference(req, await body(req)));
+      if (req.method === "POST" && route === "/api/admissions/documents/intents") {
+        rate(req, "admissions-upload", 60);
+        return json(res, admissions.intent(req, await body(req)), 201);
+      }
+      if (req.method === "PUT" && /^\/api\/admissions\/documents\/[^/]+\/content$/.test(route)) {
+        rate(req, "admissions-upload", 60);
+        if (uploads >= 4) fail(429, "RATE_LIMITED", "Too many uploads. Try again shortly.");
+        uploads++;
+        try { const bytes = await body(req, true); return json(res, admissions.upload(req, route.split("/")[4], (req.headers["content-type"] || "").split(";")[0].trim(), bytes)); }
+        finally { uploads--; }
+      }
+      if (req.method === "GET" && /^\/api\/admissions\/documents\/[^/]+\/content$/.test(route)) {
+        rate(req, "admissions-download", 100);
+        if (downloads >= 4) fail(429, "RATE_LIMITED", "Too many file downloads. Try again shortly.");
+        const signed = currentSession(req)?.user;
+        if (req.headers["x-tala-user"] !== undefined) actorFor(req);
+        downloads++;
+        const deadline = setTimeout(() => res.destroy(), downloadTtl); deadline.unref();
+        let released = false;
+        const release = () => { if (!released) { released = true; clearTimeout(deadline); downloads--; } };
+        res.once("finish", release); res.once("close", release);
+        try {
+          const file = admissions.download(req, signed ? actorFor(req) : null, route.split("/")[4]);
+          res.setHeader("Content-Type", file.contentType); res.setHeader("Content-Length", file.bytes.length);
+          res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`); res.setHeader("X-Content-SHA256", file.sha256);
+          return res.end(file.bytes);
+        } catch (error) { release(); throw error; }
+      }
+      if (req.method === "POST" && route === "/api/admissions/invitation/inspect") {
+        rate(req, "admissions-invitation", 60);
+        const input = await body(req); mutation(req);
+        return json(res, admissions.inspect(input));
+      }
+      if (req.method === "POST" && route === "/api/admissions/access/end") {
+        object(await body(req), []); return json(res, admissions.end(req, res));
       }
       if (req.method === "POST" && route === "/api/auth/login") {
         rate(req, "authentication");
@@ -183,6 +282,22 @@ function createApplication(options = {}) {
       }
       const actor = actorFor(req);
       let match;
+      if (req.method === "GET" && route === "/api/admissions/parent") return json(res, admissions.parent(actor));
+      if (req.method === "GET" && route === "/api/operator/admissions") return json(res, admissions.list(actor));
+      if (req.method === "POST" && route === "/api/operator/admissions/availability") return json(res, await perform(req, (fresh, input) => admissions.publish(fresh, input)), 201);
+      if (req.method === "GET" && (match = route.match(/^\/api\/operator\/admissions\/([^/]+)$/))) return json(res, admissions.detail(actor, match[1]));
+      if (req.method === "POST" && (match = route.match(/^\/api\/operator\/admissions\/([^/]+)\/review$/))) return json(res, await perform(req, (fresh, input) => admissions.review(fresh, match[1], input)));
+      if (req.method === "POST" && (match = route.match(/^\/api\/operator\/admissions\/([^/]+)\/invitation$/))) return json(res, await perform(req, (fresh, input) => admissions.issue(fresh, match[1], input)));
+
+      if (req.method === "POST" && (match = route.match(/^\/api\/operator\/admissions\/([^/]+)\/student-setup$/))) {
+        rate(req, "student-setup-authorize", 60);
+        return json(res, await perform(req, (fresh, input) => admissions.authorizeStudentSetup(fresh, match[1], input)));
+      }
+      if (req.method === "POST" && (match = route.match(/^\/api\/admissions\/([^/]+)\/student-account$/))) {
+        rate(req, "student-account-create", 20);
+        return json(res, await perform(req, (fresh, input) => admissions.provisionStudent(fresh, match[1], input)), 201);
+      }
+
       if (req.method === "GET" && route === "/api/account/sessions") {
         rate(req, "account-session-read", 120);
         return json(res, lists.read(actor, () => accounts.sessions(req)));
@@ -205,7 +320,49 @@ function createApplication(options = {}) {
         rate(req, "account-session-read", 120);
         return json(res, lists.read(actor, () => accounts.passwordChangeReceipt(req, match[1])));
       }
+      if (req.method === "GET" && route === "/api/payments") return json(res, payments.workspace(actor, url.searchParams));
+      if (req.method === "POST" && route === "/api/payments/checkout") {
+        rate(req, "payment-checkout", 30);
+        return json(res, await perform(req, (fresh, input) => payments.checkout(fresh, input, url.searchParams)), 201);
+      }
+      if (req.method === "POST" && route === "/api/payments/esa") {
+        rate(req, "payment-esa", 20);
+        return json(res, await perform(req, (fresh, input) => payments.esa(fresh, input, url.searchParams)), 201);
+      }
+      if (req.method === "POST" && (match = route.match(/^\/api\/payments\/([^/]+)\/verify$/))) {
+        rate(req, "payment-verify", 60);
+        return json(res, await perform(req, (fresh, input) => payments.verify(fresh, match[1], input, url.searchParams)));
+      }
+      if (req.method === "GET" && route === "/api/operator/payments") return json(res, payments.operations(actor, url.searchParams));
+      if (req.method === "POST" && route === "/api/operator/payments/items") {
+        rate(req, "payment-issue", 60);
+        return json(res, await perform(req, (fresh, input) => payments.issue(fresh, input, url.searchParams)), 201);
+      }
       if (req.method === "GET" && route === "/api/workspace") return json(res, services.workspace(actor, url.searchParams.get("studentUid")));
+      if (req.method === "GET" && route === "/api/classes") return json(res, lists.read(actor, () => calendar.catalog(actor, url.searchParams)));
+      if (req.method === "POST" && route === "/api/classes/saved") {
+        rate(req, "class-save", 120);
+        return json(res, await perform(req, (fresh, input) => calendar.save(fresh, input, url.searchParams)));
+      }
+      if (req.method === "GET" && route === "/api/classes/enrollments") return json(res, lists.read(actor, () => calendar.enrollments(actor, url.searchParams)));
+      if (req.method === "POST" && route === "/api/classes") return json(res, await perform(req, (fresh, input) => calendar.create(fresh, input, url.searchParams)), 201);
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/classes\/([^/]+)$/))) return json(res, await perform(req, (fresh, input) => calendar.update(fresh, match[1], input, url.searchParams)));
+      if (req.method === "GET" && (match = route.match(/^\/api\/classes\/([^/]+)\/roster-export$/))) return json(res, lists.read(actor, () => calendar.rosterExport(actor, match[1], url.searchParams)));
+      if (req.method === "POST" && route === "/api/classes/withdraw") return json(res, await perform(req, (fresh, input) => calendar.withdraw(fresh, input, url.searchParams)));
+      if (req.method === "POST" && route === "/api/classes/approval") return json(res, await perform(req, (fresh, input) => calendar.approval(fresh, input, url.searchParams)));
+      if (req.method === "GET" && route === "/api/calendar") return json(res, lists.read(actor, () => calendar.get(actor, url.searchParams)));
+      if (req.method === "POST" && route === "/api/calendar/enrollments") {
+        rate(req, "calendar-enrollment", 120);
+        return json(res, await perform(req, (fresh, input) => calendar.enroll(fresh, input, url.searchParams)));
+      }
+      if (req.method === "POST" && route === "/api/calendar/enrollments/preferences") {
+        rate(req, "class-request-preferences", 100);
+        return json(res, await perform(req, (fresh, input) => calendar.preferences(fresh, input, url.searchParams)));
+      }
+      if (req.method === "POST" && route === "/api/calendar/enrollments/cancel") {
+        rate(req, "calendar-enrollment", 120);
+        return json(res, await perform(req, (fresh, input) => calendar.cancel(fresh, input, url.searchParams)));
+      }
       if (req.method === "GET" && route === "/api/evidence") return json(res, lists.evidence(actor, url.searchParams));
       if (req.method === "GET" && route === "/api/appointments") return json(res, lists.appointments(actor, url.searchParams));
       if (req.method === "GET" && (match = route.match(/^\/api\/appointments\/([^/]+)$/))) return json(res, lists.appointment(actor, match[1]));

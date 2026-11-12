@@ -10,6 +10,8 @@ import type { WorkspaceView } from "./workspaceViews";
 
 const icons: Record<WorkspaceView, IconName> = {
   overview: "grid",
+  calendar: "grid",
+  classes: "book",
   updates: "voice",
   plan: "book",
   meetings: "people",
@@ -45,6 +47,10 @@ export function WorkspaceSidebar({
 }) {
   const hintId = useId();
   const current = workspaceViews.find((item) => item.id === view)!;
+  const currentLabel =
+    user.role === "parent" && view === "classes"
+      ? "Class requests"
+      : current.label;
   const draftHints: Partial<Record<WorkspaceView, string>> = {
     ...(hasEvidenceDraft
       ? { evidence: "Your Evidence draft is kept while you switch sections." }
@@ -64,58 +70,84 @@ export function WorkspaceSidebar({
   function navigation(className: string) {
     return (
       <nav className={className} aria-label="Workspace sections">
-        {workspaceViews.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            disabled={disabled}
-            aria-current={view === id ? "page" : undefined}
-            aria-label={label}
-            aria-describedby={draftDescription(id)}
+        {workspaceViews
+          .filter(({ id }) => user.role !== "parent" || id !== "calendar")
+          .map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              disabled={disabled}
+              aria-current={view === id ? "page" : undefined}
+              aria-label={
+                user.role === "parent" && id === "classes"
+                  ? "Class requests"
+                  : label
+              }
+              aria-describedby={draftDescription(id)}
+              onClick={(event) => {
+                const picker = event.currentTarget.closest("details");
+                if (picker) picker.open = false;
+                onNavigate?.(id);
+              }}
+            >
+              <span className="server-dashboard-nav-symbol">
+                {id === "calendar" ||
+                id === "plan" ||
+                id === "meetings" ||
+                id === "evidence" ||
+                id === "progress" ? (
+                  <LearningGlyph
+                    name={
+                      id === "plan"
+                        ? "goal"
+                        : id === "meetings" || id === "calendar"
+                          ? "calendar"
+                          : id === "evidence"
+                            ? "evidence"
+                            : "spark"
+                    }
+                  />
+                ) : (
+                  <Icon name={icons[id]} />
+                )}
+              </span>
+              <span>
+                {user.role === "parent" && id === "classes"
+                  ? "Class requests"
+                  : id === "learning"
+                    ? "Learning"
+                    : id === "plan"
+                      ? "Plan"
+                      : label}
+              </span>
+              {id === "updates" &&
+                unreadUpdates !== undefined &&
+                unreadUpdates > 0 && (
+                  <span
+                    className="student-updates-count"
+                    aria-label={`${unreadUpdates} unread updates`}
+                  >
+                    {unreadUpdates > 99 ? "99+" : unreadUpdates}
+                  </span>
+                )}
+              {draftHints[id] && (
+                <span className="student-draft-dot" aria-hidden="true" />
+              )}
+            </button>
+          ))}
+        {user.role === "parent" && (
+          <Link
+            to="/payment"
+            className="server-dashboard-payment-link"
             onClick={(event) => {
               const picker = event.currentTarget.closest("details");
               if (picker) picker.open = false;
-              onNavigate?.(id);
             }}
           >
-            <span className="server-dashboard-nav-symbol">
-              {id === "plan" ||
-              id === "meetings" ||
-              id === "evidence" ||
-              id === "progress" ? (
-                <LearningGlyph
-                  name={
-                    id === "plan"
-                      ? "goal"
-                      : id === "meetings"
-                        ? "calendar"
-                        : id === "evidence"
-                          ? "evidence"
-                          : "spark"
-                  }
-                />
-              ) : (
-                <Icon name={icons[id]} />
-              )}
-            </span>
-            <span>
-              {id === "learning" ? "Learning" : id === "plan" ? "Plan" : label}
-            </span>
-            {id === "updates" &&
-              unreadUpdates !== undefined &&
-              unreadUpdates > 0 && (
-                <span
-                  className="student-updates-count"
-                  aria-label={`${unreadUpdates} unread updates`}
-                >
-                  {unreadUpdates > 99 ? "99+" : unreadUpdates}
-                </span>
-              )}
-            {draftHints[id] && (
-              <span className="student-draft-dot" aria-hidden="true" />
-            )}
-          </button>
-        ))}
+            <span className="server-dashboard-nav-symbol"><Icon name="folder" /></span>
+            <span>Payments</span>
+          </Link>
+        )}
       </nav>
     );
   }
@@ -141,12 +173,12 @@ export function WorkspaceSidebar({
           }
         }}
       >
-        <summary aria-label={`Sections: ${current.label}`}>
+        <summary aria-label={`Sections: ${currentLabel}`}>
           {view === "plan"
             ? "Plan"
             : view === "learning"
               ? "Learning"
-              : current.label}
+              : currentLabel}
           <Icon name="menu" />
         </summary>
         {navigation("server-dashboard-mobile-links")}
@@ -165,7 +197,13 @@ export function WorkspaceSidebar({
           <strong>
             <bdi>{user.name}</bdi>
           </strong>
-          <span>{user.role === "parent" ? "Parent" : "Student"}</span>
+          <span>
+            {user.uid === "tala_local_preview_student_v1"
+              ? "Demo · test data"
+              : user.role === "parent"
+                ? "Parent"
+                : "Student"}
+          </span>
         </div>
       </div>
       <div className="server-dashboard-account-actions">
@@ -186,7 +224,9 @@ export function WorkspaceSidebar({
           [
             ["overview", "Overview", "grid"],
             ["plan", "Plan", "goal"],
-            ["meetings", "Meet", "calendar"],
+            user.role === "parent"
+              ? (["meetings", "Meet", "calendar"] as const)
+              : (["calendar", "Calendar", "calendar"] as const),
             ["evidence", "Evidence", "evidence"],
           ] as const
         ).map(([id, label, glyph]) => (

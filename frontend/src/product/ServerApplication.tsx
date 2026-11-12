@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import type { ReactNode } from "react";
 import { SiteLayout } from "../shared/SiteLayout";
@@ -19,6 +19,10 @@ import { NotFoundPage } from "../public-site/NotFoundPage";
 import { talaApi, safeTalaApiError } from "../api";
 import type { ApiUser } from "../api";
 import { ServerAccessPage } from "./ServerAccessPage";
+import { AdmissionStartPage } from "./admissions/AdmissionStartPage";
+import { EnrollmentPage } from "./admissions/EnrollmentPage";
+import { WorkspaceHeader } from "./WorkspaceHeader";
+import { PaymentPage } from "../payment/PaymentPage";
 import { ServerWorkspace } from "./ServerWorkspace";
 import { OperatorWorkspace } from "./OperatorWorkspace";
 import { AccountSecurityPage } from "./AccountSecurityPage";
@@ -248,7 +252,22 @@ export function ServerApplication() {
         style={{ display: privacy.blocked ? "none" : undefined }}
       >
         <Routes>
-          <Route element={<SiteLayout session={user} backend="api" />}>
+          <Route
+            element={
+              <SiteLayout
+                session={user}
+                backend="api"
+                workspaceHeader={
+                  user ? (
+                    <WorkspaceHeader
+                      key={`${user.uid}:${privacy.accessEpoch}`}
+                      user={user}
+                    />
+                  ) : undefined
+                }
+              />
+            }
+          >
             <Route
               element={
                 <WorkspaceKeeper>
@@ -272,7 +291,14 @@ export function ServerApplication() {
                 path="login"
                 element={
                   user ? (
-                    <Navigate to="/dashboard" replace />
+                    <Navigate
+                      to={
+                        user.uid === "tala_local_preview_student_v1"
+                          ? "/dashboard?view=calendar"
+                          : "/dashboard"
+                      }
+                      replace
+                    />
                   ) : (
                     (unavailable ?? (
                       <ServerAccessPage
@@ -289,14 +315,19 @@ export function ServerApplication() {
                   user ? (
                     <Navigate to="/dashboard" replace />
                   ) : (
-                    (unavailable ?? (
-                      <ServerAccessPage
-                        key="register"
-                        register
-                        onAuthenticated={authenticated}
-                      />
-                    ))
+                    <AdmissionStartPage />
                   )
+                }
+              />
+              <Route path="application" element={<AdmissionStartPage />} />
+              <Route
+                path="enroll"
+                element={
+                  <EnrollmentPage
+                    currentUser={user}
+                    onAuthenticated={authenticated}
+                    onLogout={logout}
+                  />
                 }
               />
               <Route
@@ -349,19 +380,15 @@ export function ServerApplication() {
               <Route
                 path="payment"
                 element={
-                  <section className="container state-panel">
-                    <h1>Payment service not connected</h1>
-                    <p>
-                      Payment provider and fees are unconfigured. No card data
-                      is collected. No charge can be made.
-                    </p>
-                    <Link
-                      className="button"
-                      to={user ? "/dashboard" : "/login"}
-                    >
-                      Back to your workspace
-                    </Link>
-                  </section>
+                  user ? (
+                    <PaymentPage
+                      key={`${user.uid}:${privacy.accessEpoch}`}
+                      user={user}
+                      onExpired={expired}
+                    />
+                  ) : (
+                    <Navigate to="/login" replace />
+                  )
                 }
               />
               <Route

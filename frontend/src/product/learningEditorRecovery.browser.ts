@@ -1,3 +1,4 @@
+import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { test, expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { spawn } from "node:child_process";
@@ -6,6 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { provisionAndLogin } from "./browserTestAccounts";
 
 const webOrigin = "http://127.0.0.1:5190";
 const apiOrigin = "http://127.0.0.1:8800";
@@ -167,28 +169,11 @@ async function register(page: Page) {
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
   };
-  await page.goto("/#/register");
-  await page
-    .getByLabel("Name", { exact: true })
-    .fill("Synthetic editor recovery student");
-  await page
-    .getByLabel("Account type", { exact: true })
-    .selectOption("student");
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(account.password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", {
-      name: "Hello, Synthetic editor recovery student.",
-      exact: true,
-    }),
-  ).toBeVisible();
-  return account;
+  return provisionAndLogin(
+    page,
+    (fixture) => callFixture("provisionAccount", fixture),
+    { ...account, name: "Synthetic editor recovery student", role: "student" },
+  );
 }
 async function chooseView(
   page: Page,
@@ -344,10 +329,8 @@ test("uncertain preparation is kept across views and blocks rescheduling until a
   await page
     .getByRole("button", { name: "Refresh records", exact: true })
     .click();
-  const slot = page.getByLabel("Available meeting time", { exact: true });
-  const firstSlot = await slot.locator("option").nth(1).getAttribute("value");
+  const firstSlot = await chooseMeetingTime(page);
   expect(firstSlot).toBeTruthy();
-  await slot.selectOption(firstSlot!);
   let reads = 0;
   let holdReads = false;
   let releaseRead: () => void = () => {};
@@ -399,8 +382,7 @@ test("uncertain preparation is kept across views and blocks rescheduling until a
   ).toBeEnabled();
   await expect(note).toHaveJSProperty("readOnly", true);
   expect(writes).toHaveLength(1);
-  const replacement = await slot.locator("option").nth(1).getAttribute("value");
-  await slot.selectOption(replacement!);
+  const replacement = await chooseMeetingTime(page);
   await page
     .getByRole("button", { name: "Change booking", exact: true })
     .click();
@@ -447,7 +429,7 @@ test("uncertain preparation is kept across views and blocks rescheduling until a
       .click();
     await expect(note).toHaveValue(original);
     await expect(note).toBeEditable();
-    await slot.selectOption(replacement!);
+    await chooseMeetingTime(page, replacement);
     await page
       .getByRole("button", { name: "Change booking", exact: true })
       .click();

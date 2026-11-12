@@ -36,6 +36,7 @@ function matchingEvidence(
     saved.ownerUid !== ownerUid ||
     saved.id !== upload.uploadId ||
     saved.appointmentId !== upload.appointmentId ||
+    saved.classId !== upload.classId ||
     saved.sha256 !== upload.sha256 ||
     saved.size !== upload.size ||
     saved.contentType !== upload.contentType ||

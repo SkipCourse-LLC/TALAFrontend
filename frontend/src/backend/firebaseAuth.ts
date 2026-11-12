@@ -210,6 +210,9 @@ export const firebaseAuthService = {
       const { email, displayName: name } = validateLocalSignupInput(input);
       const client = getFirebaseClient();
       await client.ready;
+      await client.auth.authStateReady();
+      if (signingOut) throw new FirebaseAuthServiceError("NOT_AUTHENTICATED");
+      if (client.auth.currentUser) throw new FirebaseAuthServiceError("ACTIVE_SESSION");
       pendingMfa.clear();
       const credential = await createUserWithEmailAndPassword(
         client.auth,

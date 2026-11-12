@@ -1,0 +1,358 @@
+.admission-page {
+  max-width: 1120px;
+  padding-block: clamp(36px, 6vw, 72px) 80px;
+}
+.admission-header {
+  max-width: 760px;
+  margin-bottom: 32px;
+}
+.admission-header h1 {
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  margin-block: 14px 18px;
+}
+.admission-header > p:last-child {
+  color: var(--color-muted);
+  font-size: 1.125rem;
+}
+.admission-local {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: var(--color-accent);
+  background: var(--color-green);
+  border-radius: 6px;
+  padding: 7px 10px;
+  margin: 0;
+}
+.admission-steps {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 36px;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.admission-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+.admission-steps li span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+}
+.admission-steps .is-current {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.admission-steps .is-current span {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+.admission-card {
+  background: var(--color-surface);
+  border: var(--border-panel);
+  border-radius: 20px;
+  padding: clamp(22px, 4vw, 40px);
+  min-width: 0;
+}
+.admission-page > .admission-card {
+  max-width: 640px;
+}
+.admission-card h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.025em;
+  margin: 0 0 12px;
+}
+.admission-muted,
+.admission-access-note {
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+.admission-optional {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  margin-left: 6px;
+}
+.admission-fields {
+  display: grid;
+  gap: 22px;
+  border: 0;
+  padding: 0;
+  margin: 28px 0 0;
+  min-width: 0;
+}
+.admission-fields .form-field {
+  margin: 0;
+}
+.admission-fields textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+.admission-fields input,
+.admission-fields select,
+.admission-fields textarea {
+  width: 100%;
+  min-width: 0;
+}
+.admission-fields small,
+.admission-upload small {
+  display: block;
+  margin-top: 7px;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.admission-fields > .button {
+  justify-self: start;
+}
+.admission-signin {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  margin-top: 28px;
+}
+.admission-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+.admission-status-bar p {
+  margin: 10px 0 0;
+  font-weight: 600;
+}
+.admission-badge {
+  display: inline-flex;
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: var(--color-green);
+  color: var(--color-accent);
+  font-size: 0.825rem;
+  font-weight: 600;
+}
+.admission-portal-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.admission-times {
+  display: grid;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+  margin: 24px 0;
+  min-width: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.admission-time {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.admission-time:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-green);
+}
+.admission-time input,
+.admission-check input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--color-accent);
+}
+.admission-time strong {
+  display: block;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.admission-time small {
+  display: block;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  margin-top: 3px;
+}
+.admission-meeting-date {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 24px 0 16px;
+}
+.admission-empty {
+  border-block: 1px solid var(--color-line);
+  padding-block: 22px;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.admission-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+  margin: 24px 0;
+}
+.admission-choice {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  border-radius: 10px;
+  color: var(--color-accent);
+  padding: 12px 16px;
+  min-height: 48px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.admission-choice.is-selected {
+  background: var(--color-green);
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+.admission-upload {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid var(--color-line);
+  padding-top: 24px;
+}
+.admission-upload input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+.admission-upload > .button {
+  justify-self: start;
+}
+.admission-check {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  font-size: 0.825rem;
+  line-height: 1.5;
+}
+.admission-documents {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+}
+.admission-documents li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--color-line);
+  padding-block: 15px;
+}
+.admission-documents span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+.admission-documents small {
+  display: block;
+  color: var(--color-muted);
+  margin-top: 4px;
+  font-size: 0.75rem;
+}
+.admission-documents button {
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.admission-feedback {
+  color: var(--color-accent);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.admission-access-note {
+  max-width: 720px;
+  font-size: 0.8rem;
+  margin-top: 24px;
+}
+.admission-close-access {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  max-width: 640px;
+  margin-top: 18px;
+}
+.admission-close-access summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 12px;
+}
+.admission-close-access p {
+  line-height: 1.6;
+}
+.admission-next {
+  border-top: 1px solid var(--color-line);
+  margin-top: 24px;
+  padding-top: 24px;
+}
+.admission-next h3 {
+  font-size: 1.15rem;
+}
+.admission-next p {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--color-muted);
+}
+.admission-enrollment {
+  max-width: 720px;
+}
+.admission-enrollment .admission-card {
+  max-width: none;
+}
+.admission-password {
+  display: flex;
+  gap: 10px;
+}
+.admission-password input {
+  min-width: 0;
+  flex: 1;
+}
+.admission-password .button {
+  flex-shrink: 0;
+  min-width: 70px;
+}
+@media (max-width: 760px) {
+  .admission-portal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 440px) {
+  .admission-steps {
+    gap: 14px;
+  }
+  .admission-steps li {
+    gap: 6px;
+    font-size: 0.75rem;
+  }
+  .admission-steps li span {
+    width: 24px;
+    height: 24px;
+  }
+  .admission-card {
+    padding: 22px 18px;
+  }
+  .admission-fields > .button {
+    justify-self: stretch;
+  }
+  .admission-time {
+    padding: 12px;
+  }
+}

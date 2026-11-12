@@ -7,6 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { provisionAndLogin } from "./browserTestAccounts";
 
 const webOrigin = "http://127.0.0.1:5184";
 const apiOrigin = "http://127.0.0.1:8794";
@@ -177,22 +178,9 @@ async function register(page: Page, role: "student" | "parent" = "student") {
     name: `Synthetic learning plan ${role}`,
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
+    role,
   };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByLabel("Account type", { exact: true }).selectOption(role);
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(account.password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
-  ).toBeVisible();
-  return account;
+  return provisionAndLogin(page, (fixture) => callFixture("provisionAccount", fixture), account);
 }
 
 async function choosePlan(page: Page) {
@@ -240,7 +228,7 @@ test("a personal goal persists through navigation, refresh, and signing in again
   await addGoal(page, "Explain one solution in my own words");
   await page
     .getByRole("navigation", { name: "Workspace sections", exact: true })
-    .getByRole("button", { name: "Overview", exact: true })
+    .getByRole("button", { name: "Today", exact: true })
     .click();
   await choosePlan(page);
   await page.reload();
@@ -538,7 +526,7 @@ test("the plan supports keyboard use and readable mobile, tablet, and desktop la
     }
     await page
       .getByRole("navigation", { name: "Workspace sections", exact: true })
-      .getByRole("button", { name: "Overview", exact: true })
+      .getByRole("button", { name: "Today", exact: true })
       .click();
     await expect(page.locator("#overview-heading")).toBeFocused();
     await expect(

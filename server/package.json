@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node index.cjs",
-    "check": "node --check application.cjs && node --check services.cjs && node --check database.cjs && node --check security.cjs && node --check operator.cjs && node --check accountServices.cjs && node --check backup.cjs && node --check learningGoals.cjs && node --check listServices.cjs && node --check runtimeIdentity.cjs && node --check workspaceUpdates.cjs && node --check meetingPreparation.cjs && node --check reflectionDrafts.cjs",
+    "check": "node --check application.cjs && node --check services.cjs && node --check database.cjs && node --check security.cjs && node --check operator.cjs && node --check accountServices.cjs && node --check backup.cjs && node --check learningGoals.cjs && node --check listServices.cjs && node --check runtimeIdentity.cjs && node --check workspaceUpdates.cjs && node --check meetingPreparation.cjs && node --check reflectionDrafts.cjs && node --check calendar.cjs && node --check admissions.cjs && node --check payments.cjs",
     "test": "node --test test/*.test.mjs"
   }
 }

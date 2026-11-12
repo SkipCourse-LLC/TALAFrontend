@@ -1,5 +1,7 @@
 export const workspaceViews = [
   { id: "overview", label: "Overview", heading: "overview-heading" },
+  { id: "classes", label: "Open classes", heading: "classes-heading" },
+  { id: "calendar", label: "Calendar", heading: "calendar-heading" },
   { id: "updates", label: "Updates", heading: "updates-heading" },
   { id: "plan", label: "Learning plan", heading: "plan-heading" },
   { id: "meetings", label: "Meetings", heading: "meetings-heading" },

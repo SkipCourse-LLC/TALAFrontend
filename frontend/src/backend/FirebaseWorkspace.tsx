@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { firebaseAuthService } from "./firebaseAuth";
+import {
+  firebaseAuthService,
+  FirebaseAuthServiceError,
+  safeFirebaseAuthError,
+} from "./firebaseAuth";
 import type { FirebaseSession } from "./firebaseAuth";
 import { FirebaseLearningPanel } from "./FirebaseLearningPanel";
 import {
@@ -67,6 +71,8 @@ export function FirebaseWorkspace(props: FirebaseWorkspaceProps) {
     );
   }
   if (!props.session.emailVerified || props.session.trustedRole !== "student") {
+    if (props.session.trustedRole && props.session.trustedRole !== "student")
+      return <AccountRoleNotice {...props} />;
     return (
       <section className="firebase-workspace container">
         <h1>Finish your account setup</h1>
@@ -85,6 +91,65 @@ export function FirebaseWorkspace(props: FirebaseWorkspaceProps) {
   return <ConnectedWorkspace key={props.session.uid} {...props} />;
 }
 
+function AccountRoleNotice({ session, onLogout }: FirebaseWorkspaceProps) {
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const active = useRef(false);
+  const busy = useRef(false);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
+  return (
+    <section className="firebase-workspace container">
+      <h1>
+        {session.trustedRole === "parent"
+          ? "Your family workspace"
+          : "Your TALA workspace"}
+      </h1>
+      <div className="firebase-workspace-panel">
+        <h2>Account role confirmed</h2>
+        <p>
+          Your account has a server-issued {session.trustedRole} role. This
+          integration currently opens learning records for student accounts.
+        </p>
+        <p>
+          Family access requires the team’s authorized parent–student
+          relationship and consent workflow. That workflow is not connected yet.
+        </p>
+        <Link className="button button-outline" to="/two-factor">
+          Account security
+        </Link>
+        <button
+          className="button button-outline"
+          type="button"
+          disabled={pending}
+          onClick={() => {
+            if (busy.current) return;
+            busy.current = true;
+            setPending(true);
+            setError("");
+            void onLogout()
+              .catch((failure) => {
+                if (active.current)
+                  setError(safeFirebaseAuthError(failure).message);
+              })
+              .finally(() => {
+                busy.current = false;
+                if (active.current) setPending(false);
+              });
+          }}
+        >
+          {pending ? "Signing out…" : "Sign out"}
+        </button>
+        {error && <p role="alert">{error}</p>}
+      </div>
+    </section>
+  );
+}
+
 function ConnectedWorkspace({
   session,
   onLogout,
@@ -101,6 +166,14 @@ function ConnectedWorkspace({
   const [online, setOnline] = useState(navigator.onLine);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [displayName, setDisplayName] = useState(session.name);
+  const [profileAttempt, setProfileAttempt] = useState(0);
+  const [profileState, setProfileState] = useState<{
+    uid: string;
+    attempt: number;
+    status: "ready" | "error";
+    displayName: string;
+    error: string;
+  } | null>(null);
   const [slotId, setSlotId] = useState("");
   const [evidenceBookingId, setEvidenceBookingId] = useState("");
   const [title, setTitle] = useState("");
@@ -166,19 +239,33 @@ function ConnectedWorkspace({
     void firebaseAuthService
       .getProfile()
       .then((profile) => {
-        if (active && profile.uid === session.uid && profile.exists)
+        if (active) {
+          if (profile.uid !== session.uid || !profile.exists)
+            throw new FirebaseAuthServiceError("PROFILE_UNAVAILABLE");
           setDisplayName(profile.displayName);
+          setProfileState({
+            uid: session.uid,
+            attempt: profileAttempt,
+            status: "ready",
+            displayName: profile.displayName,
+            error: "",
+          });
+        }
       })
-      .catch(() => {
+      .catch((failure) => {
         if (active)
-          setActionError(
-            "Your saved profile could not be loaded. Refresh the workspace before updating your name.",
-          );
+          setProfileState({
+            uid: session.uid,
+            attempt: profileAttempt,
+            status: "error",
+            displayName: "",
+            error: safeFirebaseAuthError(failure).message,
+          });
       });
     return () => {
       active = false;
     };
-  }, [session.uid, retry]);
+  }, [session.uid, profileAttempt]);
   useEffect(() => {
     if (actionError) errorRef.current?.focus();
   }, [actionError]);
@@ -210,6 +297,11 @@ function ConnectedWorkspace({
     snapshot?.slots.filter((item) => Date.parse(item.startsAt) > currentTime) ??
     [];
   const loaded = !!snapshot && !snapshot.loading && !loadError;
+  const currentProfile =
+    profileState?.uid === session.uid && profileState.attempt === profileAttempt
+      ? profileState
+      : null;
+  const profileReady = currentProfile?.status === "ready";
   const blocked = !!pending || !online || !loaded || !!snapshot?.fromCache;
 
   function requestId(key: string): string {
@@ -231,6 +323,10 @@ function ConnectedWorkspace({
       if (mounted.current) setMessage(result);
     } catch (error) {
       if (mounted.current) {
+        if (error instanceof FirebaseAuthServiceError) {
+          setActionError(safeFirebaseAuthError(error).message);
+          return;
+        }
         const safe = safeTalaDataError(error);
         setActionError(safe.message);
         if (["CONFLICT", "NOT_FOUND", "EXPIRED"].includes(safe.code)) {
@@ -651,8 +747,8 @@ function ConnectedWorkspace({
                   />
                   <small id="firebase-file-help">
                     Text (.txt) or PDF, up to 5 MiB. Use invented test content
-                    only. Files remain private; no public sharing link is
-                    created.
+                    only. Uploads are validated and archived by the backend;
+                    public sharing is unavailable.
                   </small>
                 </div>
                 <label
@@ -796,14 +892,42 @@ function ConnectedWorkspace({
               Verified student test account. Access is based on the
               backend&apos;s signed role claim.
             </p>
+            {!currentProfile && (
+              <p role="status">Loading your saved profile…</p>
+            )}
+            {currentProfile?.status === "error" && (
+              <>
+                <p role="alert">
+                  {currentProfile.error} Your name cannot be edited until the
+                  saved profile is loaded.
+                </p>
+                <button
+                  className="button button-outline"
+                  type="button"
+                  disabled={!!pending || !online}
+                  onClick={() => setProfileAttempt((value) => value + 1)}
+                >
+                  Retry profile loading
+                </button>
+              </>
+            )}
             <form
               onSubmit={(event) => {
                 event.preventDefault();
-                if (!displayName.trim() || !online) return;
+                if (!profileReady || !displayName.trim() || !online) return;
+                const selectedName = displayName.trim();
                 void run("profile", async () => {
                   await firebaseAuthService.updateProfile({
-                    displayName: displayName.trim(),
+                    displayName: selectedName,
                   });
+                  if (mounted.current)
+                    setProfileState({
+                      uid: session.uid,
+                      attempt: profileAttempt,
+                      status: "ready",
+                      displayName: selectedName,
+                      error: "",
+                    });
                   await onProfileUpdated?.();
                   return "Your display name was saved to your Firebase profile.";
                 });
@@ -818,14 +942,20 @@ function ConnectedWorkspace({
                   maxLength={80}
                   value={displayName}
                   autoComplete="nickname"
-                  disabled={!!pending || !online}
+                  disabled={!profileReady || !!pending || !online}
                   onChange={(event) => setDisplayName(event.target.value)}
                 />
               </div>
               <button
                 type="submit"
                 className="button button-outline"
-                disabled={!!pending || !online || !displayName.trim()}
+                disabled={
+                  !profileReady ||
+                  !!pending ||
+                  !online ||
+                  !displayName.trim() ||
+                  displayName.trim() === currentProfile?.displayName
+                }
               >
                 {pending === "profile" ? "Saving…" : "Save display name"}
               </button>

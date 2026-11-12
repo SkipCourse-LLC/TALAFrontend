@@ -15,6 +15,8 @@ import { useMeetingClock } from "./useMeetingClock";
 import { TodayTaskPanel } from "./TodayTaskPanel";
 import { LearningJourney } from "./LearningJourney";
 import { LearningGlyph } from "./LearningGlyph";
+import type { StudentCalendar } from "../api/calendarContract";
+import { CalendarEnrollmentSummary } from "./calendar/CalendarEnrollmentSummary";
 import "./studentOverview.css";
 
 type QuickStepAttempt = {
@@ -81,6 +83,11 @@ export function StudentOverview({
   onPreferences,
   busy = false,
   onCompleteGoalStep,
+  calendar,
+  calendarLoading,
+  calendarError,
+  onCalendar,
+  onOpenClasses,
 }: {
   workspace?: ApiWorkspace;
   learning?: ApiLearningRecords;
@@ -102,6 +109,11 @@ export function StudentOverview({
   onPreferences: (next: TodayPreferences) => void;
   busy?: boolean;
   onCompleteGoalStep?: (goal: LearningGoal, stepId: string) => Promise<boolean>;
+  calendar?: StudentCalendar;
+  calendarLoading?: boolean;
+  calendarError?: string;
+  onCalendar?: () => void;
+  onOpenClasses?: () => void;
 }) {
   const workspaceVisible = useWorkspaceVisible();
   const today = useLocalCalendarDay(workspaceVisible);
@@ -376,8 +388,23 @@ export function StudentOverview({
         />
       </div>
       <div className="learning-overview-full" hidden={focusView}>
+        {onCalendar && (
+          <CalendarEnrollmentSummary
+            data={calendar}
+            loading={calendarLoading}
+            error={calendarError}
+            onCalendar={onCalendar}
+            onOpenClasses={onOpenClasses}
+            onEvidence={readOnly ? undefined : () => onNavigate("evidence")}
+          />
+        )}
         <LearningJourney
           goalCount={planReady ? goals.length : undefined}
+          classCount={
+            calendar?.enrolled.filter(
+              (course) => Date.parse(course.endsAt) > now,
+            ).length
+          }
           bookingCount={
             workspace
               ? workspace.activeAppointments.filter(

@@ -1,3 +1,4 @@
+import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import type { BrowserContext, Locator, Page } from "@playwright/test";
@@ -8,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { meetingRange } from "./meetingHelpers";
+import { provisionAndLogin } from "./browserTestAccounts";
 
 type Seed = {
   documentCount: number;
@@ -133,20 +135,13 @@ async function restrict(context: BrowserContext) {
   });
 }
 async function register(page: Page, name: string) {
-  const email = `${randomUUID()}@example.test`;
-  const password = `Synthetic-only-${randomUUID()}`;
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(name);
-  await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password", { exact: true }).fill(password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: `Hello, ${name}.`, exact: true }),
-  ).toBeVisible();
-  return { email, password };
+  const account = {
+    name,
+    email: `${randomUUID()}@example.test`,
+    password: `Synthetic-only-${randomUUID()}`,
+    role: "student" as const,
+  };
+  return provisionAndLogin(page, (fixture) => rpc("provisionAccount", fixture), account);
 }
 async function chooseView(page: Page, name: string) {
   const button = page
@@ -338,6 +333,10 @@ test("older student records and operator work remain discoverable across real pa
     await expect(
       meetings.getByText("Your current booking", { exact: true }),
     ).toBeVisible();
+    await meetings
+      .getByRole("button", { name: "Change booking", exact: true })
+      .click();
+    await meetings.locator(".meeting-all-times > summary").click();
     const select = meetings.getByLabel("Available meeting time", {
       exact: true,
     });
@@ -571,9 +570,7 @@ test("rejected and unconfirmed Evidence uploads remain recoverable without losin
   await page
     .getByRole("button", { name: "Refresh records", exact: true })
     .click();
-  await page
-    .getByLabel("Available meeting time", { exact: true })
-    .selectOption(slot.id);
+  await chooseMeetingTime(page, slot.id);
   await page.getByRole("button", { name: "Book meeting", exact: true }).click();
   await expect(
     page

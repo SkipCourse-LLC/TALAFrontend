@@ -1,3 +1,4 @@
+import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -7,6 +8,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { provisionAndLogin } from "./browserTestAccounts";
 
 const webOrigin = "http://127.0.0.1:5186";
 const apiOrigin = "http://127.0.0.1:8796";
@@ -179,22 +181,9 @@ async function register(page: Page, role: "student" | "parent" = "student") {
     name: `Synthetic workspace updates ${role}`,
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
+    role,
   };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByLabel("Account type", { exact: true }).selectOption(role);
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(account.password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
-  ).toBeVisible();
-  return account;
+  return provisionAndLogin(page, (fixture) => callFixture("provisionAccount", fixture), account);
 }
 
 async function chooseView(page: Page, name: "Updates" | "Meetings") {
@@ -228,9 +217,7 @@ async function bookMeeting(
   await page
     .getByRole("button", { name: "Refresh records", exact: true })
     .click();
-  const available = page.getByLabel("Available meeting time", { exact: true });
-  await expect(available).toBeEnabled();
-  await available.selectOption(slot.id);
+  await chooseMeetingTime(page, slot.id);
   await page.getByRole("button", { name: "Book meeting", exact: true }).click();
   await expect(
     page
@@ -363,6 +350,17 @@ test("real pagination keeps loaded updates after interruption and read-all recei
     await expect(rows).toHaveCount(50);
     expect(cursors[0]).toBe(cursors[1]);
     await page.unroute("**/api/updates?*");
+    const refreshed = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === "/api/updates" && !url.searchParams.has("cursor");
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await refreshed;
+    await expect(rows).toHaveCount(50);
+    await panel
+      .getByRole("button", { name: "Load more updates", exact: true })
+      .click();
+    await expect(rows).toHaveCount(75);
 
     let release: (() => void) | undefined;
     let started: (() => void) | undefined;

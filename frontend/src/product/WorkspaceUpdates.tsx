@@ -14,6 +14,7 @@ import {
   workspaceUpdateTime,
   workspaceUpdateType,
 } from "./workspaceUpdatesHelpers";
+import { useClassWorkspaceRevision } from "./calendar/classWorkspaceSync";
 import "./workspaceUpdates.css";
 
 type UpdateFilter = "all" | "unread";
@@ -21,7 +22,6 @@ type ReadAction = { kind: "one"; id: string } | { kind: "all" };
 type SavedUpdates = {
   key: string;
   scope: string;
-  revision: number;
   ownerUid: string;
   items: WorkspaceUpdate[];
   nextCursor: string | null;
@@ -48,6 +48,10 @@ function UpdateSymbol({ type }: { type: WorkspaceUpdate["type"] }) {
           <rect x="4" y="5" width="16" height="16" rx="3" />
           <path d="M8 3v4m8-4v4M4 11h16m-12 5h3" />
         </>
+      ) : type === "class" ? (
+        <>
+          <path d="m3 9 9-5 9 5-9 5-9-5Zm4 2v6c3 3 7 3 10 0v-6m4-2v8" />
+        </>
       ) : type === "learning" ? (
         <>
           <path d="M12 6c-2-2-5-2-9-1v14c4-1 7-1 9 1 2-2 5-2 9-1V5c-4-1-7-1-9 1Zm0 0v14" />
@@ -66,9 +70,11 @@ function UpdateSymbol({ type }: { type: WorkspaceUpdate["type"] }) {
 function openLabel(type: WorkspaceUpdate["type"]) {
   return type === "appointment"
     ? "View meeting"
-    : type === "learning"
-      ? "View record"
-      : "View evidence";
+    : type === "class"
+      ? "View class"
+      : type === "learning"
+        ? "View record"
+        : "View evidence";
 }
 
 export function WorkspaceUpdates({
@@ -76,7 +82,7 @@ export function WorkspaceUpdates({
   readOnly,
   visible,
   enabled = true,
-  revision,
+  revision: workspaceRevision,
   onFailure,
   onNavigate,
   onUnreadChange,
@@ -88,11 +94,14 @@ export function WorkspaceUpdates({
   revision: number;
   onFailure: (failure: unknown) => void;
   onNavigate: (
-    view: "meetings" | "learning" | "evidence",
+    view: "meetings" | "learning" | "evidence" | "classes",
     resourceId: string,
   ) => void;
   onUnreadChange?: (count: number) => void;
 }) {
+  const classRevision = useClassWorkspaceRevision(enabled);
+  const revision = workspaceRevision + classRevision;
+  const backgroundRevision = useRef(revision);
   const baseId = useId();
   const scope = studentUid ?? "self";
   const [filter, setFilter] = useState<UpdateFilter>("all");
@@ -113,6 +122,7 @@ export function WorkspaceUpdates({
   const actionGeneration = useRef(0);
   const firstRequest = useRef<AbortController | null>(null);
   const moreRequest = useRef<AbortController | null>(null);
+  const backgroundRequest = useRef<AbortController | null>(null);
   const actionRequest = useRef<AbortController | null>(null);
   const running = useRef(false);
   const requestIds = useRef(new Map<string, string>());
@@ -172,6 +182,7 @@ export function WorkspaceUpdates({
       actionGeneration.current += 1;
       firstRequest.current?.abort();
       moreRequest.current?.abort();
+      backgroundRequest.current?.abort();
       actionRequest.current?.abort();
     };
   }, []);
@@ -294,7 +305,7 @@ export function WorkspaceUpdates({
     const cached = savedRef.current;
     // A hidden, already-current panel need not reread simply because its view
     // closed. First access and a real workspace revision still update the badge.
-    if (!visible && cached?.key === key && cached.revision === revision) {
+    if (!visible && cached?.key === key) {
       const timer = window.setTimeout(() => {
         setLoading(false);
         setLoadingMore(false);
@@ -322,7 +333,7 @@ export function WorkspaceUpdates({
           version !== generation.current
         )
           return;
-        const next = { ...page, key, scope, revision };
+        const next = { ...page, key, scope };
         savedRef.current = next;
         setSaved(next);
         setDeniedScope(undefined);
@@ -368,13 +379,76 @@ export function WorkspaceUpdates({
     scope,
     key,
     filter,
-    revision,
     attempt,
     visible,
     reportFailure,
     baseId,
     updateIssue,
     reconcileReadStatus,
+  ]);
+
+  useEffect(() => {
+    if (backgroundRevision.current === revision) return;
+    backgroundRevision.current = revision;
+    const cached = savedRef.current;
+    if (!visible || !enabled || deniedScope === scope || cached?.key !== key)
+      return;
+    const controller = new AbortController();
+    backgroundRequest.current?.abort();
+    backgroundRequest.current = controller;
+    void talaApi
+      .getWorkspaceUpdates({ studentUid, filter }, controller.signal)
+      .then((page) => {
+        const latest = savedRef.current;
+        if (
+          !mounted.current ||
+          !context.current.enabled ||
+          context.current.key !== key ||
+          controller.signal.aborted ||
+          latest?.key !== key ||
+          page.ownerUid !== latest.ownerUid
+        )
+          return;
+        const items = mergeWorkspaceUpdates(latest.items, page.items).sort(
+          (first, second) =>
+            Date.parse(second.occurredAt) - Date.parse(first.occurredAt) ||
+            second.id.localeCompare(first.id),
+        );
+        const next = {
+          ...latest,
+          items,
+          unreadCount: page.unreadCount,
+        };
+        savedRef.current = next;
+        setSaved(next);
+        const confirmed = reconcileReadStatus(page);
+        if (confirmed) setNotice(confirmed);
+      })
+      .catch((failure: unknown) => {
+        if (
+          mounted.current &&
+          context.current.enabled &&
+          context.current.key === key &&
+          !controller.signal.aborted
+        )
+          reportFailure(failure, "read");
+      })
+      .finally(() => {
+        if (backgroundRequest.current === controller)
+          backgroundRequest.current = null;
+      });
+    return () => controller.abort();
+  }, [
+    revision,
+    visible,
+    enabled,
+    deniedScope,
+    scope,
+    key,
+    studentUid,
+    filter,
+    reconcileReadStatus,
+    reportFailure,
   ]);
 
   useEffect(() => {
@@ -811,7 +885,7 @@ export function WorkspaceUpdates({
           <p>
             {filter === "unread"
               ? "No unread updates."
-              : "Meeting, learning and feedback updates appear here."}
+              : "Class requests, meetings, learning records and feedback appear here."}
           </p>
           {filter === "unread" && (
             <button
@@ -848,7 +922,8 @@ export function WorkspaceUpdates({
           {readOnly
             ? "The student controls read status."
             : "Opening an update doesn’t mark it read."}{" "}
-          Read status is saved. No email or push notifications are sent.
+          Read status is saved. Class updates show the latest request status. No
+          email or push notifications are sent.
         </p>
       </details>
     </section>
