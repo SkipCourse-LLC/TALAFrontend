@@ -48,8 +48,8 @@ async function createMeetLink(startTime, endTime, parentEmail, parentName) {
     const response = await calendar.events.insert({
       calendarId: 'primary',
       resource: event,
-      conferenceDataVersion: 1, // Required to get the link back
-      sendUpdates: 'all',       // Sends an email invite to the parent
+      conferenceDataVersion: 1, 
+      sendUpdates: 'all',       
     });
 
     // Extract the actual Meet link from the response

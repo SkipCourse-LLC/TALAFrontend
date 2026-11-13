@@ -39,13 +39,11 @@ function createApplication(options = {}) {
     const opaque = token(), csrfToken = token(), ttl = user ? sessionTtl : 3600000;
     let responseUser;
     transaction(db, () => {
-      // Re-read after acquiring the writer lock; earlier reads can't authorize the new session.
       if (req.method !== "GET") {
         mutation(req);
         if (req.headers["x-tala-user"] !== undefined) actorFor(req);
       }
       const previous = currentSession(req), now = Date.now();
-      // Create the account in the same transaction so a failed session write doesn't reserve the email.
       responseUser = typeof user === "function" ? user() : user;
       if (responseUser) {
         const fresh = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(responseUser.uid);
@@ -139,7 +137,6 @@ function createApplication(options = {}) {
       if (changing) mutation(req);
       if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 5, schemaVersion: 3, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
       if (req.method === "GET" && route === "/api/session") {
-        // Cross-site navigations omit SameSite=Strict cookies; don't replace a signed-in session.
         if (req.headers["sec-fetch-site"] === "cross-site") fail(403, "ORIGIN_DENIED", "This application origin is not authorized.");
         const existing = currentSession(req);
         if (existing) return json(res, { session: existing.user ? userDTO(existing.user) : null, csrfToken: existing.csrf_token });
@@ -184,6 +181,7 @@ function createApplication(options = {}) {
         if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "The public calendar does not accept filters.");
         return json(res, services.publicOpenTimes());
       }
+      
       if (req.method === "POST" && route === "/api/contact-requests") {
         const input = contactRequests.validate(await body(req));
         rate(req, "contact-request", 10);
@@ -196,12 +194,9 @@ function createApplication(options = {}) {
           ? parentDetails.notes.replace("Parent Registration & Enrollment Meeting. Address: ", "")
           : "Address not provided";
 
-        // --- 1. CALL THE GOOGLE MEET FUNCTION ---
-        // We use the real start and end times (you can hardcode for now, or pass the selected slot times)
+        // CALL THE GOOGLE MEET FUNCTION 
         const startTime = new Date("2026-11-03T10:00:00").toISOString();
         const endTime = new Date("2026-11-03T10:30:00").toISOString();
-        
-        const { createMeetLink } = require('./googleMeet.cjs');
         
         console.log("Requesting Meet link from Google...");
         const realMeetLink = await createMeetLink(
@@ -211,10 +206,9 @@ function createApplication(options = {}) {
           parentDetails.parentName
         );
 
-        // If Google fails, it returns null. We use the fallback link if that happens.
         const finalLink = realMeetLink || "https://meet.google.com/fallback-link";
 
-        // --- 2. PASS THE REAL LINK TO THE EMAIL ---
+        // GENERATE THE EMAIL HTML
         const emailHtml = getEnrollmentConfirmationEmail({
           parentName: parentDetails.parentName,
           parentEmail: parentDetails.email,
@@ -225,10 +219,38 @@ function createApplication(options = {}) {
           meetingLink: finalLink 
         });
 
-        console.log("\n=============================================");
-        console.log(`MOCK EMAIL SENT TO: ${parentDetails.email}`);
+        // SEND THE EMAIL VIA GOOGLE APPS SCRIPT 
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5IQknI76E9n0E4p8flKecE6ykXW6Q55xO106ACfUB6E-2JByQwieIcwNhxZF0Z1-7aw/exec";
+
+        try {
+          const emailResponse = await fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" }, 
+            body: JSON.stringify({
+              email: parentDetails.email,
+              name: parentDetails.parentName,
+              phone: parentDetails.phone,
+              address: parentAddress,
+              meetingDate: "Tuesday, November 3, 2026", 
+              meetingTime: "10:00 AM - 10:30 AM",       
+              meetingLink: finalLink
+            })
+          });
+
+          const result = await emailResponse.json();
+          if (result.status === "success") {
+            console.log(`Real email successfully sent to ${parentDetails.email} via Apps Script!`);
+          } else {
+            console.error("Apps Script Error:", result.message);
+          }
+        } catch (error) {
+          console.error("Failed to connect to Apps Script:", error.message);
+        }
+
+        console.log("\n");
+        console.log(`EMAIL SENT TO: ${parentDetails.email}`);
         console.log(`MEET LINK: ${finalLink}`);
-        console.log("=============================================\n");
+        console.log("\n");
 
         return json(res, receipt, 201);
       }
@@ -293,7 +315,6 @@ function createApplication(options = {}) {
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)\/content$/))) {
         if (downloads >= 4) fail(429, "RATE_LIMITED", "Too many file downloads. Try again shortly.");
         downloads += 1;
-        // requestTimeout doesn't cover slow readers; enforce an absolute deadline.
         const deadline = setTimeout(() => res.destroy(), downloadTtl);
         deadline.unref();
         let released = false;

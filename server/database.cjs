@@ -26,6 +26,50 @@ const EXTENSIONS = `
   CREATE INDEX IF NOT EXISTS evidence_revision_root ON evidence_revisions(root_id,revision_number);
   INSERT OR IGNORE INTO availability_state(slot_id,status,updated_at,updated_by)
     SELECT id,'published',created_at,NULL FROM slots;
+  
+  CREATE TABLE IF NOT EXISTS meeting_bookings (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL UNIQUE,
+    slot_id TEXT NOT NULL REFERENCES slots(id),
+
+    kind TEXT NOT NULL CHECK (
+      kind IN ('consultation', 'enrollment')
+    ),
+
+    parent_uid TEXT REFERENCES users(uid),
+    student_uid TEXT REFERENCES users(uid),
+
+    parent_name TEXT NOT NULL,
+    parent_email TEXT NOT NULL,
+
+    status TEXT NOT NULL CHECK (
+      status IN (
+        'creating',
+        'confirmed',
+        'pending_meet',
+        'needs_review',
+        'failed',
+        'cancelled'
+      )
+    ),
+
+    google_event_id TEXT,
+    meet_url TEXT,
+
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  ) STRICT;
+
+  CREATE UNIQUE INDEX IF NOT EXISTS
+    meeting_bookings_active_slot
+  ON meeting_bookings(slot_id)
+  WHERE status IN (
+    'creating',
+    'confirmed',
+    'pending_meet',
+    'needs_review'
+  );
+
   CREATE TABLE IF NOT EXISTS contact_requests (
     id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL,
     parent_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL,
