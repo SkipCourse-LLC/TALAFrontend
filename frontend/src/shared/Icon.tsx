@@ -13,6 +13,13 @@ const paths = {
   menu: "M4 6h16M4 12h16M4 18h16",
   close: "m6 6 12 12M6 18 18 6",
   sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-6v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1",
+  circle: "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z",
+  calendar: "M4 6h16v14H4ZM4 10h16M8 3v4m8-4v4",
+  "chevron-left": "m15 5-7 7 7 7",
+  "chevron-right": "m9 5 7 7-7 7",
+  pause: "M8 5v14M16 5v14",
+  play: "M7 5v14l12-7Z",
+  login: "M14 3h6v18h-6M3 12h12m-4-4 4 4-4 4",
 } as const;
 export type IconName = keyof typeof paths;
 export function Icon({

@@ -12,10 +12,20 @@
 }
 .site-header {
   background: var(--color-surface);
-  border-bottom: var(--border-panel);
+  border-bottom: 1px solid var(--home-line);
+  font-family: var(--font-public);
+}
+/* The public header and footer use the client's teal palette. */
+.site-header .brand,
+.site-footer .brand {
+  color: var(--home-teal);
+}
+.site-header .brand-dot,
+.site-footer .brand-dot {
+  color: var(--home-eyebrow);
 }
 .nav-row {
-  min-height: 76px;
+  min-height: 92px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -58,14 +68,17 @@
   text-decoration: none;
   white-space: nowrap;
 }
+.primary-nav > a:not(.nav-hub-link) {
+  color: var(--home-body);
+}
 .primary-nav a.active:not(.nav-hub-link) {
-  color: var(--color-accent);
+  color: var(--home-teal);
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 8px;
 }
 .primary-nav a:hover {
-  color: var(--color-accent);
+  color: var(--home-teal);
 }
 .nav-actions {
   margin-left: auto;
@@ -75,29 +88,29 @@
 }
 /* Client mockup: an outlined "Community Login" beside a filled "Start registration". */
 .nav-hub-link {
-  padding: 8px 16px;
-  color: var(--color-accent);
+  padding: 8px 18px;
+  color: var(--home-teal);
   background: var(--color-surface);
-  border: 1px solid var(--color-accent);
-  border-radius: 10px;
+  border: 1px solid var(--home-teal);
+  border-radius: 6px;
   font-weight: 600;
 }
 .nav-hub-link:hover,
 .nav-hub-link.active {
-  background: #edf2ef;
+  background: #eaf2f4;
 }
 .nav-actions > .nav-cta {
   gap: 8px;
-  padding: 8px 16px;
+  padding: 8px 18px;
   color: var(--color-surface);
-  background: var(--color-accent);
-  border: 1px solid var(--color-accent);
-  border-radius: 10px;
+  background: var(--home-teal);
+  border: 1px solid var(--home-teal);
+  border-radius: 6px;
   font-weight: 600;
 }
 .nav-actions > .nav-cta:hover {
-  background: #23594d;
-  border-color: #23594d;
+  background: var(--home-teal-dark);
+  border-color: var(--home-teal-dark);
 }
 .nav-cta .icon {
   width: 16px;
@@ -110,9 +123,11 @@
   min-height: 60vh;
 }
 .site-footer {
-  border-top: var(--border-panel);
+  border-top: 1px solid var(--home-line);
   padding-top: 40px;
   background: white;
+  color: var(--home-body);
+  font-family: var(--font-public);
 }
 .footer-top {
   display: grid;
@@ -123,6 +138,14 @@
 .footer-top p {
   font-size: 0.875rem;
   margin: 14px 0 0;
+}
+.footer-brand-name {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.6875rem;
+}
+.footer-top nav a {
+  color: var(--home-teal);
 }
 .footer-top nav {
   display: flex;
@@ -145,7 +168,7 @@
 }
 .footer-note p {
   font-weight: 600;
-  color: var(--color-ink);
+  color: var(--home-ink);
   margin: 0 0 8px;
 }
 .footer-note small {
@@ -153,12 +176,13 @@
   font-size: 0.8125rem;
 }
 .footer-bottom {
-  border-top: var(--border-panel);
+  border-top: 1px solid var(--home-line);
   padding-block: 20px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 20px;
-  color: var(--color-muted);
+  gap: 8px 20px;
+  color: var(--home-body);
   font-size: 0.75rem;
 }
 @media (max-width: 1100px) {

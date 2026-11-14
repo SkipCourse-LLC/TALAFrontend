@@ -14,6 +14,10 @@ export function SiteLayout({
   backend?: "api" | "firebase-emulator" | "firebase-test" | "firebase";
 }) {
   const location = useLocation();
+  // Signed-in workspaces keep a one-line footer; public pages get the full one.
+  const quietFooter =
+    backend === "api" &&
+    ["/dashboard", "/payment", "/two-factor"].includes(location.pathname);
   return (
     <>
       <a
@@ -54,10 +58,10 @@ export function SiteLayout({
       </main>
       <footer
         className={
-          backend === "api" ? "site-footer quiet-site-footer" : "site-footer"
+          quietFooter ? "site-footer quiet-site-footer" : "site-footer"
         }
       >
-        {backend === "api" ? (
+        {quietFooter ? (
           <div className="container quiet-footer-row">
             <Brand />
             <nav aria-label="Footer">
@@ -72,33 +76,38 @@ export function SiteLayout({
             <div className="container footer-top">
               <div>
                 <Brand />
-                <p>
-                  Room to learn.
-                  <br />
-                  Space to become yourself.
-                </p>
+                <small className="footer-brand-name">
+                  Tucson Adaptive Learning Academy
+                </small>
+                <p>Room to learn. Space to become yourself.</p>
               </div>
               <nav aria-label="Footer">
-                <Link to="/about">About TALA</Link>
-                <Link to="/programs">Explore programs</Link>
-                <Link to={session ? "/dashboard" : "/login"}>Student hub</Link>
+                <Link to="/learn-more">Learn More</Link>
+                <Link to="/programs">Programs / Enrollment</Link>
+                <Link to="/events">Community Events</Link>
+                <Link to="/contact">Contact</Link>
               </nav>
               <div className="footer-note">
                 <p>Your learning. Your next step.</p>
                 <small>
-                  {backend
-                    ? "Authentication uses Firebase. Meeting, evidence and payment services require an approved environment and team integration."
-                    : "This frontend preview brings enrollment and learning together. School decisions, billing and live services are not connected."}
+                  {backend === "api"
+                    ? "Accounts, bookings and documents use the TALA server. Email delivery, live meeting links and payments require connected providers."
+                    : backend
+                      ? "Authentication uses Firebase. Meeting, evidence and payment services require an approved environment and team integration."
+                      : "This frontend preview brings enrollment and learning together. School decisions, billing and live services are not connected."}
                 </small>
               </div>
             </div>
             <div className="container footer-bottom">
               <span>
-                {backend
-                  ? "TALA-Hub · Backend integration"
-                  : "TALA-Hub · Frontend product preview"}
+                {backend === "api"
+                  ? "TALA-Hub · Independent server"
+                  : backend
+                    ? "TALA-Hub · Backend integration"
+                    : "TALA-Hub · Frontend product preview"}
               </span>
               <span>Built for different ways to learn.</span>
+              <span>© {new Date().getFullYear()} TALA. All rights reserved.</span>
             </div>
           </>
         )}

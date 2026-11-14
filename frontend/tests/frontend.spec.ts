@@ -147,6 +147,9 @@ test("parent-first registration, review, recoverable failure and student login",
       externalRequests.push(request.url());
   });
   await page.goto("/");
+  // "Start registration" sits in the header; on phones it is inside the menu.
+  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  if (await menu.isVisible()) await menu.click();
   await page
     .getByRole("link", { name: "Start registration", exact: true })
     .click();

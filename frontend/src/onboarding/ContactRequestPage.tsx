@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { newRequestId, safeTalaApiError, talaApi } from "../api";
 import type { ContactRequestReceipt } from "../api";
 import { TextField } from "../shared/TextField";
@@ -34,8 +34,30 @@ const stepChecks = [
   validateContactDraft,
 ];
 
+/** Details typed into the home page inquiry form, carried in router state. */
+function inquiryPrefill(state: unknown): Partial<ContactDraft> {
+  if (!state || typeof state !== "object" || !("inquiryPrefill" in state))
+    return {};
+  const value = (state as { inquiryPrefill: unknown }).inquiryPrefill;
+  if (!value || typeof value !== "object") return {};
+  const pick = (key: string, max: number) => {
+    const raw = (value as Record<string, unknown>)[key];
+    return typeof raw === "string" ? raw.slice(0, max) : "";
+  };
+  return {
+    parentName: pick("parentName", 80),
+    email: pick("email", 254),
+    phone: pick("phone", 30),
+    notes: pick("notes", 1000),
+  };
+}
+
 export function ContactRequestPage() {
-  const [draft, setDraft] = useState<ContactDraft>(emptyContactDraft);
+  const location = useLocation();
+  const [draft, setDraft] = useState<ContactDraft>(() => ({
+    ...emptyContactDraft,
+    ...inquiryPrefill(location.state),
+  }));
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<ContactErrors>({});
   const [pending, setPending] = useState(false);

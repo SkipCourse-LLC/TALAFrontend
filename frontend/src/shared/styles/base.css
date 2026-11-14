@@ -38,6 +38,21 @@
   --radius-card: 20px;
   --control-height: 56px;
   --target-height: 44px;
+  /* Public site palette and type from the client's home page design. */
+  --font-public: "Noto Sans", "Open Sans", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --home-teal: #225d70;
+  --home-teal-dark: #1a4a5a;
+  --home-ink: #243a3b;
+  --home-body: #5b6b6c;
+  --home-eyebrow: #386e75;
+  --home-kicker: #42684e;
+  --home-bg: #f3f9f8;
+  --home-band: #e8f0ed;
+  --home-art: #e9efec;
+  --home-line: #d7e1df;
+  --home-line-strong: #c3d0ce;
+  --home-surface: #ffffff;
 }
 * {
   box-sizing: border-box;
