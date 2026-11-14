@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { request as rawHttpRequest } from "node:http";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient, assertNoPrivateLocation } from "./support.mjs";
+import { SyntheticHttpClient, assertNoPrivateLocation, provisionAccount, signUpForTest } from "./support.mjs";
 
 const allowedOrigin = "http://127.0.0.1:5173";
 
@@ -63,8 +63,8 @@ async function harness() {
     },
   };
 }
-async function register(url, accountType = "student") {
-  const client = new SyntheticHttpClient(url, allowedOrigin);
+async function register(context, accountType = "student") {
+  const client = new SyntheticHttpClient(context.url, allowedOrigin);
   await client.bootstrap();
   const suffix = randomUUID();
   const account = {
@@ -74,10 +74,7 @@ async function register(url, accountType = "student") {
     accountType,
   };
   const result = accepted(
-    await client.request("/api/auth/register", {
-      method: "POST",
-      json: account,
-    }),
+    await signUpForTest(context.application, client, account),
   );
   assert.equal(result.session.role, accountType);
   assert.equal(
@@ -116,33 +113,42 @@ test(
         password: `Synthetic-only-${suffix}`,
         accountType: "student",
       };
+      // Self sign-up is closed, even when a client asks for a staff account.
+      const closed = await client.request("/api/auth/register", {
+        method: "POST",
+        json: { ...account, accountType: "operator" },
+      });
+      assert.equal(closed.status, 403);
+      assert.equal(closed.json.error.code, "ENROLLMENT_INVITATION_REQUIRED");
+      await provisionAccount(context.application, account);
+      const credentials = { email: account.email, password: account.password };
       denied(
-        await client.request("/api/auth/register", {
+        await client.request("/api/auth/login", {
           method: "POST",
-          json: { ...account, accountType: "operator" },
+          json: { ...credentials, role: "operator" },
         }),
         [400, 422],
       );
       denied(
-        await client.request("/api/auth/register", {
+        await client.request("/api/auth/login", {
           method: "POST",
-          json: account,
+          json: credentials,
           origin: "https://unapproved.example",
         }),
         [403],
       );
       denied(
-        await client.request("/api/auth/register", {
+        await client.request("/api/auth/login", {
           method: "POST",
-          json: account,
+          json: credentials,
           csrf: false,
         }),
         [403],
       );
       const created = accepted(
-        await client.request("/api/auth/register", {
+        await client.request("/api/auth/login", {
           method: "POST",
-          json: account,
+          json: credentials,
         }),
       );
       assert.equal(created.session.role, "student");
@@ -199,7 +205,7 @@ test(
           method: "POST",
           json: { ...account, email: `other-${suffix}@example.test` },
         }),
-        [409],
+        [403],
       );
       denied(
         await client.request("/api/profile", {
@@ -273,7 +279,7 @@ test(
         }),
       );
       assert.equal(published.isAvailable, true);
-      const parent = await register(context.url, "parent");
+      const parent = await register(context, "parent");
       const family = accepted(await parent.client.request("/api/family"));
       assert.deepEqual(
         family.relationships,
@@ -293,8 +299,8 @@ test(
   async () => {
     const context = await harness();
     try {
-      const alice = await register(context.url);
-      const bob = await register(context.url);
+      const alice = await register(context);
+      const bob = await register(context);
       const slots = await Promise.all(
         [0, 1, 2].map((offset) => availability(context.application, offset)),
       );
@@ -421,7 +427,7 @@ test(
     const context = await harness();
     let inFlight;
     try {
-      const student = await register(context.url);
+      const student = await register(context);
       const bytes = Buffer.from(
         JSON.stringify({ name: "A stale request must not save this name" }),
       );
@@ -507,9 +513,9 @@ test(
   async () => {
     const context = await harness();
     try {
-      const student = await register(context.url);
-      const other = await register(context.url);
-      const parent = await register(context.url, "parent");
+      const student = await register(context);
+      const other = await register(context);
+      const parent = await register(context, "parent");
       const slot = await availability(context.application);
       const booking = accepted(
         await student.client.request("/api/appointments", {
@@ -795,7 +801,7 @@ test(
         [403],
       );
 
-      const publisher = await register(context.url);
+      const publisher = await register(context);
       const promoted = spawnSync(
         process.execPath,
         [
@@ -1001,10 +1007,10 @@ test(
   async () => {
     const context = await harness();
     try {
-      const student = await register(context.url);
-      const other = await register(context.url);
-      const parent = await register(context.url, "parent");
-      const reviewer = await register(context.url);
+      const student = await register(context);
+      const other = await register(context);
+      const parent = await register(context, "parent");
+      const reviewer = await register(context);
       context.application.operator.promote(reviewer.account.email);
       context.application.operator.linkFamily({
         studentUid: student.user.uid,
@@ -1280,8 +1286,8 @@ test(
   async () => {
     const context = await harness();
     try {
-      const student = await register(context.url);
-      const operator = await register(context.url);
+      const student = await register(context);
+      const operator = await register(context);
       context.application.operator.promote(operator.account.email);
       const slot = await availability(context.application);
       assert.equal(

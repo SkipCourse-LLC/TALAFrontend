@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient } from "./support.mjs";
+import { SyntheticHttpClient, signUpForTest } from "./support.mjs";
 
 const hour = 3_600_000;
 async function fixture() {
@@ -35,11 +35,8 @@ async function fixture() {
         password: `Synthetic-only-${randomUUID()}`,
         accountType,
       };
-      const response = await client.request("/api/auth/register", {
-        method: "POST",
-        json: account,
-      });
-      assert.equal(response.status, 201);
+      const response = await signUpForTest(application, client, account);
+      assert.equal(response.status, 200);
       if (options.operator) {
         application.operator.promote(account.email);
         await client.bootstrap();

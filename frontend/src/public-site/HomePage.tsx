@@ -3,24 +3,35 @@ import { Icon } from "../shared/Icon";
 import { ProgramCards } from "./ProgramCards";
 import { StartBanner } from "./StartBanner";
 import learningDesk from "../assets/learning-desk.svg";
-export function HomePage() {
+export function HomePage({
+  inquiryPath = "/contact",
+}: {
+  /** Where "Send inquiry" goes. The server app has the Contact-me form. */
+  inquiryPath?: string;
+}) {
   return (
     <div className="public-page public-home">
       <section className="hero container">
         <div className="hero-copy">
+          <p className="eyebrow">Tucson Adaptive Learning Academy</p>
           <h1>
             Room to learn. <br />
             Space to grow.
           </h1>
           <p className="lead">
-            Flexible learning for medically fragile and neurodivergent students.
+            A school community taking shape around medically fragile and
+            neurodivergent learners. Explore the possibilities, then find a
+            next step for your family.
           </p>
           <div className="button-row">
-            <Link className="button" to="/register">
-              Get started
+            <Link className="button" to={inquiryPath}>
+              Send inquiry <Icon name="arrow" />
             </Link>
             <Link className="button button-outline" to="/programs">
-              Programs
+              Explore programs
+            </Link>
+            <Link className="button button-outline" to="/learn-more">
+              Learn more
             </Link>
           </div>
           <p className="hero-preview-note">
@@ -41,6 +52,7 @@ export function HomePage() {
               </span>
               <div>
                 <strong>Student hub</strong>
+                <small>A sample of your learning space</small>
               </div>
             </div>
             <ul>
@@ -58,7 +70,7 @@ export function HomePage() {
               </li>
             </ul>
             <Link to="/login">
-              Open hub <Icon name="arrow" />
+              Preview the student hub <Icon name="arrow" />
             </Link>
           </figcaption>
         </figure>

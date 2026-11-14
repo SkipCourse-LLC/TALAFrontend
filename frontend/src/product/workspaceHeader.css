@@ -45,7 +45,8 @@
   font: inherit;
   font-size: 0.7rem;
   margin-left: 1.5rem;
-  color: #6e8273;
+  /* #6e8273 measured 3.8:1 on #f3f7f4; WCAG AA needs 4.5:1 for small text. */
+  color: #536d5e;
 }
 .tala-workspace-profile {
   display: flex;

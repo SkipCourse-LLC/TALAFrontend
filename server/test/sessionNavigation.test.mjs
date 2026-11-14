@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient } from "./support.mjs";
+import { SyntheticHttpClient, signUpForTest } from "./support.mjs";
 
 test("cross-site session navigation cannot create or replace a browser session", { timeout: 30_000 }, async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "tala-session-navigation-http-"));
@@ -19,11 +19,8 @@ test("cross-site session navigation cannot create or replace a browser session",
     const base = `http://127.0.0.1:${app.server.address().port}`;
     const client = new SyntheticHttpClient(base, origin);
     await client.bootstrap();
-    const registration = await client.request("/api/auth/register", {
-      method: "POST",
-      json: { name: "Synthetic navigation account", email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType: "student" },
-    });
-    assert.equal(registration.status, 201);
+    const registration = await signUpForTest(app, client, { name: "Synthetic navigation account", email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType: "student" });
+    assert.equal(registration.status, 200);
     const uid = registration.json.session.uid;
     const cookie = client.cookies.get("tala_session");
     const sessionCount = app.db.prepare("SELECT count(*) AS n FROM sessions").get().n;

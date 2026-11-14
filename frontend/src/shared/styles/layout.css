@@ -71,18 +71,37 @@
   margin-left: auto;
   display: flex;
   align-items: center;
+  gap: 10px;
 }
+/* Client mockup: an outlined "Community Login" beside a filled "Start registration". */
 .nav-hub-link {
   padding: 8px 16px;
   color: var(--color-accent);
-  background: #edf2ef;
-  border: 1px solid transparent;
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent);
   border-radius: 10px;
   font-weight: 600;
 }
 .nav-hub-link:hover,
 .nav-hub-link.active {
-  background: #e1ebe5;
+  background: #edf2ef;
+}
+.nav-actions > .nav-cta {
+  gap: 8px;
+  padding: 8px 16px;
+  color: var(--color-surface);
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 10px;
+  font-weight: 600;
+}
+.nav-actions > .nav-cta:hover {
+  background: #23594d;
+  border-color: #23594d;
+}
+.nav-cta .icon {
+  width: 16px;
+  height: 16px;
 }
 .menu-toggle {
   display: none;

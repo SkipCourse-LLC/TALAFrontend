@@ -498,7 +498,7 @@ export function HubSpotPaymentPage({
                           {selected.payment && waiting(selected.payment) && (
                             <p className="payment-small">A checkout has already been started for this item. Check its status or contact TALA before paying again; an unverified payment may already have been collected.</p>
                           )}
-                          {!workspace.integration.testMode && !canStart && checkoutRetryItem === selected.id && requests.current.has(`checkout:${selected.id}`) && selected.payment && waiting(selected.payment) && (
+                          {!workspace.integration.testMode && !canStart && checkoutRetryItem === selected.id && selected.payment && waiting(selected.payment) && (
                             <div className="payment-details">
                               <p>The checkout page did not open. Retry the original request to recover the same handoff.</p>
                               <button type="button" className="payment-button payment-button-secondary" disabled={disabled} onClick={() => void pay(selected, true)}>Retry opening checkout</button>

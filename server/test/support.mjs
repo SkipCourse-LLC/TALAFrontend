@@ -1,4 +1,57 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const require = createRequire(import.meta.url);
+const security = require("../security.cjs");
+const ROLES = new Set(["student", "parent", "alumni", "operator"]);
+
+/**
+ * Self-service sign-up is closed: /api/auth/register always answers
+ * ENROLLMENT_INVITATION_REQUIRED. Tests create fictional example.test accounts
+ * server-side, with the server's own validators and password hashing, the way
+ * staff provisioning does. Sign-in still goes through the real HTTP route.
+ */
+export async function provisionAccount(app, { name, email, password, accountType = "student" }) {
+  const role = accountType === "staff" ? "operator" : accountType;
+  if (!ROLES.has(role)) throw new Error(`Unknown synthetic account type: ${accountType}`);
+  const address = security.email(email);
+  if (!/@(?:[a-z0-9-]+\.)*example\.test$/.test(address)) throw new Error("Synthetic accounts must use an example.test address.");
+  const encoded = await security.hashPassword(security.password(password));
+  const uid = randomUUID();
+  app.db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)")
+    .run(uid, address, security.text(name, "name", 80), encoded, role, Date.now());
+  return { uid, email: address, role };
+}
+
+/** Provision an account, then sign it in on this client. Returns the login response (200). */
+export async function signUpForTest(app, client, account) {
+  await provisionAccount(app, account);
+  return client.request("/api/auth/login", { method: "POST", json: { email: account.email, password: account.password } });
+}
+
+/**
+ * Windows only lets administrators or Developer Mode create symlinks. Symlink
+ * escape tests still run on Linux/macOS and in CI; locally they skip only the
+ * symlink step when the operating system refuses to create one.
+ */
+export const symlinksAvailable = (() => {
+  const probe = fs.mkdtempSync(path.join(os.tmpdir(), "tala-symlink-probe-"));
+  try {
+    fs.writeFileSync(path.join(probe, "target"), "");
+    fs.symlinkSync(path.join(probe, "target"), path.join(probe, "link"));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(probe, { recursive: true, force: true });
+  }
+})();
+/** POSIX permission bits do not exist on Windows; Node reports 0o666 there. */
+export const posixModes = process.platform !== "win32";
 
 /** A cookie jar for isolated HTTP tests; authentication values are never logged. */
 export class SyntheticHttpClient {

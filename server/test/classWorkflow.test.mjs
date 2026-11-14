@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
+import { SCHEMA_VERSION } from "../database.cjs";
 import { hashPassword } from "../security.cjs";
 import { SyntheticHttpClient } from "./support.mjs";
 
@@ -120,7 +121,7 @@ test("schema 7 migration preserves meeting Evidence, revision foreign keys and l
     old.prepare("INSERT INTO evidence(id,owner_uid,appointment_id,title,content_type,size,sha256,submitted_at) VALUES(?,?,?,'Synthetic evidence','text/plain',1,?,?)").run(upload, uid, appointment, "0".repeat(64), now);
     old.prepare("INSERT INTO calendar_enrollments VALUES(?,?,'enrolled',1,?,?)").run(uid, "test_v1_2027-01-04_writing", now, now); old.close();
     app = createApplication({ dataDir });
-    assert.equal(app.db.prepare("PRAGMA user_version").get().user_version, 9);
+    assert.equal(app.db.prepare("PRAGMA user_version").get().user_version, SCHEMA_VERSION);
     assert.equal(app.db.prepare("SELECT appointment_id,class_id FROM evidence WHERE id=?").get(upload).appointment_id, appointment);
     assert.equal(app.db.prepare("SELECT count(*) AS n FROM calendar_enrollments").get().n, 1);
     assert.equal(app.db.prepare("PRAGMA foreign_key_check").get(), undefined);

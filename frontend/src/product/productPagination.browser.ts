@@ -133,16 +133,22 @@ async function restrict(context: BrowserContext) {
     }
   });
 }
+// Self sign-up is closed: the fixture provisions the synthetic account with the
+// server's own validators, then the browser signs in through the real login form.
+const provisionAccount = (input: {
+  name: string;
+  email: string;
+  password: string;
+  role: "student" | "parent";
+}) => rpc("provisionAccount", input);
 async function register(page: Page, name: string) {
   const email = `${randomUUID()}@example.test`;
   const password = `Synthetic-only-${randomUUID()}`;
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(name);
+  await provisionAccount({ name, email, password, role: "student" });
+  await page.goto("/#/login");
   await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: `Hello, ${name}.`, exact: true }),
   ).toBeVisible();
@@ -397,7 +403,7 @@ test("older student records and operator work remain discoverable across real pa
         exact: true,
       }),
     ).toBeVisible();
-    const review = staffPage.getByRole("tabpanel", {
+    const review = staffPage.getByRole("region", {
       name: /^Review evidence/,
     });
     await expect(
@@ -412,9 +418,10 @@ test("older student records and operator work remain discoverable across real pa
       }),
     ).toHaveCount(0);
     await staffPage
-      .getByRole("tab", { name: "Learning summaries", exact: true })
+      .getByRole("navigation", { name: "Operations workspace" })
+      .getByRole("button", { name: "Learning summaries", exact: true })
       .click();
-    const periods = staffPage.getByRole("tabpanel", {
+    const periods = staffPage.getByRole("region", {
       name: "Learning summaries",
       exact: true,
     });

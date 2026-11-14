@@ -4,8 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
+const { syncFile, syncDirectory } = require("./database.cjs");
 
-const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 const MAX_FILE = 5 * 1024 * 1024;
 function refuse(message) { throw new Error(message); }
 function localOnly() {
@@ -29,10 +30,6 @@ function newDirectory(value, source) {
   if (within(source, target) || within(target, source)) refuse("The output must be separate from the source directory.");
   fs.mkdirSync(target, { mode: 0o700 });
   return target;
-}
-function syncDirectory(value) {
-  const fd = fs.openSync(value, "r");
-  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
 }
 function digestFile(filename, maximum = Number.MAX_SAFE_INTEGER) {
   const original = fs.lstatSync(filename);
@@ -332,10 +329,7 @@ function createLocalBackup({ dataDir, outputDir }) {
     const manifest = { format: "tala-local-backup", version: 1, schemaVersion: schema, createdAt,
       files: [{ path: "tala.sqlite", ...digestFile(path.join(target, "tala.sqlite")) }, ...files] };
     fs.writeFileSync(path.join(target, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-    for (const file of ["tala.sqlite", "manifest.json"]) {
-      const fd = fs.openSync(path.join(target, file), "r");
-      try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-    }
+    for (const file of ["tala.sqlite", "manifest.json"]) syncFile(path.join(target, file));
     flushTree(target);
     writer.exec("ROLLBACK"); locked = false;
     verifyLocalBackup({ directory: target }); complete = true;

@@ -31,6 +31,12 @@ interface TestApplication {
   endBooking(email: string): Promise<{ appointmentId: string }>;
   dropUnsubmittedFile(uploadId: string): Promise<void>;
   disableStudent(email: string): Promise<void>;
+  provisionAccount(input: {
+    name: string;
+    email: string;
+    password: string;
+    role: "student" | "parent";
+  }): Promise<unknown>;
   close(): Promise<void>;
 }
 let application: TestApplication;
@@ -143,6 +149,7 @@ async function startIsolatedApplication(
     disableStudent: async (email) => {
       await call("disableStudent", email);
     },
+    provisionAccount: (input) => call("provisionAccount", input),
     findUid: async (email) => {
       const value = await call("findUid", email);
       if (typeof value !== "string")
@@ -205,25 +212,24 @@ async function register(
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
   };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
+  // Self sign-up is closed: the fixture provisions the synthetic account with
+  // the server's own validators, then the browser signs in through /#/login.
+  await application.provisionAccount({ ...account, role });
+  await page.goto("/#/login");
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
   if (loseSavedResponse)
-    await page.route("**/api/auth/register", async (route) => {
-      // Complete the real server write/cookie rotation, then lose its browser
-      // response. Recovery must inspect the saved session, not register twice.
+    await page.route("**/api/auth/login", async (route) => {
+      // Complete the real server sign-in/cookie rotation, then lose its browser
+      // response. Recovery must inspect the saved session, not sign in twice.
       const saved = await route.fetch();
       expect(saved.ok()).toBe(true);
       await route.abort("connectionfailed");
     });
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   if (loseSavedResponse) {
     await expect(page.getByRole("alert")).toContainText("could not be reached");
-    await page.unroute("**/api/auth/register");
+    await page.unroute("**/api/auth/login");
     await page
       .getByRole("button", { name: "Check saved session", exact: true })
       .click();
@@ -506,11 +512,13 @@ test("student registration, booking changes, private file persistence and mobile
   ).toBeVisible();
   expect(new URL(page.url()).hash).toContain("view=evidence");
   await capture(page, "tala-evidence-desktop-qa.png");
+  // /#/register is the admissions application now; a signed-in user is sent
+  // straight back to their own dashboard instead.
   await page.goto("/#/register");
   await expect(page).toHaveURL(/#\/dashboard(?:\?|$)/);
   await expect(
-    page.getByRole("button", { name: "Create account", exact: true }),
-  ).toHaveCount(0);
+    page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
+  ).toBeVisible();
   const cookie = (await context.cookies()).find(
     (entry) => entry.name === "tala_session",
   );
@@ -759,9 +767,17 @@ test("operator review, availability controls and learning summaries lead to a pr
   await signOut(page);
   await application.operator.promote(operator.email);
   await login(page, operator, true);
-  const reviewTab = page.getByRole("tab", { name: /^Review evidence/ });
-  const meetingsTab = page.getByRole("tab", { name: "Meetings", exact: true });
-  const learningTab = page.getByRole("tab", {
+  const operatorMenu = page.getByRole("navigation", {
+    name: "Operations workspace",
+  });
+  const reviewTab = operatorMenu.getByRole("button", {
+    name: /^Review evidence/,
+  });
+  const meetingsTab = operatorMenu.getByRole("button", {
+    name: "Meetings",
+    exact: true,
+  });
+  const learningTab = operatorMenu.getByRole("button", {
     name: "Learning summaries",
     exact: true,
   });
@@ -772,7 +788,7 @@ test("operator review, availability controls and learning summaries lead to a pr
     .getByRole("textbox", { name: "Review note", exact: true })
     .fill(staffNote);
   await meetingsTab.click();
-  await expect(meetingsTab).toHaveAttribute("aria-selected", "true");
+  await expect(meetingsTab).toHaveAttribute("aria-current", "page");
   await expect(
     page.getByRole("textbox", { name: "Review note", exact: true }),
   ).not.toBeVisible();

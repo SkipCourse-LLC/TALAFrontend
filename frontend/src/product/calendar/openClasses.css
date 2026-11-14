@@ -894,3 +894,211 @@
   outline: 3px solid #80523b;
   outline-offset: 3px;
 }
+
+/* Open classes as rows: details left, one sign-up line per format right. */
+.tala-classes-rows {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+}
+.tala-class-row {
+  --course-accent: #477e8a;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 19rem);
+  gap: 1rem 1.5rem;
+  align-items: start;
+  min-width: 0;
+  border: 1px solid #d5dfd8;
+  border-left: 4px solid var(--course-accent);
+  border-radius: 11px;
+  background: #fff;
+  padding: 1.1rem 1.2rem;
+}
+.tala-class-row[data-category="clubs_activities"] {
+  --course-accent: #76704c;
+}
+.tala-class-row[data-category="learning_support"] {
+  --course-accent: #657956;
+}
+.tala-class-row[data-category="live_sessions"] {
+  --course-accent: #456b56;
+}
+.tala-class-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.tala-class-row h3 {
+  margin: 0;
+  font-size: calc(1.15rem * var(--student-type-scale, 1));
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.tala-class-row h3 button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: #203e31;
+  cursor: pointer;
+  min-height: 32px;
+}
+.tala-class-row h3 button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.tala-class-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tala-class-row-meta li {
+  border-radius: 5px;
+  background: #f1f4f2;
+  color: #3d5a4b;
+  padding: 0.25rem 0.55rem;
+  font-size: calc(0.74rem * var(--student-type-scale, 1));
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.tala-class-row-description {
+  margin: 0;
+  color: #4f6459;
+  font-size: calc(0.83rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.tala-class-row-practice {
+  font-weight: 600;
+  color: #3d5a4b;
+}
+.tala-class-row-main > .tala-discovery-linked-goal,
+.tala-class-row-main > .tala-class-save {
+  margin: 0;
+  align-self: flex-start;
+}
+.tala-class-row-formats {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.tala-class-row-seats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: calc(0.74rem * var(--student-type-scale, 1));
+  color: #3d5a4b;
+}
+.tala-class-row-seats > span {
+  border: 1px solid #dbe3de;
+  border-radius: 5px;
+  padding: 0.2rem 0.5rem;
+  background: #fff;
+}
+.tala-class-row-seats > small {
+  flex-basis: 100%;
+  color: #56695f;
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+}
+.tala-class-row-low {
+  border-radius: 5px;
+  padding: 0.2rem 0.5rem;
+  background: #f8f0dc;
+  color: #6c4f18;
+  font-weight: 600;
+}
+.tala-class-format {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+}
+.tala-class-format-request {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+.tala-class-format-pill {
+  justify-self: start;
+  border-radius: 5px;
+  padding: 0.3rem 0.55rem;
+  font-size: calc(0.74rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  color: #fff;
+  background: #1e4d5c;
+  white-space: nowrap;
+}
+.tala-class-format-pill[data-mode="online"] {
+  background: var(--color-accent, #174139);
+}
+.tala-classes .tala-class-format-button {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  font: inherit;
+  font-size: calc(0.83rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  color: #fff;
+  background: #1e4d5c;
+  cursor: pointer;
+}
+.tala-classes .tala-class-format-button[data-mode="online"] {
+  background: var(--color-accent, #174139);
+}
+.tala-classes .tala-class-format-button[data-waitlist="true"] {
+  background: #e7ece9;
+  color: #203e31;
+  border-color: #b8c7be;
+}
+.tala-classes .tala-class-format-secondary {
+  background: #fff;
+  color: #203e31;
+  border-color: #b8c7be;
+}
+.tala-classes .tala-class-format-button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+.tala-classes .tala-class-format-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.tala-class-format .tala-cal-ended {
+  font-size: calc(0.78rem * var(--student-type-scale, 1));
+  color: #56695f;
+}
+.tala-class-row-skeleton {
+  min-height: 150px;
+}
+@container tala-calendar (max-width: 760px) {
+  .tala-class-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1rem;
+  }
+  .tala-class-row-formats {
+    border-top: 1px solid #e5ebe6;
+    padding-top: 0.85rem;
+  }
+}
+@container tala-calendar (max-width: 300px) {
+  .tala-class-format {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.4rem;
+  }
+  .tala-class-format-request {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (forced-colors: active) {
+  .tala-class-format-pill,
+  .tala-class-row-low,
+  .tala-class-row-meta li {
+    border: 1px solid CanvasText;
+  }
+}

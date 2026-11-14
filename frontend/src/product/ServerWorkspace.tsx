@@ -7,7 +7,6 @@ import {
 } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { ReactNode } from "react";
-import { PaymentOptions } from "../payment/PaymentOptions";
 import {
   talaApi,
   TalaApiError,
@@ -68,6 +67,7 @@ import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import { WorkspaceSyncStatus } from "./WorkspaceSyncStatus";
 import { WorkspaceFeedback } from "./WorkspaceFeedback";
 import { LearningGlyph } from "./LearningGlyph";
+import { useMeetingClock } from "./useMeetingClock";
 import { WorkspaceDisplayOptions } from "./WorkspaceDisplayOptions";
 import { ParentAdmissionSummary } from "./admissions/ParentAdmissionSummary";
 import { ParentClassApprovals } from "./calendar/ParentClassApprovals";
@@ -459,12 +459,9 @@ export function ServerWorkspace({
           )}
         </section>
       )}
-      {user.role === "parent" && (
-        <PaymentOptions
-          variant="product"
-          enrolled={linkedStudents.length > 0}
-        />
-      )}
+      {/* Parents pay only for staff-approved items, through Payments
+          (ParentPaymentSummary → /payment). Fixed live checkout links are not
+          shown here: they would skip staff approval. */}
     </>
   );
   return (
@@ -1569,11 +1566,15 @@ function LearningWorkspace({
       revisionTarget.supersededByEvidenceId) &&
     !pending,
   );
+  // Re-renders when an enrolled class starts, so "started" stays current.
+  const evidenceNow = useMeetingClock(
+    (calendar.data?.enrolled ?? []).map((course) => course.startsAt),
+  );
   const evidenceClasses = (calendar.data?.enrolled ?? []).filter(
     (course) =>
       course.source === "local_catalog" &&
       course.enrollmentStatus === "confirmed" &&
-      Date.parse(course.startsAt) <= Date.now(),
+      Date.parse(course.startsAt) <= evidenceNow,
   );
   const selectedContext = revisionTarget
     ? revisionTarget.classId

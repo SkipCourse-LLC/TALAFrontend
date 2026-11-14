@@ -34,12 +34,15 @@ import {
   classPrice,
   statusExplanation,
 } from "./classPresentation";
+import { CourseFilters } from "./CourseFilters";
 import {
-  CourseFilters,
   filterCourses,
   emptyCourseFilters,
   type CourseFilterValue,
-} from "./CourseFilters";
+} from "./courseFilterModel";
+import type { CalendarEvent } from "./calendarEvent";
+import { DayTimeGrid } from "./DayTimeGrid";
+import { DayEventDetails } from "./DayEventDetails";
 import "./studentCalendar.css";
 import "./openClasses.css";
 
@@ -58,17 +61,6 @@ export interface StudentCalendarPreferences {
   filters: CourseFilterValue;
   enrolledOnly: boolean;
 }
-type CalendarEvent = {
-  id: string;
-  title: string;
-  startsAt: string;
-  endsAt: string;
-  category: CalendarCategory;
-  allDay: boolean;
-  kind: "class" | "meeting" | "goal";
-  enrolled?: boolean;
-  course?: CalendarClass;
-};
 
 export interface StudentCalendarPanelProps {
   data?: StudentCalendar;
@@ -166,9 +158,14 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   const [detailId, setDetailId] = useState<string | null>(
     initialClassId ?? null,
   );
-  useEffect(() => {
+  // Open a newly requested class, adjusted during render.
+  const [seenClassId, setSeenClassId] = useState(initialClassId);
+  if (seenClassId !== initialClassId) {
+    setSeenClassId(initialClassId);
     if (initialClassId) setDetailId(initialClassId);
-  }, [initialClassId]);
+  }
+  const [dayEventId, setDayEventId] = useState<string | null>(null);
+  const dayDetails = useRef<HTMLElement>(null);
   const dateButtons = useRef(new Map<string, HTMLButtonElement>());
   const needsDateFocus = useRef(false);
   const regionId = useId();
@@ -249,6 +246,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
     (event) => event.kind === "meeting",
   );
   const selectedGoals = selectedEvents.filter((event) => event.kind === "goal");
+  const dayEvent = selectedEvents.find((event) => event.id === dayEventId);
   const nextAvailable = classes
     .filter(
       (course) =>
@@ -319,6 +317,15 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
     if (event.kind === "class") setDetailId(event.course!.id);
     else if (event.kind === "meeting") onMeeting(event.id.slice(8));
     else onGoals();
+  }
+  function selectDayEvent(event: CalendarEvent) {
+    setDayEventId(event.id);
+    // When the details panel sits below the grid, bring it into view.
+    requestAnimationFrame(() => {
+      const panel = dayDetails.current;
+      if (panel && panel.getBoundingClientRect().top > window.innerHeight - 80)
+        panel.scrollIntoView({ block: "start" });
+    });
   }
   function eventChip(event: CalendarEvent, day: string) {
     return (
@@ -682,8 +689,14 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
           )}
           {view === "Day" && (
             <div className="tala-cal-day-view">
-              <h4>{calendarDayLabel(selectedDay)}</h4>
-              <EventList events={selectedEvents} onOpen={openEvent} />
+              <h4 className="tala-cal-sr">{calendarDayLabel(selectedDay)}</h4>
+              <DayTimeGrid
+                day={selectedDay}
+                today={selectedDay === today}
+                events={selectedEvents}
+                selectedId={dayEvent?.id ?? null}
+                onSelect={selectDayEvent}
+              />
               <EmptyEvents
                 count={selectedEvents.length}
                 enrolledOnly={enrolledOnly}
@@ -747,114 +760,124 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
           className="tala-cal-side"
           aria-label="Selected date and calendar filters"
         >
-          <section className="tala-cal-today-card">
-            <p
-              className="tala-cal-selected-label"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {calendarDayLabel(selectedDay, {
-                weekday: "long",
-                month: "short",
-              })}
-              <span>{openClasses.length}</span>
-            </p>
-            <h3>Day schedule</h3>
-            <div className="tala-cal-day-classes">
-              {upcomingClasses.map((course) => (
-                <CalendarCourseCard
-                  key={course.id}
-                  course={course}
-                  onDetails={() => setDetailId(course.id)}
-                  readOnly={readOnly}
-                  loading={loading}
-                  busyClassId={busyClassId}
-                  onEnroll={() => {
-                    setDetailId(course.id);
-                    return Promise.resolve(false);
-                  }}
-                  onCancel={onCancel}
-                />
-              ))}
-            </div>
-            {!upcomingClasses.length && (
-              <p className="tala-cal-empty-inline">
-                {earlierClasses.length
-                  ? "Classes finished for this date."
-                  : enrolledOnly
-                    ? "No enrolled classes on this date."
-                    : "No open classes on this date."}
+          {view === "Day" ? (
+            <DayEventDetails
+              ref={dayDetails}
+              event={dayEvent}
+              onOpenClass={setDetailId}
+              onMeeting={onMeeting}
+              onGoals={onGoals}
+            />
+          ) : (
+            <section className="tala-cal-today-card">
+              <p
+                className="tala-cal-selected-label"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {calendarDayLabel(selectedDay, {
+                  weekday: "long",
+                  month: "short",
+                })}
+                <span>{openClasses.length}</span>
               </p>
-            )}
-            {!dayHasOpenSeat && nextAvailable && !enrolledOnly && (
+              <h3>Day schedule</h3>
+              <div className="tala-cal-day-classes">
+                {upcomingClasses.map((course) => (
+                  <CalendarCourseCard
+                    key={course.id}
+                    course={course}
+                    onDetails={() => setDetailId(course.id)}
+                    readOnly={readOnly}
+                    loading={loading}
+                    busyClassId={busyClassId}
+                    onEnroll={() => {
+                      setDetailId(course.id);
+                      return Promise.resolve(false);
+                    }}
+                    onCancel={onCancel}
+                  />
+                ))}
+              </div>
+              {!upcomingClasses.length && (
+                <p className="tala-cal-empty-inline">
+                  {earlierClasses.length
+                    ? "Classes finished for this date."
+                    : enrolledOnly
+                      ? "No enrolled classes on this date."
+                      : "No open classes on this date."}
+                </p>
+              )}
+              {!dayHasOpenSeat && nextAvailable && !enrolledOnly && (
+                <button
+                  type="button"
+                  className="tala-cal-full-day"
+                  onClick={() => {
+                    chooseDay(phoenixDateKey(nextAvailable.startsAt));
+                    setView("Day");
+                  }}
+                >
+                  Next available day <span aria-hidden="true">→</span>
+                </button>
+              )}
+              {earlierClasses.length > 0 && (
+                <details className="tala-cal-earlier" key={selectedDay}>
+                  <summary>Earlier classes ({earlierClasses.length})</summary>
+                  <div>
+                    {earlierClasses.map((course) => (
+                      <CalendarCourseCard
+                        key={course.id}
+                        course={course}
+                        onDetails={() => setDetailId(course.id)}
+                        readOnly={readOnly}
+                        loading={loading}
+                        busyClassId={busyClassId}
+                        onEnroll={() => {
+                          setDetailId(course.id);
+                          return Promise.resolve(false);
+                        }}
+                        onCancel={onCancel}
+                      />
+                    ))}
+                  </div>
+                </details>
+              )}
+              {selectedMeetings.length > 0 && (
+                <div className="tala-cal-linked">
+                  <h4>Meetings</h4>
+                  {selectedMeetings.map((event) => (
+                    <button
+                      type="button"
+                      key={event.id}
+                      onClick={() => openEvent(event)}
+                    >
+                      <span>{calendarTime(event.startsAt)}</span>
+                      {event.title}
+                      <span aria-hidden="true">↗</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedGoals.length > 0 && (
+                <div className="tala-cal-linked">
+                  <h4>Goals due</h4>
+                  {selectedGoals.map((event) => (
+                    <button type="button" key={event.id} onClick={onGoals}>
+                      {event.title}
+                      <span aria-hidden="true">↗</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <button
                 type="button"
                 className="tala-cal-full-day"
-                onClick={() => {
-                  chooseDay(phoenixDateKey(nextAvailable.startsAt));
-                  setView("Day");
-                }}
+                onClick={() => setView("Day")}
               >
-                Next available day <span aria-hidden="true">→</span>
+                View full day <span aria-hidden="true">→</span>
               </button>
-            )}
-            {earlierClasses.length > 0 && (
-              <details className="tala-cal-earlier" key={selectedDay}>
-                <summary>Earlier classes ({earlierClasses.length})</summary>
-                <div>
-                  {earlierClasses.map((course) => (
-                    <CalendarCourseCard
-                      key={course.id}
-                      course={course}
-                      onDetails={() => setDetailId(course.id)}
-                      readOnly={readOnly}
-                      loading={loading}
-                      busyClassId={busyClassId}
-                      onEnroll={() => {
-                        setDetailId(course.id);
-                        return Promise.resolve(false);
-                      }}
-                      onCancel={onCancel}
-                    />
-                  ))}
-                </div>
-              </details>
-            )}
-            {selectedMeetings.length > 0 && (
-              <div className="tala-cal-linked">
-                <h4>Meetings</h4>
-                {selectedMeetings.map((event) => (
-                  <button
-                    type="button"
-                    key={event.id}
-                    onClick={() => openEvent(event)}
-                  >
-                    <span>{calendarTime(event.startsAt)}</span>
-                    {event.title}
-                    <span aria-hidden="true">↗</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {selectedGoals.length > 0 && (
-              <div className="tala-cal-linked">
-                <h4>Goals due</h4>
-                {selectedGoals.map((event) => (
-                  <button type="button" key={event.id} onClick={onGoals}>
-                    {event.title}
-                    <span aria-hidden="true">↗</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              className="tala-cal-full-day"
-              onClick={() => setView("Day")}
-            >
-              View full day <span aria-hidden="true">→</span>
-            </button>
-          </section>
+            </section>
+          )}
           <div className="tala-cal-shortcuts">
             <button type="button" onClick={onGoals}>
               Learning goals <span aria-hidden="true">↗</span>
@@ -1117,31 +1140,43 @@ export function ClassDetail({
   const [editing, setEditing] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const activeGoals = goals.filter((goal) => goal.status === "active");
+  // Re-renders when the class starts, so edit and Evidence options stay current.
+  const now = useMeetingClock([course.startsAt], true);
   const mayEdit =
     ["pending_approval", "waitlisted"].includes(
       course.enrollmentStatus ?? "",
     ) &&
-    Date.parse(course.startsAt) > Date.now() &&
+    Date.parse(course.startsAt) > now &&
     Boolean(actions.onUpdateRequest) &&
     !actions.readOnly;
   const changed =
     mode !== (course.enrollmentMode ?? course.modalities?.[0] ?? "online") ||
     (goalId || null) !== (course.enrollmentGoalId ?? null);
   const linkedGoal = goals.find((goal) => goal.id === course.enrollmentGoalId);
-  useEffect(() => {
+  // Resync the request form from the saved request whenever these inputs
+  // change while not editing (or once editing is no longer allowed). This is
+  // adjusted during render with the same trigger values the effect used.
+  const syncInputs = {
+    version: course.enrollmentVersion,
+    mode: course.enrollmentMode,
+    goal: course.enrollmentGoalId,
+    defaultGoalId,
+    editing,
+    mayEdit,
+  };
+  const [synced, setSynced] = useState(syncInputs);
+  if (
+    (Object.keys(syncInputs) as (keyof typeof syncInputs)[]).some(
+      (key) => !Object.is(synced[key], syncInputs[key]),
+    )
+  ) {
+    setSynced(syncInputs);
     if (!editing || !mayEdit) {
       if (!mayEdit) setEditing(false);
       setMode(course.enrollmentMode ?? course.modalities?.[0] ?? "online");
       setGoalId(course.enrollmentGoalId ?? defaultGoalId ?? "");
     }
-  }, [
-    course.enrollmentVersion,
-    course.enrollmentMode,
-    course.enrollmentGoalId,
-    defaultGoalId,
-    editing,
-    mayEdit,
-  ]);
+  }
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
@@ -1330,7 +1365,7 @@ export function ClassDetail({
         </p>
       )}
       {course.enrollmentStatus === "confirmed" &&
-        Date.parse(course.startsAt) <= Date.now() &&
+        Date.parse(course.startsAt) <= now &&
         onEvidence && (
           <button
             type="button"

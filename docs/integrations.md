@@ -1,0 +1,39 @@
+# Integrations register (SCRUM-88)
+
+Every outside service Sprint 4 depends on, who owns it, whether we have access, and how the code switches between a mock and the real service.
+
+Status as of 2026-11-13. Update the **Access status** column whenever a request is sent or answered, with the date.
+
+## Register
+
+| Integration | Used by | Owner | Access status | Contract | Today the server uses |
+|---|---|---|---|---|---|
+| EZAMU (1:1 and 20:1 pod availability, booking) | SCRUM-91, SCRUM-90 | Sherry | Not confirmed. No API access, Bearer JWT or payload has been shared (`project/docs/INTEGRATION.md`). Request not yet recorded. | `contract.json` → `integrations.availability` | `local`: Tina's published meeting times. `mock`: generated 1:1 and pod times |
+| HubSpot (payments, invoices) | SCRUM-94, SCRUM-95 | Shelby | Two **live** payment links supplied by the sponsor (`server/payments.cjs`, `server/HUBSPOT-PAYMENTS.md`). No test portal and no invoice API access. | `contract.json` → `/payments*` routes and `integrations.billing` | `hubspot_links`: the two live links. `mock`: in-memory test invoices |
+| Email delivery | SCRUM-79, SCRUM-90 | Sherry | No approved provider yet. An early prototype is not approved and will not be used. | `contract.json` → `integrations.email` | `disabled`. `mock`: in-memory outbox |
+| Meeting links (Zoom or Google Meet) | SCRUM-79, SCRUM-90 | Sherry | Not confirmed, and the provider is undecided: Jira says Zoom, the client mockups and Sherry's branch use Google Meet. | `contract.json` → `integrations.meeting` | `disabled`. `mock`: `meet.example.test` links |
+| Firebase Authentication | SCRUM-89 | Dylan | Waiting on Karl's approval (`docs/auth-and-data-model.md`, open questions 1–3). Local sign-in with four roles is in use meanwhile. | `contract.json` → `/auth/*`, `/session` | Local server sessions |
+| TALA student email (Google Workspace) | SCRUM-80 | Yichen | Manual: Tina issues the address. Format and any automation not yet agreed (`docs/flow-map.md`). | Admissions routes in `contract.json` | Manual entry during student setup |
+| Firebase Hosting | SCRUM-97 | Dylan | `tala` target maps to the **live** site `tucsonala` in the shared project `skip-class-slsru4`. No staging target. Karl must confirm before any staging deploy. | `firebase.json`, `.firebaserc` | Manual deploy workflow to the live site |
+| Hosted API (Cloud Run) | SCRUM-97 | Dylan | None. The local server refuses production mode and listens on localhost only. | `contract.json` | Not hosted |
+
+## How switching works
+
+`server/integrations.cjs` is the only code that knows which service backs an integration. Choose a mode with `createApplication({ integrations: { email: "mock" } })` or an environment variable:
+
+| Integration | Variable | Modes (default first) |
+|---|---|---|
+| email | `TALA_EMAIL_ADAPTER` | `disabled`, `mock` |
+| meeting | `TALA_MEETING_ADAPTER` | `disabled`, `mock` |
+| availability | `TALA_AVAILABILITY_ADAPTER` | `local`, `mock` |
+| billing | `TALA_BILLING_ADAPTER` | `hubspot_links`, `mock` |
+
+- `GET /api/health` reports the mode of each integration under `integrations`.
+- A mistyped name or mode stops the server at startup with the allowed choices.
+- `disabled` and `hubspot_links` return `503 INTEGRATION_UNAVAILABLE` for calls they cannot serve. They never pretend to succeed.
+- Each real service is added as a new mode next to its mock, in the ticket that owns it (EZAMU in SCRUM-91, HubSpot invoices in SCRUM-94/95, email and meeting links in SCRUM-90). Screens and routes do not change.
+- Tests: `server/test/integrations.test.mjs` (T4-1, T4-3, T4-4) and `server/test/contract.test.mjs` (T4-2: every server route is in `contract.json` and every contract route is served).
+
+## Access requests
+
+Requests for each item above are sent to the Product Owner outside this repository. Record the date sent and the answer in the **Access status** column.

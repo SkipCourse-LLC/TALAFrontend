@@ -167,19 +167,39 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
   }, [isWorkspace]);
   useLayoutEffect(() => {
     if (!open) return;
-    dialog.current?.showModal();
+    // Close the dialog this effect opened and return focus to the persistent
+    // search button, even if React has detached the refs before cleanup.
+    const openedDialog = dialog.current;
+    const searchButton = opener.current;
+    openedDialog?.showModal();
     input.current?.focus();
     return () => {
-      dialog.current?.close();
-      opener.current?.focus({ preventScroll: true });
+      openedDialog?.close();
+      searchButton?.focus({ preventScroll: true });
     };
   }, [open]);
+  // Reset the class results when a new student load starts. This is adjusted
+  // during render (not in the loading effect) so no extra effect pass runs.
+  const [loadKey, setLoadKey] = useState({
+    open,
+    uid: user.uid,
+    role: user.role,
+  });
+  if (
+    loadKey.open !== open ||
+    loadKey.uid !== user.uid ||
+    loadKey.role !== user.role
+  ) {
+    setLoadKey({ open, uid: user.uid, role: user.role });
+    if (open && user.role === "student") {
+      setLoading(true);
+      setError("");
+      setCourses([]);
+    }
+  }
   useEffect(() => {
     if (!open || user.role !== "student") return;
     const request = new AbortController();
-    setLoading(true);
-    setError("");
-    setCourses([]);
     void talaApi
       .getClasses(undefined, request.signal)
       .then((result) => {
@@ -200,9 +220,18 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
         .getElementById(`${listId}-${chosenIndex}`)
         ?.scrollIntoView({ block: "nearest" });
   }, [open, listId, chosenIndex]);
-  useEffect(() => {
+  // Close the search dialog on navigation, adjusted during render.
+  const [route, setRoute] = useState({
+    pathname: location.pathname,
+    search: location.search,
+  });
+  if (
+    route.pathname !== location.pathname ||
+    route.search !== location.search
+  ) {
+    setRoute({ pathname: location.pathname, search: location.search });
     setOpen(false);
-  }, [location.pathname, location.search]);
+  }
   return (
     <header className="tala-workspace-header">
       <div className="container tala-workspace-header-row">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { Brand } from "./Brand";
 import { Icon } from "./Icon";
 export function SiteHeader({
@@ -64,20 +64,23 @@ export function SiteHeader({
           <NavLink to="/" end>
             Home
           </NavLink>
-          <NavLink to="/learn-more">About</NavLink>
+          <NavLink to="/learn-more">Learn More</NavLink>
           <NavLink to="/programs">Programs</NavLink>
           <NavLink to="/register">Enrollment</NavLink>
-          <NavLink to="/events" aria-label="Community Events">
-            Events
-          </NavLink>
+          <NavLink to="/events">Community Events</NavLink>
           <NavLink to="/contact">Contact</NavLink>
           <div className="nav-actions">
             <NavLink
               className="nav-hub-link"
               to={session ? "/dashboard" : "/login"}
             >
-              {session ? "Workspace" : "Sign in"}
+              {session ? "Workspace" : "Community Login"}
             </NavLink>
+            {!session && (
+              <Link className="nav-cta" to="/register">
+                Start registration <Icon name="arrow" />
+              </Link>
+            )}
           </div>
         </nav>
       </div>

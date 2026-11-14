@@ -11,6 +11,7 @@ import {
   classSchedule,
   enrollmentStatusLabel,
 } from "./classPresentation";
+import { useMeetingClock } from "../useMeetingClock";
 import "./roleClasses.css";
 
 export function ParentClassApprovals({
@@ -89,7 +90,10 @@ export function ParentClassApprovals({
     saved?.owner === ownerUid && saved.student === studentUid
       ? saved.items
       : [];
-  const now = Date.now();
+  // Re-renders when a request's class starts or ends.
+  const now = useMeetingClock(
+    items.flatMap((item) => [item.startsAt, item.endsAt]),
+  );
   const pending = items.filter(
     (item) =>
       item.status === "pending_approval" && Date.parse(item.startsAt) > now,

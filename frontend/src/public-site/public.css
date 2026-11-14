@@ -92,6 +92,11 @@
   font-size: 0.875rem;
   font-weight: 600;
 }
+.public-page .hero-hub-heading small {
+  display: block;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
 .public-page .hero-hub-heading div > span {
   display: block;
   margin-top: 3px;

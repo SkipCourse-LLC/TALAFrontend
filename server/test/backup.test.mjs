@@ -8,8 +8,9 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import { createApplication } from "../application.cjs";
+import { SCHEMA_VERSION } from "../database.cjs";
 import { createLocalBackup, verifyLocalBackup, restoreLocalBackup } from "../backup.cjs";
-import { SyntheticHttpClient } from "./support.mjs";
+import { SyntheticHttpClient, signUpForTest, symlinksAvailable, posixModes } from "./support.mjs";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "tala-private-backup-test-"));
@@ -21,7 +22,7 @@ async function fixture() {
   await client.bootstrap();
   const suffix = randomUUID();
   const account = { name: "Synthetic backup learner", email: `${suffix}@example.test`, password: `Synthetic-only-${suffix}`, accountType: "student" };
-  assert.equal((await client.request("/api/auth/register", { method: "POST", json: account })).status, 201);
+  assert.equal((await signUpForTest(app, client, account)).status, 200);
   const slot = app.operator.addAvailability({ startsAt: new Date(Date.now() + 86400000).toISOString(), endsAt: new Date(Date.now() + 88200000).toISOString() });
   const booking = await client.request("/api/appointments", { method: "POST", json: { slotId: slot.id, requestId: randomUUID() } });
   assert.equal(booking.status, 201);
@@ -59,8 +60,8 @@ test("verified local backup includes private files and restores to a separate di
     const created = createLocalBackup({ dataDir: f.source, outputDir: f.backup });
     assert.equal(created.status, "verified"); assert.equal(created.privateFiles, 2);
     assert.equal(verifyLocalBackup({ directory: f.backup }).privateFiles, 2);
-    assert.equal((await stat(f.backup)).mode & 0o777, 0o700);
-    for (const name of ["tala.sqlite", "manifest.json", `evidence/${f.id}.bin`, `uploads/${f.pendingId}.bin`]) assert.equal((await stat(join(f.backup, name))).mode & 0o777, 0o600);
+    if (posixModes) assert.equal((await stat(f.backup)).mode & 0o777, 0o700);
+    if (posixModes) for (const name of ["tala.sqlite", "manifest.json", `evidence/${f.id}.bin`, `uploads/${f.pendingId}.bin`]) assert.equal((await stat(join(f.backup, name))).mode & 0o777, 0o600);
     const manifestText = await readFile(join(f.backup, "manifest.json"), "utf8");
     assert.equal(manifestText.includes(f.account.email), false);
     assert.equal(manifestText.includes(f.account.password), false);
@@ -109,7 +110,7 @@ test("schema-2 backups remain verifiable and restore separately before a checked
     assert.equal(restored.prepare("PRAGMA user_version").get().user_version, 2, "Restore verifies but never silently migrates");
     assert.equal(restored.prepare("SELECT count(*) AS n FROM sessions").get().n, 0); restored.close();
     upgraded = createApplication({ dataDir: f.source });
-    assert.equal(upgraded.db.prepare("PRAGMA user_version").get().user_version, 6);
+    assert.equal(upgraded.db.prepare("PRAGMA user_version").get().user_version, SCHEMA_VERSION);
     for (const [name, rows] of Object.entries(before)) assert.deepEqual(upgraded.db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows, `Schema upgrade preserves all existing ${name} rows`);
     assert.equal(upgraded.db.prepare("SELECT count(*) AS n FROM learning_goals").get().n, 0);
     assert.deepEqual(await readFile(join(f.source, `evidence/${f.id}.bin`)), f.bytes);
@@ -121,7 +122,7 @@ test("schema-2 backups remain verifiable and restore separately before a checked
     assert.equal(snapshot.prepare("PRAGMA user_version").get().user_version, 2);
     for (const [name, rows] of Object.entries(before)) assert.deepEqual(snapshot.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows);
     assert.equal(snapshot.prepare("PRAGMA quick_check").get().quick_check, "ok"); snapshot.close();
-    assert.equal((await stat(join(f.source, "backups", snapshots[0]))).mode & 0o777, 0o600);
+    if (posixModes) assert.equal((await stat(join(f.source, "backups", snapshots[0]))).mode & 0o777, 0o600);
     await upgraded.close(); upgraded = undefined;
     upgraded = createApplication({ dataDir: f.source });
     assert.equal((await readdir(join(f.source, "backups"))).length, 1, "An already-current schema is not migrated or backed up again");
@@ -163,7 +164,7 @@ test("schema-3 goals and old idempotency receipts survive the checked schema-6 u
     const restored = new DatabaseSync(join(f.restored, "tala.sqlite"), { readOnly: true });
     assert.equal(restored.prepare("PRAGMA user_version").get().user_version, 3); assert.equal(restored.prepare("SELECT count(*) AS n FROM sessions").get().n, 0); restored.close();
     upgraded = createApplication({ dataDir: f.source });
-    assert.equal(upgraded.db.prepare("PRAGMA user_version").get().user_version, 6);
+    assert.equal(upgraded.db.prepare("PRAGMA user_version").get().user_version, SCHEMA_VERSION);
     for (const [name, rows] of Object.entries(before)) assert.deepEqual(upgraded.db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows);
     assert.equal(upgraded.db.prepare("SELECT count(*) AS n FROM learning_goal_steps").get().n, 0);
     assert.equal(upgraded.db.prepare("SELECT count(*) AS n FROM learning_goal_evidence").get().n, 0);
@@ -183,7 +184,7 @@ test("schema-3 goals and old idempotency receipts survive the checked schema-6 u
     const snapshot = new DatabaseSync(join(f.source, "backups", snapshots[0]), { readOnly: true });
     assert.equal(snapshot.prepare("PRAGMA user_version").get().user_version, 3);
     for (const [name, rows] of Object.entries(before)) assert.deepEqual(snapshot.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows); snapshot.close();
-    assert.equal((await stat(join(f.source, "backups", snapshots[0]))).mode & 0o777, 0o600);
+    if (posixModes) assert.equal((await stat(join(f.source, "backups", snapshots[0]))).mode & 0o777, 0o600);
     assert.deepEqual(await readFile(join(f.source, `evidence/${f.id}.bin`)), f.bytes);
   } finally { await upgraded?.close(); await f.close(); }
 });
@@ -202,6 +203,7 @@ test("backup corruption, missing files and symlinks fail closed without creating
     await rm(sourceFile);
     assert.throws(() => createLocalBackup({ dataDir: f.source, outputDir: f.backup }), /missing/);
     await assert.rejects(access(f.backup));
+    if (!symlinksAvailable) return;
     const external = join(f.root, "outside.txt"); await writeFile(external, f.bytes);
     await symlink(external, sourceFile);
     assert.throws(() => createLocalBackup({ dataDir: f.source, outputDir: f.backup }));
@@ -347,7 +349,7 @@ test("schema-4 backups and verified startup migration preserve every prior row a
     const restored = new DatabaseSync(join(f.restored, "tala.sqlite"), { readOnly: true });
     assert.equal(restored.prepare("PRAGMA user_version").get().user_version, 4, "Restore never implicitly migrates an older compatible backup"); restored.close();
     upgraded = createApplication({ dataDir: f.source });
-    assert.equal(upgraded.db.prepare("PRAGMA user_version").get().user_version, 6);
+    assert.equal(upgraded.db.prepare("PRAGMA user_version").get().user_version, SCHEMA_VERSION);
     assert.equal(upgraded.db.prepare("SELECT count(*) AS n FROM reflection_drafts").get().n, 0);
     for (const [name, rows] of Object.entries(before)) assert.deepEqual(upgraded.db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows, "Existing data remains byte-for-byte equivalent at the row level");
     const { readdir } = await import("node:fs/promises");
@@ -355,7 +357,7 @@ test("schema-4 backups and verified startup migration preserve every prior row a
     const snapshot = new DatabaseSync(join(f.source, "backups", snapshots[0]), { readOnly: true });
     assert.equal(snapshot.prepare("PRAGMA user_version").get().user_version, 4);
     for (const [name, rows] of Object.entries(before)) assert.deepEqual(snapshot.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(), rows); snapshot.close();
-    assert.equal((await stat(join(f.source, "backups", snapshots[0]))).mode & 0o777, 0o600);
+    if (posixModes) assert.equal((await stat(join(f.source, "backups", snapshots[0]))).mode & 0o777, 0o600);
     assert.deepEqual(await readFile(join(f.source, `evidence/${f.id}.bin`)), f.bytes);
     await new Promise((resolve) => upgraded.server.listen(0, "127.0.0.1", resolve));
     const client = f.client.copy(); client.baseUrl = `http://127.0.0.1:${upgraded.server.address().port}`;
@@ -370,7 +372,7 @@ test("schema-6 private backups restore reflection text and monotonic clear tombs
     const intended = { title: "  Synthetic private draft 🌱  ", text: " A synthetic paragraph.\r\n\r\n\tA second question. ", version: 0, requestId: randomUUID() };
     const saved = await f.client.request("/api/reflection-draft", { method: "POST", json: intended }); assert.equal(saved.status, 200);
     createLocalBackup({ dataDir: f.source, outputDir: f.backup }); assert.equal(verifyLocalBackup({ directory: f.backup }).status, "verified");
-    const manifest = await readFile(join(f.backup, "manifest.json"), "utf8"); assert.equal(JSON.parse(manifest).schemaVersion, 6); assert.equal(manifest.includes(intended.title), false); assert.equal(manifest.includes("second question"), false);
+    const manifest = await readFile(join(f.backup, "manifest.json"), "utf8"); assert.equal(JSON.parse(manifest).schemaVersion, SCHEMA_VERSION); assert.equal(manifest.includes(intended.title), false); assert.equal(manifest.includes("second question"), false);
     restoreLocalBackup({ directory: f.backup, outputDir: f.restored });
     restored = createApplication({ dataDir: f.restored }); await new Promise((resolve) => restored.server.listen(0, "127.0.0.1", resolve));
     const oldSession = f.client.copy(); oldSession.baseUrl = `http://127.0.0.1:${restored.server.address().port}`;

@@ -16,6 +16,8 @@ import { AboutPage } from "../public-site/AboutPage";
 import { ProgramsPage } from "../public-site/ProgramsPage";
 import { CommunityPage } from "../public-site/CommunityPage";
 import { NotFoundPage } from "../public-site/NotFoundPage";
+import { ContactRequestPage } from "../onboarding/ContactRequestPage";
+import { OpenTimesPage } from "../onboarding/OpenTimesPage";
 import { talaApi, safeTalaApiError } from "../api";
 import type { ApiUser } from "../api";
 import { ServerAccessPage } from "./ServerAccessPage";
@@ -293,7 +295,11 @@ export function ServerApplication() {
               <Route
                 index
                 element={
-                  user ? <Navigate to="/dashboard" replace /> : <HomePage />
+                  user ? (
+                    <Navigate to="/dashboard" replace />
+                  ) : (
+                    <HomePage inquiryPath="/contact-request" />
+                  )
                 }
               />
               <Route
@@ -366,8 +372,10 @@ export function ServerApplication() {
               <Route path="programs" element={<ProgramsPage />} />
               <Route
                 path="contact"
-                element={<CommunityPage kind="contact" />}
+                element={<CommunityPage kind="contact" contactOptions />}
               />
+              <Route path="contact-request" element={<ContactRequestPage />} />
+              <Route path="schedule" element={<OpenTimesPage />} />
               <Route path="events" element={<CommunityPage kind="events" />} />
               <Route
                 path="two-factor"

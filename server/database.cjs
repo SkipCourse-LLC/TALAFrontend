@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 const EXTENSIONS = `
   CREATE TABLE IF NOT EXISTS availability_state (
     slot_id TEXT PRIMARY KEY REFERENCES slots(id),
@@ -26,6 +26,16 @@ const EXTENSIONS = `
   CREATE INDEX IF NOT EXISTS evidence_revision_root ON evidence_revisions(root_id,revision_number);
   INSERT OR IGNORE INTO availability_state(slot_id,status,updated_at,updated_by)
     SELECT id,'published',created_at,NULL FROM slots;
+  CREATE TABLE IF NOT EXISTS contact_requests (
+    id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL,
+    parent_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL,
+    preferred_method TEXT NOT NULL CHECK(preferred_method IN ('email','phone','text')),
+    availability_json TEXT NOT NULL, notes TEXT,
+    status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','contacted','closed')),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, updated_by TEXT REFERENCES users(uid)
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS contact_requests_created ON contact_requests(created_at DESC,id DESC);
+  CREATE INDEX IF NOT EXISTS contact_requests_fingerprint ON contact_requests(fingerprint,created_at);
   CREATE TABLE IF NOT EXISTS learning_goals (
     id TEXT PRIMARY KEY, owner_uid TEXT NOT NULL REFERENCES users(uid),
     title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 120),
@@ -218,10 +228,8 @@ function backupBeforeMigration(db, dataDir, version) {
     try {
       if (snapshot.prepare("PRAGMA user_version").get().user_version !== version || snapshot.prepare("PRAGMA quick_check").get().quick_check !== "ok" || snapshot.prepare("PRAGMA foreign_key_check").get()) throw new Error("The pre-upgrade database backup could not be verified.");
     } finally { snapshot.close(); }
-    const file = fs.openSync(filename, "r");
-    try { fs.fsyncSync(file); } finally { fs.closeSync(file); }
-    const folder = fs.openSync(directory, "r");
-    try { fs.fsyncSync(folder); } finally { fs.closeSync(folder); }
+    syncFile(filename);
+    syncDirectory(directory);
     completed = true;
   } finally {
     if (!completed) fs.rmSync(filename, { force: true });
@@ -367,8 +375,20 @@ function openDatabase(dataDir) {
   for (const suffix of ["-wal", "-shm"]) if (fs.existsSync(filename + suffix)) fs.chmodSync(filename + suffix, 0o600);
   return db;
 }
+// Windows can only flush a file through a writable handle, and cannot open a
+// directory handle at all. NTFS journals rename and create metadata, so the
+// directory flush is a POSIX-only durability step.
+function syncFile(filename) {
+  const fd = fs.openSync(filename, process.platform === "win32" ? "r+" : "r");
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+function syncDirectory(directory) {
+  if (process.platform === "win32") return;
+  const fd = fs.openSync(directory, "r");
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
 function transaction(db, fn) {
   db.exec("BEGIN IMMEDIATE");
   try { const result = fn(); db.exec("COMMIT"); return result; } catch (error) { db.exec("ROLLBACK"); throw error; }
 }
-module.exports = { openDatabase, transaction };
+module.exports = { openDatabase, transaction, syncFile, syncDirectory, SCHEMA_VERSION };

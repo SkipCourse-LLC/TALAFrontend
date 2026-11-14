@@ -29,7 +29,10 @@ function CourseSaveButton({ course, disabled = false }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [canRetry, setCanRetry] = useState(false);
+  // The saved value an unconfirmed request will retry, or undefined when no
+  // retry is offered. It mirrors intent.current while a retry is offered, so
+  // render never reads the ref.
+  const [retrySaved, setRetrySaved] = useState<boolean>();
   const mounted = useRef(false);
   const mutation = useRef<AbortController | null>(null);
   const intent = useRef<SaveIntent | null>(null);
@@ -45,18 +48,29 @@ function CourseSaveButton({ course, disabled = false }: Props) {
       intent.current = null;
     };
   }, []);
-  useEffect(() => {
+  // When the server value changes, drop the local confirmation, and clear an
+  // unconfirmed retry that the new value already satisfies. A retry is offered
+  // exactly while an intent is kept with no request running.
+  const [seenSaved, setSeenSaved] = useState(course.savedForLater);
+  if (seenSaved !== course.savedForLater) {
+    setSeenSaved(course.savedForLater);
     setConfirmed(undefined);
+    if (
+      retrySaved !== undefined &&
+      Boolean(course.savedForLater) === retrySaved
+    ) {
+      setError("");
+      setRetrySaved(undefined);
+    }
+  }
+  useEffect(() => {
     const pending = intent.current;
     if (
       pending &&
       Boolean(course.savedForLater) === pending.saved &&
       !mutation.current
-    ) {
+    )
       intent.current = null;
-      setError("");
-      setCanRetry(false);
-    }
   }, [course.savedForLater]);
   const saved = confirmed ?? Boolean(course.savedForLater);
   async function change() {
@@ -72,7 +86,7 @@ function CourseSaveButton({ course, disabled = false }: Props) {
     setBusy(true);
     setError("");
     setNotice("");
-    setCanRetry(false);
+    setRetrySaved(undefined);
     try {
       const result = await talaApi.setClassSaved(
         context.course.id,
@@ -99,7 +113,7 @@ function CourseSaveButton({ course, disabled = false }: Props) {
       const problem = safeTalaApiError(failure);
       const unconfirmed = uncertain.has(problem.code);
       if (!unconfirmed) intent.current = null;
-      setCanRetry(unconfirmed);
+      setRetrySaved(unconfirmed ? action.saved : undefined);
       setError(
         unconfirmed
           ? `${action.saved ? "Save" : "Removal"} not confirmed. Retry to check the saved result.`
@@ -146,7 +160,7 @@ function CourseSaveButton({ course, disabled = false }: Props) {
       {error && (
         <span className="tala-class-save-error" id={`${id}-error`} role="alert">
           {error}
-          {canRetry && (
+          {retrySaved !== undefined && (
             <button
               type="button"
               disabled={disabled || busy}
@@ -155,7 +169,7 @@ function CourseSaveButton({ course, disabled = false }: Props) {
                 void change();
               }}
             >
-              Retry {intent.current?.saved ? "save" : "removal"}
+              Retry {retrySaved ? "save" : "removal"}
             </button>
           )}
         </span>

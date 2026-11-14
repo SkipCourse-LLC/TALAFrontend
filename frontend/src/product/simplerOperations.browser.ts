@@ -159,6 +159,17 @@ test.beforeEach(async ({ context }) => {
 
 type Account = { name: string; email: string; password: string };
 
+type ProvisionedRole = "student" | "parent";
+// Self sign-up is closed: the fixture provisions the synthetic account with the
+// server's own validators, then the browser signs in through the real login form.
+const provisionAccount = (input: { name: string; email: string; password: string; role: ProvisionedRole }) =>
+  callFixture("provisionAccount", input);
+async function signInThroughLogin(page: Page, account: { email: string; password: string }) {
+  await page.goto("/#/login");
+  await page.getByLabel("Email", { exact: true }).fill(account.email);
+  await page.getByLabel("Password", { exact: true }).fill(account.password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+}
 async function register(page: Page, role: "student" | "parent" = "student") {
   const suffix = randomUUID();
   const account: Account = {
@@ -166,19 +177,8 @@ async function register(page: Page, role: "student" | "parent" = "student") {
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
   };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page
-    .getByRole("radio", {
-      name: role === "student" ? "Student" : "Parent or guardian",
-      exact: true,
-    })
-    .check();
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
+  await provisionAccount({ ...account, role });
+  await signInThroughLogin(page, account);
   await expect(
     page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
   ).toBeVisible();
@@ -224,10 +224,9 @@ test("one password and native role controls create real student and parent sessi
   browser,
 }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 860 });
-  await page.goto("/#/register");
-  await expect(
-    page.getByRole("radio", { name: "Student", exact: true }),
-  ).toBeChecked();
+  // Self sign-up is closed (/#/register is the admissions application), so the
+  // one-password and native-control checks run on the sign-in form.
+  await page.goto("/#/login");
   await expect(page.locator('input[name="password"]')).toHaveCount(1);
   await expect(
     page.getByLabel("Confirm password", { exact: true }),
@@ -250,7 +249,7 @@ test("one password and native role controls create real student and parent sessi
   await expect(password).toHaveAttribute("type", "password");
   await expectAccessible(page);
   await page.screenshot({
-    path: testInfo.outputPath("registration-320.png"),
+    path: testInfo.outputPath("sign-in-320.png"),
     fullPage: true,
   });
   await register(page);

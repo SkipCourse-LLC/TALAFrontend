@@ -1,0 +1,69 @@
+name: Deploy staging preview (tala)
+
+# SCRUM-97. Manual only. Publishes a test-data-only build to a temporary
+# Firebase Hosting preview channel on the tala site. It never deploys to the
+# live site. Confirm with Karl before the first run (shared skip-class-slsru4).
+on:
+  workflow_dispatch:
+    inputs:
+      expires:
+        description: "How long the preview URL stays up (for example 7d; at most 30d)"
+        required: true
+        default: "14d"
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: staging-preview
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check the expiry input
+        env:
+          EXPIRES: ${{ inputs.expires }}
+        run: |
+          if ! [[ "$EXPIRES" =~ ^([1-9]|[12][0-9]|30)d$ ]]; then
+            echo "Choose 1d to 30d for the preview expiry." >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix frontend
+
+      # Demo mode keeps every record in the visitor's browser: no API, no real
+      # family data and no payment links (no VITE_PAYMENT_LINK_* values here).
+      - name: Build the demo-mode site into public/
+        run: npm run build:hosting --prefix frontend
+        env:
+          VITE_BACKEND_MODE: demo
+          VITE_DEMO_MODE: "true"
+          VITE_DEMO_TOOLS: "false"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: 'projects/685366123190/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider'
+          service_account: 'github-actions-deploy@skip-class-slsru4.iam.gserviceaccount.com'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools@15.34.1
+
+      - name: Deploy to the "staging" preview channel
+        env:
+          EXPIRES: ${{ inputs.expires }}
+        run: firebase hosting:channel:deploy staging --only tala --expires "$EXPIRES" --project skip-class-slsru4 --non-interactive

@@ -121,11 +121,17 @@ test("returning to a cached operator panel still aborts stale pagination when it
     await expect(
       page.getByRole("heading", { name: "Awaiting first page" }),
     ).toBeVisible();
-    await page.getByRole("tab", { name: "Meetings", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Operations workspace" })
+      .getByRole("button", { name: "Meetings", exact: true })
+      .click();
     await expect(
       page.getByRole("heading", { name: "Meetings and availability" }),
     ).toBeVisible();
-    await page.getByRole("tab", { name: /^Review evidence/ }).click();
+    await page
+      .getByRole("navigation", { name: "Operations workspace" })
+      .getByRole("button", { name: /^Review evidence/ })
+      .click();
     await page
       .getByRole("button", { name: "Load more evidence", exact: true })
       .click();

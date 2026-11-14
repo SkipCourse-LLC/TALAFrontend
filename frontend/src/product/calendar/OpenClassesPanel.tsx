@@ -1,29 +1,16 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { LearningGoal } from "../../api/types";
 import type { CalendarClass } from "../../api/calendarContract";
-import { ClassSaveButton } from "./ClassSaveButton";
 import { StudentClassHistory } from "./StudentClassHistory";
 import { LearningGlyph } from "../LearningGlyph";
 import {
   ClassDetail,
   type StudentCalendarPanelProps,
 } from "./StudentCalendarPanel";
-import {
-  CourseFilters,
-  filterCourses,
-  emptyCourseFilters,
-} from "./CourseFilters";
-import {
-  categoryLabels,
-  classPrice,
-  classStatus,
-  modeLabel,
-} from "./classPresentation";
-import {
-  calendarDayLabel,
-  calendarTimeRange,
-  phoenixDateKey,
-} from "./calendarDates";
+import { CourseFilters } from "./CourseFilters";
+import { filterCourses, emptyCourseFilters } from "./courseFilterModel";
+import { useMeetingClock } from "../useMeetingClock";
+import { OpenClassRow } from "./OpenClassRow";
 import "./openClasses.css";
 
 type Props = Pick<
@@ -69,10 +56,16 @@ export function OpenClassesPanel({
   const [detailId, setDetailId] = useState<string | null>(
     initialClassId ?? null,
   );
-  useEffect(() => {
+  // Open a newly requested class, adjusted during render.
+  const [seenClassId, setSeenClassId] = useState(initialClassId);
+  if (seenClassId !== initialClassId) {
+    setSeenClassId(initialClassId);
     if (initialClassId) setDetailId(initialClassId);
-  }, [initialClassId]);
-  const now = Date.now();
+  }
+  // Re-renders when a class starts or ends, so lists and sign-up stay current.
+  const now = useMeetingClock(
+    courses.flatMap((course) => [course.startsAt, course.endsAt]),
+  );
   const bookable = useMemo(
     () => courses.filter((course) => !course.allDay),
     [courses],
@@ -131,8 +124,8 @@ export function OpenClassesPanel({
           <p>
             <strong>Learning that fits you</strong>
             <span>
-              Choose a class and how to attend. Your parent reviews your request
-              before a place is confirmed.
+              Choose a class and sign up in person or online. Your parent
+              reviews your request before a place is confirmed.
             </span>
           </p>
         </div>
@@ -165,7 +158,7 @@ export function OpenClassesPanel({
         </select>
         <p>
           {selectedGoal
-            ? "This goal will be offered when you request a class."
+            ? "This goal is attached when you sign up for a class."
             : "Choose a saved goal, or explore something new."}
         </p>
         <button type="button" onClick={onGoals}>
@@ -284,13 +277,16 @@ export function OpenClassesPanel({
         />
       ) : (
         <div className="tala-classes-layout">
-          <div className="tala-classes-grid" aria-busy={actions.loading}>
+          <div
+            className="tala-classes-grid tala-classes-rows"
+            aria-busy={actions.loading}
+          >
             {actions.loading &&
               !bookable.length &&
               [0, 1, 2, 3].map((item) => (
                 <div
                   key={`loading-${item}`}
-                  className="tala-class-skeleton"
+                  className="tala-class-skeleton tala-class-row-skeleton"
                   aria-hidden="true"
                 >
                   <span />
@@ -300,92 +296,18 @@ export function OpenClassesPanel({
                 </div>
               ))}
             {filtered.map((course) => (
-              <article
+              <OpenClassRow
                 key={course.id}
-                className="tala-discovery-card"
-                data-category={course.category}
-              >
-                <div className="tala-discovery-card-top">
-                  <span>{course.topic || categoryLabels[course.category]}</span>
-                  <span
-                    className="tala-class-status"
-                    data-status={course.enrollmentStatus}
-                  >
-                    {course.published === false
-                      ? "Withdrawn"
-                      : course.enrolled
-                        ? classStatus(course)
-                        : course.seatsAvailable === 0
-                          ? "Waiting list available"
-                          : `${course.seatsAvailable ?? "Open"} seats`}
-                  </span>
-                </div>
-                <h3>
-                  <button type="button" onClick={() => setDetailId(course.id)}>
-                    {course.title}
-                  </button>
-                </h3>
-                <p className="tala-discovery-description">
-                  {course.description}
-                </p>
-                {course.enrollmentGoalId && (
-                  <p className="tala-discovery-linked-goal">
-                    <LearningGlyph name="goal" />
-                    {goals.find((goal) => goal.id === course.enrollmentGoalId)
-                      ?.title ?? "Connected to a learning goal"}
-                  </p>
-                )}
-                <p className="tala-discovery-teacher">
-                  <LearningGlyph name="book" /> {course.teacher}
-                </p>
-                <dl>
-                  <div>
-                    <dt>When</dt>
-                    <dd>
-                      {calendarDayLabel(phoenixDateKey(course.startsAt), {
-                        weekday: "short",
-                        month: "short",
-                      })}
-                      <span>
-                        {calendarTimeRange(course.startsAt, course.endsAt)} MST
-                      </span>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>For</dt>
-                    <dd>
-                      {course.grades}
-                      <span>
-                        {(course.modalities ?? ["online"])
-                          .map(modeLabel)
-                          .join(" / ")}
-                      </span>
-                    </dd>
-                  </div>
-                </dl>
-                {course.source === "local_catalog" && (
-                  <ClassSaveButton
-                    course={course}
-                    disabled={actions.readOnly || actions.busyClassId !== null}
-                  />
-                )}
-                <footer>
-                  <span>
-                    {classPrice(course)}
-                    {course.source === "test_catalog" && (
-                      <small>Practice class</small>
-                    )}
-                  </span>
-                  <button
-                    type="button"
-                    className="tala-cal-discover"
-                    onClick={() => setDetailId(course.id)}
-                  >
-                    {course.enrolled ? "View request" : "View class"}
-                    <span aria-hidden="true">↗</span>
-                  </button>
-                </footer>
-              </article>
+                course={course}
+                now={now}
+                goals={goals}
+                goalId={selectedGoal?.id}
+                readOnly={actions.readOnly}
+                loading={actions.loading}
+                busyClassId={actions.busyClassId}
+                onEnroll={actions.onEnroll}
+                onOpen={() => setDetailId(course.id)}
+              />
             ))}
             {!filtered.length && !actions.loading && (
               <div className="tala-classes-empty">

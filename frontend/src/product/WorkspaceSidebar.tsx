@@ -6,6 +6,11 @@ import { Icon } from "../shared/Icon";
 import { LearningGlyph } from "./LearningGlyph";
 import type { IconName } from "../shared/Icon";
 import { workspaceViews } from "./workspaceViews";
+import {
+  DashboardSideMenu,
+  DashboardSideMenuButton,
+  DashboardSideMenuLabel,
+} from "./DashboardSideMenu";
 import type { WorkspaceView } from "./workspaceViews";
 
 const icons: Record<WorkspaceView, IconName> = {
@@ -67,186 +72,186 @@ export function WorkspaceSidebar({
   };
   const draftDescription = (id: WorkspaceView) =>
     draftHints[id] ? `${hintId}-${id}` : undefined;
-  function navigation(className: string) {
-    return (
-      <nav className={className} aria-label="Workspace sections">
-        {workspaceViews
-          .filter(({ id }) => user.role !== "parent" || id !== "calendar")
-          .map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              disabled={disabled}
-              aria-current={view === id ? "page" : undefined}
-              aria-label={
-                user.role === "parent" && id === "classes"
-                  ? "Class requests"
-                  : label
-              }
-              aria-describedby={draftDescription(id)}
+  const hubLabel = user.role === "parent" ? "Family hub" : "Student hub";
+  return (
+    <DashboardSideMenu
+      label={hubLabel}
+      brand={hubLabel}
+      role={user.role}
+      currentKey={view}
+      currentLabel={currentLabel}
+      currentText={
+        view === "plan"
+          ? "Plan"
+          : view === "learning"
+            ? "Learning"
+            : currentLabel
+      }
+      renderNav={(className, { id, collapsed }) => (
+        <nav id={id} className={className} aria-label="Workspace sections">
+          {workspaceViews
+            .filter(({ id }) => user.role !== "parent" || id !== "calendar")
+            .map(({ id, label }) => (
+              <DashboardSideMenuButton
+                key={id}
+                collapsed={collapsed}
+                current={view === id}
+                disabled={disabled}
+                label={
+                  user.role === "parent" && id === "classes"
+                    ? "Class requests"
+                    : label
+                }
+                aria-describedby={draftDescription(id)}
+                onClick={(event) => {
+                  const picker = event.currentTarget.closest("details");
+                  if (picker) picker.open = false;
+                  onNavigate?.(id);
+                }}
+                symbol={
+                  id === "calendar" ||
+                  id === "plan" ||
+                  id === "meetings" ||
+                  id === "evidence" ||
+                  id === "progress" ? (
+                    <LearningGlyph
+                      name={
+                        id === "plan"
+                          ? "goal"
+                          : id === "meetings" || id === "calendar"
+                            ? "calendar"
+                            : id === "evidence"
+                              ? "evidence"
+                              : "spark"
+                      }
+                    />
+                  ) : (
+                    <Icon name={icons[id]} />
+                  )
+                }
+              >
+                <DashboardSideMenuLabel>
+                  {user.role === "parent" && id === "classes"
+                    ? "Class requests"
+                    : id === "learning"
+                      ? "Learning"
+                      : id === "plan"
+                        ? "Plan"
+                        : label}
+                </DashboardSideMenuLabel>
+                {id === "updates" &&
+                  unreadUpdates !== undefined &&
+                  unreadUpdates > 0 && (
+                    <span
+                      className="student-updates-count"
+                      aria-label={`${unreadUpdates} unread updates`}
+                    >
+                      {unreadUpdates > 99 ? "99+" : unreadUpdates}
+                    </span>
+                  )}
+                {draftHints[id] && (
+                  <span className="student-draft-dot" aria-hidden="true" />
+                )}
+              </DashboardSideMenuButton>
+            ))}
+          {user.role === "parent" && (
+            <Link
+              to="/payment"
+              className="server-dashboard-payment-link"
+              title={collapsed ? "Payments" : undefined}
               onClick={(event) => {
                 const picker = event.currentTarget.closest("details");
                 if (picker) picker.open = false;
-                onNavigate?.(id);
               }}
             >
               <span className="server-dashboard-nav-symbol">
-                {id === "calendar" ||
-                id === "plan" ||
-                id === "meetings" ||
-                id === "evidence" ||
-                id === "progress" ? (
-                  <LearningGlyph
-                    name={
-                      id === "plan"
-                        ? "goal"
-                        : id === "meetings" || id === "calendar"
-                          ? "calendar"
-                          : id === "evidence"
-                            ? "evidence"
-                            : "spark"
-                    }
-                  />
-                ) : (
-                  <Icon name={icons[id]} />
-                )}
+                <Icon name="folder" />
               </span>
-              <span>
-                {user.role === "parent" && id === "classes"
-                  ? "Class requests"
-                  : id === "learning"
-                    ? "Learning"
-                    : id === "plan"
-                      ? "Plan"
-                      : label}
-              </span>
-              {id === "updates" &&
-                unreadUpdates !== undefined &&
-                unreadUpdates > 0 && (
-                  <span
-                    className="student-updates-count"
-                    aria-label={`${unreadUpdates} unread updates`}
-                  >
-                    {unreadUpdates > 99 ? "99+" : unreadUpdates}
-                  </span>
-                )}
-              {draftHints[id] && (
-                <span className="student-draft-dot" aria-hidden="true" />
-              )}
-            </button>
-          ))}
-        {user.role === "parent" && (
-          <Link
-            to="/payment"
-            className="server-dashboard-payment-link"
-            onClick={(event) => {
-              const picker = event.currentTarget.closest("details");
-              if (picker) picker.open = false;
-            }}
-          >
-            <span className="server-dashboard-nav-symbol"><Icon name="folder" /></span>
-            <span>Payments</span>
-          </Link>
-        )}
-      </nav>
-    );
-  }
-  return (
-    <aside
-      className="server-dashboard-sidebar"
-      data-account-role={user.role}
-      aria-label={user.role === "parent" ? "Family hub" : "Student hub"}
+              <DashboardSideMenuLabel>Payments</DashboardSideMenuLabel>
+            </Link>
+          )}
+        </nav>
+      )}
     >
-      <div className="server-dashboard-brand">
-        <Icon name="leaf" />
-        <span>{user.role === "parent" ? "Family hub" : "Student hub"}</span>
-      </div>
-      {navigation("server-dashboard-desktop-nav")}
-      <details
-        className="server-dashboard-mobile-nav"
-        key={view}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && event.currentTarget.open) {
-            event.preventDefault();
-            event.currentTarget.open = false;
-            event.currentTarget.querySelector<HTMLElement>("summary")?.focus();
-          }
-        }}
-      >
-        <summary aria-label={`Sections: ${currentLabel}`}>
-          {view === "plan"
-            ? "Plan"
-            : view === "learning"
-              ? "Learning"
-              : currentLabel}
-          <Icon name="menu" />
-        </summary>
-        {navigation("server-dashboard-mobile-links")}
-      </details>
-      {Object.entries(draftHints).map(([section, hint]) => (
-        <span className="sr-only" key={section} id={`${hintId}-${section}`}>
-          {hint}
-        </span>
-      ))}
-      <div className="server-dashboard-account">{account}</div>
-      <div className="server-dashboard-identity">
-        <span className="server-dashboard-avatar" aria-hidden="true">
-          {(Array.from(user.name.trim())[0] ?? "?").toUpperCase()}
-        </span>
-        <div>
-          <strong>
-            <bdi>{user.name}</bdi>
-          </strong>
-          <span>
-            {user.uid === "tala_local_preview_student_v1"
-              ? "Demo · test data"
-              : user.role === "parent"
-                ? "Parent"
-                : "Student"}
-          </span>
-        </div>
-      </div>
-      <div className="server-dashboard-account-actions">
-        <Link to="/two-factor" aria-label="Account security">
-          <Icon name="user" />
-          <span>Security</span>
-        </Link>
-        <button type="button" disabled={busy} onClick={onSignOut}>
-          <Icon name="logout" />
-          <span>Sign out</span>
-        </button>
-      </div>
-      <nav
-        className="server-dashboard-mobile-quick"
-        aria-label="Quick navigation"
-      >
-        {(
-          [
-            ["overview", "Overview", "grid"],
-            ["plan", "Plan", "goal"],
-            user.role === "parent"
-              ? (["meetings", "Meet", "calendar"] as const)
-              : (["calendar", "Calendar", "calendar"] as const),
-            ["evidence", "Evidence", "evidence"],
-          ] as const
-        ).map(([id, label, glyph]) => (
-          <button
-            type="button"
-            key={id}
-            disabled={disabled}
-            aria-current={view === id ? "page" : undefined}
-            aria-label={workspaceViews.find((item) => item.id === id)!.label}
-            aria-describedby={draftDescription(id)}
-            onClick={() => onNavigate?.(id)}
+      {(collapsed) => (
+        <>
+          {Object.entries(draftHints).map(([section, hint]) => (
+            <span className="sr-only" key={section} id={`${hintId}-${section}`}>
+              {hint}
+            </span>
+          ))}
+          <div className="server-dashboard-account">{account}</div>
+          <div className="server-dashboard-identity">
+            <span className="server-dashboard-avatar" aria-hidden="true">
+              {(Array.from(user.name.trim())[0] ?? "?").toUpperCase()}
+            </span>
+            <div>
+              <strong>
+                <bdi>{user.name}</bdi>
+              </strong>
+              <span>
+                {user.uid === "tala_local_preview_student_v1"
+                  ? "Demo · test data"
+                  : user.role === "parent"
+                    ? "Parent"
+                    : "Student"}
+              </span>
+            </div>
+          </div>
+          <div className="server-dashboard-account-actions">
+            <Link
+              to="/two-factor"
+              aria-label="Account security"
+              title={collapsed ? "Account security" : undefined}
+            >
+              <Icon name="user" />
+              <span>Security</span>
+            </Link>
+            <button
+              type="button"
+              disabled={busy}
+              title={collapsed ? "Sign out" : undefined}
+              onClick={onSignOut}
+            >
+              <Icon name="logout" />
+              <span>Sign out</span>
+            </button>
+          </div>
+          <nav
+            className="server-dashboard-mobile-quick"
+            aria-label="Quick navigation"
           >
-            <LearningGlyph name={glyph} />
-            <span>{label}</span>
-            {draftHints[id] && (
-              <span className="student-draft-dot" aria-hidden="true" />
-            )}
-          </button>
-        ))}
-      </nav>
-    </aside>
+            {(
+              [
+                ["overview", "Overview", "grid"],
+                ["plan", "Plan", "goal"],
+                user.role === "parent"
+                  ? (["meetings", "Meet", "calendar"] as const)
+                  : (["calendar", "Calendar", "calendar"] as const),
+                ["evidence", "Evidence", "evidence"],
+              ] as const
+            ).map(([id, label, glyph]) => (
+              <button
+                type="button"
+                key={id}
+                disabled={disabled}
+                aria-current={view === id ? "page" : undefined}
+                aria-label={
+                  workspaceViews.find((item) => item.id === id)!.label
+                }
+                aria-describedby={draftDescription(id)}
+                onClick={() => onNavigate?.(id)}
+              >
+                <LearningGlyph name={glyph} />
+                <span>{label}</span>
+                {draftHints[id] && (
+                  <span className="student-draft-dot" aria-hidden="true" />
+                )}
+              </button>
+            ))}
+          </nav>
+        </>
+      )}
+    </DashboardSideMenu>
   );
 }

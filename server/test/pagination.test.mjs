@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient, assertNoPrivateLocation } from "./support.mjs";
+import { SyntheticHttpClient, assertNoPrivateLocation, signUpForTest } from "./support.mjs";
 
 const origin = "http://127.0.0.1:5173";
 const ok = (response) => { assert.equal(response.status, 200, "The isolated resource read should succeed"); return response.json; };
@@ -19,8 +19,8 @@ async function fixture() {
   const url = `http://127.0.0.1:${app.server.address().port}`;
   async function account(type, name) {
     const client = new SyntheticHttpClient(url, origin); await client.bootstrap();
-    const response = await client.request("/api/auth/register", { method: "POST", json: { name, email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType: type } });
-    assert.equal(response.status, 201);
+    const response = await signUpForTest(app, client, { name, email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType: type });
+    assert.equal(response.status, 200);
     return { client, user: response.json.session };
   }
   const student = await account("student", "Synthetic learner alpha"), foreign = await account("student", "Synthetic other learner");
@@ -50,7 +50,7 @@ async function fixture() {
     }
     const insertEvidence = (owner, appointment, title, submitted, review = "reviewed") => {
       const id = randomUUID();
-      db.prepare("INSERT INTO uploads VALUES(?,?,?,?,?,?,?,'submitted',?,?)").run(id, owner, appointment, title, "text/plain", 42, checksum, now, now + 1_200_000);
+      db.prepare("INSERT INTO uploads(id,owner_uid,appointment_id,title,content_type,size,sha256,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?)").run(id, owner, appointment, title, "text/plain", 42, checksum, now, now + 1_200_000);
       db.prepare("INSERT INTO evidence(id,owner_uid,appointment_id,title,content_type,size,sha256,submitted_at,review_status) VALUES(?,?,?,?,?,?,?,?,?)").run(id, owner, appointment, title, "text/plain", 42, checksum, submitted, review);
       return id;
     };

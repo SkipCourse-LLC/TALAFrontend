@@ -87,14 +87,21 @@ test.afterEach(async ({ context }) => {
   expect([...new Set(unexpectedHosts)], "This suite may contact only its temporary local real backend").toEqual([]);
 });
 
-async function register(page: Page, role: "student" | "parent" = "student"): Promise<Account> {
-  const suffix = randomUUID(), account = { name: `Synthetic workflow ${role}`, email: `${suffix}@example.test`, password: `Synthetic-only-${suffix}` };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page.getByRole("radio", { name: role === "parent" ? "Parent or guardian" : "Student", exact: true }).check();
+type ProvisionedRole = "student" | "parent";
+// Self sign-up is closed: the fixture provisions the synthetic account with the
+// server's own validators, then the browser signs in through the real login form.
+const provisionAccount = (input: { name: string; email: string; password: string; role: ProvisionedRole }) =>
+  callFixture("provisionAccount", input);
+async function signInThroughLogin(page: Page, account: { email: string; password: string }) {
+  await page.goto("/#/login");
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+}
+async function register(page: Page, role: "student" | "parent" = "student"): Promise<Account> {
+  const suffix = randomUUID(), account = { name: `Synthetic workflow ${role}`, email: `${suffix}@example.test`, password: `Synthetic-only-${suffix}` };
+  await provisionAccount({ ...account, role });
+  await signInThroughLogin(page, account);
   await expect(page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true })).toBeVisible();
   return account;
 }

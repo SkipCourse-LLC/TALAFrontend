@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient } from "./support.mjs";
+import { SyntheticHttpClient, signUpForTest } from "./support.mjs";
 
 test("expired unfinished uploads consistently return EXPIRED while submitted evidence and terminal cleanup remain safe", { timeout: 30_000 }, async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "tala-upload-expiry-http-"));
@@ -19,11 +19,8 @@ test("expired unfinished uploads consistently return EXPIRED while submitted evi
     });
     const client = new SyntheticHttpClient(`http://127.0.0.1:${app.server.address().port}`, origin);
     await client.bootstrap();
-    const registered = await client.request("/api/auth/register", {
-      method: "POST",
-      json: { name: "Synthetic upload deadline", email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType: "student" },
-    });
-    assert.equal(registered.status, 201);
+    const registered = await signUpForTest(app, client, { name: "Synthetic upload deadline", email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType: "student" });
+    assert.equal(registered.status, 200);
     const starts = Date.now() + 3_600_000;
     const slot = app.operator.addAvailability({ startsAt: new Date(starts).toISOString(), endsAt: new Date(starts + 1_800_000).toISOString() });
     const booking = await client.request("/api/appointments", { method: "POST", json: { slotId: slot.id, requestId: randomUUID() } });

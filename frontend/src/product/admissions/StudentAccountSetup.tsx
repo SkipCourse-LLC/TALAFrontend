@@ -4,6 +4,7 @@ import { admissionsApi, newRequestId, safeTalaApiError } from "../../api";
 import type { AdmissionApplication } from "../../api";
 import { hasTextControls, isWellFormedText } from "../unicodeText";
 import { announceClassChange } from "../calendar/classWorkspaceSync";
+import { useMeetingClock } from "../useMeetingClock";
 import "./studentAccountSetup.css";
 
 type Field = "name" | "email" | "password" | "confirmation" | "consent";
@@ -65,13 +66,24 @@ export function StudentAccountSetup({
   useEffect(() => {
     if (error) alert.current?.focus();
   }, [error]);
-  useEffect(() => setUncertain(false), [statusRevision]);
-  useEffect(() => {
-    if (setup?.status === "authorized") return;
-    setPassword("");
-    setConfirmation("");
-    setVisible(false);
-  }, [setup?.status]);
+  // Reset derived form state when its inputs change, adjusted during render
+  // instead of in effects (same resets, without an extra effect pass).
+  const [seenRevision, setSeenRevision] = useState(statusRevision);
+  if (seenRevision !== statusRevision) {
+    setSeenRevision(statusRevision);
+    setUncertain(false);
+  }
+  const [seenStatus, setSeenStatus] = useState(setup?.status);
+  if (seenStatus !== setup?.status) {
+    setSeenStatus(setup?.status);
+    if (setup?.status !== "authorized") {
+      setPassword("");
+      setConfirmation("");
+      setVisible(false);
+    }
+  }
+  // Re-renders when the setup authorization expires.
+  const now = useMeetingClock([setup?.expiresAt]);
   useEffect(() => {
     if (!dirty) return;
     const guard = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -210,7 +222,7 @@ export function StudentAccountSetup({
   if (
     !setup ||
     setup.status === "expired" ||
-    Date.parse(setup.expiresAt) <= Date.now()
+    Date.parse(setup.expiresAt) <= now
   )
     return (
       <div className="student-account-waiting">

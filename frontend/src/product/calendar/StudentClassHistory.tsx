@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { safeTalaApiError, talaApi } from "../../api";
 import type { ClassEnrollment } from "../../api/calendarContract";
 import { useMeetingClock } from "../useMeetingClock";
@@ -93,20 +93,39 @@ export function StudentClassHistory({
     error: "",
     ready: false,
   });
-  useLayoutEffect(() => {
+  // Reset the controls for a different student, and mark a new read as
+  // loading, adjusted during render with the triggers the effects used.
+  const [seenOwner, setSeenOwner] = useState(ownerUid);
+  if (seenOwner !== ownerUid) {
+    setSeenOwner(ownerUid);
     setQuery("");
     setFilter("all");
     setOrder("updated");
     setLimit(12);
-  }, [ownerUid]);
+  }
+  const [readKey, setReadKey] = useState({
+    ownerUid,
+    revision,
+    attempt,
+    onExpired,
+  });
+  if (
+    readKey.ownerUid !== ownerUid ||
+    readKey.revision !== revision ||
+    readKey.attempt !== attempt ||
+    readKey.onExpired !== onExpired
+  ) {
+    setReadKey({ ownerUid, revision, attempt, onExpired });
+    if (ownerUid)
+      setSnapshot((previous) =>
+        previous.ownerUid === ownerUid
+          ? { ...previous, loading: true, error: "" }
+          : { ownerUid, items: [], loading: true, error: "", ready: false },
+      );
+  }
   useEffect(() => {
     const controller = new AbortController();
     if (!ownerUid) return () => controller.abort();
-    setSnapshot((previous) =>
-      previous.ownerUid === ownerUid
-        ? { ...previous, loading: true, error: "" }
-        : { ownerUid, items: [], loading: true, error: "", ready: false },
-    );
     void talaApi
       .getClassEnrollments(controller.signal)
       .then((result) => {

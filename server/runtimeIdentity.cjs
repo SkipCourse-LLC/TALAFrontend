@@ -5,7 +5,7 @@ const { createHash } = require("node:crypto");
 
 // Capture the loaded version once. Re-reading changed source on each health
 // request would make an old process claim to run code it never loaded.
-const files = ["accountServices.cjs", "admissions.cjs", "application.cjs", "calendar.cjs", "contract.json", "database.cjs", "index.cjs", "learningGoals.cjs", "listServices.cjs", "meetingPreparation.cjs", "payments.cjs", "reflectionDrafts.cjs", "runtimeIdentity.cjs", "security.cjs", "services.cjs", "workspaceUpdates.cjs"];
+const files = ["accountServices.cjs", "admissions.cjs", "application.cjs", "calendar.cjs", "contactRequests.cjs", "contract.json", "database.cjs", "index.cjs", "integrations.cjs", "learningGoals.cjs", "listServices.cjs", "meetingPreparation.cjs", "payments.cjs", "reflectionDrafts.cjs", "runtimeIdentity.cjs", "security.cjs", "services.cjs", "workspaceUpdates.cjs"];
 function currentRevision() {
   const digest = createHash("sha256").update("tala-runtime-source-v1\0");
   for (const filename of files) digest.update(filename).update("\0").update(fs.readFileSync(path.join(__dirname, filename))).update("\0");
@@ -21,4 +21,5 @@ function assertCurrentRevision() {
 function dataScope(dataDir) {
   return createHash("sha256").update("tala-data-directory-v1\0").update(path.resolve(dataDir)).digest("hex");
 }
-module.exports = { runtimeRevision, dataScope, assertCurrentRevision };
+// Tests stub exactly this list, so a new server module cannot be left out of either.
+module.exports = { runtimeRevision, dataScope, assertCurrentRevision, identityFiles: Object.freeze([...files]) };

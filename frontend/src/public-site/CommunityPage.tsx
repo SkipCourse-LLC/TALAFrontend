@@ -1,7 +1,14 @@
 import { Link } from "react-router-dom";
 import { Icon } from "../shared/Icon";
 
-export function CommunityPage({ kind }: { kind: "events" | "contact" }) {
+export function CommunityPage({
+  kind,
+  contactOptions = false,
+}: {
+  kind: "events" | "contact";
+  /** Only the server app has the Contact-me and open-times routes. */
+  contactOptions?: boolean;
+}) {
   const events = kind === "events";
   return (
     <div className="public-page public-community">
@@ -14,7 +21,13 @@ export function CommunityPage({ kind }: { kind: "events" | "contact" }) {
             <Icon name={events ? "people" : "voice"} />
           </span>
           <h2>{events ? "No events yet." : "Contact details coming soon."}</h2>
-          {!events && <p>Inquiries are not connected.</p>}
+          {!events && (
+            <p>
+              {contactOptions
+                ? "Ask us to contact you, or pick one of Tina's open meeting times."
+                : "Inquiries are not connected."}
+            </p>
+          )}
           <Link
             className="button button-outline"
             to={events ? "/learn-more" : "/programs"}
@@ -49,6 +62,16 @@ export function CommunityPage({ kind }: { kind: "events" | "contact" }) {
             <Link className="button" to="/register">
               Get started
             </Link>
+            {contactOptions && !events && (
+              <>
+                <Link className="button button-outline" to="/contact-request">
+                  Ask us to contact you
+                </Link>
+                <Link className="button button-outline" to="/schedule">
+                  See open meeting times
+                </Link>
+              </>
+            )}
             <Link
               className="text-link"
               to={events ? "/programs" : "/learn-more"}

@@ -5,6 +5,7 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { randomUUID, createHash } = require("node:crypto");
 const { createApplication } = require("../application.cjs");
+const security = require("../security.cjs");
 const dataDir = process.env.TALA_BROWSER_TEST_DATA_DIR;
 if (
   process.env.NODE_ENV !== "test" ||
@@ -64,7 +65,7 @@ function seedPagination(input) {
       const title = index === 0 ? "Archived reflection requiring revision" : index === 1 ? "Archived reflection awaiting staff review" : `Reviewed reflection ${String(index).padStart(3, "0")}`;
       const status = index === 0 ? "needs_revision" : index === 1 ? "not_reviewed" : "reviewed";
       const evidence = randomUUID(), submitted = now - 20 * day + index * 60_000;
-      db.prepare("INSERT INTO uploads VALUES(?,?,?,?,?,?,?,'submitted',?,?)").run(evidence, student.uid, booking, title, "text/plain", bytes.length, checksum, submitted, now + 1_200_000);
+      db.prepare("INSERT INTO uploads(id,owner_uid,appointment_id,title,content_type,size,sha256,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?)").run(evidence, student.uid, booking, title, "text/plain", bytes.length, checksum, submitted, now + 1_200_000);
       db.prepare("INSERT INTO evidence(id,owner_uid,appointment_id,title,content_type,size,sha256,submitted_at,review_status,review_note,reviewed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
         .run(evidence, student.uid, booking, title, "text/plain", bytes.length, checksum, submitted, status, status === "not_reviewed" ? null : "Synthetic staff feedback only.", status === "not_reviewed" ? null : now);
       fs.writeFileSync(path.join(dataDir, "evidence", `${evidence}.bin`), bytes, { mode: 0o600, flag: "wx" });
@@ -88,10 +89,27 @@ function seedPagination(input) {
     return fixture;
   } catch (error) { db.exec("ROLLBACK"); throw error; }
 }
+// Self sign-up is closed (enrollment invitation required), so browser tests
+// create fictional accounts here with the server's own validators and hashing,
+// then sign in through the real login form.
+async function provisionAccount(input) {
+  if (!input || typeof input !== "object" ||
+      Object.keys(input).some((key) => !["name", "email", "password", "role"].includes(key)) ||
+      !["student", "parent", "alumni", "staff", "operator"].includes(input.role))
+    throw new Error("A synthetic name, email, password and role are required.");
+  const address = security.email(input.email);
+  if (!address.endsWith("@example.test")) throw new Error("Synthetic accounts must use example.test.");
+  const encoded = await security.hashPassword(security.password(input.password));
+  const uid = randomUUID(), role = input.role === "staff" ? "operator" : input.role;
+  application.db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)")
+    .run(uid, address, security.text(input.name, "name", 80), encoded, role, Date.now());
+  return { uid, email: address, role };
+}
 process.on("message", async (request) => {
   try {
     let result;
     if (request.action === "seedPagination") result = seedPagination(request.input);
+    else if (request.action === "provisionAccount") result = await provisionAccount(request.input);
     else if (request.action === "disableStudent" && typeof request.input === "string" && request.input.endsWith("@example.test")) {
       const updated = application.db.prepare("UPDATE users SET disabled=1 WHERE email=? AND role='student'").run(request.input);
       if (updated.changes !== 1) throw new Error("A synthetic student is required.");
