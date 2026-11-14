@@ -1320,12 +1320,13 @@
       "env": "TALA_MEETING_ADAPTER",
       "modes": {
         "disabled": "default; createMeeting() returns 503",
-        "mock": "returns https://meet.example.test/<id> links"
+        "mock": "returns https://meet.example.test/<id> links",
+        "google-meet": "creates a Google Calendar event with a Meet link (events.insert, conferenceDataVersion=1, sendUpdates=none). Needs TALA_GOOGLE_CLIENT_ID, TALA_GOOGLE_CLIENT_SECRET, TALA_GOOGLE_REFRESH_TOKEN; optional TALA_GOOGLE_CALENDAR_ID (default primary). Provider failures return 503 and never a link"
       },
       "interface": {
-        "createMeeting({title, startsAt, endsAt})": "{provider, meetingId, joinUrl, title, startsAt, endsAt}"
+        "createMeeting({title, startsAt, endsAt})": "Promise<{provider, meetingId, status: ready|pending, joinUrl|null, title, startsAt, endsAt}>"
       },
-      "openQuestion": "Zoom (Jira SCRUM-70/79/88/90) or Google Meet (client mockups, Sherry's branch)"
+      "openQuestion": "Zoom (Jira SCRUM-70/79/88/90) or Google Meet (client mockups, Sherry's branch). Google Meet is built; Zoom would be another mode"
     },
     "availability": {
       "env": "TALA_AVAILABILITY_ADAPTER",

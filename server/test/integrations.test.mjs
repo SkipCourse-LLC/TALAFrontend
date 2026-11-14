@@ -34,33 +34,33 @@ test("T4-4 switching an adapter from its default to mock is configuration only",
   try {
     const health = await (await fetch(`${server.base}/api/health`)).json();
     assert.deepEqual(health.integrations, { email: "mock", meeting: "mock", availability: "mock", billing: "mock" });
-    const receipt = server.app.integrations.email.send({ to: "parent@example.test", subject: "Meeting confirmed", text: "Synthetic body." });
+    const receipt = await server.app.integrations.email.send({ to: "parent@example.test", subject: "Meeting confirmed", text: "Synthetic body." });
     assert.equal(receipt.status, "delivered_to_mock_outbox");
     assert.equal(server.app.integrations.email.outbox().length, 1);
   } finally { await server.close(); }
 });
 
 test("unknown integrations or modes stop startup with the allowed choices", () => {
-  assert.throws(() => resolveModes({ email: "smtp" }, {}), /email cannot use mode "smtp"\. Choose disabled or mock \(set TALA_EMAIL_ADAPTER\)/);
+  assert.throws(() => resolveModes({ email: "smtp" }, {}), /email cannot use mode "smtp"\. Choose disabled, mock \(set TALA_EMAIL_ADAPTER\)/);
   assert.throws(() => resolveModes({ fax: "mock" }, {}), /Unknown integration "fax"/);
   assert.throws(() => resolveModes({}, { TALA_BILLING_ADAPTER: "live" }), /billing cannot use mode "live"/);
 });
 
-test("disabled integrations fail clearly instead of returning fake success", () => {
+test("disabled integrations fail clearly instead of returning fake success", async () => {
   const integrations = createIntegrations({}, noLocalTimes, {});
   for (const call of [
     () => integrations.email.send({ to: "a@example.test", subject: "s", text: "t" }),
     () => integrations.meeting.createMeeting({ title: "t", startsAt: "2030-01-01T17:00:00Z", endsAt: "2030-01-01T17:30:00Z" }),
     () => integrations.billing.createInvoice({ familyUid: "f", reference: "r", lines: [{ description: "d", amountCents: 1 }] }),
-  ]) assert.throws(call, (error) => error.status === 503 && error.code === "INTEGRATION_UNAVAILABLE");
+  ]) await assert.rejects(call, (error) => error.status === 503 && error.code === "INTEGRATION_UNAVAILABLE");
 });
 
-test("T4-3 local and mock availability follow the same EZAMU contract shape, in Tucson time", () => {
+test("T4-3 local and mock availability follow the same EZAMU contract shape, in Tucson time", async () => {
   const now = Date.parse("2030-01-06T12:00:00Z"); // a Sunday
-  const local = createIntegrations({}, {
+  const local = await createIntegrations({}, {
     publicOpenTimes: () => ({ times: [{ id: "slot-1", startsAt: "2030-01-07T16:00:00.000Z", endsAt: "2030-01-07T16:30:00.000Z" }], hasMore: false, timeZone: "America/Phoenix" }),
   }, {}).availability.listSessions();
-  const mock = createIntegrations({ availability: "mock" }, noLocalTimes, {}).availability.listSessions({ now, days: 7 });
+  const mock = await createIntegrations({ availability: "mock" }, noLocalTimes, {}).availability.listSessions({ now, days: 7 });
   const keys = (session) => Object.keys(session).sort();
   assert.deepEqual(Object.keys(local).sort(), Object.keys(mock).sort());
   assert.deepEqual(keys(local.sessions[0]), keys(mock.sessions[0]));
@@ -75,14 +75,15 @@ test("T4-3 local and mock availability follow the same EZAMU contract shape, in 
   assert.ok(mock.sessions.every((session) => Date.parse(session.startsAt) > now));
 });
 
-test("mock billing totals invoice lines and keeps invoices separate", () => {
+test("mock billing totals invoice lines and keeps invoices separate", async () => {
   const billing = createIntegrations({ billing: "mock" }, noLocalTimes, {}).billing;
-  const invoice = billing.createInvoice({ familyUid: "family-a", reference: "Fall quarter", lines: [{ description: "Quarterly enrollment", amountCents: 120000 }, { description: "Materials", amountCents: 2550 }] });
+  const invoice = await billing.createInvoice({ familyUid: "family-a", reference: "Fall quarter", lines: [{ description: "Quarterly enrollment", amountCents: 120000 }, { description: "Materials", amountCents: 2550 }] });
   assert.equal(invoice.totalCents, 122550);
   assert.equal(invoice.provider, "mock");
-  assert.deepEqual(billing.getInvoice(invoice.id), invoice);
-  assert.throws(() => billing.createInvoice({ familyUid: "f", reference: "r", lines: [{ description: "d", amountCents: 1.5 }] }), (error) => error.status === 400);
-  assert.throws(() => billing.getInvoice("missing"), (error) => error.status === 404);
+  assert.equal(invoice.status, "draft", "Creating an invoice never sends it");
+  assert.deepEqual(await billing.getInvoice(invoice.id), invoice);
+  await assert.rejects(() => billing.createInvoice({ familyUid: "f", reference: "r", lines: [{ description: "d", amountCents: 1.5 }] }), (error) => error.status === 400);
+  await assert.rejects(() => billing.getInvoice("missing"), (error) => error.status === 404);
 });
 
 test("every integration documents its configuration variable", () => {

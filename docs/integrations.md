@@ -24,7 +24,7 @@ Status as of 2026-11-13. Update the **Access status** column whenever a request 
 | Integration | Variable | Modes (default first) |
 |---|---|---|
 | email | `TALA_EMAIL_ADAPTER` | `disabled`, `mock` |
-| meeting | `TALA_MEETING_ADAPTER` | `disabled`, `mock` |
+| meeting | `TALA_MEETING_ADAPTER` | `disabled`, `mock`, `google-meet` |
 | availability | `TALA_AVAILABILITY_ADAPTER` | `local`, `mock` |
 | billing | `TALA_BILLING_ADAPTER` | `hubspot_links`, `mock` |
 
@@ -32,6 +32,8 @@ Status as of 2026-11-13. Update the **Access status** column whenever a request 
 - A mistyped name or mode stops the server at startup with the allowed choices.
 - `disabled` and `hubspot_links` return `503 INTEGRATION_UNAVAILABLE` for calls they cannot serve. They never pretend to succeed.
 - Each real service is added as a new mode next to its mock, in the ticket that owns it (EZAMU in SCRUM-91, HubSpot invoices in SCRUM-94/95, email and meeting links in SCRUM-90). Screens and routes do not change.
+- `google-meet` reads `TALA_GOOGLE_CLIENT_ID`, `TALA_GOOGLE_CLIENT_SECRET` and `TALA_GOOGLE_REFRESH_TOKEN` from the server environment, never from the repository. `TALA_GOOGLE_CALENDAR_ID` picks the calendar (default `primary`). `TALA_PROVIDER_TIMEOUT_MS` caps each Google call (default 10000). Every adapter method returns a promise.
+- `server/test/googleMeet.test.mjs` runs the Meet adapter against a local fake Google server (`server/test/fakeGoogle.mjs`): token reuse, early refresh, one retry on 401, revoked keys, quota, outages, pending conferences, timeouts and secret-free errors.
 - Tests: `server/test/integrations.test.mjs` (T4-1, T4-3, T4-4) and `server/test/contract.test.mjs` (T4-2: every server route is in `contract.json` and every contract route is served).
 
 ## Access requests
