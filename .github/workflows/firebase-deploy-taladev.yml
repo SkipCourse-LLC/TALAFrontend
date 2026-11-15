@@ -39,5 +39,8 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools@15.34.1
 
+      - name: Configure Firebase Hosting target
+        run: firebase target:apply hosting taladev taladev --project skip-class-slsru4
+
       - name: Deploy to Firebase Hosting (taladev target)
         run: firebase deploy --only hosting:taladev --project skip-class-slsru4 --non-interactive
