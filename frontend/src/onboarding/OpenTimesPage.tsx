@@ -67,10 +67,11 @@ export function OpenTimesPage() {
 
   const useMockData = false; 
 
-  const fetchTimes = () => {
-    if (useMockData) return;
+    useEffect(() => {
     const controller = new AbortController();
     
+    if (useMockData) return;
+
     talaApi
       .getPublicOpenTimes(controller.signal)
       .then((value) => {
@@ -85,16 +86,15 @@ export function OpenTimesPage() {
         }
       })
       .catch((error) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
           setLoad({ state: "error", message: safeTalaApiError(error).message });
+        }
       });
-    return () => controller.abort();
-  };
 
-  useEffect(() => {
-    return fetchTimes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempt, useMockData]);
+    return () => {
+      controller.abort();
+    };
+  }, [attempt, useMockData]); 
 
   const groupedDays = useMemo(() => {
     if (load.state !== "ready") return [];
@@ -218,7 +218,23 @@ export function OpenTimesPage() {
   };
 
   if (load.state === "loading") return <div style={{ padding: "3rem", textAlign: "center" }}>Loading…</div>;
-  if (load.state === "error") return <div style={{ padding: "3rem", textAlign: "center", color: "red" }}>Error: {load.message}</div>;
+  if (load.state === "error") {
+    return (
+      <div style={{ padding: "3rem", textAlign: "center", color: "#991b1b" }}>
+        <h2>Open times could not be loaded.</h2>
+        <p>{load.message}</p>
+        <button 
+          onClick={() => {
+            setLoad({ state: "loading" }); // Show loading state
+            setAttempt((value) => value + 1); // Trigger the useEffect
+          }} 
+          style={{ marginTop: "1rem", padding: "0.5rem 1rem", backgroundColor: "#1a3c34", color: "white", borderRadius: "6px", border: "none", cursor: "pointer" }}
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   const displayDate = selectedDateStr ? new Date(selectedDateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : "";
   const displayMethod = meetingMethod === "zoom" ? "Zoom Video" : meetingMethod === "phone" ? "Phone Call" : "No preference";
