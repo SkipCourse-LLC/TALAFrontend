@@ -7,6 +7,9 @@
       "hosting": {
         "tala": [
           "tucsonala"
+        ],
+        "taladev": [
+          "taladev"
         ]
       }
     }
