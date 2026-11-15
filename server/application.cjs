@@ -7,6 +7,7 @@ const { openDatabase, transaction, SCHEMA_VERSION } = require("./database.cjs");
 const { createServices, userDTO, MAX_FILE_BYTES } = require("./services.cjs");
 const { createAdmissions } = require("./admissions.cjs");
 const { createPayments } = require("./payments.cjs");
+const { createTestCheckout } = require("./testCheckout.cjs");
 const { createAccountServices } = require("./accountServices.cjs");
 const { createIntegrations } = require("./integrations.cjs");
 const { ApiError, fail, object, text, email, password, hash, token, hashPassword, verifyPassword, constantEqual } = require("./security.cjs");
@@ -102,7 +103,9 @@ function createApplication(options = {}) {
     },
   });
   const admissions = createAdmissions(db, { ...admissionsContext, session: currentSession, mutation, integrations });
-  const payments = createPayments(db, { guard: admissionsContext.guard, read: lists.read, config: options.paymentConfig, provider: options.paymentProvider || null });
+  // Billing mode "mock" swaps the live HubSpot links for a TALA test checkout (fictional families only).
+  const testCheckout = !options.paymentProvider && integrations.describe().billing === "mock" ? createTestCheckout() : null;
+  const payments = createPayments(db, { guard: admissionsContext.guard, read: lists.read, config: options.paymentConfig, provider: options.paymentProvider || null, testCheckout });
   operator.addInterviewTime = input => admissions.addAvailability(input);
   operator.createTestOperator = async input => {
     const address = email(input.email), name = input.name ? text(input.name, "operator name", 80) : "Tina · local test";
@@ -159,7 +162,7 @@ function createApplication(options = {}) {
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
       if (route === "/api/auth/local-student-preview" && !localStudentPreview) fail(404, "NOT_FOUND", "This local preview entry is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 14, schemaVersion: SCHEMA_VERSION, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: integrations.describe().email === "disabled" ? "unavailable" : integrations.describe().email, zoom: "unavailable", ai: "unavailable", integrations: integrations.describe(), payment: "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 14, schemaVersion: SCHEMA_VERSION, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: integrations.describe().email === "disabled" ? "unavailable" : integrations.describe().email, zoom: "unavailable", ai: "unavailable", integrations: integrations.describe(), payment: testCheckout ? "test_checkout" : "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
       if (req.method === "GET" && route === "/api/session") {
         // A cross-site top-level navigation omits SameSite=Strict cookies but
         // can still accept Set-Cookie. Do not overwrite a signed-in browser
@@ -288,6 +291,12 @@ function createApplication(options = {}) {
         if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "The public calendar does not accept filters.");
         return json(res, services.publicOpenTimes());
       }
+      if (req.method === "GET" && route === "/api/public/sessions") {
+        rate(req, "public-sessions", 300);
+        if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "Upcoming sessions do not accept filters.");
+        const listed = await integrations.availability.listSessions();
+        return json(res, { source: listed.source, timeZone: listed.timeZone, sessions: listed.sessions.slice(0, 50) });
+      }
       if (req.method === "POST" && route === "/api/contact-requests") {
         const input = contactRequests.validate(await body(req));
         rate(req, "contact-request", 10);
@@ -348,6 +357,10 @@ function createApplication(options = {}) {
       if (req.method === "POST" && (match = route.match(/^\/api\/payments\/([^/]+)\/verify$/))) {
         rate(req, "payment-verify", 60);
         return json(res, await perform(req, (fresh, input) => payments.verify(fresh, match[1], input, url.searchParams)));
+      }
+      if (req.method === "POST" && (match = route.match(/^\/api\/payments\/([^/]+)\/test-checkout$/))) {
+        rate(req, "payment-test-checkout", 30);
+        return json(res, await perform(req, (fresh, input) => payments.completeTest(fresh, match[1], input, url.searchParams)));
       }
       if (req.method === "GET" && route === "/api/operator/payments") return json(res, payments.operations(actor, url.searchParams));
       if (req.method === "POST" && route === "/api/operator/payments/items") {

@@ -23,7 +23,7 @@ export function RouteFocus() {
   const dashboardView =
     pathname === "/dashboard" ? new URLSearchParams(search).get("view") : null;
   useEffect(() => {
-    document.title = `${titles[pathname] ?? "Page not found"} | TALA`;
+    document.title = `${titles[pathname] ?? (pathname.startsWith("/payment/test-checkout/") ? "Test checkout" : "Page not found")} | TALA`;
     window.scrollTo({ top: 0, behavior: "instant" });
     document.getElementById("main-content")?.focus({ preventScroll: true });
   }, [pathname, dashboardView]);

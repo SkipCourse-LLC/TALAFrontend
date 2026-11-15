@@ -38,6 +38,14 @@ Status as of 2026-11-14. Update the **Access status** column whenever a request 
 - `server/test/googleMeet.test.mjs` runs the Meet adapter against a local fake Google server (`server/test/fakeGoogle.mjs`): token reuse, early refresh, one retry on 401, revoked keys, quota, outages, pending conferences, timeouts and secret-free errors.
 - Tests: `server/test/integrations.test.mjs` (T4-1, T4-3, T4-4) and `server/test/contract.test.mjs` (T4-2: every server route is in `contract.json` and every contract route is served).
 
+## What each integration does in the site today
+
+- **Interview bookings:** booking an admissions interview creates the video meeting (`meeting` mode) and emails the family a confirmation with the link (`email` mode). If either service fails, the booking stays and the family and staff see that the link or email failed. Rebooking removes the old meeting. Tested in `server/test/bookingIntegrations.test.mjs`.
+- **Contact requests:** one "we received your request" email per new request. The email never repeats the family's notes.
+- **Upcoming sessions:** `GET /api/public/sessions` serves the `availability` mode. The Programs page lists the next 1:1 sessions and 20:1 pods and links to a contact request. `mock` shows a sample schedule until TALA picks a scheduling service.
+- **Payments:** `TALA_BILLING_ADAPTER=mock` swaps the live HubSpot links for a TALA test checkout (`#/payment/test-checkout/<id>`, fictional `example.test` families only). The chosen result goes through the normal receipt verification, so a test payment confirms an approved class exactly as a real one would. Tested in `server/test/testCheckout.test.mjs`. The default mode keeps the two official HubSpot links.
+- Run every integration in test mode locally: `TALA_MEETING_ADAPTER=mock TALA_EMAIL_ADAPTER=mock TALA_AVAILABILITY_ADAPTER=mock TALA_BILLING_ADAPTER=mock npm run dev:review` (from `frontend/`).
+
 ## Where secrets live
 
 - Real values go in a file outside the repository and outside OneDrive: `%USERPROFILE%\.tala\server.env`, readable only by your Windows account. `server/.env.example` lists the names with placeholders.

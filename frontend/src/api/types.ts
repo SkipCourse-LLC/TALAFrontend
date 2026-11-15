@@ -336,6 +336,20 @@ export interface OpenTime {
   startsAt: string;
   endsAt: string;
 }
+export interface SessionTime {
+  id: string;
+  sessionType: "one_on_one" | "pod";
+  label: string;
+  startsAt: string;
+  endsAt: string;
+  capacity: number;
+  remaining: number;
+}
+export interface SessionTimes {
+  source: "local" | "mock";
+  timeZone: string;
+  sessions: SessionTime[];
+}
 export interface OpenTimes {
   times: OpenTime[];
   hasMore: boolean;

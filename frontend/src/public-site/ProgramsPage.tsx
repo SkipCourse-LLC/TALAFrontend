@@ -2,6 +2,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { programs } from "./programContent";
 import { Icon } from "../shared/Icon";
 import { StartBanner } from "./StartBanner";
+import { UpcomingSessions } from "./UpcomingSessions";
 export function ProgramsPage() {
   const [params, setParams] = useSearchParams();
   const requested = params.get("program");
@@ -90,6 +91,7 @@ export function ProgramsPage() {
           ))}
         </div>
       </section>
+      <UpcomingSessions />
       <StartBanner />
     </div>
   );

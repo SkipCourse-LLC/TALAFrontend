@@ -36,6 +36,8 @@ import type {
   ContactRequestStatus,
   ContactWindow,
   OpenTimes,
+  SessionTime,
+  SessionTimes,
   Weekday,
 } from "./types";
 
@@ -751,6 +753,38 @@ export function operations(raw: unknown): Operations {
       };
     }),
   };
+}
+export function sessionTimes(raw: unknown): SessionTimes {
+  const value = object(raw);
+  if (value.source !== "local" && value.source !== "mock")
+    throw new TalaApiError("INVALID_RESPONSE");
+  const sessions = array(value.sessions, 50).map((item) => {
+    const session = object(item);
+    const startsAt = instant(session.startsAt),
+      endsAt = instant(session.endsAt);
+    const capacity = count(session.capacity),
+      remaining = count(session.remaining);
+    if (
+      Date.parse(endsAt) <= Date.parse(startsAt) ||
+      capacity < 1 ||
+      capacity > 100 ||
+      remaining > capacity ||
+      (session.sessionType !== "one_on_one" && session.sessionType !== "pod")
+    )
+      throw new TalaApiError("INVALID_RESPONSE");
+    return {
+      id: id(session.id),
+      sessionType: session.sessionType as SessionTime["sessionType"],
+      label: text(session.label, 80),
+      startsAt,
+      endsAt,
+      capacity,
+      remaining,
+    };
+  });
+  if (new Set(sessions.map((session) => session.id)).size !== sessions.length)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { source: value.source, timeZone: text(value.timeZone, 64), sessions };
 }
 export function openTimes(raw: unknown): OpenTimes {
   const value = object(raw);

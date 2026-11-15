@@ -67,8 +67,7 @@ export function HomePage({
           <div className="home-hero-copy">
             <p className="home-eyebrow">Tucson Adaptive Learning Academy</p>
             <h1>
-              Room to learn.
-              <br />
+              Room to learn. <br />
               Space to grow.
             </h1>
             <p className="home-lead">
@@ -208,8 +207,8 @@ export function HomePage({
               <p>
                 TALA is planning a flexible blend of in-person and online
                 learning, with each learner’s health, dignity and potential at
-                its center. School details and opening plans will be shared
-                once confirmed.
+                its center. School details and opening plans will be shared once
+                confirmed.
               </p>
               <a className="home-text-link" href="#home-inquiry">
                 Let’s start a conversation <Icon name="arrow" />

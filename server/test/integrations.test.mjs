@@ -92,3 +92,23 @@ test("every integration documents its configuration variable", () => {
     assert.ok(spec.modes.includes(spec.fallback), `${name} default must be an allowed mode`);
   }
 });
+
+test("GET /api/public/sessions serves the availability integration in both modes", async () => {
+  const local = await serve();
+  try {
+    const listed = await (await fetch(`${local.base}/api/public/sessions`)).json();
+    assert.equal(listed.source, "local");
+    assert.equal(listed.timeZone, "America/Phoenix");
+    assert.ok(Array.isArray(listed.sessions));
+    assert.ok(listed.sessions.every((session) => session.sessionType === "one_on_one" && session.capacity === 1));
+    assert.equal((await fetch(`${local.base}/api/public/sessions?type=pod`)).status, 400);
+  } finally { await local.close(); }
+  const mock = await serve({ integrations: { availability: "mock" } });
+  try {
+    const listed = await (await fetch(`${mock.base}/api/public/sessions`)).json();
+    assert.equal(listed.source, "mock");
+    assert.ok(listed.sessions.length > 0 && listed.sessions.length <= 50);
+    assert.deepEqual([...new Set(listed.sessions.map((session) => session.sessionType))].sort(), ["one_on_one", "pod"]);
+    assert.ok(listed.sessions.every((session) => Date.parse(session.startsAt) > Date.now()));
+  } finally { await mock.close(); }
+});

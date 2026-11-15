@@ -3,6 +3,7 @@ import type { HttpTransport } from "./http";
 import type { User } from "./types";
 import type { PaymentItemInput } from "./paymentContract";
 import * as decode from "./paymentDecoders";
+import { object } from "./decoders";
 
 interface Dependencies {
   authenticated: <T>(
@@ -61,10 +62,7 @@ export function createPaymentsClient({ authenticated }: Dependencies) {
       attemptId: string,
       signal?: AbortSignal,
     ) {
-      if (
-        !input.billingPeriod.trim() ||
-        input.billingPeriod.trim().length > 80
-      )
+      if (!input.billingPeriod.trim() || input.billingPeriod.trim().length > 80)
         return Promise.reject(new TalaApiError("INVALID_INPUT"));
       if (input.type === "quarterly_enrollment") safeId(input.applicationId);
       else {
@@ -116,6 +114,25 @@ export function createPaymentsClient({ authenticated }: Dependencies) {
             if (result.payment.id !== paymentId)
               throw new TalaApiError("INVALID_RESPONSE");
             return result;
+          },
+        ),
+      );
+    },
+    /** Test checkout only (billing mode "mock"): records a fictional paid or failed result. */
+    completeTestCheckout(
+      paymentId: string,
+      outcome: "paid" | "failed",
+      attemptId: string,
+      signal?: AbortSignal,
+    ) {
+      return parent(signal, (bound) =>
+        bound.json(
+          `/api/payments/${safeId(paymentId)}/test-checkout`,
+          body({ outcome, requestId: requestId(attemptId) }, signal),
+          (raw) => {
+            if (object(raw).recorded !== true)
+              throw new TalaApiError("INVALID_RESPONSE");
+            return { recorded: true as const };
           },
         ),
       );

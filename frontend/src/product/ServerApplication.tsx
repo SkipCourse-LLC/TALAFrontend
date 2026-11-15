@@ -25,6 +25,7 @@ import { AdmissionStartPage } from "./admissions/AdmissionStartPage";
 import { EnrollmentPage } from "./admissions/EnrollmentPage";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { PaymentPage } from "../payment/PaymentPage";
+import { TestCheckoutPage } from "../payment/TestCheckoutPage";
 import { ServerWorkspace } from "./ServerWorkspace";
 import { OperatorWorkspace } from "./OperatorWorkspace";
 import { AlumniWorkspace } from "./AlumniWorkspace";
@@ -405,6 +406,20 @@ export function ServerApplication() {
                     />
                   ) : (
                     // Family payments belong to parents; other roles go home.
+                    <Navigate to={user ? "/dashboard" : "/login"} replace />
+                  )
+                }
+              />
+              <Route
+                path="payment/test-checkout/:paymentId"
+                element={
+                  user?.role === "parent" ? (
+                    <TestCheckoutPage
+                      key={`${user.uid}:${privacy.accessEpoch}`}
+                      user={user}
+                      onExpired={expired}
+                    />
+                  ) : (
                     <Navigate to={user ? "/dashboard" : "/login"} replace />
                   )
                 }

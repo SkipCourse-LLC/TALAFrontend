@@ -902,3 +902,37 @@
 .public-page .start-banner h2 {
   margin-bottom: 0;
 }
+
+/* Upcoming 1:1 and pod times from the availability integration. */
+.public-page .upcoming-sessions {
+  padding-block: 2.5rem;
+}
+.public-page .upcoming-sessions h2 {
+  margin-bottom: 0.5rem;
+}
+.public-page .upcoming-sessions-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1.5rem;
+  margin: 1.5rem 0;
+}
+.public-page .upcoming-sessions-group h3 {
+  font-size: 1.05rem;
+  margin-bottom: 0.75rem;
+}
+.public-page .upcoming-sessions-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.public-page .upcoming-sessions-group li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--home-line, #d7e1df);
+}
+.public-page .upcoming-sessions-seats {
+  color: var(--home-body, #5b6b6c);
+}

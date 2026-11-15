@@ -306,7 +306,7 @@
         "emailDelivery": "unavailable|mock|gmail (the email integration mode)",
         "zoom": "unavailable",
         "ai": "unavailable",
-        "payment": "hubspot_checkout",
+        "payment": "hubspot_checkout|test_checkout",
         "calendar": "local_catalog",
         "paymentVerification": "unconfigured|server_adapter",
         "integrations": "{email, meeting, availability, billing}: the configured adapter mode for each outside service"
@@ -354,6 +354,14 @@
         "timeZone": "America/Phoenix"
       },
       "notes": "No account needed. Rate limited per client. Labels, booking state and staff fields are never included. Any query parameter returns INVALID_INPUT."
+    },
+    {
+      "method": "GET",
+      "path": "/public/sessions",
+      "public": true,
+      "query": {},
+      "response": "{source: local|mock, timeZone: 'America/Phoenix', sessions: [{id, sessionType: one_on_one|pod, label, startsAt, endsAt, capacity, remaining}] up to 50, soonest first}. Comes from the availability integration: local = Tina's published times as 1:1 sessions; mock = placeholder 1:1 and 20:1 pod times until a provider is chosen. Booking stays a contact request.",
+      "notes": "300 per client per 15 minutes. Query parameters are refused."
     },
     {
       "method": "POST",
@@ -1048,6 +1056,16 @@
         "requestId": "unique idempotency key"
       },
       "response": "{payment:HubSpotPayment}; only trusted server adapter evidence can settle; unconfigured remains awaiting_verification"
+    },
+    {
+      "method": "POST",
+      "path": "/payments/:id/test-checkout",
+      "body": {
+        "outcome": "paid|failed",
+        "requestId": "unique string"
+      },
+      "response": "{recorded: true}. Exists only when TALA_BILLING_ADAPTER=mock: checkout then returns '#/payment/test-checkout/<paymentId>' instead of a live HubSpot link. Own pending payment, fictional example.test families only, one outcome per payment. POST /payments/:id/verify then records it through the normal receipt checks. Results are kept in memory.",
+      "notes": "404 when test checkout is off. No card details are collected and no money moves."
     },
     {
       "method": "POST",

@@ -41,6 +41,7 @@ import type {
   ContactRequestStatus,
   CursorPage,
   OpenTimes,
+  SessionTimes,
 } from "./types";
 
 export { MAX_FILE_BYTES } from "./decoders";
@@ -1051,6 +1052,14 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
               ),
             ),
         ),
+      );
+    },
+    /** 1:1 sessions and learning pods from the availability integration. */
+    getPublicSessions(signal?: AbortSignal): Promise<SessionTimes> {
+      return transport.json(
+        "/api/public/sessions",
+        { signal },
+        decode.sessionTimes,
       );
     },
     getPublicOpenTimes(signal?: AbortSignal): Promise<OpenTimes> {

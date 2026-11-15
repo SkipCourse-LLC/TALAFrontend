@@ -94,9 +94,15 @@ export function HubSpotPaymentPage({
   const requests = useRef(new Map<string, string>());
   const workspace = saved?.owner === user.uid ? saved.workspace : undefined;
   const fictionalAccount = /@(?:[^@]+\.)?example\.test$/i.test(user.email);
+  // Billing mode "mock": checkout opens TALA's test page, never the live HubSpot links.
+  const testCheckout = workspace?.integration.checkout === "test_checkout";
+  const injectedTest =
+    Boolean(workspace?.integration.testMode) && !testCheckout;
   const selected =
     workspace?.items.find((item) => item.id === selection) ??
-    workspace?.items.find((item) => item.eligible && item.status === "unpaid") ??
+    workspace?.items.find(
+      (item) => item.eligible && item.status === "unpaid",
+    ) ??
     workspace?.items[0];
 
   useEffect(() => {
@@ -198,7 +204,7 @@ export function HubSpotPaymentPage({
     if (
       writing.current ||
       checking ||
-      workspace?.integration.testMode ||
+      injectedTest ||
       (!item.eligible && !canRecover)
     )
       return;
@@ -311,7 +317,7 @@ export function HubSpotPaymentPage({
   }
   const disabled = Boolean(busy || checking || loading);
   const canStart =
-    !workspace?.integration.testMode &&
+    !injectedTest &&
     selected?.eligible &&
     ["unpaid", "failed", "cancelled"].includes(selected.status);
 
@@ -330,27 +336,51 @@ export function HubSpotPaymentPage({
         </div>
       ) : (
         <>
-          {fictionalAccount && (
+          {testCheckout && (
             <div className="payment-demo-notice" role="note">
-              <strong>Fictional review account</strong>
-              <span>These payment items and records belong to the isolated local preview. HubSpot buttons open live checkout; do not submit a real payment for these samples.</span>
+              <strong>Test checkout</strong>
+              <span>
+                TALA has not chosen its payment provider yet. Checkout opens a
+                TALA test page: no card details, no real money.
+              </span>
             </div>
           )}
-          {workspace?.integration.testMode && (
+          {fictionalAccount && !testCheckout && (
+            <div className="payment-demo-notice" role="note">
+              <strong>Fictional review account</strong>
+              <span>
+                These payment items and records belong to the isolated local
+                preview. HubSpot buttons open live checkout; do not submit a
+                real payment for these samples.
+              </span>
+            </div>
+          )}
+          {injectedTest && (
             <div className="payment-demo-notice" role="note">
               <strong>Isolated verification test</strong>
-              <span>Payment confirmations in this workspace come from an injected test adapter. They are test records, and live checkout is disabled.</span>
+              <span>
+                Payment confirmations in this workspace come from an injected
+                test adapter. They are test records, and live checkout is
+                disabled.
+              </span>
             </div>
           )}
           <div className="hubspot-payment-intro">
             <div>
-              <strong>Secure checkout with HubSpot</strong>
+              <strong>
+                {testCheckout
+                  ? "Test checkout"
+                  : "Secure checkout with HubSpot"}
+              </strong>
               <p>
-                Enter payment details on HubSpot’s official checkout. Your TALA
-                status updates after the payment is verified.
+                {testCheckout
+                  ? "Choose a test result on the TALA test page. Your TALA status updates after the result is verified."
+                  : "Enter payment details on HubSpot’s official checkout. Your TALA status updates after the payment is verified."}
               </p>
             </div>
-            <span className="hubspot-provider-label">HubSpot Payments</span>
+            <span className="hubspot-provider-label">
+              {testCheckout ? "Test mode" : "HubSpot Payments"}
+            </span>
           </div>
           {workspace?.integration.verification === "unconfigured" && (
             <div className="hubspot-payment-verification" role="note">
@@ -363,7 +393,11 @@ export function HubSpotPaymentPage({
               </p>
             </div>
           )}
-          <div className="payment-request-status" role="status" aria-live="polite">
+          <div
+            className="payment-request-status"
+            role="status"
+            aria-live="polite"
+          >
             {loading
               ? "Loading your payment records…"
               : checking
@@ -391,16 +425,26 @@ export function HubSpotPaymentPage({
           {workspace && (
             <>
               <div className="payment-layout hubspot-payment-layout">
-                <section className="payment-panel" aria-labelledby="payment-items-heading">
-                  <h2 id="payment-items-heading">Your approved payment items</h2>
+                <section
+                  className="payment-panel"
+                  aria-labelledby="payment-items-heading"
+                >
+                  <h2 id="payment-items-heading">
+                    Your approved payment items
+                  </h2>
                   <p className="payment-small">
                     TALA assigns each item to an approved application or class
                     request and a specific billing period.
                   </p>
                   {workspace.items.length ? (
                     <>
-                      <fieldset className="hubspot-payment-items" disabled={disabled}>
-                        <legend className="payment-sr-only">Choose a payment item</legend>
+                      <fieldset
+                        className="hubspot-payment-items"
+                        disabled={disabled}
+                      >
+                        <legend className="payment-sr-only">
+                          Choose a payment item
+                        </legend>
                         {workspace.items.map((item) => (
                           <label
                             className={`hubspot-payment-item${selected?.id === item.id ? " is-selected" : ""}`}
@@ -420,19 +464,32 @@ export function HubSpotPaymentPage({
                             />
                             <span className="hubspot-payment-item-content">
                               <strong>{item.label}</strong>
-                              <span>{[item.studentName, item.billingPeriod].filter(Boolean).join(" · ")}</span>
+                              <span>
+                                {[item.studentName, item.billingPeriod]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
                               <PaymentBadge status={item.status} />
                             </span>
-                            <span className="hubspot-payment-item-price">{money(item.amountCents)}</span>
+                            <span className="hubspot-payment-item-price">
+                              {money(item.amountCents)}
+                            </span>
                           </label>
                         ))}
                       </fieldset>
                       {selected && (
-                        <div className="hubspot-payment-selected" aria-label="Selected payment item">
+                        <div
+                          className="hubspot-payment-selected"
+                          aria-label="Selected payment item"
+                        >
                           <dl className="payment-summary hubspot-payment-summary">
                             <div>
                               <dt>Payment type</dt>
-                              <dd>{workspace.products.find((product) => product.type === selected.type)?.name ?? selected.label}</dd>
+                              <dd>
+                                {workspace.products.find(
+                                  (product) => product.type === selected.type,
+                                )?.name ?? selected.label}
+                              </dd>
                             </div>
                             <div>
                               <dt>Billing period</dt>
@@ -444,106 +501,232 @@ export function HubSpotPaymentPage({
                             </div>
                           </dl>
                           {selected.blockedReason && (
-                            <p className="hubspot-payment-blocked" role="note">{selected.blockedReason}</p>
+                            <p className="hubspot-payment-blocked" role="note">
+                              {selected.blockedReason}
+                            </p>
                           )}
                           {selected.payment && (
                             <div className="hubspot-payment-current">
                               <PaymentBadge status={selected.payment.status} />
                               <p>{selected.payment.note}</p>
                               {selected.payment.verifiedAt && (
-                                <p className="payment-small">Verified {date(selected.payment.verifiedAt)} Arizona time.</p>
+                                <p className="payment-small">
+                                  Verified {date(selected.payment.verifiedAt)}{" "}
+                                  Arizona time.
+                                </p>
                               )}
-                              {selected.payment.provider === "hubspot" && selected.payment.status !== "paid" && (
-                                <button
-                                  type="button"
-                                  className="payment-button payment-button-secondary"
-                                  disabled={disabled}
-                                  onClick={() => void verify(selected.payment!)}
-                                >
-                                  {busy === selected.payment.id ? "Checking payment…" : "Check payment status"}
-                                </button>
-                              )}
+                              {selected.payment.provider === "hubspot" &&
+                                selected.payment.status !== "paid" && (
+                                  <button
+                                    type="button"
+                                    className="payment-button payment-button-secondary"
+                                    disabled={disabled}
+                                    onClick={() =>
+                                      void verify(selected.payment!)
+                                    }
+                                  >
+                                    {busy === selected.payment.id
+                                      ? "Checking payment…"
+                                      : "Check payment status"}
+                                  </button>
+                                )}
                             </div>
                           )}
                           {canStart && (
                             <>
-                              <fieldset className="hubspot-funding-options" disabled={disabled}>
+                              <fieldset
+                                className="hubspot-funding-options"
+                                disabled={disabled}
+                              >
                                 <legend>How would you like to continue?</legend>
                                 <label>
-                                  <input type="radio" name="funding" value="hubspot" checked={funding === "hubspot"} onChange={() => setFunding("hubspot")} />
-                                  <span><strong>HubSpot checkout</strong><small>Pay securely on the official payment page.</small></span>
+                                  <input
+                                    type="radio"
+                                    name="funding"
+                                    value="hubspot"
+                                    checked={funding === "hubspot"}
+                                    onChange={() => setFunding("hubspot")}
+                                  />
+                                  <span>
+                                    <strong>
+                                      {testCheckout
+                                        ? "Test checkout"
+                                        : "HubSpot checkout"}
+                                    </strong>
+                                    <small>
+                                      {testCheckout
+                                        ? "Try the payment flow on a TALA test page."
+                                        : "Pay securely on the official payment page."}
+                                    </small>
+                                  </span>
                                 </label>
                                 <label>
-                                  <input type="radio" name="funding" value="esa" checked={funding === "esa"} onChange={() => setFunding("esa")} />
-                                  <span><strong>ESA funding review</strong><small>Ask TALA to confirm the funding process.</small></span>
+                                  <input
+                                    type="radio"
+                                    name="funding"
+                                    value="esa"
+                                    checked={funding === "esa"}
+                                    onChange={() => setFunding("esa")}
+                                  />
+                                  <span>
+                                    <strong>ESA funding review</strong>
+                                    <small>
+                                      Ask TALA to confirm the funding process.
+                                    </small>
+                                  </span>
                                 </label>
                               </fieldset>
                               {funding === "hubspot" ? (
                                 <>
-                                  <p className="payment-small">Confirm the final amount, billing frequency and terms on HubSpot before paying.</p>
-                                  <button type="button" className="payment-button payment-submit" disabled={disabled} onClick={() => void pay(selected)}>
-                                    {busy === selected.id ? "Opening secure checkout…" : "Pay now on HubSpot"}
+                                  <p className="payment-small">
+                                    {testCheckout
+                                      ? "No real payment is made in test checkout."
+                                      : "Confirm the final amount, billing frequency and terms on HubSpot before paying."}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    className="payment-button payment-submit"
+                                    disabled={disabled}
+                                    onClick={() => void pay(selected)}
+                                  >
+                                    {busy === selected.id
+                                      ? "Opening checkout…"
+                                      : testCheckout
+                                        ? "Open test checkout"
+                                        : "Pay now on HubSpot"}
                                   </button>
                                 </>
                               ) : (
                                 <>
-                                  <p className="payment-small">ESA is a manual review option. This request does not access or deduct ESA funds and does not confirm payment.</p>
-                                  <button type="button" className="payment-button payment-submit" disabled={disabled} onClick={() => void requestEsa(selected)}>
-                                    {busy === selected.id ? "Saving request…" : "Request ESA review"}
+                                  <p className="payment-small">
+                                    ESA is a manual review option. This request
+                                    does not access or deduct ESA funds and does
+                                    not confirm payment.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    className="payment-button payment-submit"
+                                    disabled={disabled}
+                                    onClick={() => void requestEsa(selected)}
+                                  >
+                                    {busy === selected.id
+                                      ? "Saving request…"
+                                      : "Request ESA review"}
                                   </button>
                                 </>
                               )}
                             </>
                           )}
                           {selected.payment && waiting(selected.payment) && (
-                            <p className="payment-small">A checkout has already been started for this item. Check its status or contact TALA before paying again; an unverified payment may already have been collected.</p>
+                            <p className="payment-small">
+                              A checkout has already been started for this item.
+                              Check its status or contact TALA before paying
+                              again; an unverified payment may already have been
+                              collected.
+                            </p>
                           )}
-                          {!workspace.integration.testMode && !canStart && checkoutRetryItem === selected.id && selected.payment && waiting(selected.payment) && (
-                            <div className="payment-details">
-                              <p>The checkout page did not open. Retry the original request to recover the same handoff.</p>
-                              <button type="button" className="payment-button payment-button-secondary" disabled={disabled} onClick={() => void pay(selected, true)}>Retry opening checkout</button>
-                            </div>
-                          )}
+                          {!injectedTest &&
+                            !canStart &&
+                            checkoutRetryItem === selected.id &&
+                            selected.payment &&
+                            waiting(selected.payment) && (
+                              <div className="payment-details">
+                                <p>
+                                  The checkout page did not open. Retry the
+                                  original request to recover the same handoff.
+                                </p>
+                                <button
+                                  type="button"
+                                  className="payment-button payment-button-secondary"
+                                  disabled={disabled}
+                                  onClick={() => void pay(selected, true)}
+                                >
+                                  Retry opening checkout
+                                </button>
+                              </div>
+                            )}
                         </div>
                       )}
                     </>
                   ) : (
                     <div className="hubspot-payment-empty">
                       <h3>No assigned payment items yet</h3>
-                      <p>TALA must approve the application or class request and assign its payment item before checkout becomes available.</p>
-                      <Link to="/dashboard?view=classes">View class requests</Link>
+                      <p>
+                        TALA must approve the application or class request and
+                        assign its payment item before checkout becomes
+                        available.
+                      </p>
+                      <Link to="/dashboard?view=classes">
+                        View class requests
+                      </Link>
                     </div>
                   )}
                 </section>
-                <aside className="payment-context hubspot-payment-context" aria-label="Payment options and next steps">
+                <aside
+                  className="payment-context hubspot-payment-context"
+                  aria-label="Payment options and next steps"
+                >
                   <h2>Payment options</h2>
                   {workspace.products.map((product) => (
-                    <section className="hubspot-payment-product" key={product.type}>
+                    <section
+                      className="hubspot-payment-product"
+                      key={product.type}
+                    >
                       <h3>{product.name}</h3>
-                      <p className="hubspot-product-price">{money(product.amountCents)} <span>{product.cycle}</span></p>
+                      <p className="hubspot-product-price">
+                        {money(product.amountCents)}{" "}
+                        <span>{product.cycle}</span>
+                      </p>
                       <p>{product.description}</p>
                       {product.type === "quarterly_enrollment" ? (
-                        <p className="payment-small">This is a recurring subscription with an initial charge followed by quarterly charges. Review renewal and cancellation terms on HubSpot.</p>
+                        <p className="payment-small">
+                          This is a recurring subscription with an initial
+                          charge followed by quarterly charges. Review renewal
+                          and cancellation terms on HubSpot.
+                        </p>
                       ) : (
-                        <p className="payment-small">This checkout is for an approved in-person, two-hour session. Other class formats require TALA to confirm a compatible payment option.</p>
+                        <p className="payment-small">
+                          This checkout is for an approved in-person, two-hour
+                          session. Other class formats require TALA to confirm a
+                          compatible payment option.
+                        </p>
                       )}
                       <p className="payment-small">{product.priceNotice}</p>
                     </section>
                   ))}
                   <div className="hubspot-payment-next">
                     <h3>After checkout</h3>
-                    <p>Return to this page to check your payment status. Automatic return from HubSpot is not configured.</p>
-                    <p>Keep your HubSpot receipt. The server must confirm payment before TALA marks the item as paid.</p>
+                    <p>
+                      Return to this page to check your payment status.
+                      Automatic return from HubSpot is not configured.
+                    </p>
+                    <p>
+                      Keep your HubSpot receipt. The server must confirm payment
+                      before TALA marks the item as paid.
+                    </p>
                   </div>
                 </aside>
               </div>
-              <section className="payment-panel hubspot-payment-history" aria-labelledby="payment-history-heading">
+              <section
+                className="payment-panel hubspot-payment-history"
+                aria-labelledby="payment-history-heading"
+              >
                 <div className="hubspot-payment-history-heading">
                   <div>
                     <h2 id="payment-history-heading">Payment activity</h2>
-                    <p className="payment-small">Saved to your account. Times are shown in Arizona time (MST).</p>
+                    <p className="payment-small">
+                      Saved to your account. Times are shown in Arizona time
+                      (MST).
+                    </p>
                   </div>
-                  <button type="button" className="payment-button payment-button-secondary" disabled={disabled} onClick={() => setAttempt((value) => value + 1)}>Refresh records</button>
+                  <button
+                    type="button"
+                    className="payment-button payment-button-secondary"
+                    disabled={disabled}
+                    onClick={() => setAttempt((value) => value + 1)}
+                  >
+                    Refresh records
+                  </button>
                 </div>
                 {workspace.payments.length ? (
                   <ol className="hubspot-payment-ledger">
@@ -551,30 +734,72 @@ export function HubSpotPaymentPage({
                       <li key={payment.id}>
                         <div className="hubspot-payment-ledger-main">
                           <h3>{payment.label}</h3>
-                          <p>{[payment.studentName, payment.billingPeriod].filter(Boolean).join(" · ")}</p>
-                          <p className="payment-small">{payment.provider === "hubspot" ? "HubSpot checkout" : "ESA manual review"} · Updated {date(payment.updatedAt)}</p>
-                          {payment.note && <p className="payment-small">{payment.note}</p>}
+                          <p>
+                            {[payment.studentName, payment.billingPeriod]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                          <p className="payment-small">
+                            {payment.provider === "hubspot"
+                              ? "HubSpot checkout"
+                              : "ESA manual review"}{" "}
+                            · Updated {date(payment.updatedAt)}
+                          </p>
+                          {payment.note && (
+                            <p className="payment-small">{payment.note}</p>
+                          )}
                           <details className="hubspot-payment-reference">
                             <summary>Payment reference</summary>
                             <dl>
-                              <div><dt>TALA reference</dt><dd>{payment.id}</dd></div>
-                              <div><dt>HubSpot payment ID</dt><dd>{payment.providerPaymentId ?? "Not verified yet"}</dd></div>
-                              <div><dt>Confirmation</dt><dd>{payment.verifiedAt ? `Server verified ${date(payment.verifiedAt)}` : "No verified payment confirmation"}</dd></div>
+                              <div>
+                                <dt>TALA reference</dt>
+                                <dd>{payment.id}</dd>
+                              </div>
+                              <div>
+                                <dt>HubSpot payment ID</dt>
+                                <dd>
+                                  {payment.providerPaymentId ??
+                                    "Not verified yet"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt>Confirmation</dt>
+                                <dd>
+                                  {payment.verifiedAt
+                                    ? `Server verified ${date(payment.verifiedAt)}`
+                                    : "No verified payment confirmation"}
+                                </dd>
+                              </div>
                             </dl>
                           </details>
                         </div>
                         <div className="hubspot-payment-ledger-state">
                           <strong>{money(payment.amountCents)}</strong>
                           <PaymentBadge status={payment.status} />
-                          {payment.provider === "hubspot" && payment.status !== "paid" && (
-                            <button type="button" className="payment-button payment-button-secondary" disabled={disabled} onClick={() => void verify(payment)}>{busy === payment.id ? "Checking…" : "Check status"}</button>
-                          )}
+                          {payment.provider === "hubspot" &&
+                            payment.status !== "paid" && (
+                              <button
+                                type="button"
+                                className="payment-button payment-button-secondary"
+                                disabled={disabled}
+                                onClick={() => void verify(payment)}
+                              >
+                                {busy === payment.id
+                                  ? "Checking…"
+                                  : "Check status"}
+                              </button>
+                            )}
                         </div>
                       </li>
                     ))}
                   </ol>
                 ) : (
-                  <div className="hubspot-payment-empty"><p>Your checkout attempts and funding requests will appear here.</p></div>
+                  <div className="hubspot-payment-empty">
+                    <p>
+                      Your checkout attempts and funding requests will appear
+                      here.
+                    </p>
+                  </div>
                 )}
               </section>
             </>
