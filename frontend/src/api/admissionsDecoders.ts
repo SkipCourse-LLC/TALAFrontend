@@ -48,6 +48,37 @@ export function slot(raw: unknown): AdmissionSlot {
     isAvailable: v.isAvailable,
   };
 }
+/** A join link is accepted only as an https URL with no credentials, and only when ready. */
+function meeting(
+  raw: unknown,
+): NonNullable<NonNullable<AdmissionApplication["appointment"]>["meeting"]> {
+  const m = object(raw);
+  const status = literal(m.status, [
+    "ready",
+    "pending",
+    "failed",
+    "unavailable",
+  ]);
+  if (m.joinUrl === null) {
+    if (status === "ready") throw new TalaApiError("INVALID_RESPONSE");
+    return { status, joinUrl: null };
+  }
+  const value = text(m.joinUrl, 300);
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new TalaApiError("INVALID_RESPONSE");
+  }
+  if (
+    status !== "ready" ||
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { status, joinUrl: url.href };
+}
 export function application(raw: unknown): AdmissionApplication {
   const v = object(raw),
     version = count(v.version);
@@ -65,6 +96,15 @@ export function application(raw: unknown): AdmissionApplication {
       startsAt,
       endsAt,
       status: literal(a.status, ["reserved", "cancelled"]),
+      meeting: a.meeting == null ? null : meeting(a.meeting),
+      confirmationEmail:
+        a.confirmationEmail == null
+          ? null
+          : literal<"sent" | "failed" | "unavailable">(a.confirmationEmail, [
+              "sent",
+              "failed",
+              "unavailable",
+            ]),
     };
   }
   return {
@@ -101,16 +141,14 @@ export function application(raw: unknown): AdmissionApplication {
 export function current(raw: unknown): AdmissionCurrent {
   const v = object(raw),
     integrations = object(v.integrations);
-  if (
-    v.mode !== "local_test" ||
-    integrations.email !== "unavailable" ||
-    integrations.meeting !== "unavailable"
-  )
-    throw new TalaApiError("INVALID_RESPONSE");
+  if (v.mode !== "local_test") throw new TalaApiError("INVALID_RESPONSE");
   return {
     application: v.application === null ? null : application(v.application),
     slots: array(v.slots, 1000).map(slot),
-    integrations: { email: "unavailable", meeting: "unavailable" },
+    integrations: {
+      email: literal(integrations.email, ["available", "unavailable"]),
+      meeting: literal(integrations.meeting, ["available", "unavailable"]),
+    },
     mode: "local_test",
   };
 }

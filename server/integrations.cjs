@@ -48,7 +48,7 @@ function emailAdapter(mode, google) {
 
 // ---- meeting links ------------------------------------------------------
 function meetingAdapter(mode, google) {
-  if (mode === "disabled") return { mode, createMeeting: () => unavailable("meeting") };
+  if (mode === "disabled") return { mode, createMeeting: () => unavailable("meeting"), deleteMeeting: () => unavailable("meeting") };
   if (mode === "google-meet") return createGoogleMeetAdapter({ tokens: google.tokens(), apiBase: google.settings.apiBase, calendarId: google.settings.calendarId });
   return {
     mode,
@@ -59,6 +59,7 @@ function meetingAdapter(mode, google) {
       const id = randomUUID();
       return { provider: "mock", meetingId: id, status: "ready", joinUrl: `https://meet.example.test/${id}`, title: text(input.title, "meeting title", 120), startsAt: iso(starts), endsAt: iso(ends) };
     },
+    async deleteMeeting() { return { removed: true }; },
   };
 }
 

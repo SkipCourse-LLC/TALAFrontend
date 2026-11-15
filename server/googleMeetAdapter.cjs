@@ -10,7 +10,8 @@ const MEET_URL = /^https:\/\/meet\.google\.com\/[a-z0-9-]{3,64}$/;
 const SCHOOL_TIME_ZONE = "America/Phoenix";
 
 function createGoogleMeetAdapter({ tokens, apiBase, calendarId }) {
-  const eventsUrl = `${apiBase}/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1&sendUpdates=none`;
+  const eventBase = `${apiBase}/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`;
+  const eventsUrl = `${eventBase}?conferenceDataVersion=1&sendUpdates=none`;
   return {
     mode: "google-meet",
     async createMeeting(input) {
@@ -45,6 +46,17 @@ function createGoogleMeetAdapter({ tokens, apiBase, calendarId }) {
       if (statusCode === "failure" || typeof joinUrl !== "string" || !MEET_URL.test(joinUrl))
         throw integrationUnavailable("meeting", new ProviderError("Google Calendar", 200, "no_meet_link"));
       return { ...base, status: "ready", joinUrl };
+    },
+    /** Removes a meeting TALA created. An event that is already gone counts as removed. Sends no Google notices. */
+    async deleteMeeting(meetingId) {
+      if (typeof meetingId !== "string" || !/^[A-Za-z0-9_-]{1,1024}$/.test(meetingId)) fail(400, "INVALID_INPUT", "This meeting cannot be removed.");
+      try {
+        await tokens.call("Google Calendar", `${eventBase}/${encodeURIComponent(meetingId)}?sendUpdates=none`, { method: "DELETE" });
+      } catch (error) {
+        if (error instanceof ProviderError && (error.status === 404 || error.status === 410)) return { removed: true };
+        throw integrationUnavailable("meeting", error);
+      }
+      return { removed: true };
     },
   };
 }

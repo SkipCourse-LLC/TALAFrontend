@@ -3,7 +3,7 @@ const { runtimeRevision, dataScope, assertCurrentRevision } = require("./runtime
 const http = require("node:http");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
-const { openDatabase, transaction } = require("./database.cjs");
+const { openDatabase, transaction, SCHEMA_VERSION } = require("./database.cjs");
 const { createServices, userDTO, MAX_FILE_BYTES } = require("./services.cjs");
 const { createAdmissions } = require("./admissions.cjs");
 const { createPayments } = require("./payments.cjs");
@@ -26,7 +26,8 @@ function createApplication(options = {}) {
   if (!allowedOrigins.size || [...allowedOrigins].some((origin) => { try { return new URL(origin).origin !== origin; } catch { return true; } })) throw new Error("Configure explicit application origins, never a wildcard.");
   const db = openDatabase(dataDir);
   const { services, operator, lists, goals, updates, preparations, reflectionDrafts, calendar, contactRequests, admissionsContext } = createServices(db, dataDir, { localStudentPreview });
-  const integrations = createIntegrations(options.integrations, { publicOpenTimes: () => services.publicOpenTimes() });
+  // integrationEnv lets tests point Google modes at a local fake; the server itself reads process.env.
+  const integrations = createIntegrations(options.integrations, { publicOpenTimes: () => services.publicOpenTimes() }, options.integrationEnv ?? process.env);
   const sessionTtl = options.sessionTtlMs || 12 * 3600000;
   const cookieName = "tala_session";
   function currentSession(req) {
@@ -100,7 +101,7 @@ function createApplication(options = {}) {
       return { user: session.user, session };
     },
   });
-  const admissions = createAdmissions(db, { ...admissionsContext, session: currentSession, mutation });
+  const admissions = createAdmissions(db, { ...admissionsContext, session: currentSession, mutation, integrations });
   const payments = createPayments(db, { guard: admissionsContext.guard, read: lists.read, config: options.paymentConfig, provider: options.paymentProvider || null });
   operator.addInterviewTime = input => admissions.addAvailability(input);
   operator.createTestOperator = async input => {
@@ -158,7 +159,7 @@ function createApplication(options = {}) {
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
       if (route === "/api/auth/local-student-preview" && !localStudentPreview) fail(404, "NOT_FOUND", "This local preview entry is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 13, schemaVersion: 12, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", integrations: integrations.describe(), payment: "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 14, schemaVersion: SCHEMA_VERSION, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: integrations.describe().email === "disabled" ? "unavailable" : integrations.describe().email, zoom: "unavailable", ai: "unavailable", integrations: integrations.describe(), payment: "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
       if (req.method === "GET" && route === "/api/session") {
         // A cross-site top-level navigation omits SameSite=Strict cookies but
         // can still accept Set-Cookie. Do not overwrite a signed-in browser
@@ -226,7 +227,7 @@ function createApplication(options = {}) {
       }
       if (req.method === "POST" && route === "/api/admissions/interview") {
         rate(req, "admissions-write", 100);
-        return json(res, admissions.book(req, await body(req)));
+        return json(res, await admissions.book(req, await body(req)));
       }
       if (req.method === "POST" && route === "/api/admissions/document-preference") return json(res, admissions.preference(req, await body(req)));
       if (req.method === "POST" && route === "/api/admissions/documents/intents") {
@@ -291,7 +292,9 @@ function createApplication(options = {}) {
         const input = contactRequests.validate(await body(req));
         rate(req, "contact-request", 10);
         rate(req, "contact-request-all", 200, "all-clients");
-        return json(res, contactRequests.submit(input), 201);
+        const saved = contactRequests.submit(input);
+        await contactRequests.acknowledge(saved.id, input.details, integrations.email);
+        return json(res, saved, 201);
       }
       const actor = actorFor(req);
       let match;

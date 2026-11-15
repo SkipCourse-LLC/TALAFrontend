@@ -57,7 +57,10 @@ const requestDTO = (row) => ({
   id: row.id, parentName: row.parent_name, email: row.email, phone: row.phone, preferredMethod: row.preferred_method,
   availability: JSON.parse(row.availability_json), timeZone: SCHOOL_TIME_ZONE, ...(row.notes ? { notes: row.notes } : {}),
   status: row.status, receivedAt: iso(row.created_at), updatedAt: iso(row.updated_at),
+  acknowledgementEmail: row.acknowledgement ?? null,
 });
+const WITH_ACKNOWLEDGEMENT = "SELECT c.*,n.email_status AS acknowledgement FROM contact_requests c LEFT JOIN contact_request_notifications n ON n.contact_request_id=c.id";
+const METHOD_WORDS = { email: "email", phone: "phone", text: "text message" };
 
 function createContactRequestServices(db, { operation, requireOperator, lists }) {
   return {
@@ -88,7 +91,7 @@ function createContactRequestServices(db, { operation, requireOperator, lists })
         const status = lists.choice(params, "status", ["all", ...STATUSES], "all");
         const where = status === "all" ? [] : ["c.status=?"], values = status === "all" ? [] : [status];
         return lists.page(actor, params, "operations-contact-requests", null, { status }, {
-          select: "SELECT c.* FROM contact_requests c", where, values,
+          select: WITH_ACKNOWLEDGEMENT, where, values,
           time: "c.created_at", timeField: "created_at", id: "c.id", limit: 50, dto: requestDTO,
         });
       });
@@ -102,7 +105,23 @@ function createContactRequestServices(db, { operation, requireOperator, lists })
         db.prepare("UPDATE contact_requests SET status=?,updated_at=?,updated_by=? WHERE id=?").run(input.status, Date.now(), actor.uid, id);
         return { id };
       });
-      return requestDTO(db.prepare("SELECT * FROM contact_requests WHERE id=?").get(saved.id));
+      return requestDTO(db.prepare(`${WITH_ACKNOWLEDGEMENT} WHERE c.id=?`).get(saved.id));
+    },
+    /**
+     * Sends one "we received your request" email per saved request. The claim row
+     * is written before sending, so a resent form never sends a second email.
+     * The email repeats only the family's name, never their notes.
+     */
+    async acknowledge(id, details, emailService) {
+      if (!emailService) return;
+      const claimed = db.prepare("INSERT OR IGNORE INTO contact_request_notifications VALUES(?,'unavailable',?)").run(id, Date.now()).changes === 1;
+      if (!claimed || emailService.mode === "disabled") return;
+      let status = "sent";
+      try {
+        await emailService.send({ to: details.email, subject: "TALA received your request",
+          text: `Hello ${details.parentName},\n\nThank you for contacting TALA. We received your request and will reach out by ${METHOD_WORDS[details.preferredMethod]} soon.\n\nTALA` });
+      } catch { status = "failed"; }
+      db.prepare("UPDATE contact_request_notifications SET email_status=?,updated_at=? WHERE contact_request_id=?").run(status, Date.now(), id);
     },
   };
 }

@@ -23,6 +23,9 @@ export async function startFakeGoogle() {
     events: [],
     messages: [],
     unauthorizedServed: false,
+    deleteMode: "ok", // ok | error500
+    deleted: [],
+    deleteQueries: [],
   };
 
   function json(res, status, body, headers = {}) {
@@ -85,6 +88,17 @@ export async function startFakeGoogle() {
         };
       }
       return json(res, 200, event);
+    }
+
+    const single = /^\/calendar\/v3\/calendars\/([^/]+)\/events\/([^/]+)$/.exec(url.pathname);
+    if (req.method === "DELETE" && single) {
+      if (!bearerOk(req)) return json(res, 401, { error: { code: 401, status: "UNAUTHENTICATED" } });
+      if (state.deleteMode === "error500") return json(res, 500, { error: { code: 500, status: "INTERNAL" } });
+      const id = decodeURIComponent(single[2]);
+      state.deleteQueries.push(Object.fromEntries(url.searchParams));
+      if (state.deleted.includes(id) || !state.events.some((_, index) => `fakeevent${index + 1}` === id)) return json(res, 410, { error: { code: 410, status: "GONE" } });
+      state.deleted.push(id);
+      res.writeHead(204); return res.end();
     }
 
     if (req.method === "POST" && url.pathname === "/gmail/v1/users/me/messages/send") {

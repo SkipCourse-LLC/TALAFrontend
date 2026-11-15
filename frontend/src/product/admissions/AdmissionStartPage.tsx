@@ -15,6 +15,7 @@ import type {
   DocumentPreference,
 } from "../../api";
 import { hasTextControls, isWellFormedText } from "../unicodeText";
+import { familyMeetingNote } from "./interviewConnection";
 import "./admissions.css";
 
 const statusLabels: Record<AdmissionApplication["status"], string> = {
@@ -431,10 +432,29 @@ function ApplicationPortal({
               <p className="admission-meeting-date">
                 {dateLabel(booked.startsAt)}
               </p>
-              <p className="admission-muted">
-                Local test reservation saved. No email was sent and no live
-                meeting link is connected.
-              </p>
+              {(() => {
+                const note = familyMeetingNote(booked);
+                return (
+                  <>
+                    <p className="admission-muted">{note.meeting}</p>
+                    {note.joinUrl && (
+                      <p>
+                        <a
+                          className="admission-join-link"
+                          href={note.joinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Join the video interview
+                        </a>
+                      </p>
+                    )}
+                    {note.email && (
+                      <p className="admission-muted">{note.email}</p>
+                    )}
+                  </>
+                );
+              })()}
             </>
           ) : editable ? (
             <>
@@ -459,7 +479,7 @@ function ApplicationPortal({
                             },
                             signal,
                           ),
-                        "Test interview reserved. No email was sent.",
+                        "Interview booked.",
                       );
                   }}
                 >

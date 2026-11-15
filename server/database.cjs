@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 const EXTENSIONS = `
   CREATE TABLE IF NOT EXISTS availability_state (
     slot_id TEXT PRIMARY KEY REFERENCES slots(id),
@@ -210,6 +210,21 @@ const EXTENSIONS = `
     PRIMARY KEY(scope,kind,request_id)
   ) STRICT;
 
+  CREATE TABLE IF NOT EXISTS admissions_meetings (
+    appointment_id TEXT PRIMARY KEY REFERENCES admissions_appointments(id),
+    provider TEXT NOT NULL CHECK(provider IN ('none','mock','google-meet')),
+    meeting_id TEXT, join_url TEXT,
+    meeting_status TEXT NOT NULL CHECK(meeting_status IN ('ready','pending','failed','unavailable')),
+    email_status TEXT NOT NULL CHECK(email_status IN ('sent','failed','unavailable')),
+    cleanup_status TEXT NOT NULL DEFAULT 'none' CHECK(cleanup_status IN ('none','removed','failed')),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    CHECK(meeting_status!='ready' OR join_url IS NOT NULL)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS contact_request_notifications (
+    contact_request_id TEXT PRIMARY KEY REFERENCES contact_requests(id),
+    email_status TEXT NOT NULL CHECK(email_status IN ('sent','failed','unavailable')),
+    updated_at INTEGER NOT NULL
+  ) STRICT;
 `;
 
 function backupBeforeMigration(db, dataDir, version) {
