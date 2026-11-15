@@ -15,7 +15,11 @@ pattern+='|sk_live_[0-9A-Za-z]{10,}|rk_live_[0-9A-Za-z]{10,}'      # Stripe live
 pattern+='|xox[abprs]-[A-Za-z0-9-]{10,}'                 # Slack tokens
 pattern+='|SG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}'   # SendGrid keys
 
-if files=$(git grep -lIE "$pattern" -- . ':!.github/scripts/leak-scan.sh'); then
+# --staged checks what is about to be committed (used by the local pre-commit hook).
+scope=()
+[ "${1:-}" = "--staged" ] && scope=(--cached)
+
+if files=$(git grep "${scope[@]}" -lIE "$pattern" -- . ':!.github/scripts/leak-scan.sh'); then
   echo "Possible secrets in tracked files (values not shown):"
   echo "$files"
   echo "::error::Remove the values, revoke them with their provider, and use environment variables instead."

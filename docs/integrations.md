@@ -36,6 +36,14 @@ Status as of 2026-11-13. Update the **Access status** column whenever a request 
 - `server/test/googleMeet.test.mjs` runs the Meet adapter against a local fake Google server (`server/test/fakeGoogle.mjs`): token reuse, early refresh, one retry on 401, revoked keys, quota, outages, pending conferences, timeouts and secret-free errors.
 - Tests: `server/test/integrations.test.mjs` (T4-1, T4-3, T4-4) and `server/test/contract.test.mjs` (T4-2: every server route is in `contract.json` and every contract route is served).
 
+## Where secrets live
+
+- Real values go in a file outside the repository and outside OneDrive: `%USERPROFILE%\.tala\server.env`, readable only by your Windows account. `server/.env.example` lists the names with placeholders.
+- Start the server with them: `node --env-file="%USERPROFILE%\.tala\server.env" index.cjs` (from `server/`).
+- Never paste values into the repo, chat, email, Slack or Jira. Share them only through a password manager.
+- Two checks stop a repeat of the leaked keys: a local pre-commit hook runs `.github/scripts/leak-scan.sh --staged` and refuses the commit, and CI runs the same scan on every push.
+- If a value is ever exposed, delete that OAuth client (or secret) in Google Cloud first, then remove it from the code.
+
 ## Access requests
 
 Requests for each item above are sent to the Product Owner outside this repository. Record the date sent and the answer in the **Access status** column.
