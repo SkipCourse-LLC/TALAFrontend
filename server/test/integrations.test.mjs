@@ -41,7 +41,7 @@ test("T4-4 switching an adapter from its default to mock is configuration only",
 });
 
 test("unknown integrations or modes stop startup with the allowed choices", () => {
-  assert.throws(() => resolveModes({ email: "smtp" }, {}), /email cannot use mode "smtp"\. Choose disabled, mock \(set TALA_EMAIL_ADAPTER\)/);
+  assert.throws(() => resolveModes({ email: "smtp" }, {}), /email cannot use mode "smtp"\. Choose disabled, mock, gmail \(set TALA_EMAIL_ADAPTER\)/);
   assert.throws(() => resolveModes({ fax: "mock" }, {}), /Unknown integration "fax"/);
   assert.throws(() => resolveModes({}, { TALA_BILLING_ADAPTER: "live" }), /billing cannot use mode "live"/);
 });

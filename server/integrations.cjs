@@ -6,9 +6,10 @@
 // or the TALA_*_ADAPTER environment variables. Unknown modes stop startup.
 // Every adapter method is async in every mode, so callers never change.
 const { randomUUID } = require("node:crypto");
-const { fail, object, email, text } = require("./security.cjs");
+const { fail, object, text } = require("./security.cjs");
 const { createGoogleTokenSource, googleSettings } = require("./googleAuth.cjs");
 const { createGoogleMeetAdapter } = require("./googleMeetAdapter.cjs");
+const { createGmailAdapter, emailMessage } = require("./gmailAdapter.cjs");
 
 const SCHOOL_TIME_ZONE = "America/Phoenix"; // Tucson: UTC-7 all year, no daylight saving.
 const PHOENIX_OFFSET_MS = 7 * 3600000;
@@ -16,7 +17,7 @@ const OUTBOX_LIMIT = 200;
 const MAX_INVOICE_LINES = 20;
 
 const SPECS = Object.freeze({
-  email: { env: "TALA_EMAIL_ADAPTER", fallback: "disabled", modes: ["disabled", "mock"] },
+  email: { env: "TALA_EMAIL_ADAPTER", fallback: "disabled", modes: ["disabled", "mock", "gmail"] },
   meeting: { env: "TALA_MEETING_ADAPTER", fallback: "disabled", modes: ["disabled", "mock", "google-meet"] },
   availability: { env: "TALA_AVAILABILITY_ADAPTER", fallback: "local", modes: ["local", "mock"] },
   billing: { env: "TALA_BILLING_ADAPTER", fallback: "hubspot_links", modes: ["hubspot_links", "mock"] },
@@ -28,15 +29,15 @@ async function unavailable(kind) {
 const iso = (value) => new Date(value).toISOString();
 
 // ---- email --------------------------------------------------------------
-function emailAdapter(mode) {
+function emailAdapter(mode, google) {
   if (mode === "disabled") return { mode, send: () => unavailable("email") };
+  if (mode === "gmail") return createGmailAdapter({ tokens: google.tokens(), apiBase: google.settings.apiBase, sender: google.settings.gmailSender });
   const outbox = [];
   return {
     mode,
     /** Mock delivery: nothing leaves this process. Messages are kept for tests and staging review. */
     async send(message) {
-      object(message, ["to", "subject", "text"]);
-      const saved = { id: randomUUID(), to: email(message.to), subject: text(message.subject, "email subject", 200), text: text(message.text, "email text", 20000), sentAt: iso(Date.now()) };
+      const saved = { id: randomUUID(), ...emailMessage(message), sentAt: iso(Date.now()) };
       outbox.push(saved);
       if (outbox.length > OUTBOX_LIMIT) outbox.shift();
       return { id: saved.id, status: "delivered_to_mock_outbox" };
@@ -61,7 +62,7 @@ function meetingAdapter(mode, google) {
   };
 }
 
-// ---- availability (EZAMU contract) ---------------------------------------
+// ---- availability (provider not chosen; TALA is moving away from EZAMU) ---
 // Every mode returns the same shape:
 // { source, timeZone, sessions: [{ id, sessionType: "one_on_one"|"pod", label, startsAt, endsAt, capacity, remaining }] }
 function phoenixDate(dayStart, hour, minute) {
@@ -99,7 +100,7 @@ function availabilityAdapter(mode, dependencies) {
   }
   return {
     mode,
-    /** Representative EZAMU-shaped 1:1 and 20:1 pod times, generated without any network access. */
+    /** Placeholder 1:1 and 20:1 pod times, generated without any network access, until a provider is chosen. */
     async listSessions({ now = Date.now(), days = 21 } = {}) {
       return { source: "mock", timeZone: SCHOOL_TIME_ZONE, sessions: mockSessions(now, days) };
     },
@@ -111,6 +112,7 @@ function availabilityAdapter(mode, dependencies) {
 function billingAdapter(mode) {
   if (mode === "hubspot_links") {
     // Today the server only knows the two fixed HubSpot payment links (payments.cjs).
+    // On hold: TALA is moving payments to Chase; the product is not chosen yet.
     return { mode, createInvoice: () => unavailable("billing"), getInvoice: () => unavailable("billing") };
   }
   const invoices = new Map();
@@ -161,7 +163,7 @@ function createIntegrations(configured, dependencies, env = process.env) {
   const modes = resolveModes(configured, env);
   const google = googleProvider(env);
   const adapters = {
-    email: emailAdapter(modes.email),
+    email: emailAdapter(modes.email, google),
     meeting: meetingAdapter(modes.meeting, google),
     availability: availabilityAdapter(modes.availability, dependencies),
     billing: billingAdapter(modes.billing),

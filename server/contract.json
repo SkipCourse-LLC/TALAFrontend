@@ -1310,10 +1310,11 @@
       "env": "TALA_EMAIL_ADAPTER",
       "modes": {
         "disabled": "default; send() returns 503 INTEGRATION_UNAVAILABLE",
-        "mock": "keeps up to 200 messages in memory; nothing is delivered"
+        "mock": "keeps up to 200 messages in memory; nothing is delivered",
+        "gmail": "sends plain-text mail from TALA_GMAIL_SENDER through the Gmail API (users.messages.send, gmail.send scope only). Uses the same Google credentials as google-meet. Provider failures return 503"
       },
       "interface": {
-        "send({to, subject, text})": "{id, status}"
+        "send({to, subject, text})": "Promise<{id, status: delivered_to_mock_outbox|sent}>; subject and recipient are single-line, text may have line breaks"
       }
     },
     "meeting": {
@@ -1332,12 +1333,12 @@
       "env": "TALA_AVAILABILITY_ADAPTER",
       "modes": {
         "local": "default; Tina's published meeting times as 1:1 sessions",
-        "mock": "EZAMU-shaped 1:1 (Mon/Wed) and 20:1 pod (Tue/Thu) times in America/Phoenix, no network"
+        "mock": "placeholder 1:1 (Mon/Wed) and 20:1 pod (Tue/Thu) times in America/Phoenix, no network"
       },
       "interface": {
-        "listSessions({now?, days?})": "{source, timeZone, sessions: [{id, sessionType: one_on_one|pod, label, startsAt, endsAt, capacity, remaining}]}"
+        "listSessions({now?, days?})": "Promise<{source, timeZone, sessions: [{id, sessionType: one_on_one|pod, label, startsAt, endsAt, capacity, remaining}]}>"
       },
-      "realService": "EZAMU, Bearer JWT; access not yet confirmed (SCRUM-91 adds the real mode)"
+      "realService": "Not chosen. TALA is moving away from EZAMU (2026-11-14); the placeholder stays until a provider is picked"
     },
     "billing": {
       "env": "TALA_BILLING_ADAPTER",
@@ -1346,10 +1347,10 @@
         "mock": "in-memory invoices for test mode"
       },
       "interface": {
-        "createInvoice({familyUid, reference, lines: [{description, amountCents}]})": "{id, familyUid, reference, lines, totalCents, status, provider, createdAt}",
-        "getInvoice(id)": "same invoice shape"
+        "createInvoice({familyUid, reference, lines: [{description, amountCents}]})": "Promise<{id, familyUid, reference, lines, totalCents, status: draft, provider, createdAt}>; never sends the invoice",
+        "getInvoice(id)": "Promise<same invoice shape>"
       },
-      "realService": "HubSpot test portal; access not yet confirmed (SCRUM-94/95 add the real mode and admin sign-off)"
+      "realService": "On hold. TALA is moving payments from HubSpot to Chase (2026-11-14); the Chase product is not chosen"
     }
   }
 }
