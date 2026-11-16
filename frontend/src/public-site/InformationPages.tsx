@@ -73,7 +73,7 @@ export function TuitionPage() {
           </article>
           <article>
             <h3>Faculty Advisor Check-In</h3>
-            <p>Included.</p>
+            <p>1 Hour a Week, Included.</p>
           </article>
           <article>
             <h3>In-Person Campus Program</h3>
