@@ -18,7 +18,7 @@ export function HomePage() {
           <div className="button-row">
             <a
               className="button"
-              href="https://calendar.app.google/dxMqwMFgLrUwVb157"
+              href="https://calendar.app.google/YapTB4MQLus16DATA"
             >
               Get started
             </a>
