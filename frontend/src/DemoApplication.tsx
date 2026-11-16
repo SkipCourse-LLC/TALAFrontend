@@ -6,6 +6,11 @@ import { CommunityPage } from "./public-site/CommunityPage";
 import { HomePage } from "./public-site/HomePage";
 import { AboutPage } from "./public-site/AboutPage";
 import { ProgramsPage } from "./public-site/ProgramsPage";
+import {
+  AdmissionsPage,
+  TuitionPage,
+  FaqPage,
+} from "./public-site/InformationPages";
 import { RegisterPage } from "./registration/RegisterPage";
 import { ApprovalPage } from "./payment/ApprovalPage";
 import { PaymentPage } from "./payment/PaymentPage";
@@ -71,6 +76,9 @@ export function DemoApplication() {
           <Route path="events" element={<CommunityPage kind="events" />} />
           <Route path="contact" element={<CommunityPage kind="contact" />} />
           <Route path="programs" element={<ProgramsPage />} />
+          <Route path="admissions" element={<AdmissionsPage />} />
+          <Route path="tuition" element={<TuitionPage />} />
+          <Route path="faq" element={<FaqPage />} />
           <Route
             path="register"
             element={<RegisterPage onComplete={beginVerification} />}

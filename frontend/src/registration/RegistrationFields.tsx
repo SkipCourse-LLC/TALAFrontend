@@ -196,15 +196,18 @@ export function RegistrationFields({
         <>
           {select("funding", "Funding preference", enrollmentOptions.funding)}
           <div className="notice registration-step-note">
-            <strong>Private funding. Checkout after approval.</strong>
+            <strong>Funding preference in this preview</strong>
             <p>
-              This step records private, self-funded enrollment. Review your
-              application status after verification; approved applications
-              continue to a separate checkout. No payment details are collected
-              here.
+              This preview records only private funding. TALA also accepts
+              Arizona ESA funding for qualifying students and STO scholarships.
+              Discuss these options with the team. No payment details are
+              collected here.
             </p>
             <p className="small">
-              Fees and payment instructions require confirmation from TALA.
+              Annual registration is $5,000 ($1,250 quarterly), including a
+              faculty advisor. Campus is $120/hour ($240 per two-hour block);
+              virtual group is $30/hour ($60 per two-hour block); online 1:1
+              specialized tutoring is $60/hour.
             </p>
           </div>
           <ol

@@ -1,5 +1,4 @@
 import type { IconName } from "../shared/Icon";
-// Awaiting final content from Ayushi/Tina. No pricing, schedules or outcomes assumed.
 export const programs: {
   id: string;
   title: string;
@@ -10,43 +9,25 @@ export const programs: {
   color: string;
 }[] = [
   {
-    id: "tutoring",
-    title: "Learning at your pace",
-    category: "One-on-one tutoring",
-    description: "Individual support, at your pace.",
+    id: "campus",
+    title: "In-Person Campus Program",
+    category: "Tucson campus",
+    description:
+      "Location: Tucson, Arizona. Designed for students ages 5–21 diagnosed with significant intellectual disabilities (SID), multiple disabilities (MD), or orthopedic impairments (OI) who require direct care, transfers, monitoring, or substantial support.",
     detail:
-      "Individual support focused on the learner. Subjects, availability, and the tutoring format will be confirmed by the TALA team.",
-    icon: "book",
-    color: "blue",
-  },
-  {
-    id: "group",
-    title: "Better, together",
-    category: "Group courses",
-    description: "Explore ideas together.",
-    detail:
-      "Shared learning and guided discussion. Course topics, group sizes, and schedules are awaiting confirmation.",
-    icon: "people",
-    color: "yellow",
-  },
-  {
-    id: "experiential",
-    title: "Beyond the classroom",
-    category: "Experiential learning",
-    description: "Hands-on learning, beyond a screen.",
-    detail:
-      "Hands-on experiences beyond a screen. Activities, locations, supervision, and participation requirements will be confirmed before enrollment.",
+      "Features include a 2:1 student-to-staff ratio, project-based mastery learning, integrated life skills, a sensory-controlled and wheelchair-accessible campus, on-site nursing support, and a double-shift scheduling option.",
     icon: "leaf",
     color: "green",
   },
   {
-    id: "interviews",
-    title: "Show up as yourself",
-    category: "Interview consulting",
-    description: "Practice sharing your story.",
+    id: "virtual",
+    title: "Virtual Academy",
+    category: "Nationwide online",
+    description:
+      "Available nationwide for medically homebound and immunocompromised learners, neurotypical students seeking flexible pacing, students needing alternative scheduling, and atypical learners requiring a personalized learning environment.",
     detail:
-      "Support in preparing for interview conversations. Scope, session format, and availability are awaiting confirmation.",
-    icon: "voice",
-    color: "pink",
+      "Features include small-group instruction, individual instruction options, weekly faculty advisor check-ins, flexible scheduling, and continuity during health-related disruptions. On-site nursing is part of the campus program, not the virtual program.",
+    icon: "book",
+    color: "blue",
   },
 ];

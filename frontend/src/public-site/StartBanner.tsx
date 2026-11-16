@@ -1,14 +1,19 @@
-import { Link } from "react-router-dom";
 export function StartBanner() {
   return (
     <section className="start-banner container">
       <div>
-        <h2>Your learning, in one place.</h2>
+        <h2>Let's talk about your learner.</h2>
+        <p>
+          Meet with our team to explore whether TALA is right for your family.
+        </p>
       </div>
       <div>
-        <Link to="/login" className="button button-light">
-          Open workspace
-        </Link>
+        <a
+          href="https://calendar.app.google/YapTB4MQLus16DATA"
+          className="button button-light"
+        >
+          Schedule a Free One-Hour Family Interview
+        </a>
       </div>
     </section>
   );
