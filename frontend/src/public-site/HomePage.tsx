@@ -16,9 +16,12 @@ export function HomePage() {
             Flexible learning for medically fragile and neurodivergent students.
           </p>
           <div className="button-row">
-            <Link className="button" to="/register">
+            <a
+              className="button"
+              href="https://calendar.app.google/dxMqwMFgLrUwVb157"
+            >
               Get started
-            </Link>
+            </a>
             <Link className="button button-outline" to="/programs">
               Programs
             </Link>
