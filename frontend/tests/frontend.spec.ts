@@ -57,6 +57,16 @@ async function expectNoOverflow(page: Page) {
   ).toBeTruthy();
 }
 
+test("homepage Get started link points to the meeting schedule", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Get started" })).toHaveAttribute(
+    "href",
+    "https://calendar.app.google/dxMqwMFgLrUwVb157",
+  );
+});
+
 test("public navigation, filters, refresh, history and not-found route", async ({
   page,
 }) => {
