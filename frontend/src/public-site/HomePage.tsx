@@ -66,6 +66,9 @@ export function HomePage() {
             width="600"
             height="570"
             alt="An illustrated learning journal with a seedling and a mountain sketch."
+            <Link className="button button-outline" to="/programs">
+              Explore Programs
+            </Link>
           />
         </figure>
       </section>
