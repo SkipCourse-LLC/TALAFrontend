@@ -61,15 +61,14 @@ export function HomePage() {
           </div>
         </div>
         <figure className="hero-art">
-          <img
-            src={learningDesk}
-            width="600"
-            height="570"
-            alt="An illustrated learning journal with a seedling and a mountain sketch."
-            <Link className="button button-outline" to="/programs">
-              Explore Programs
-            </Link>
-          />
+          <Link to="/programs">
+            <img
+              src={learningDesk}
+              width="600"
+              height="570"
+              alt="An illustrated learning journal with a seedling and a mountain sketch."
+            />
+          </Link>
         </figure>
       </section>
       <section className="section container">
