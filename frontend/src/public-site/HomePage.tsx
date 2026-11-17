@@ -61,14 +61,12 @@ export function HomePage() {
           </div>
         </div>
         <figure className="hero-art">
-          <Link to="/programs">
-            <img
-              src={learningDesk}
-              width="600"
-              height="570"
-              alt="An illustrated learning journal with a seedling and a mountain sketch."
-            />
-          </Link>
+          <img
+            src={learningDesk}
+            width="600"
+            height="570"
+            alt="An illustrated learning journal with a seedling and a mountain sketch."
+          />
         </figure>
       </section>
       <section className="section container">
