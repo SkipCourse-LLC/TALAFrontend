@@ -4,6 +4,27 @@
   padding-bottom: 48px;
   overflow-wrap: break-word;
 }
+.public-page .content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 20px;
+}
+.public-page .content-grid article {
+  padding: 24px;
+  border-radius: 18px;
+  background: white;
+}
+.public-page .content-grid h3 {
+  margin-top: 0;
+}
+.public-page .faq-list details {
+  padding: 20px 0;
+  border-bottom: 1px solid #d5ded8;
+}
+.public-page .faq-list summary {
+  cursor: pointer;
+  font-weight: 600;
+}
 .public-page .eyebrow {
   margin-bottom: 14px;
   color: var(--color-muted);

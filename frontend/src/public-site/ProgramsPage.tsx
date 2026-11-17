@@ -13,9 +13,10 @@ export function ProgramsPage() {
   return (
     <div className="public-page public-programs">
       <section className="page-intro container">
-        <h1>Programs</h1>
-        <p className="content-note">
-          Planned programs. Details and availability to be confirmed.
+        <h1>Specialized Education, In Person and Nationwide</h1>
+        <p className="lead">
+          Explore medically informed education on our Tucson campus and flexible
+          online special needs education nationwide.
         </p>
       </section>
       <section
@@ -78,12 +79,9 @@ export function ProgramsPage() {
                 <p className="eyebrow">{p.category}</p>
                 <h2>{p.title}</h2>
                 <p className="lead">{p.description}</p>
-                <details className="public-program-details">
-                  <summary>Details</summary>
-                  <p>{p.detail}</p>
-                </details>
-                <Link className="text-link" to="/register">
-                  Get started <Icon name="arrow" />
+                <p>{p.detail}</p>
+                <Link className="text-link" to="/admissions">
+                  Admissions <Icon name="arrow" />
                 </Link>
               </div>
             </article>

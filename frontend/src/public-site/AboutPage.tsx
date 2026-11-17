@@ -1,112 +1,68 @@
 import { Link } from "react-router-dom";
-import { Icon } from "../shared/Icon";
 import { StartBanner } from "./StartBanner";
 
+const principles = [
+  [
+    "Health First",
+    "Learning cannot happen when students are unsafe, overwhelmed, or unsupported medically. Clinical safety and medically informed instruction make learning accessible.",
+  ],
+  [
+    "Dignity Always",
+    "Every learner deserves respect, belonging, and support that honors their individual needs and voice.",
+  ],
+  [
+    "Mastery Over Compliance",
+    "We measure progress through demonstrated ability and meaningful growth, rather than expecting every student to learn or show understanding in the same way.",
+  ],
+  [
+    "Family Partnership",
+    "Families know their children best. We listen and work together to shape each learner's path.",
+  ],
+  [
+    "Continuity of Learning",
+    "Instruction should continue through medical challenges, including flare-ups, recovery, and hospital stays, rather than stopping when students need support most.",
+  ],
+];
 export function AboutPage() {
   return (
     <div className="public-page public-about">
       <section className="page-intro container">
-        <h1>A place for different ways to learn.</h1>
+        <h1>Education grounded in health, dignity, and possibility</h1>
         <p className="lead">
-          Planned around medically fragile and neurodivergent learners.
+          Tucson Adaptive Learning Academy is an accredited K-12 educational
+          program where individualized instruction and pediatric clinical care
+          come together.
         </p>
-        <p className="content-note">
-          Programs and opening details await confirmation.
+        <p>
+          We serve medically fragile students, learners with severe
+          developmental disabilities and profound learning needs, wheelchair
+          users, and students who need clinical support to participate in
+          meaningful education.
         </p>
       </section>
-      <section className="container about-mission">
-        <span className="public-feature-symbol">
-          <Icon name="leaf" />
-        </span>
-        <div>
-          <h2>Our mission</h2>
-          <p>Health, dignity and individual support guide our plans.</p>
+      <section className="container section">
+        <h2>Our philosophy</h2>
+        <div className="content-grid">
+          {principles.map(([title, text]) => (
+            <article key={title}>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </article>
+          ))}
         </div>
       </section>
-      <section
-        className="container about-principles"
-        aria-label="Proposed learning principles"
-      >
-        <article>
-          <Icon name="user" />
-          <h2>Learner first.</h2>
-        </article>
-        <article>
-          <Icon name="book" />
-          <h2>Many ways to learn.</h2>
-        </article>
-        <article>
-          <Icon name="people" />
-          <h2>Families included.</h2>
-        </article>
-      </section>
-      <section className="container information-sections about-details">
-        <article>
-          <div>
-            <h2>Registration</h2>
-          </div>
-          <div>
-            <p>
-              Share your interest and meet Tina. Create your account after
-              approval.
-            </p>
-            <div className="button-row">
-              <Link className="button" to="/register">
-                Start registration
-              </Link>
-              <Link className="text-link" to="/register?intent=waiting-list">
-                Waiting list preview
-              </Link>
-            </div>
-          </div>
-        </article>
-        <article>
-          <div>
-            <h2>Flexible learning</h2>
-          </div>
-          <div>
-            <p>In-person and online options. Schedules to be confirmed.</p>
-            <Link className="text-link" to="/programs">
-              Programs <Icon name="arrow" />
-            </Link>
-          </div>
-        </article>
-        <article>
-          <div>
-            <h2>Private funding</h2>
-          </div>
-          <div>
-            <p>
-              Private funding. Fees await confirmation; no payments are
-              collected.
-            </p>
-            <Link className="text-link" to="/register">
-              Get started <Icon name="arrow" />
-            </Link>
-          </div>
-        </article>
-      </section>
-      <section className="container school-details">
+      <section className="container home-about">
         <div>
-          <h2>Coming later</h2>
+          <h2>A partnership with families</h2>
+          <p>
+            Our adaptive learning academy brings education and care together so
+            each student can pursue meaningful goals in an environment built
+            around their needs.
+          </p>
+          <Link className="text-link" to="/programs">
+            Explore Programs
+          </Link>
         </div>
-        <ul>
-          <li>
-            <span>Opening plans &amp; campus</span>
-            <span>Being confirmed</span>
-          </li>
-          <li>
-            <span>Founders &amp; school team</span>
-            <span>Being confirmed</span>
-          </li>
-          <li>
-            <span>Lectures &amp; visiting professors</span>
-            <span>Being confirmed</span>
-          </li>
-        </ul>
-        <Link className="text-link" to="/events">
-          Community events <Icon name="arrow" />
-        </Link>
       </section>
       <StartBanner />
     </div>

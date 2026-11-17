@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Icon } from "../shared/Icon";
+import { StartBanner } from "./StartBanner";
 
 export function CommunityPage({ kind }: { kind: "events" | "contact" }) {
   const events = kind === "events";
@@ -7,58 +7,45 @@ export function CommunityPage({ kind }: { kind: "events" | "contact" }) {
     <div className="public-page public-community">
       <section className="page-intro container">
         <h1>{events ? "Community events" : "Contact TALA"}</h1>
+        <p className="lead">
+          {events
+            ? "Connect with the Tucson Adaptive Learning Academy community."
+            : "We welcome conversations about your learner, their needs, and your family's educational goals."}
+        </p>
       </section>
       <section className="container public-community-content">
         <div className="public-empty-state">
-          <span className="public-feature-symbol">
-            <Icon name={events ? "people" : "voice"} />
-          </span>
-          <h2>{events ? "No events yet." : "Contact details coming soon."}</h2>
-          {!events && <p>Inquiries are not connected.</p>}
-          <Link
-            className="button button-outline"
-            to={events ? "/learn-more" : "/programs"}
-          >
-            {events ? "About TALA" : "Programs"}
-          </Link>
-        </div>
-        {events && (
-          <div className="community-upcoming">
-            <h2>Being planned</h2>
-            <div>
-              <article>
-                <Icon name="voice" />
-                <div>
-                  <h3>Lecture series</h3>
-                </div>
-              </article>
-              <article>
-                <Icon name="book" />
-                <div>
-                  <h3>Visiting professors</h3>
-                </div>
-              </article>
-            </div>
-          </div>
-        )}
-        <div className="community-next-step">
-          <div>
-            <h2>Your next step.</h2>
-          </div>
-          <div className="button-row">
-            <Link className="button" to="/register">
-              Get started
+          {events ? (
+            <>
+              <h2>No events announced yet</h2>
+              <p>
+                Explore our programs or schedule a family interview to learn
+                more about TALA.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2>Talk with our team</h2>
+              <p>
+                Schedule a free one-hour family interview to discuss our Tucson
+                campus, nationwide Virtual Academy, admissions, and funding.
+              </p>
+              <a
+                className="button"
+                href="https://calendar.app.google/YapTB4MQLus16DATA"
+              >
+                Schedule a Free One-Hour Family Interview
+              </a>
+            </>
+          )}
+          <p>
+            <Link className="text-link" to="/programs">
+              Explore Programs
             </Link>
-            <Link
-              className="text-link"
-              to={events ? "/programs" : "/learn-more"}
-            >
-              {events ? "Programs" : "About TALA"}
-              <Icon name="arrow" />
-            </Link>
-          </div>
+          </p>
         </div>
       </section>
+      <StartBanner />
     </div>
   );
 }

@@ -6,6 +6,11 @@ import { RouteFocus } from "../shared/RouteFocus";
 import { HomePage } from "../public-site/HomePage";
 import { AboutPage } from "../public-site/AboutPage";
 import { ProgramsPage } from "../public-site/ProgramsPage";
+import {
+  AdmissionsPage,
+  TuitionPage,
+  FaqPage,
+} from "../public-site/InformationPages";
 import { CommunityPage } from "../public-site/CommunityPage";
 import { NotFoundPage } from "../public-site/NotFoundPage";
 import { PaymentPage } from "../payment/PaymentPage";
@@ -157,6 +162,9 @@ export function FirebaseApplication() {
           <Route path="about" element={<AboutPage />} />
           <Route path="learn-more" element={<AboutPage />} />
           <Route path="programs" element={<ProgramsPage />} />
+          <Route path="admissions" element={<AdmissionsPage />} />
+          <Route path="tuition" element={<TuitionPage />} />
+          <Route path="faq" element={<FaqPage />} />
           <Route path="events" element={<CommunityPage kind="events" />} />
           <Route path="contact" element={<CommunityPage kind="contact" />} />
           <Route

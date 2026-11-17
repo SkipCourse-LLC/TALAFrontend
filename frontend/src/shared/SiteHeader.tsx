@@ -66,10 +66,9 @@ export function SiteHeader({
           </NavLink>
           <NavLink to="/learn-more">About</NavLink>
           <NavLink to="/programs">Programs</NavLink>
-          <NavLink to="/register">Enrollment</NavLink>
-          <NavLink to="/events" aria-label="Community Events">
-            Events
-          </NavLink>
+          <NavLink to="/admissions">Admissions</NavLink>
+          <NavLink to="/tuition">Tuition</NavLink>
+          <NavLink to="/faq">FAQs</NavLink>
           <NavLink to="/contact">Contact</NavLink>
           <div className="nav-actions">
             <NavLink

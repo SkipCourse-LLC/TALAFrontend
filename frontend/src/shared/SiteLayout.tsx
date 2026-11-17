@@ -44,7 +44,8 @@ export function SiteLayout({
           </>
         )}
       </div>
-      {workspaceHeader && ["/dashboard", "/payment"].includes(location.pathname) ? (
+      {workspaceHeader &&
+      ["/dashboard", "/payment"].includes(location.pathname) ? (
         workspaceHeader
       ) : (
         <SiteHeader key={location.pathname} session={session} />
@@ -63,9 +64,15 @@ export function SiteLayout({
             <nav aria-label="Footer">
               <Link to="/about">About</Link>
               <Link to="/programs">Programs</Link>
+              <Link to="/admissions">Admissions</Link>
+              <Link to="/tuition">Tuition</Link>
+              <Link to="/faq">FAQs</Link>
               <Link to="/contact">Contact</Link>
             </nav>
-            <small>Local records · External services require authorization.</small>
+            <small>
+              Tucson Adaptive Learning Academy · Accredited K-12 education and
+              pediatric clinical care.
+            </small>
           </div>
         ) : (
           <>
@@ -73,18 +80,21 @@ export function SiteLayout({
               <div>
                 <Brand />
                 <p>
-                  Room to learn.
-                  <br />
-                  Space to become yourself.
+                  Tucson Adaptive Learning Academy: accredited K-12 education
+                  and pediatric clinical care.
                 </p>
               </div>
               <nav aria-label="Footer">
                 <Link to="/about">About TALA</Link>
                 <Link to="/programs">Explore programs</Link>
+                <Link to="/admissions">Admissions</Link>
+                <Link to="/tuition">Tuition and funding</Link>
+                <Link to="/faq">FAQs</Link>
+                <Link to="/contact">Contact</Link>
                 <Link to={session ? "/dashboard" : "/login"}>Student hub</Link>
               </nav>
               <div className="footer-note">
-                <p>Your learning. Your next step.</p>
+                <p>Health, dignity, and meaningful learning.</p>
                 <small>
                   {backend
                     ? "Authentication uses Firebase. Meeting, evidence and payment services require an approved environment and team integration."
@@ -98,7 +108,7 @@ export function SiteLayout({
                   ? "TALA-Hub · Backend integration"
                   : "TALA-Hub · Frontend product preview"}
               </span>
-              <span>Built for different ways to learn.</span>
+              <span>Education designed around each learner.</span>
             </div>
           </>
         )}

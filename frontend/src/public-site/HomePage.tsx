@@ -1,123 +1,107 @@
 import { Link } from "react-router-dom";
-import { Icon } from "../shared/Icon";
 import { ProgramCards } from "./ProgramCards";
 import { StartBanner } from "./StartBanner";
 import learningDesk from "../assets/learning-desk.svg";
+
+const distinctions = [
+  [
+    "Ultra-Low 2:1 In-Person Ratio",
+    "A two-student-to-one-educator ratio supports individualized attention on campus.",
+  ],
+  [
+    "On-Site Licensed Nurse Every Hour",
+    "Clinical nursing coverage is integrated throughout campus instructional blocks.",
+  ],
+  [
+    "Sensory-controlled micro-campus",
+    "A purpose-built, accessible environment minimizes auditory and visual overstimulation while supporting safety.",
+  ],
+  [
+    "Zero-loss dual enrollment bridge",
+    "Students can transition to virtual instruction during medical flare-ups, recovery, or hospital stays without disrupting educational progress.",
+  ],
+  [
+    "50-week continuous calendar",
+    "Year-round instruction helps reduce regression and maintain a familiar routine.",
+  ],
+  [
+    "Real diplomas & meaningful milestones",
+    "Progress is measured through mastery, evidence, portfolios, and individual achievement—not arbitrary testing ceilings.",
+  ],
+];
+
 export function HomePage() {
   return (
     <div className="public-page public-home">
       <section className="hero container">
         <div className="hero-copy">
-          <h1>
-            Room to learn. <br />
-            Space to grow.
-          </h1>
+          <h1>A School Designed Around Health, Dignity &amp; True Potential</h1>
           <p className="lead">
-            Flexible learning for medically fragile and neurodivergent students.
+            Accredited K-12 Education with Dedicated On-Site Pediatric Clinical
+            Care
+          </p>
+          <p>
+            Finding an educational home for a child with complex medical needs
+            or severe developmental disabilities should never mean choosing
+            between clinical safety and meaningful learning. TALA delivers both
+            through individualized instruction, continuous nursing support, and
+            a sensory-controlled learning environment built specifically for
+            exceptional learners.
           </p>
           <div className="button-row">
             <a
               className="button"
               href="https://calendar.app.google/YapTB4MQLus16DATA"
             >
-              Get started
+              Schedule a Family Interview
             </a>
             <Link className="button button-outline" to="/programs">
-              Programs
+              Explore Programs
             </Link>
           </div>
-          <p className="hero-preview-note">
-            School plans and programs await confirmation.
-          </p>
         </div>
         <figure className="hero-art">
           <img
             src={learningDesk}
             width="600"
             height="570"
-            alt="An illustrated learning journal with a seedling, a mountain sketch, and notes to ask, explore, and grow."
+            alt="An illustrated learning journal with a seedling and a mountain sketch."
           />
-          <figcaption className="hero-hub-preview">
-            <div className="hero-hub-heading">
-              <span className="hero-hub-symbol">
-                <Icon name="book" />
-              </span>
-              <div>
-                <strong>Student hub</strong>
-              </div>
-            </div>
-            <ul>
-              <li>
-                <Icon name="book" />
-                <span>Learning paths</span>
-              </li>
-              <li>
-                <Icon name="grid" />
-                <span>Personal calendar</span>
-              </li>
-              <li>
-                <Icon name="folder" />
-                <span>Projects &amp; progress</span>
-              </li>
-            </ul>
-            <Link to="/login">
-              Open hub <Icon name="arrow" />
-            </Link>
-          </figcaption>
         </figure>
       </section>
-      <section
-        className="home-principles container"
-        aria-label="The proposed TALA approach"
-      >
-        <div>
-          <Icon name="user" />
-          <div>
-            <h2>Your pace.</h2>
-          </div>
-        </div>
-        <div>
-          <Icon name="leaf" />
-          <div>
-            <h2>Your curiosity.</h2>
-          </div>
-        </div>
-        <div>
-          <Icon name="grid" />
-          <div>
-            <h2>Your next step.</h2>
-          </div>
+      <section className="section container">
+        <h2>What Sets TALA Apart</h2>
+        <div className="content-grid">
+          {distinctions.map(([title, description]) => (
+            <article key={title}>
+              <h3>{title}</h3>
+              <p>{description}</p>
+            </article>
+          ))}
         </div>
       </section>
       <section className="section container public-program-section">
         <div className="section-heading">
-          <div>
-            <h2>Explore your path.</h2>
-          </div>
+          <h2>Education built around the learner</h2>
           <Link className="text-link" to="/programs">
-            All programs <Icon name="arrow" />
+            Explore Programs
           </Link>
         </div>
         <ProgramCards />
       </section>
       <section className="container home-about">
         <div>
-          <h2>A school taking shape</h2>
+          <h2>A school where care and learning belong together</h2>
           <p>
-            In-person and online learning, built around each learner. Opening
-            details to come.
+            Tucson Adaptive Learning Academy is an accredited K-12 educational
+            program combining individualized instruction with dedicated
+            pediatric clinical care for medically fragile students and learners
+            with severe developmental disabilities.
           </p>
-          <Link className="text-link" to="/learn-more">
-            About TALA <Icon name="arrow" />
+          <Link className="text-link" to="/about">
+            Our philosophy
           </Link>
         </div>
-        <aside>
-          <Icon name="people" />
-          <h3>Grow together.</h3>
-          <Link className="text-link" to="/events">
-            Community events <Icon name="arrow" />
-          </Link>
-        </aside>
       </section>
       <StartBanner />
     </div>
