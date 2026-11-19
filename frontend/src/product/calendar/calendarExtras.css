@@ -274,3 +274,35 @@
 .tala-calendar .tala-cal-class-bottom .tala-cal-enroll.tala-cal-enroll-small {
   margin-left: 0;
 }
+
+/* Day view's Back button, bottom left, when the day was opened from Month or
+   Week. */
+.tala-cal-board-footer {
+  align-items: center;
+}
+.tala-cal-footer-start {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.9rem;
+}
+.tala-calendar .tala-cal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 30px;
+  padding: 0 0.7rem 0 0.45rem;
+  border: 1px solid var(--cal-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--cal-green);
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  font-weight: 500;
+}
+.tala-cal-back .icon {
+  width: 16px;
+  height: 16px;
+}
+.tala-cal-back:hover {
+  background: var(--cal-soft, #f4f7f5);
+}

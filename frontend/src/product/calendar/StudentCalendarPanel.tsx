@@ -128,6 +128,8 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   const selectedDay =
     chosenDay.slice(0, 7) === month ? chosenDay : `${month}-01`;
   const [view, setView] = useState<CalendarView>(preferences?.view ?? "Month");
+  // The Month or Week view a day was opened from, for the Back button.
+  const [returnView, setReturnView] = useState<"Month" | "Week" | null>(null);
   const [ownCategories, setOwnCategories] = useState<CalendarCategory[]>(
     () => preferences?.categories ?? categories.map((item) => item.id),
   );
@@ -362,12 +364,17 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
       if (box) box.style.viewTransitionName = "";
     });
   }
-  /** A day box grows into that day's schedule. */
-  function openDay(day: string) {
+  /**
+   * A day box grows into that day's schedule. Opening a day from Month or
+   * Week remembers that view so Back can return to it; the Day tab does not.
+   */
+  function openDay(day: string, remember = true) {
+    const from = remember && view !== "Day" ? view : null;
     animate(
       () => {
         chooseDay(day);
         setDayEventId(null);
+        setReturnView(from);
         setView("Day");
       },
       () => dayBox(day),
@@ -375,13 +382,31 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   }
   function switchView(next: CalendarView) {
     if (next === view) return;
-    if (next === "Day") openDay(selectedDay);
-    else if (view === "Day")
+    if (next === "Day") {
+      openDay(selectedDay, false);
+      return;
+    }
+    setReturnView(null);
+    if (view === "Day")
       animate(
         () => setView(next),
         () => dayBox(selectedDay),
       );
     else setView(next);
+  }
+  /** Back from a day to the Month or Week view it was opened from. */
+  function goBack() {
+    if (!returnView) return;
+    const to = returnView;
+    setReturnView(null);
+    animate(
+      () => {
+        // Keyboard focus lands on the day's date in the grid.
+        needsDateFocus.current = true;
+        setView(to);
+      },
+      () => dayBox(selectedDay),
+    );
   }
   /**
    * Arrow keys work anywhere on the calendar page, not only on the grid's
@@ -774,8 +799,20 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
             </div>
           )}
           <p className="tala-cal-board-footer">
-            <span>
-              <span aria-hidden="true">◷ </span>Arizona Time (MST · UTC−07:00)
+            <span className="tala-cal-footer-start">
+              {view === "Day" && returnView && (
+                <button
+                  type="button"
+                  className="tala-cal-back"
+                  onClick={goBack}
+                >
+                  <Icon name="chevron-left" />
+                  Back to {returnView === "Week" ? "week" : "month"}
+                </button>
+              )}
+              <span>
+                <span aria-hidden="true">◷ </span>Arizona Time (MST · UTC−07:00)
+              </span>
             </span>
             {view !== "Day" && (
               <span className="tala-cal-legend" aria-label="Request colours">
