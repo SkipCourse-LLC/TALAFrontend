@@ -57,20 +57,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* About's philosophy: the heading on the left, the five principles listed
-   on the right with hairlines between them; each title sits above its text. */
-.public-page .philosophy {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  gap: 0 64px;
-  align-items: start;
-}
+/* About's philosophy: the heading above a left-aligned list of the five
+   principles, hairlines between them; each title sits above its text. */
 .public-page .philosophy > h2 {
-  position: sticky;
-  top: 32px;
-  margin: 0;
+  margin: 0 0 28px;
 }
 .public-page .principle-list {
+  max-width: 780px;
   border-bottom: 1px solid var(--home-line-strong);
   font-family: var(--font-public);
 }
@@ -97,15 +90,6 @@
   line-height: 1.7;
 }
 
-@media (max-width: 900px) {
-  .public-page .philosophy {
-    grid-template-columns: 1fr;
-  }
-  .public-page .philosophy > h2 {
-    position: static;
-    margin-bottom: 20px;
-  }
-}
 @media (max-width: 600px) {
   .public-page .fee-row {
     grid-template-columns: 1fr;
