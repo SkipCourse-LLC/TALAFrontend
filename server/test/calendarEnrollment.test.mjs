@@ -6,9 +6,9 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { hashPassword } from "../security.cjs";
+import { SCHEMA_VERSION } from "../database.cjs";
 import { createLocalBackup, verifyLocalBackup } from "../backup.cjs";
-import { SyntheticHttpClient } from "./support.mjs";
+import { SyntheticHttpClient, signUpForTest } from "./support.mjs";
 
 test("test calendar persists private enrollment, fences capacity and retries, and upgrades local schema without losing accounts", { timeout: 45000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "tala-calendar-enrollment-"));
@@ -23,14 +23,9 @@ test("test calendar persists private enrollment, fences capacity and retries, an
     const url = await start();
     async function student(accountType = "student") {
       const client = new SyntheticHttpClient(url); await client.bootstrap();
-      const email = `${randomUUID()}@example.test`, password = `Synthetic-${randomUUID()}`, uid = randomUUID();
-      const role = accountType === "parent" ? "parent" : "student";
-      const passwordHash = await hashPassword(password);
-      app.db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)")
-        .run(uid, email, "Synthetic calendar learner", passwordHash, role, Date.now());
-      const signedIn = await client.request("/api/auth/login", { method: "POST", json: { email, password } });
-      assert.equal(signedIn.status, 200);
-      return { client, user: signedIn.json.session };
+      const created = await signUpForTest(app, client, { name: "Synthetic calendar learner", email: `${randomUUID()}@example.test`, password: `Synthetic-${randomUUID()}`, accountType });
+      assert.equal(created.status, 200);
+      return { client, user: created.json.session };
     }
     const first = await student(), second = await student(), third = await student(), fourth = await student(), parent = await student("parent");
     const future = new Date(Date.now() + 7 * 86400000);
@@ -85,7 +80,7 @@ test("test calendar persists private enrollment, fences capacity and retries, an
     const legacy = new DatabaseSync(join(dataDir, "tala.sqlite"));
     legacy.exec("DROP TABLE calendar_enrollments; PRAGMA user_version=5;"); legacy.close();
     await start();
-    assert.equal(app.db.prepare("PRAGMA user_version").get().user_version, 10);
+    assert.equal(app.db.prepare("PRAGMA user_version").get().user_version, SCHEMA_VERSION);
     assert.equal(app.db.prepare("SELECT count(*) AS n FROM users").get().n, 5);
     assert.equal(app.db.prepare("SELECT count(*) AS n FROM appointments").get().n, 1);
     assert.equal(app.db.prepare("SELECT count(*) AS n FROM calendar_enrollments").get().n, 0);

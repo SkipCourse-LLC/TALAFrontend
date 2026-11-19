@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef1ea"/>
+      <stop offset="1" stop-color="#dfe6dc"/>
+    </linearGradient>
+    <linearGradient id="table" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9a77f"/>
+      <stop offset="1" stop-color="#a98559"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="220" fill="url(#wall)"/>
+  <rect x="250" y="18" width="120" height="92" rx="4" fill="#f7f8f3" stroke="#cdd6cb" stroke-width="3"/>
+  <path d="M310 18v92M250 64h120" stroke="#cdd6cb" stroke-width="3"/>
+  <rect y="150" width="400" height="70" fill="url(#table)"/>
+  <g>
+    <path d="M40 128h44l-6 32H46Z" fill="#c4704f"/>
+    <rect x="37" y="122" width="50" height="9" rx="2" fill="#d4825f"/>
+    <path d="M62 122c-2-22 2-40 6-48 2 10 2 30-2 48Z" fill="#5f8f6a"/>
+    <path d="M60 122c-10-14-14-30-12-40 8 6 14 24 14 40Z" fill="#4f7d5b"/>
+    <path d="M64 122c8-12 16-22 22-26-2 10-10 22-18 28Z" fill="#6c9a72"/>
+  </g>
+  <g>
+    <path d="M120 132h36l-5 28h-26Z" fill="#b9664a"/>
+    <rect x="117" y="127" width="42" height="8" rx="2" fill="#cc7957"/>
+    <ellipse cx="138" cy="116" rx="13" ry="14" fill="#7aa37c"/>
+    <ellipse cx="128" cy="122" rx="9" ry="8" fill="#6a9670"/>
+    <ellipse cx="149" cy="122" rx="9" ry="8" fill="#6a9670"/>
+  </g>
+  <g>
+    <path d="M300 126h48l-6 34h-36Z" fill="#c4704f"/>
+    <rect x="297" y="120" width="54" height="9" rx="2" fill="#d4825f"/>
+    <rect x="316" y="70" width="14" height="52" rx="7" fill="#5f8f6a"/>
+    <rect x="304" y="86" width="10" height="24" rx="5" fill="#5f8f6a"/>
+    <rect x="332" y="80" width="10" height="26" rx="5" fill="#5f8f6a"/>
+  </g>
+  <g>
+    <rect x="178" y="146" width="86" height="58" rx="3" fill="#fbfaf5" transform="rotate(-6 221 175)"/>
+    <path d="M190 160h58M190 170h50M190 180h56" stroke="#c9cdbf" stroke-width="2" transform="rotate(-6 221 175)"/>
+    <path d="M232 132l26 48" stroke="#2f3b3a" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <rect x="220" y="104" width="14" height="46" rx="2" fill="#a7c3cc" opacity=".8"/>
+  <path d="M227 104c-6-16 2-24 4-30 4 8 4 20-4 30Z" fill="#6c9a72"/>
+</svg>

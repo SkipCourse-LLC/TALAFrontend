@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { talaApi, TalaApiError, safeTalaApiError, newRequestId } from "../api";
 import type {
@@ -10,14 +11,22 @@ import type {
   ApiUser,
 } from "../api";
 import { meetingTime } from "./format";
-import { parseLocalMeetingTime } from "./meetingHelpers";
+import { localMeetingInput, parseLocalMeetingTime } from "./meetingHelpers";
+import { ContactRequestsPanel } from "./ContactRequestsPanel";
 import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
 import { AdmissionsReviewPanel } from "./admissions/AdmissionsReviewPanel";
 import { ClassesWorkspace } from "./calendar/ClassesWorkspace";
 import { OperatorPaymentsPanel } from "../payment/OperatorPaymentsPanel";
+import { Icon } from "../shared/Icon";
+import { LearningGlyph } from "./LearningGlyph";
+import {
+  DashboardSideMenu,
+  DashboardSideMenuButton,
+  DashboardSideMenuLabel,
+} from "./DashboardSideMenu";
 import "./operator.css";
 
-type Panel = "admissions" | "classes" | "payments" | "review" | "meetings" | "learning";
+type Panel = "admissions" | "classes" | "payments" | "review" | "meetings" | "learning" | "requests";
 type ReviewFilter = "not_reviewed" | "needs_revision" | "reviewed" | "all";
 type ReviewDraft = {
   status: "reviewed" | "needs_revision";
@@ -31,7 +40,22 @@ const panels: Array<{ id: Panel; label: string }> = [
   { id: "review", label: "Review evidence" },
   { id: "meetings", label: "Meetings" },
   { id: "learning", label: "Learning summaries" },
+  { id: "requests", label: "Contact requests" },
 ];
+const panelLabel = (id: Panel) =>
+  panels.find((item) => item.id === id)!.label;
+/** Short visible names; the accessible names above begin with the same words. */
+const panelText = (id: Panel) =>
+  id === "review" ? "Review" : id === "learning" ? "Summaries" : panelLabel(id);
+const panelSymbols: Record<Panel, ReactNode> = {
+  admissions: <Icon name="user" />,
+  classes: <LearningGlyph name="calendar" />,
+  payments: <Icon name="folder" />,
+  review: <LearningGlyph name="evidence" />,
+  meetings: <Icon name="people" />,
+  learning: <Icon name="book" />,
+  requests: <Icon name="voice" />,
+};
 const reviewLabel = {
   not_reviewed: "Awaiting review",
   reviewed: "Reviewed",
@@ -295,6 +319,8 @@ export function OperatorWorkspace({
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [label, setLabel] = useState("");
+  const [editingSlot, setEditingSlot] = useState<ApiManagedSlot | null>(null);
+  const editorHeading = useRef<HTMLHeadingElement>(null);
   const [appointmentId, setAppointmentId] = useState("");
   const [summaryDrafts, setSummaryDrafts] = useState<Record<string, string>>(
     {},
@@ -452,7 +478,9 @@ export function OperatorWorkspace({
           : [evidencePage]
         : panel === "meetings"
           ? [availabilityPage, bookingsPage]
-          : [endedPage, recordsPage];
+          : panel === "learning"
+            ? [endedPage, recordsPage]
+            : [];
   const loading = relevantPages.some((page) => page.loading);
   const loadError = relevantPages
     .map((page) => page.error)
@@ -471,16 +499,12 @@ export function OperatorWorkspace({
     if (error) errorBox.current?.focus();
   }, [error]);
 
-  function changePanel(next: Panel, focus = false) {
+  function changePanel(next: Panel) {
     setParams((current) => {
       const nextParams = new URLSearchParams(current);
       nextParams.set("panel", next);
       return nextParams;
     });
-    if (focus)
-      requestAnimationFrame(() =>
-        document.getElementById(`operator-tab-${next}`)?.focus(),
-      );
   }
   function refresh() {
     setRecordDetails({});
@@ -591,1066 +615,1121 @@ export function OperatorWorkspace({
   }
   return (
     <div className="container operator-workspace">
-      <header className="operator-heading">
-        <div>
-          <h1 aria-label="Learning operations">Operations</h1>
-        </div>
-        <div className="operator-header-actions">
-          <span>{user.name}</span>
-          <button
-            className="button button-secondary"
-            disabled={Boolean(busy)}
-            onClick={() => void run("logout", () => onLogout(), "", false)}
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-      <div className="operator-toolbar">
-        <div
-          role="tablist"
-          aria-label="Operations workspace"
-          className="operator-tabs"
-        >
-          {panels.map((item, index) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-label={item.label}
-              id={`operator-tab-${item.id}`}
-              aria-selected={panel === item.id}
-              aria-controls={`operator-panel-${item.id}`}
-              tabIndex={panel === item.id ? 0 : -1}
-              onClick={() => changePanel(item.id)}
-              onKeyDown={(event) => {
-                const next =
-                  event.key === "ArrowRight"
-                    ? (index + 1) % panels.length
-                    : event.key === "ArrowLeft"
-                      ? (index + panels.length - 1) % panels.length
-                      : event.key === "Home"
-                        ? 0
-                        : event.key === "End"
-                          ? panels.length - 1
-                          : undefined;
-                if (next !== undefined) {
-                  event.preventDefault();
-                  changePanel(panels[next]!.id, true);
-                }
-              }}
-            >
-              {item.id === "review"
-                ? "Review"
-                : item.id === "learning"
-                  ? "Summaries"
-                  : item.label}
-              {item.id === "review" && unreviewed.length > 0 && (
-                <span
-                  className="operator-tab-count"
-                  aria-label={`${unreviewed.length} loaded awaiting review`}
+      <div className="server-dashboard-shell operator-shell">
+        <DashboardSideMenu
+          label="Staff hub"
+          brand="Staff hub"
+          role={user.role}
+          currentKey={panel}
+          currentLabel={panelLabel(panel)}
+          currentText={panelText(panel)}
+          renderNav={(className, { id, collapsed }) => (
+            <nav id={id} className={className} aria-label="Operations workspace">
+              {panels.map((item) => (
+                <DashboardSideMenuButton
+                  key={item.id}
+                  current={panel === item.id}
+                  label={item.label}
+                  collapsed={collapsed}
+                  symbol={panelSymbols[item.id]}
+                  onClick={(event) => {
+                    const picker = event.currentTarget.closest("details");
+                    if (picker) picker.open = false;
+                    changePanel(item.id);
+                  }}
                 >
-                  {unreviewed.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          className="operator-refresh"
-          disabled={loading || Boolean(busy)}
-          onClick={refresh}
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
-      {loadError && (
-        <div className="operator-feedback operator-feedback-error" role="alert">
-          <strong>Records could not be refreshed.</strong>
-          <p>{loadError} Refresh before making changes.</p>
-        </div>
-      )}
-      {error && (
-        <div
-          className="operator-feedback operator-feedback-error"
-          role="alert"
-          tabIndex={-1}
-          ref={errorBox}
-        >
-          <strong>The change was not confirmed.</strong>
-          <p>
-            {error} If the connection failed after saving, refresh or retry the
-            same action.
-          </p>
-        </div>
-      )}
-      <p
-        role="status"
-        aria-live="polite"
-        className={
-          message
-            ? "operator-feedback operator-feedback-success"
-            : "operator-status-empty"
-        }
-      >
-        {message}
-      </p>
-      {loading && !operations && (
-        <div className="operator-loading" role="status">
-          Loading your work queue…
-        </div>
-      )}
-
-      {panel === "admissions" && (
-        <section
-          id="operator-panel-admissions"
-          role="tabpanel"
-          aria-labelledby="operator-tab-admissions"
-          className="operator-panel"
-        >
-          <AdmissionsReviewPanel
-            key={user.uid}
-            operatorUid={user.uid}
-            attempt={attempt}
-            onExpired={onExpired}
-          />
-        </section>
-      )}
-
-      {panel === "classes" && (
-        <section
-          id="operator-panel-classes"
-          role="tabpanel"
-          aria-labelledby="operator-tab-classes"
-          className="operator-panel"
-        >
-          <ClassesWorkspace
-            key={user.uid}
-            ownerUid={user.uid}
-            staffName={user.name}
-            attempt={attempt}
-            onExpired={onExpired}
-          />
-        </section>
-      )}
-
-      {panel === "payments" && (
-        <section id="operator-panel-payments" role="tabpanel" aria-labelledby="operator-tab-payments" className="operator-panel">
-          <OperatorPaymentsPanel key={user.uid} attempt={attempt} onExpired={onExpired} />
-        </section>
-      )}
-
-      <section
-        id="operator-panel-review"
-        role="tabpanel"
-        aria-labelledby="operator-tab-review"
-        hidden={panel !== "review"}
-        className="operator-panel"
-      >
-        <div className="operator-section-heading">
-          <div>
-            <h2 aria-label="Review student work">Review</h2>
-          </div>
-          <span className="operator-caption">
-            {operations
-              ? `${visibleEvidence.length} loaded${evidencePage.nextCursor ? ", more available" : ""}`
-              : "Loading queue…"}
-          </span>
-        </div>
-        <div className="operator-split">
-          <aside className="operator-queue" aria-label="Evidence queue">
-            <label className="form-field operator-search">
-              <span>Search</span>
-              <input
-                type="search"
-                aria-label="Search — Find student work"
-                maxLength={80}
-                placeholder="Student or document"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPinnedEvidence(undefined);
-                }}
-              />
-            </label>
-            <div className="form-field">
-              <label htmlFor="operator-review-filter">Review queue</label>
-              <select
-                id="operator-review-filter"
-                value={filter}
-                onChange={(event) => {
-                  setFilter(event.target.value as ReviewFilter);
-                  setPinnedEvidence(undefined);
-                }}
-              >
-                <option value="not_reviewed">Awaiting review</option>
-                <option value="needs_revision">Needs revision</option>
-                <option value="reviewed">Reviewed</option>
-                <option value="all">All evidence</option>
-              </select>
-            </div>
-            {!operations ? (
-              <p role="status">
-                {loading
-                  ? "Loading submitted work…"
-                  : "Refresh to load submitted work."}
-              </p>
-            ) : visibleEvidence.length ? (
-              <ul className="operator-selection-list">
-                {visibleEvidence.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      className={
-                        item.id === selectedEvidence?.id
-                          ? "operator-selection is-selected"
-                          : "operator-selection"
-                      }
-                      aria-pressed={item.id === selectedEvidence?.id}
-                      onClick={() => setEvidenceId(item.id)}
-                      disabled={Boolean(busy)}
+                  <DashboardSideMenuLabel>{panelText(item.id)}</DashboardSideMenuLabel>
+                  {item.id === "review" && unreviewed.length > 0 && (
+                    <span
+                      className="operator-tab-count"
+                      aria-label={`${unreviewed.length} loaded awaiting review`}
                     >
-                      <span className="operator-selection-title">
-                        {item.title}
-                      </span>
-                      <span>{item.studentName}</span>
-                      <span>
-                        Version {item.revisionNumber}
-                        {item.supersededByEvidenceId
-                          ? " · Previous version"
-                          : ""}
-                      </span>
-                      <span
-                        className={`operator-badge operator-badge-${item.reviewStatus}`}
-                      >
-                        {reviewLabel[item.reviewStatus]}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="operator-empty">
-                <p>
-                  {search
-                    ? "No matching work"
-                    : filter === "not_reviewed"
-                      ? "No work awaiting review."
-                      : "No work in this view."}
-                </p>
-                {filter !== "all" && evidence.length > 0 && (
-                  <button
-                    className="operator-text-button"
-                    onClick={() => {
-                      setFilter("all");
-                      setSearch("");
-                    }}
-                  >
-                    View all evidence
-                  </button>
-                )}
-              </div>
-            )}
-            <PageMore
-              page={evidencePage}
-              label="Load more evidence"
-              blocked={Boolean(busy) || loading}
-            />
-          </aside>
-          <div className="operator-editor">
-            {selectedEvidence ? (
-              <>
-                <header className="operator-document-heading">
-                  <span
-                    className={`operator-badge operator-badge-${selectedEvidence.reviewStatus}`}
-                  >
-                    {reviewLabel[selectedEvidence.reviewStatus]}
-                  </span>
-                  <h3 id="operator-document-title" tabIndex={-1}>
-                    {selectedEvidence.title}
-                  </h3>
-                  <p>
-                    {selectedEvidence.studentName} · Submitted{" "}
-                    {dateLabel(selectedEvidence.submittedAt)}
-                  </p>
-                  <div className="operator-document-meta">
-                    <span>Version {selectedEvidence.revisionNumber}</span>
-                    <span>
-                      {selectedEvidence.contentType === "application/pdf"
-                        ? "PDF document"
-                        : "Text document"}
-                    </span>
-                    <span>
-                      {Math.max(1, Math.ceil(selectedEvidence.size / 1024))} KiB
-                    </span>
-                  </div>
-                </header>
-                <button
-                  className="button button-secondary"
-                  disabled={blocked}
-                  aria-label={
-                    busy === `download:${selectedEvidence.id}`
-                      ? "Preparing download…"
-                      : `Download ${selectedEvidence.title}`
-                  }
-                  onClick={() =>
-                    void run(
-                      `download:${selectedEvidence.id}`,
-                      (signal) => download(selectedEvidence.id, signal),
-                      "Private download prepared.",
-                      false,
-                    )
-                  }
-                >
-                  {busy === `download:${selectedEvidence.id}`
-                    ? "Preparing download…"
-                    : "Download"}
-                </button>
-                {selectedEvidence.reviewNote && (
-                  <div className="operator-previous-review">
-                    <h4>Last feedback</h4>
-                    <p>{selectedEvidence.reviewNote}</p>
-                    {selectedEvidence.reviewedAt && (
-                      <small>
-                        Saved {dateLabel(selectedEvidence.reviewedAt)}
-                      </small>
-                    )}
-                  </div>
-                )}
-                {selectedEvidence.supersededByEvidenceId ? (
-                  <div className="operator-previous-review">
-                    <h4>Newer version available</h4>
-                    <p>
-                      This version stays in history. Review the latest version.
-                    </p>
-                    <button
-                      className="operator-text-button"
-                      type="button"
-                      disabled={blocked}
-                      onClick={() => {
-                        const next = evidence.find(
-                          (item) =>
-                            item.id === selectedEvidence.supersededByEvidenceId,
-                        );
-                        if (next) {
-                          setFilter("all");
-                          setSearch("");
-                          setEvidenceId(next.id);
-                        } else
-                          void run(
-                            `load-version:${selectedEvidence.supersededByEvidenceId}`,
-                            async (signal) => {
-                              const saved = await talaApi.getEvidence(
-                                selectedEvidence.supersededByEvidenceId!,
-                                signal,
-                              );
-                              if (
-                                saved.ownerUid !== selectedEvidence.ownerUid ||
-                                saved.rootEvidenceId !==
-                                  selectedEvidence.rootEvidenceId
-                              )
-                                throw new TalaApiError("INVALID_RESPONSE");
-                              if (!active.current || signal.aborted) return;
-                              setPinnedEvidence({
-                                ...saved,
-                                studentUid: selectedEvidence.studentUid,
-                                studentName: selectedEvidence.studentName,
-                              });
-                              setFilter("all");
-                              setSearch("");
-                              setEvidenceId(saved.id);
-                            },
-                            "Newer version loaded.",
-                            false,
-                          );
-                      }}
-                    >
-                      View newer version
-                    </button>
-                  </div>
-                ) : (
-                  <form
-                    className="operator-review-form"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      const selected = selectedEvidence;
-                      void run(
-                        `review:${selected.id}:${draft.expectedReviewVersion}:${draft.status}:${draft.note.trim()}`,
-                        async (signal, id) => {
-                          await talaApi.reviewEvidence(
-                            selected.id,
-                            {
-                              status: draft.status,
-                              note: draft.note.trim(),
-                              requestId: id,
-                              expectedReviewVersion:
-                                draft.expectedReviewVersion,
-                            },
-                            signal,
-                          );
-                          if (active.current && !signal.aborted)
-                            setReviewDrafts((current) => {
-                              const next = { ...current };
-                              delete next[selected.id];
-                              return next;
-                            });
-                        },
-                        `Review saved for ${selected.studentName}.`,
-                      );
-                    }}
-                  >
-                    {staleReview && (
-                      <div className="operator-previous-review" role="status">
-                        <h4>Review changed elsewhere</h4>
-                        <p>
-                          Draft kept. Compare the latest feedback before
-                          continuing.
-                        </p>
-                        <button
-                          type="button"
-                          className="operator-text-button"
-                          disabled={blocked}
-                          onClick={() =>
-                            updateReview({
-                              expectedReviewVersion:
-                                selectedEvidence.reviewVersion,
-                            })
-                          }
-                        >
-                          Use latest review version
-                        </button>
-                      </div>
-                    )}
-                    <fieldset
-                      className="operator-fields"
-                      disabled={blocked || staleReview}
-                    >
-                      <legend className="sr-only">
-                        Review submitted evidence
-                      </legend>
-                      <div className="form-field">
-                        <label htmlFor="operator-review-status">
-                          Review status
-                        </label>
-                        <select
-                          id="operator-review-status"
-                          value={draft.status}
-                          onChange={(event) =>
-                            updateReview({
-                              status: event.target
-                                .value as ReviewDraft["status"],
-                            })
-                          }
-                        >
-                          <option value="reviewed">Reviewed</option>
-                          <option value="needs_revision">Needs revision</option>
-                        </select>
-                      </div>
-                      <label className="form-field">
-                        <span>Review note</span>
-                        <textarea
-                          required
-                          maxLength={1000}
-                          rows={5}
-                          value={draft.note}
-                          onChange={(event) =>
-                            updateReview({ note: event.target.value })
-                          }
-                          placeholder="Feedback and next step"
-                        />
-                      </label>
-                      <p className="operator-field-help">
-                        Manual review. No grade or credit awarded.
-                      </p>
-                      <button
-                        className="button"
-                        disabled={!draft.note.trim()}
-                        aria-label={
-                          busy?.startsWith("review:")
-                            ? "Saving review…"
-                            : "Save review by staff"
-                        }
-                      >
-                        {busy?.startsWith("review:")
-                          ? "Saving review…"
-                          : "Save review"}
-                      </button>
-                    </fieldset>
-                  </form>
-                )}
-              </>
-            ) : (
-              <div className="operator-editor-empty">
-                <span className="operator-empty-mark" aria-hidden="true">
-                  ✓
-                </span>
-                <p>Choose a document.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section
-        id="operator-panel-meetings"
-        role="tabpanel"
-        aria-labelledby="operator-tab-meetings"
-        hidden={panel !== "meetings"}
-        className="operator-panel"
-      >
-        <div className="operator-section-heading">
-          <div>
-            <h2 aria-label="Meetings and availability">Meetings</h2>
-          </div>
-          <span className="operator-caption">
-            {Intl.DateTimeFormat().resolvedOptions().timeZone}
-          </span>
-        </div>
-        <div className="operator-split operator-meeting-split">
-          <div className="operator-queue">
-            <h3>Upcoming times</h3>
-            <div className="form-field">
-              <label htmlFor="operator-availability-status">
-                Meeting time status
-              </label>
-              <select
-                id="operator-availability-status"
-                value={availabilityStatus}
-                disabled={Boolean(busy)}
-                onChange={(event) =>
-                  setAvailabilityStatus(
-                    event.target.value as typeof availabilityStatus,
-                  )
-                }
-              >
-                <option value="all">All upcoming times</option>
-                <option value="available">Available</option>
-                <option value="reserved">Reserved</option>
-                <option value="withdrawn">Withdrawn</option>
-              </select>
-            </div>
-            {!operations ? (
-              <p role="status">
-                {loading
-                  ? "Loading availability…"
-                  : "Refresh to load availability."}
-              </p>
-            ) : operations.availability.length ? (
-              <ul
-                className="operator-availability"
-                aria-label="Upcoming meeting times"
-              >
-                {operations.availability.map((slot) => (
-                  <li key={slot.id}>
-                    <div className="operator-availability-heading">
-                      <strong>{slot.label || "Advising meeting"}</strong>
-                      <span
-                        className={`operator-badge operator-badge-${slot.status}`}
-                      >
-                        {slot.status === "available"
-                          ? "Available"
-                          : slot.status === "reserved"
-                            ? "Reserved"
-                            : "Withdrawn"}
-                      </span>
-                    </div>
-                    <p>{meetingTime(slot.startsAt, slot.endsAt)}</p>
-                    {slot.canWithdraw ? (
-                      <button
-                        type="button"
-                        className="operator-text-button"
-                        disabled={blocked}
-                        onClick={() =>
-                          void run(
-                            `withdraw:${slot.id}`,
-                            async (signal, requestId) => {
-                              await talaApi.withdrawAvailability(
-                                slot.id,
-                                { requestId },
-                                signal,
-                              );
-                            },
-                            "Meeting time withdrawn. Existing bookings were kept.",
-                          )
-                        }
-                      >
-                        {busy === `withdraw:${slot.id}`
-                          ? "Withdrawing…"
-                          : "Withdraw time"}
-                      </button>
-                    ) : slot.status === "withdrawn" ? (
-                      <button
-                        type="button"
-                        className="operator-text-button"
-                        disabled={blocked}
-                        onClick={() =>
-                          void run(
-                            `republish:${slot.id}`,
-                            async (signal, requestId) => {
-                              await talaApi.addAvailability(
-                                {
-                                  startsAt: slot.startsAt,
-                                  endsAt: slot.endsAt,
-                                  label: slot.label || undefined,
-                                  requestId,
-                                },
-                                signal,
-                              );
-                            },
-                            "Meeting time published again with its original title and times.",
-                          )
-                        }
-                      >
-                        {busy === `republish:${slot.id}`
-                          ? "Publishing…"
-                          : "Publish again"}
-                      </button>
-                    ) : (
-                      <p className="operator-field-help">
-                        Booked times cannot be withdrawn.
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="operator-empty">
-                <p>No upcoming times.</p>
-              </div>
-            )}
-            <PageMore
-              page={availabilityPage}
-              label="Load more meeting times"
-              blocked={Boolean(busy) || loading}
-            />
-            <details className="operator-booking-history">
-              <summary>
-                Recent bookings
-                {operations ? ` (${operations.appointments.length})` : ""}
-              </summary>
-              {operations?.appointments.length ? (
-                <ul className="operator-bookings">
-                  {operations.appointments.map((appointment) => (
-                    <li key={appointment.id}>
-                      <div>
-                        <strong>{appointment.studentName}</strong>
-                        <p>
-                          {meetingTime(
-                            appointment.startsAt,
-                            appointment.endsAt,
-                          )}
-                        </p>
-                      </div>
-                      <span
-                        className={`operator-badge operator-badge-${appointment.status}`}
-                      >
-                        {appointment.status === "ended"
-                          ? "Time ended"
-                          : appointment.status === "cancelled"
-                            ? "Cancelled"
-                            : "Reserved"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="operator-field-help">
-                  {operations
-                    ? "No bookings yet."
-                    : "Refresh to load bookings."}
-                </p>
-              )}
-              <p className="operator-field-help">
-                Attendance is unconfirmed. Live meeting links are unavailable.
-              </p>
-              <PageMore
-                page={bookingsPage}
-                label="Load more bookings"
-                blocked={Boolean(busy) || loading}
-              />
-            </details>
-          </div>
-          <div className="operator-editor">
-            <h3>Publish a time</h3>
-            <p className="operator-field-help" id="operator-time-zone-help">
-              {deviceTimeZone}. 15 minutes–4 hours. No overlaps or ambiguous
-              daylight-saving times.
-            </p>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void run(
-                  `availability:${startsAt}:${endsAt}:${label.trim()}`,
-                  async (signal, id) => {
-                    const start = parseLocalMeetingTime(startsAt),
-                      end = parseLocalMeetingTime(endsAt);
-                    if (
-                      !start ||
-                      !end ||
-                      start.getTime() <= Date.now() ||
-                      end.getTime() - start.getTime() < 15 * 60_000 ||
-                      end.getTime() - start.getTime() > 4 * 60 * 60_000
-                    )
-                      throw new TalaApiError("INVALID_INPUT");
-                    await talaApi.addAvailability(
-                      {
-                        startsAt: start.toISOString(),
-                        endsAt: end.toISOString(),
-                        label: label.trim() || undefined,
-                        requestId: id,
-                      },
-                      signal,
-                    );
-                    if (active.current && !signal.aborted) {
-                      setStartsAt("");
-                      setEndsAt("");
-                      setLabel("");
-                    }
-                  },
-                  "Meeting time published.",
-                );
-              }}
-            >
-              <fieldset className="operator-fields" disabled={blocked}>
-                <legend className="sr-only">Meeting availability</legend>
-                <label className="form-field">
-                  <span>Meeting label</span>
-                  <input
-                    value={label}
-                    onChange={(event) => setLabel(event.target.value)}
-                    maxLength={100}
-                    placeholder="Advising meeting"
-                  />
-                </label>
-                <div className="operator-time-fields">
-                  <label className="form-field">
-                    <span>Starts at</span>
-                    <input
-                      type="datetime-local"
-                      aria-describedby="operator-time-zone-help"
-                      required
-                      value={startsAt}
-                      onChange={(event) => setStartsAt(event.target.value)}
-                    />
-                  </label>
-                  <label className="form-field">
-                    <span>Ends at</span>
-                    <input
-                      type="datetime-local"
-                      aria-describedby="operator-time-zone-help"
-                      required
-                      value={endsAt}
-                      onChange={(event) => setEndsAt(event.target.value)}
-                    />
-                  </label>
-                </div>
-                <button
-                  className="button"
-                  aria-label={
-                    busy?.startsWith("availability:")
-                      ? "Publishing…"
-                      : "Publish availability"
-                  }
-                >
-                  {busy?.startsWith("availability:")
-                    ? "Publishing…"
-                    : "Publish"}
-                </button>
-              </fieldset>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <section
-        id="operator-panel-learning"
-        role="tabpanel"
-        aria-labelledby="operator-tab-learning"
-        hidden={panel !== "learning"}
-        className="operator-panel"
-      >
-        <div className="operator-section-heading">
-          <div>
-            <h2 aria-label="Staff learning summaries">Learning summaries</h2>
-          </div>
-        </div>
-        <div className="operator-split">
-          <aside className="operator-queue">
-            <h3>Ended periods</h3>
-            <div className="form-field">
-              <label htmlFor="operator-publication-filter">
-                Meeting summary status
-              </label>
-              <select
-                id="operator-publication-filter"
-                value={publication}
-                disabled={Boolean(busy)}
-                onChange={(event) =>
-                  setPublication(event.target.value as typeof publication)
-                }
-              >
-                <option value="unpublished">Needs a summary</option>
-                <option value="published">Published</option>
-                <option value="all">All ended periods</option>
-              </select>
-            </div>
-            {!operations ? (
-              <p role="status">
-                {loading
-                  ? "Loading scheduled periods…"
-                  : "Refresh to load scheduled periods."}
-              </p>
-            ) : ended.length || olderRecords.length ? (
-              <ul className="operator-selection-list">
-                {ended.map((appointment) => (
-                  <li key={appointment.id}>
-                    <button
-                      className={
-                        appointment.id === selectedAppointment?.id
-                          ? "operator-selection is-selected"
-                          : "operator-selection"
-                      }
-                      type="button"
-                      aria-pressed={appointment.id === selectedAppointment?.id}
-                      disabled={Boolean(busy)}
-                      onClick={() => setAppointmentId(appointment.id)}
-                    >
-                      <span className="operator-selection-title">
-                        {appointment.studentName}
-                      </span>
-                      <span>
-                        {meetingTime(appointment.startsAt, appointment.endsAt)}
-                      </span>
-                      <span
-                        className={`operator-badge ${appointment.learningRecordId ? "operator-badge-reviewed" : "operator-badge-not_reviewed"}`}
-                      >
-                        {appointment.learningRecordId
-                          ? "Published"
-                          : "Prepare summary"}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-                {olderRecords.length > 0 && (
-                  <li className="operator-published-label">
-                    <h4>Published summaries</h4>
-                  </li>
-                )}
-                {olderRecords.map((record) => (
-                  <li key={record.id}>
-                    <button
-                      type="button"
-                      className={
-                        record.appointmentId === selectedLearningId
-                          ? "operator-selection is-selected"
-                          : "operator-selection"
-                      }
-                      aria-pressed={record.appointmentId === selectedLearningId}
-                      disabled={Boolean(busy)}
-                      onClick={() => setAppointmentId(record.appointmentId)}
-                    >
-                      <span className="operator-selection-title">
-                        {record.studentName}
-                      </span>
-                      <span>Published {dateLabel(record.updatedAt)}</span>
-                      <span className="operator-badge operator-badge-reviewed">
-                        Published
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="operator-empty">
-                <p>No matching periods.</p>
-              </div>
-            )}
-            <PageMore
-              page={endedPage}
-              label="Load more meeting periods"
-              blocked={Boolean(busy) || loading}
-            />
-            <PageMore
-              page={recordsPage}
-              label="Load more published summaries"
-              blocked={Boolean(busy) || loading}
-            />
-          </aside>
-          <div className="operator-editor">
-            {selectedAppointment || selectedRecord ? (
-              <>
-                <header className="operator-document-heading">
-                  {(selectedRecord ||
-                    selectedAppointment?.learningRecordId) && (
-                    <span className="operator-badge operator-badge-reviewed">
-                      Published
+                      {unreviewed.length}
                     </span>
                   )}
-                  <h3>
-                    {selectedAppointment?.studentName ??
-                      selectedRecord?.studentName}
-                  </h3>
-                  <p>
-                    {selectedAppointment
-                      ? meetingTime(
-                          selectedAppointment.startsAt,
-                          selectedAppointment.endsAt,
-                        )
-                      : `Published ${dateLabel(selectedRecord!.updatedAt)}`}
+                </DashboardSideMenuButton>
+              ))}
+            </nav>
+          )}
+        />
+        <div className="operator-main">
+          <header className="operator-heading">
+            <div>
+              <h1 aria-label="Learning operations">Operations</h1>
+            </div>
+            <div className="operator-header-actions">
+              <button
+                type="button"
+                className="operator-refresh"
+                disabled={loading || Boolean(busy)}
+                onClick={refresh}
+              >
+                {loading ? "Refreshing…" : "Refresh"}
+              </button>
+              <span>{user.name}</span>
+              <button
+                className="button button-secondary"
+                disabled={Boolean(busy)}
+                onClick={() => void run("logout", () => onLogout(), "", false)}
+              >
+                Sign out
+              </button>
+            </div>
+          </header>
+          {loadError && (
+            <div className="operator-feedback operator-feedback-error" role="alert">
+              <strong>Records could not be refreshed.</strong>
+              <p>{loadError} Refresh before making changes.</p>
+            </div>
+          )}
+          {error && (
+            <div
+              className="operator-feedback operator-feedback-error"
+              role="alert"
+              tabIndex={-1}
+              ref={errorBox}
+            >
+              <strong>The change was not confirmed.</strong>
+              <p>
+                {error} If the connection failed after saving, refresh or retry the
+                same action.
+              </p>
+            </div>
+          )}
+          <p
+            role="status"
+            aria-live="polite"
+            className={
+              message
+                ? "operator-feedback operator-feedback-success"
+                : "operator-status-empty"
+            }
+          >
+            {message}
+          </p>
+          {loading && !operations && (
+            <div className="operator-loading" role="status">
+              Loading your work queue…
+            </div>
+          )}
+
+          {panel === "admissions" && (
+            <section
+              id="operator-panel-admissions"
+              aria-label={panelLabel("admissions")}
+              className="operator-panel"
+            >
+              <AdmissionsReviewPanel
+                key={user.uid}
+                operatorUid={user.uid}
+                attempt={attempt}
+                onExpired={onExpired}
+              />
+            </section>
+          )}
+
+          {panel === "classes" && (
+            <section
+              id="operator-panel-classes"
+              aria-label={panelLabel("classes")}
+              className="operator-panel"
+            >
+              <ClassesWorkspace
+                key={user.uid}
+                ownerUid={user.uid}
+                staffName={user.name}
+                attempt={attempt}
+                onExpired={onExpired}
+              />
+            </section>
+          )}
+
+          {panel === "payments" && (
+            <section id="operator-panel-payments" aria-label={panelLabel("payments")} className="operator-panel">
+              <OperatorPaymentsPanel key={user.uid} attempt={attempt} onExpired={onExpired} />
+            </section>
+          )}
+
+          <section
+            id="operator-panel-review"
+            aria-label={panelLabel("review")}
+            hidden={panel !== "review"}
+            className="operator-panel"
+          >
+            <div className="operator-section-heading">
+              <div>
+                <h2 aria-label="Review student work">Review</h2>
+              </div>
+              <span className="operator-caption">
+                {operations
+                  ? `${visibleEvidence.length} loaded${evidencePage.nextCursor ? ", more available" : ""}`
+                  : "Loading queue…"}
+              </span>
+            </div>
+            <div className="operator-split">
+              <aside className="operator-queue" aria-label="Evidence queue">
+                <label className="form-field operator-search">
+                  <span>Search</span>
+                  <input
+                    type="search"
+                    aria-label="Search — Find student work"
+                    maxLength={80}
+                    placeholder="Student or document"
+                    value={search}
+                    onChange={(event) => {
+                      setSearch(event.target.value);
+                      setPinnedEvidence(undefined);
+                    }}
+                  />
+                </label>
+                <div className="form-field">
+                  <label htmlFor="operator-review-filter">Review queue</label>
+                  <select
+                    id="operator-review-filter"
+                    value={filter}
+                    onChange={(event) => {
+                      setFilter(event.target.value as ReviewFilter);
+                      setPinnedEvidence(undefined);
+                    }}
+                  >
+                    <option value="not_reviewed">Awaiting review</option>
+                    <option value="needs_revision">Needs revision</option>
+                    <option value="reviewed">Reviewed</option>
+                    <option value="all">All evidence</option>
+                  </select>
+                </div>
+                {!operations ? (
+                  <p role="status">
+                    {loading
+                      ? "Loading submitted work…"
+                      : "Refresh to load submitted work."}
                   </p>
-                </header>
-                {selectedRecord ? (
-                  <div className="operator-published-summary">
-                    <h4>Published staff summary</h4>
-                    {selectedRecord.outcomes.map((outcome) => (
-                      <div key={outcome.id} className="operator-outcome">
-                        <p>{outcome.summary}</p>
-                        <span className="operator-caption">
-                          {selectedRecord.acknowledgedOutcomeIds.includes(
-                            outcome.id,
-                          )
-                            ? "Acknowledged by student"
-                            : "Awaiting student acknowledgment"}
+                ) : visibleEvidence.length ? (
+                  <ul className="operator-selection-list">
+                    {visibleEvidence.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          className={
+                            item.id === selectedEvidence?.id
+                              ? "operator-selection is-selected"
+                              : "operator-selection"
+                          }
+                          aria-pressed={item.id === selectedEvidence?.id}
+                          onClick={() => setEvidenceId(item.id)}
+                          disabled={Boolean(busy)}
+                        >
+                          <span className="operator-selection-title">
+                            {item.title}
+                          </span>
+                          <span>{item.studentName}</span>
+                          <span>
+                            Version {item.revisionNumber}
+                            {item.supersededByEvidenceId
+                              ? " · Previous version"
+                              : ""}
+                          </span>
+                          <span
+                            className={`operator-badge operator-badge-${item.reviewStatus}`}
+                          >
+                            {reviewLabel[item.reviewStatus]}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="operator-empty">
+                    <p>
+                      {search
+                        ? "No matching work"
+                        : filter === "not_reviewed"
+                          ? "No work awaiting review."
+                          : "No work in this view."}
+                    </p>
+                    {filter !== "all" && evidence.length > 0 && (
+                      <button
+                        className="operator-text-button"
+                        onClick={() => {
+                          setFilter("all");
+                          setSearch("");
+                        }}
+                      >
+                        View all evidence
+                      </button>
+                    )}
+                  </div>
+                )}
+                <PageMore
+                  page={evidencePage}
+                  label="Load more evidence"
+                  blocked={Boolean(busy) || loading}
+                />
+              </aside>
+              <div className="operator-editor">
+                {selectedEvidence ? (
+                  <>
+                    <header className="operator-document-heading">
+                      <span
+                        className={`operator-badge operator-badge-${selectedEvidence.reviewStatus}`}
+                      >
+                        {reviewLabel[selectedEvidence.reviewStatus]}
+                      </span>
+                      <h3 id="operator-document-title" tabIndex={-1}>
+                        {selectedEvidence.title}
+                      </h3>
+                      <p>
+                        {selectedEvidence.studentName} · Submitted{" "}
+                        {dateLabel(selectedEvidence.submittedAt)}
+                      </p>
+                      <div className="operator-document-meta">
+                        <span>Version {selectedEvidence.revisionNumber}</span>
+                        <span>
+                          {selectedEvidence.contentType === "application/pdf"
+                            ? "PDF document"
+                            : "Text document"}
+                        </span>
+                        <span>
+                          {Math.max(1, Math.ceil(selectedEvidence.size / 1024))} KiB
                         </span>
                       </div>
-                    ))}
-                    <p className="operator-field-help">
-                      Shared with the student and authorized family. Read-only
-                      once published.
-                    </p>
-                  </div>
-                ) : selectedAppointment?.learningRecordId ? (
-                  <div className="operator-published-summary">
-                    <p>This meeting already has a published summary.</p>
+                    </header>
                     <button
                       className="button button-secondary"
-                      type="button"
                       disabled={blocked}
+                      aria-label={
+                        busy === `download:${selectedEvidence.id}`
+                          ? "Preparing download…"
+                          : `Download ${selectedEvidence.title}`
+                      }
                       onClick={() =>
                         void run(
-                          `load-summary:${selectedAppointment.learningRecordId}`,
-                          async (signal) => {
-                            const saved = await talaApi.getLearningRecord(
-                              selectedAppointment.learningRecordId!,
-                              signal,
-                            );
-                            if (saved.appointmentId !== selectedAppointment.id)
-                              throw new TalaApiError("INVALID_RESPONSE");
-                            if (active.current && !signal.aborted)
-                              setRecordDetails((previous) => ({
-                                ...previous,
-                                [saved.id]: {
-                                  ...saved,
-                                  studentUid: selectedAppointment.studentUid,
-                                  studentName: selectedAppointment.studentName,
-                                },
-                              }));
-                          },
-                          "Published summary loaded.",
+                          `download:${selectedEvidence.id}`,
+                          (signal) => download(selectedEvidence.id, signal),
+                          "Private download prepared.",
                           false,
                         )
                       }
                     >
-                      Load published summary
+                      {busy === `download:${selectedEvidence.id}`
+                        ? "Preparing download…"
+                        : "Download"}
                     </button>
-                  </div>
-                ) : (
-                  selectedAppointment && (
-                    <form
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        const selected = selectedAppointment;
-                        void run(
-                          `summary:${selected.id}:${summary.trim()}`,
-                          async (signal, id) => {
-                            await talaApi.publishOutcomes(
-                              {
-                                appointmentId: selected.id,
-                                outcomes: [{ id, summary: summary.trim() }],
-                                requestId: id,
-                              },
-                              signal,
-                            );
-                            if (active.current && !signal.aborted)
-                              setSummaryDrafts((current) => {
-                                const next = { ...current };
-                                delete next[selected.id];
-                                return next;
-                              });
-                          },
-                          `Learning summary published for ${selected.studentName}.`,
-                        );
-                      }}
-                    >
-                      <fieldset className="operator-fields" disabled={blocked}>
-                        <legend className="sr-only">
-                          Publish a staff learning summary
-                        </legend>
-                        <label className="form-field">
-                          <span>Reviewed learning summary</span>
-                          <textarea
-                            required
-                            value={summary}
-                            onChange={(event) =>
-                              setSummaryDrafts((current) => ({
-                                ...current,
-                                [selectedAppointment.id]: event.target.value,
-                              }))
-                            }
-                            maxLength={1000}
-                            rows={7}
-                            placeholder="Learning and next step"
-                          />
-                        </label>
-                        <p className="operator-field-help">
-                          Shares with the student and authorized family. Cannot
-                          be edited here. Does not certify attendance or credit.
+                    {selectedEvidence.reviewNote && (
+                      <div className="operator-previous-review">
+                        <h4>Last feedback</h4>
+                        <p>{selectedEvidence.reviewNote}</p>
+                        {selectedEvidence.reviewedAt && (
+                          <small>
+                            Saved {dateLabel(selectedEvidence.reviewedAt)}
+                          </small>
+                        )}
+                      </div>
+                    )}
+                    {selectedEvidence.supersededByEvidenceId ? (
+                      <div className="operator-previous-review">
+                        <h4>Newer version available</h4>
+                        <p>
+                          This version stays in history. Review the latest version.
                         </p>
                         <button
-                          className="button"
-                          disabled={!summary.trim()}
-                          aria-label={
-                            busy?.startsWith("summary:")
-                              ? "Publishing summary…"
-                              : "Publish summary reviewed by staff"
+                          className="operator-text-button"
+                          type="button"
+                          disabled={blocked}
+                          onClick={() => {
+                            const next = evidence.find(
+                              (item) =>
+                                item.id === selectedEvidence.supersededByEvidenceId,
+                            );
+                            if (next) {
+                              setFilter("all");
+                              setSearch("");
+                              setEvidenceId(next.id);
+                            } else
+                              void run(
+                                `load-version:${selectedEvidence.supersededByEvidenceId}`,
+                                async (signal) => {
+                                  const saved = await talaApi.getEvidence(
+                                    selectedEvidence.supersededByEvidenceId!,
+                                    signal,
+                                  );
+                                  if (
+                                    saved.ownerUid !== selectedEvidence.ownerUid ||
+                                    saved.rootEvidenceId !==
+                                      selectedEvidence.rootEvidenceId
+                                  )
+                                    throw new TalaApiError("INVALID_RESPONSE");
+                                  if (!active.current || signal.aborted) return;
+                                  setPinnedEvidence({
+                                    ...saved,
+                                    studentUid: selectedEvidence.studentUid,
+                                    studentName: selectedEvidence.studentName,
+                                  });
+                                  setFilter("all");
+                                  setSearch("");
+                                  setEvidenceId(saved.id);
+                                },
+                                "Newer version loaded.",
+                                false,
+                              );
+                          }}
+                        >
+                          View newer version
+                        </button>
+                      </div>
+                    ) : (
+                      <form
+                        className="operator-review-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          const selected = selectedEvidence;
+                          void run(
+                            `review:${selected.id}:${draft.expectedReviewVersion}:${draft.status}:${draft.note.trim()}`,
+                            async (signal, id) => {
+                              await talaApi.reviewEvidence(
+                                selected.id,
+                                {
+                                  status: draft.status,
+                                  note: draft.note.trim(),
+                                  requestId: id,
+                                  expectedReviewVersion:
+                                    draft.expectedReviewVersion,
+                                },
+                                signal,
+                              );
+                              if (active.current && !signal.aborted)
+                                setReviewDrafts((current) => {
+                                  const next = { ...current };
+                                  delete next[selected.id];
+                                  return next;
+                                });
+                            },
+                            `Review saved for ${selected.studentName}.`,
+                          );
+                        }}
+                      >
+                        {staleReview && (
+                          <div className="operator-previous-review" role="status">
+                            <h4>Review changed elsewhere</h4>
+                            <p>
+                              Draft kept. Compare the latest feedback before
+                              continuing.
+                            </p>
+                            <button
+                              type="button"
+                              className="operator-text-button"
+                              disabled={blocked}
+                              onClick={() =>
+                                updateReview({
+                                  expectedReviewVersion:
+                                    selectedEvidence.reviewVersion,
+                                })
+                              }
+                            >
+                              Use latest review version
+                            </button>
+                          </div>
+                        )}
+                        <fieldset
+                          className="operator-fields"
+                          disabled={blocked || staleReview}
+                        >
+                          <legend className="sr-only">
+                            Review submitted evidence
+                          </legend>
+                          <div className="form-field">
+                            <label htmlFor="operator-review-status">
+                              Review status
+                            </label>
+                            <select
+                              id="operator-review-status"
+                              value={draft.status}
+                              onChange={(event) =>
+                                updateReview({
+                                  status: event.target
+                                    .value as ReviewDraft["status"],
+                                })
+                              }
+                            >
+                              <option value="reviewed">Reviewed</option>
+                              <option value="needs_revision">Needs revision</option>
+                            </select>
+                          </div>
+                          <label className="form-field">
+                            <span>Review note</span>
+                            <textarea
+                              required
+                              maxLength={1000}
+                              rows={5}
+                              value={draft.note}
+                              onChange={(event) =>
+                                updateReview({ note: event.target.value })
+                              }
+                              placeholder="Feedback and next step"
+                            />
+                          </label>
+                          <p className="operator-field-help">
+                            Manual review. No grade or credit awarded.
+                          </p>
+                          <button
+                            className="button"
+                            disabled={!draft.note.trim()}
+                            aria-label={
+                              busy?.startsWith("review:")
+                                ? "Saving review…"
+                                : "Save review by staff"
+                            }
+                          >
+                            {busy?.startsWith("review:")
+                              ? "Saving review…"
+                              : "Save review"}
+                          </button>
+                        </fieldset>
+                      </form>
+                    )}
+                  </>
+                ) : (
+                  <div className="operator-editor-empty">
+                    <span className="operator-empty-mark" aria-hidden="true">
+                      ✓
+                    </span>
+                    <p>Choose a document.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section
+            id="operator-panel-meetings"
+            aria-label={panelLabel("meetings")}
+            hidden={panel !== "meetings"}
+            className="operator-panel"
+          >
+            <div className="operator-section-heading">
+              <div>
+                <h2 aria-label="Meetings and availability">Meetings</h2>
+              </div>
+              <span className="operator-caption">
+                {Intl.DateTimeFormat().resolvedOptions().timeZone}
+              </span>
+            </div>
+            <div className="operator-split operator-meeting-split">
+              <div className="operator-queue">
+                <h3>Upcoming times</h3>
+                <div className="form-field">
+                  <label htmlFor="operator-availability-status">
+                    Meeting time status
+                  </label>
+                  <select
+                    id="operator-availability-status"
+                    value={availabilityStatus}
+                    disabled={Boolean(busy)}
+                    onChange={(event) =>
+                      setAvailabilityStatus(
+                        event.target.value as typeof availabilityStatus,
+                      )
+                    }
+                  >
+                    <option value="all">All upcoming times</option>
+                    <option value="available">Available</option>
+                    <option value="reserved">Reserved</option>
+                    <option value="withdrawn">Withdrawn</option>
+                  </select>
+                </div>
+                {!operations ? (
+                  <p role="status">
+                    {loading
+                      ? "Loading availability…"
+                      : "Refresh to load availability."}
+                  </p>
+                ) : operations.availability.length ? (
+                  <ul
+                    className="operator-availability"
+                    aria-label="Upcoming meeting times"
+                  >
+                    {operations.availability.map((slot) => (
+                      <li key={slot.id}>
+                        <div className="operator-availability-heading">
+                          <strong>{slot.label || "Advising meeting"}</strong>
+                          <span
+                            className={`operator-badge operator-badge-${slot.status}`}
+                          >
+                            {slot.status === "available"
+                              ? "Available"
+                              : slot.status === "reserved"
+                                ? "Reserved"
+                                : "Withdrawn"}
+                          </span>
+                        </div>
+                        <p>{meetingTime(slot.startsAt, slot.endsAt)}</p>
+                        {slot.canWithdraw ? (
+                          <div className="operator-slot-actions">
+                            <button
+                              type="button"
+                              className="operator-text-button"
+                              disabled={blocked}
+                              aria-label={`Edit ${meetingTime(slot.startsAt, slot.endsAt)}`}
+                              onClick={() => {
+                                setEditingSlot(slot);
+                                setStartsAt(localMeetingInput(slot.startsAt));
+                                setEndsAt(localMeetingInput(slot.endsAt));
+                                setLabel(slot.label);
+                                setMessage("");
+                                setError("");
+                                requestAnimationFrame(() =>
+                                  editorHeading.current?.focus(),
+                                );
+                              }}
+                            >
+                              Edit time
+                            </button>
+                            <button
+                              type="button"
+                              className="operator-text-button"
+                              disabled={blocked}
+                              onClick={() =>
+                                void run(
+                                  `withdraw:${slot.id}`,
+                                  async (signal, requestId) => {
+                                    await talaApi.withdrawAvailability(
+                                      slot.id,
+                                      { requestId },
+                                      signal,
+                                    );
+                                  },
+                                  "Meeting time withdrawn. Existing bookings were kept.",
+                                )
+                              }
+                            >
+                              {busy === `withdraw:${slot.id}`
+                                ? "Withdrawing…"
+                                : "Withdraw time"}
+                            </button>
+                          </div>
+                        ) : slot.status === "withdrawn" ? (
+                          <button
+                            type="button"
+                            className="operator-text-button"
+                            disabled={blocked}
+                            onClick={() =>
+                              void run(
+                                `republish:${slot.id}`,
+                                async (signal, requestId) => {
+                                  await talaApi.addAvailability(
+                                    {
+                                      startsAt: slot.startsAt,
+                                      endsAt: slot.endsAt,
+                                      label: slot.label || undefined,
+                                      requestId,
+                                    },
+                                    signal,
+                                  );
+                                },
+                                "Meeting time published again with its original title and times.",
+                              )
+                            }
+                          >
+                            {busy === `republish:${slot.id}`
+                              ? "Publishing…"
+                              : "Publish again"}
+                          </button>
+                        ) : (
+                          <p className="operator-field-help">
+                            Booked times cannot be withdrawn.
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="operator-empty">
+                    <p>No upcoming times.</p>
+                  </div>
+                )}
+                <PageMore
+                  page={availabilityPage}
+                  label="Load more meeting times"
+                  blocked={Boolean(busy) || loading}
+                />
+                <details className="operator-booking-history">
+                  <summary>
+                    Recent bookings
+                    {operations ? ` (${operations.appointments.length})` : ""}
+                  </summary>
+                  {operations?.appointments.length ? (
+                    <ul className="operator-bookings">
+                      {operations.appointments.map((appointment) => (
+                        <li key={appointment.id}>
+                          <div>
+                            <strong>{appointment.studentName}</strong>
+                            <p>
+                              {meetingTime(
+                                appointment.startsAt,
+                                appointment.endsAt,
+                              )}
+                            </p>
+                          </div>
+                          <span
+                            className={`operator-badge operator-badge-${appointment.status}`}
+                          >
+                            {appointment.status === "ended"
+                              ? "Time ended"
+                              : appointment.status === "cancelled"
+                                ? "Cancelled"
+                                : "Reserved"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="operator-field-help">
+                      {operations
+                        ? "No bookings yet."
+                        : "Refresh to load bookings."}
+                    </p>
+                  )}
+                  <p className="operator-field-help">
+                    Attendance is unconfirmed. Live meeting links are unavailable.
+                  </p>
+                  <PageMore
+                    page={bookingsPage}
+                    label="Load more bookings"
+                    blocked={Boolean(busy) || loading}
+                  />
+                </details>
+              </div>
+              <div className="operator-editor">
+                <h3 ref={editorHeading} tabIndex={-1}>
+                  {editingSlot ? "Edit meeting time" : "Publish a time"}
+                </h3>
+                {editingSlot && (
+                  <p className="operator-field-help">
+                    Editing {meetingTime(editingSlot.startsAt, editingSlot.endsAt)}.
+                    Changing the times gives it a new ID. Booked and past times
+                    cannot be edited.
+                  </p>
+                )}
+                <p className="operator-field-help" id="operator-time-zone-help">
+                  {deviceTimeZone}. 15 minutes–4 hours. No overlaps or ambiguous
+                  daylight-saving times.
+                </p>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const editing = editingSlot;
+                    void run(
+                      `${editing ? `edit:${editing.id}` : "availability"}:${startsAt}:${endsAt}:${label.trim()}`,
+                      async (signal, id) => {
+                        const start = parseLocalMeetingTime(startsAt),
+                          end = parseLocalMeetingTime(endsAt);
+                        if (
+                          !start ||
+                          !end ||
+                          start.getTime() <= Date.now() ||
+                          end.getTime() - start.getTime() < 15 * 60_000 ||
+                          end.getTime() - start.getTime() > 4 * 60 * 60_000
+                        )
+                          throw new TalaApiError("INVALID_INPUT");
+                        const input = {
+                          startsAt: start.toISOString(),
+                          endsAt: end.toISOString(),
+                          label: label.trim() || undefined,
+                          requestId: id,
+                        };
+                        if (editing)
+                          await talaApi.updateAvailability(
+                            editing.id,
+                            input,
+                            signal,
+                          );
+                        else await talaApi.addAvailability(input, signal);
+                        if (active.current && !signal.aborted) {
+                          setStartsAt("");
+                          setEndsAt("");
+                          setLabel("");
+                          setEditingSlot(null);
+                        }
+                      },
+                      editing ? "Meeting time updated." : "Meeting time published.",
+                    );
+                  }}
+                >
+                  <fieldset className="operator-fields" disabled={blocked}>
+                    <legend className="sr-only">Meeting availability</legend>
+                    <label className="form-field">
+                      <span>Meeting label</span>
+                      <input
+                        value={label}
+                        onChange={(event) => setLabel(event.target.value)}
+                        maxLength={100}
+                        placeholder="Advising meeting"
+                      />
+                    </label>
+                    <div className="operator-time-fields">
+                      <label className="form-field">
+                        <span>Starts at</span>
+                        <input
+                          type="datetime-local"
+                          aria-describedby="operator-time-zone-help"
+                          required
+                          value={startsAt}
+                          onChange={(event) => setStartsAt(event.target.value)}
+                        />
+                      </label>
+                      <label className="form-field">
+                        <span>Ends at</span>
+                        <input
+                          type="datetime-local"
+                          aria-describedby="operator-time-zone-help"
+                          required
+                          value={endsAt}
+                          onChange={(event) => setEndsAt(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <button
+                      className="button"
+                      aria-label={
+                        busy?.startsWith("availability:")
+                          ? "Publishing…"
+                          : busy?.startsWith("edit:")
+                            ? "Saving…"
+                            : editingSlot
+                              ? "Save changes"
+                              : "Publish availability"
+                      }
+                    >
+                      {busy?.startsWith("availability:")
+                        ? "Publishing…"
+                        : busy?.startsWith("edit:")
+                          ? "Saving…"
+                          : editingSlot
+                            ? "Save changes"
+                            : "Publish"}
+                    </button>
+                    {editingSlot && (
+                      <button
+                        type="button"
+                        className="button button-outline"
+                        onClick={() => {
+                          setEditingSlot(null);
+                          setStartsAt("");
+                          setEndsAt("");
+                          setLabel("");
+                        }}
+                      >
+                        Cancel editing
+                      </button>
+                    )}
+                  </fieldset>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          <section
+            id="operator-panel-learning"
+            aria-label={panelLabel("learning")}
+            hidden={panel !== "learning"}
+            className="operator-panel"
+          >
+            <div className="operator-section-heading">
+              <div>
+                <h2 aria-label="Staff learning summaries">Learning summaries</h2>
+              </div>
+            </div>
+            <div className="operator-split">
+              <aside className="operator-queue">
+                <h3>Ended periods</h3>
+                <div className="form-field">
+                  <label htmlFor="operator-publication-filter">
+                    Meeting summary status
+                  </label>
+                  <select
+                    id="operator-publication-filter"
+                    value={publication}
+                    disabled={Boolean(busy)}
+                    onChange={(event) =>
+                      setPublication(event.target.value as typeof publication)
+                    }
+                  >
+                    <option value="unpublished">Needs a summary</option>
+                    <option value="published">Published</option>
+                    <option value="all">All ended periods</option>
+                  </select>
+                </div>
+                {!operations ? (
+                  <p role="status">
+                    {loading
+                      ? "Loading scheduled periods…"
+                      : "Refresh to load scheduled periods."}
+                  </p>
+                ) : ended.length || olderRecords.length ? (
+                  <ul className="operator-selection-list">
+                    {ended.map((appointment) => (
+                      <li key={appointment.id}>
+                        <button
+                          className={
+                            appointment.id === selectedAppointment?.id
+                              ? "operator-selection is-selected"
+                              : "operator-selection"
+                          }
+                          type="button"
+                          aria-pressed={appointment.id === selectedAppointment?.id}
+                          disabled={Boolean(busy)}
+                          onClick={() => setAppointmentId(appointment.id)}
+                        >
+                          <span className="operator-selection-title">
+                            {appointment.studentName}
+                          </span>
+                          <span>
+                            {meetingTime(appointment.startsAt, appointment.endsAt)}
+                          </span>
+                          <span
+                            className={`operator-badge ${appointment.learningRecordId ? "operator-badge-reviewed" : "operator-badge-not_reviewed"}`}
+                          >
+                            {appointment.learningRecordId
+                              ? "Published"
+                              : "Prepare summary"}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                    {olderRecords.length > 0 && (
+                      <li className="operator-published-label">
+                        <h4>Published summaries</h4>
+                      </li>
+                    )}
+                    {olderRecords.map((record) => (
+                      <li key={record.id}>
+                        <button
+                          type="button"
+                          className={
+                            record.appointmentId === selectedLearningId
+                              ? "operator-selection is-selected"
+                              : "operator-selection"
+                          }
+                          aria-pressed={record.appointmentId === selectedLearningId}
+                          disabled={Boolean(busy)}
+                          onClick={() => setAppointmentId(record.appointmentId)}
+                        >
+                          <span className="operator-selection-title">
+                            {record.studentName}
+                          </span>
+                          <span>Published {dateLabel(record.updatedAt)}</span>
+                          <span className="operator-badge operator-badge-reviewed">
+                            Published
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="operator-empty">
+                    <p>No matching periods.</p>
+                  </div>
+                )}
+                <PageMore
+                  page={endedPage}
+                  label="Load more meeting periods"
+                  blocked={Boolean(busy) || loading}
+                />
+                <PageMore
+                  page={recordsPage}
+                  label="Load more published summaries"
+                  blocked={Boolean(busy) || loading}
+                />
+              </aside>
+              <div className="operator-editor">
+                {selectedAppointment || selectedRecord ? (
+                  <>
+                    <header className="operator-document-heading">
+                      {(selectedRecord ||
+                        selectedAppointment?.learningRecordId) && (
+                        <span className="operator-badge operator-badge-reviewed">
+                          Published
+                        </span>
+                      )}
+                      <h3>
+                        {selectedAppointment?.studentName ??
+                          selectedRecord?.studentName}
+                      </h3>
+                      <p>
+                        {selectedAppointment
+                          ? meetingTime(
+                              selectedAppointment.startsAt,
+                              selectedAppointment.endsAt,
+                            )
+                          : `Published ${dateLabel(selectedRecord!.updatedAt)}`}
+                      </p>
+                    </header>
+                    {selectedRecord ? (
+                      <div className="operator-published-summary">
+                        <h4>Published staff summary</h4>
+                        {selectedRecord.outcomes.map((outcome) => (
+                          <div key={outcome.id} className="operator-outcome">
+                            <p>{outcome.summary}</p>
+                            <span className="operator-caption">
+                              {selectedRecord.acknowledgedOutcomeIds.includes(
+                                outcome.id,
+                              )
+                                ? "Acknowledged by student"
+                                : "Awaiting student acknowledgment"}
+                            </span>
+                          </div>
+                        ))}
+                        <p className="operator-field-help">
+                          Shared with the student and authorized family. Read-only
+                          once published.
+                        </p>
+                      </div>
+                    ) : selectedAppointment?.learningRecordId ? (
+                      <div className="operator-published-summary">
+                        <p>This meeting already has a published summary.</p>
+                        <button
+                          className="button button-secondary"
+                          type="button"
+                          disabled={blocked}
+                          onClick={() =>
+                            void run(
+                              `load-summary:${selectedAppointment.learningRecordId}`,
+                              async (signal) => {
+                                const saved = await talaApi.getLearningRecord(
+                                  selectedAppointment.learningRecordId!,
+                                  signal,
+                                );
+                                if (saved.appointmentId !== selectedAppointment.id)
+                                  throw new TalaApiError("INVALID_RESPONSE");
+                                if (active.current && !signal.aborted)
+                                  setRecordDetails((previous) => ({
+                                    ...previous,
+                                    [saved.id]: {
+                                      ...saved,
+                                      studentUid: selectedAppointment.studentUid,
+                                      studentName: selectedAppointment.studentName,
+                                    },
+                                  }));
+                              },
+                              "Published summary loaded.",
+                              false,
+                            )
                           }
                         >
-                          {busy?.startsWith("summary:")
-                            ? "Publishing summary…"
-                            : "Publish summary"}
+                          Load published summary
                         </button>
-                      </fieldset>
-                    </form>
-                  )
+                      </div>
+                    ) : (
+                      selectedAppointment && (
+                        <form
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const selected = selectedAppointment;
+                            void run(
+                              `summary:${selected.id}:${summary.trim()}`,
+                              async (signal, id) => {
+                                await talaApi.publishOutcomes(
+                                  {
+                                    appointmentId: selected.id,
+                                    outcomes: [{ id, summary: summary.trim() }],
+                                    requestId: id,
+                                  },
+                                  signal,
+                                );
+                                if (active.current && !signal.aborted)
+                                  setSummaryDrafts((current) => {
+                                    const next = { ...current };
+                                    delete next[selected.id];
+                                    return next;
+                                  });
+                              },
+                              `Learning summary published for ${selected.studentName}.`,
+                            );
+                          }}
+                        >
+                          <fieldset className="operator-fields" disabled={blocked}>
+                            <legend className="sr-only">
+                              Publish a staff learning summary
+                            </legend>
+                            <label className="form-field">
+                              <span>Reviewed learning summary</span>
+                              <textarea
+                                required
+                                value={summary}
+                                onChange={(event) =>
+                                  setSummaryDrafts((current) => ({
+                                    ...current,
+                                    [selectedAppointment.id]: event.target.value,
+                                  }))
+                                }
+                                maxLength={1000}
+                                rows={7}
+                                placeholder="Learning and next step"
+                              />
+                            </label>
+                            <p className="operator-field-help">
+                              Shares with the student and authorized family. Cannot
+                              be edited here. Does not certify attendance or credit.
+                            </p>
+                            <button
+                              className="button"
+                              disabled={!summary.trim()}
+                              aria-label={
+                                busy?.startsWith("summary:")
+                                  ? "Publishing summary…"
+                                  : "Publish summary reviewed by staff"
+                              }
+                            >
+                              {busy?.startsWith("summary:")
+                                ? "Publishing summary…"
+                                : "Publish summary"}
+                            </button>
+                          </fieldset>
+                        </form>
+                      )
+                    )}
+                  </>
+                ) : (
+                  <div className="operator-editor-empty">
+                    <p>Choose an ended meeting period.</p>
+                  </div>
                 )}
-              </>
-            ) : (
-              <div className="operator-editor-empty">
-                <p>Choose an ended meeting period.</p>
               </div>
-            )}
-          </div>
+            </div>
+          </section>
+
+          <section
+            id="operator-panel-requests"
+            aria-label={panelLabel("requests")}
+            hidden={panel !== "requests"}
+            className="operator-panel"
+          >
+            <ContactRequestsPanel
+              active={panel === "requests"}
+              attempt={attempt}
+              onExpired={onExpired}
+            />
+          </section>
+          <footer className="operator-footer">
+            <p>Private staff workspace. Approved information only.</p>
+            <p>
+              Email, video, AI and payments unavailable. Attendance is not tracked
+              automatically.
+            </p>
+            <details>
+              <summary>About</summary>
+              <p>
+                Use Edit time on an available time to change it. Publishing the
+                same withdrawn time again keeps its original title and history.
+              </p>
+              <p>
+                Reviews and learning summaries are written by staff. They do not
+                award grades, certify attendance or grant academic credit.
+              </p>
+            </details>
+          </footer>
         </div>
-      </section>
-      <footer className="operator-footer">
-        <p>Private staff workspace. Approved information only.</p>
-        <p>
-          Email, video, AI and payments unavailable. Attendance is not tracked
-          automatically.
-        </p>
-        <details>
-          <summary>About</summary>
-          <p>
-            To change a published time, withdraw it and publish another. Reusing
-            the same withdrawn time keeps its original title and history.
-          </p>
-          <p>
-            Reviews and learning summaries are written by staff. They do not
-            award grades, certify attendance or grant academic credit.
-          </p>
-        </details>
-      </footer>
+      </div>
     </div>
   );
 }

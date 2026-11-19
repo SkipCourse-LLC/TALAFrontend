@@ -107,7 +107,10 @@ export function workspace(raw: unknown): PaymentWorkspace {
     integration = object(v.integration);
   if (
     integration.provider !== "hubspot" ||
-    integration.checkout !== "official_links" ||
+    (integration.checkout !== "official_links" &&
+      integration.checkout !== "test_checkout") ||
+    (integration.checkout === "test_checkout" &&
+      integration.testMode !== true) ||
     integration.automaticReturn !== false ||
     integration.esa !== "manual_review" ||
     (integration.testMode !== undefined && integration.testMode !== true)
@@ -119,7 +122,7 @@ export function workspace(raw: unknown): PaymentWorkspace {
   return {
     integration: {
       provider: "hubspot",
-      checkout: "official_links",
+      checkout: integration.checkout,
       verification: literal(integration.verification, [
         "unconfigured",
         "server_adapter",
@@ -159,10 +162,22 @@ export function officialCheckoutUrl(raw: unknown): string {
   return url.href;
 }
 
+/** The in-app test checkout route, accepted only for the payment it belongs to. */
+export function testCheckoutPath(paymentId: string) {
+  return `#/payment/test-checkout/${paymentId}`;
+}
 export function checkout(raw: unknown): PaymentCheckout {
   const v = object(raw);
-  const saved = payment(v.payment),
-    checkoutUrl = officialCheckoutUrl(v.checkoutUrl);
+  const saved = payment(v.payment);
+  if (v.checkoutUrl === testCheckoutPath(saved.id)) {
+    if (
+      saved.provider !== "hubspot" ||
+      !["pending", "awaiting_verification"].includes(saved.status)
+    )
+      throw new TalaApiError("INVALID_RESPONSE");
+    return { payment: saved, checkoutUrl: testCheckoutPath(saved.id) };
+  }
+  const checkoutUrl = officialCheckoutUrl(v.checkoutUrl);
   const path = new URL(checkoutUrl).pathname;
   if (
     saved.provider !== "hubspot" ||

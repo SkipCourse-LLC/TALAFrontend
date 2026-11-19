@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 13;
 const EXTENSIONS = `
   CREATE TABLE IF NOT EXISTS availability_state (
     slot_id TEXT PRIMARY KEY REFERENCES slots(id),
@@ -26,6 +26,16 @@ const EXTENSIONS = `
   CREATE INDEX IF NOT EXISTS evidence_revision_root ON evidence_revisions(root_id,revision_number);
   INSERT OR IGNORE INTO availability_state(slot_id,status,updated_at,updated_by)
     SELECT id,'published',created_at,NULL FROM slots;
+  CREATE TABLE IF NOT EXISTS contact_requests (
+    id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL,
+    parent_name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT NOT NULL,
+    preferred_method TEXT NOT NULL CHECK(preferred_method IN ('email','phone','text')),
+    availability_json TEXT NOT NULL, notes TEXT,
+    status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new','contacted','closed')),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, updated_by TEXT REFERENCES users(uid)
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS contact_requests_created ON contact_requests(created_at DESC,id DESC);
+  CREATE INDEX IF NOT EXISTS contact_requests_fingerprint ON contact_requests(fingerprint,created_at);
   CREATE TABLE IF NOT EXISTS learning_goals (
     id TEXT PRIMARY KEY, owner_uid TEXT NOT NULL REFERENCES users(uid),
     title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 120),
@@ -200,6 +210,21 @@ const EXTENSIONS = `
     PRIMARY KEY(scope,kind,request_id)
   ) STRICT;
 
+  CREATE TABLE IF NOT EXISTS admissions_meetings (
+    appointment_id TEXT PRIMARY KEY REFERENCES admissions_appointments(id),
+    provider TEXT NOT NULL CHECK(provider IN ('none','mock','google-meet')),
+    meeting_id TEXT, join_url TEXT,
+    meeting_status TEXT NOT NULL CHECK(meeting_status IN ('ready','pending','failed','unavailable')),
+    email_status TEXT NOT NULL CHECK(email_status IN ('sent','failed','unavailable')),
+    cleanup_status TEXT NOT NULL DEFAULT 'none' CHECK(cleanup_status IN ('none','removed','failed')),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    CHECK(meeting_status!='ready' OR join_url IS NOT NULL)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS contact_request_notifications (
+    contact_request_id TEXT PRIMARY KEY REFERENCES contact_requests(id),
+    email_status TEXT NOT NULL CHECK(email_status IN ('sent','failed','unavailable')),
+    updated_at INTEGER NOT NULL
+  ) STRICT;
 `;
 
 function backupBeforeMigration(db, dataDir, version) {
@@ -218,10 +243,8 @@ function backupBeforeMigration(db, dataDir, version) {
     try {
       if (snapshot.prepare("PRAGMA user_version").get().user_version !== version || snapshot.prepare("PRAGMA quick_check").get().quick_check !== "ok" || snapshot.prepare("PRAGMA foreign_key_check").get()) throw new Error("The pre-upgrade database backup could not be verified.");
     } finally { snapshot.close(); }
-    const file = fs.openSync(filename, "r");
-    try { fs.fsyncSync(file); } finally { fs.closeSync(file); }
-    const folder = fs.openSync(directory, "r");
-    try { fs.fsyncSync(folder); } finally { fs.closeSync(folder); }
+    syncFile(filename);
+    syncDirectory(directory);
     completed = true;
   } finally {
     if (!completed) fs.rmSync(filename, { force: true });
@@ -245,13 +268,15 @@ function openDatabase(dataDir) {
     const widenEvidenceContext = version > 0 && version < 8 && !db.prepare("PRAGMA table_info(uploads)").all().some((column) => column.name === "class_id");
     // Rebuild two related tables under the migration transaction. References
     // in revision/link tables retain the original final table names.
-    if (widenEvidenceContext) db.exec("PRAGMA foreign_keys=OFF");
+    // Schema 11 adds the alumni role. SQLite cannot change a CHECK in place.
+    const addAlumniRole = version > 0 && version < 11;
+    if (widenEvidenceContext || addAlumniRole) db.exec("PRAGMA foreign_keys=OFF");
     if (version < SCHEMA_VERSION) transaction(db, () => {
       if (db.prepare("PRAGMA user_version").get().user_version !== version) throw new Error("The database changed during startup. Stop other local instances and retry.");
       db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       uid TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL,
-      password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('student','parent','operator')),
+      password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('student','parent','alumni','operator')),
       email_verified INTEGER NOT NULL DEFAULT 0, disabled INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
     ) STRICT;
     CREATE TABLE IF NOT EXISTS sessions (
@@ -325,6 +350,17 @@ function openDatabase(dataDir) {
         ALTER TABLE evidence_v8 RENAME TO evidence;
         CREATE INDEX evidence_owner ON evidence(owner_uid,submitted_at DESC);
       `);
+      if (addAlumniRole) db.exec(`
+        CREATE TABLE users_v11 (
+          uid TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE, name TEXT NOT NULL,
+          password_hash TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('student','parent','alumni','operator')),
+          email_verified INTEGER NOT NULL DEFAULT 0, disabled INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL
+        ) STRICT;
+        INSERT INTO users_v11(uid,email,name,password_hash,role,email_verified,disabled,created_at)
+          SELECT uid,email,name,password_hash,role,email_verified,disabled,created_at FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_v11 RENAME TO users;
+      `);
       // Broaden the existing enrollment record in place while preserving all
       // saved fixture rows. A verified pre-upgrade backup was taken above.
       if (!db.prepare("PRAGMA table_info(calendar_enrollments)").all().some((column) => column.name === "mode")) db.exec(`
@@ -354,8 +390,20 @@ function openDatabase(dataDir) {
   for (const suffix of ["-wal", "-shm"]) if (fs.existsSync(filename + suffix)) fs.chmodSync(filename + suffix, 0o600);
   return db;
 }
+// Windows can only flush a file through a writable handle, and cannot open a
+// directory handle at all. NTFS journals rename and create metadata, so the
+// directory flush is a POSIX-only durability step.
+function syncFile(filename) {
+  const fd = fs.openSync(filename, process.platform === "win32" ? "r+" : "r");
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+function syncDirectory(directory) {
+  if (process.platform === "win32") return;
+  const fd = fs.openSync(directory, "r");
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
 function transaction(db, fn) {
   db.exec("BEGIN IMMEDIATE");
   try { const result = fn(); db.exec("COMMIT"); return result; } catch (error) { db.exec("ROLLBACK"); throw error; }
 }
-module.exports = { openDatabase, transaction };
+module.exports = { openDatabase, transaction, syncFile, syncDirectory, SCHEMA_VERSION };

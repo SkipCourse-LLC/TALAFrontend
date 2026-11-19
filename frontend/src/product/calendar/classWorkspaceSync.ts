@@ -20,20 +20,34 @@ export function announceClassChange() {
   }
 }
 
+/**
+ * Re-reads class data only when a class actually changes, in this tab or
+ * another. There is no timer and no re-read on returning to the tab: those
+ * made the page visibly reload while someone was using it. A change that
+ * arrives while the tab is hidden is applied when the tab is shown again.
+ */
 export function useClassWorkspaceRevision(enabled = true) {
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     if (!enabled) return;
+    let missed = false;
     const refresh = () => {
-      if (document.visibilityState !== "hidden")
-        setRevision((value) => value + 1);
+      if (document.visibilityState === "hidden") {
+        missed = true;
+        return;
+      }
+      missed = false;
+      setRevision((value) => value + 1);
+    };
+    const returned = () => {
+      if (missed) refresh();
     };
     let channel: BroadcastChannel | null = null;
     try {
       if (typeof BroadcastChannel !== "undefined")
         channel = new BroadcastChannel(channelName);
     } catch {
-      // Focus and interval refresh are sufficient when channels are blocked.
+      // Same-tab change events still work without channels.
     }
     if (channel)
       channel.onmessage = (event: MessageEvent<unknown>) => {
@@ -46,14 +60,12 @@ export function useClassWorkspaceRevision(enabled = true) {
           refresh();
       };
     window.addEventListener(eventName, refresh);
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    const timer = window.setInterval(refresh, 30000);
+    window.addEventListener("focus", returned);
+    document.addEventListener("visibilitychange", returned);
     return () => {
       window.removeEventListener(eventName, refresh);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-      window.clearInterval(timer);
+      window.removeEventListener("focus", returned);
+      document.removeEventListener("visibilitychange", returned);
       channel?.close();
     };
   }, [enabled]);

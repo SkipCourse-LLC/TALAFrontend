@@ -669,15 +669,18 @@ export function WorkspaceUpdates({
             </span>
           )}
         </div>
-        <button
-          className="workspace-updates-secondary"
-          aria-label="Refresh updates"
-          type="button"
-          onClick={refresh}
-          disabled={busy || loading || !visible}
-        >
-          Refresh
-        </button>
+        {/* Students' updates refresh when their classes change. */}
+        {readOnly && (
+          <button
+            className="workspace-updates-secondary"
+            aria-label="Refresh updates"
+            type="button"
+            onClick={refresh}
+            disabled={busy || loading || !visible}
+          >
+            Refresh
+          </button>
+        )}
       </header>
       <div className="workspace-updates-toolbar">
         <div

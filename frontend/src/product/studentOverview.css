@@ -744,3 +744,9 @@
     scroll-behavior: auto !important;
   }
 }
+.learning-overview-focus-grid[data-single="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.learning-overview-follow-ups:empty {
+  display: none;
+}

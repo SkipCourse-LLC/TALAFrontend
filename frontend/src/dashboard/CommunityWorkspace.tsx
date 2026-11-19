@@ -4,6 +4,7 @@ import type { EnrollmentReceipt } from "../registration/enrollmentService";
 import { sampleSession } from "../shared/services/demoData";
 import { Icon } from "../shared/Icon";
 import { DemoMeetingsPanel } from "../meetings/DemoMeetingsPanel";
+import { PaymentOptions } from "../payment/PaymentOptions";
 
 export function CommunityWorkspace({
   session,
@@ -170,6 +171,8 @@ export function CommunityWorkspace({
               A demo approval is a preview state, not a decision issued by TALA.
             </p>
           </section>
+
+          <PaymentOptions demo />
           <section
             className="workspace-card workspace-student"
             aria-labelledby="workspace-student-heading"

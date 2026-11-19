@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient, assertNoPrivateLocation } from "./support.mjs";
+import { SyntheticHttpClient, assertNoPrivateLocation, signUpForTest } from "./support.mjs";
 
 async function fixture() {
   const dataDir = await mkdtemp(join(tmpdir(), "tala-reflection-draft-"));
@@ -16,7 +16,7 @@ async function fixture() {
   async function register(accountType = "student") {
     const client = new SyntheticHttpClient(url); await client.bootstrap();
     const account = { name: `Synthetic draft ${accountType}`, email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType };
-    const created = await client.request("/api/auth/register", { method: "POST", json: account }); assert.equal(created.status, 201);
+    const created = await signUpForTest(app, client, account); assert.equal(created.status, 200);
     return { client, user: created.json.session, account };
   }
   return { app, dataDir, url, register, async close() { await app.close(); await rm(dataDir, { recursive: true, force: true }); } };

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient } from "./support.mjs";
+import { SyntheticHttpClient, signUpForTest } from "./support.mjs";
 
 async function start(sessionTtlMs) {
   const dataDir = await mkdtemp(join(tmpdir(), "tala-session-contract-"));
@@ -28,33 +28,46 @@ async function start(sessionTtlMs) {
     },
   };
 }
-async function register(url, accountType) {
-  const client = new SyntheticHttpClient(url);
+async function register(context, accountType) {
+  const client = new SyntheticHttpClient(context.url);
   await client.bootstrap();
   const suffix = randomUUID();
-  const response = await client.request("/api/auth/register", {
-    method: "POST",
-    json: {
+  const response = await signUpForTest(context.application, client, {
       name: "Synthetic account",
       email: `${suffix}@example.test`,
       password: `Synthetic-only-${suffix}`,
       accountType,
-    },
-  });
+    });
   return { client, response };
 }
 
-test("T3-41 people can only sign up as a parent or student; admin is granted by an operator", async () => {
+test("T3-41 self sign-up is closed for every account type; roles come from the server", async () => {
   const context = await start();
   try {
-    for (const accountType of ["parent", "student"]) {
-      const { response } = await register(context.url, accountType);
-      assert.equal(response.status, 201);
-      assert.equal(response.json.session.role, accountType);
+    for (const accountType of ["parent", "student", "operator", "admin"]) {
+      const client = new SyntheticHttpClient(context.url);
+      await client.bootstrap();
+      const refused = await client.request("/api/auth/register", {
+        method: "POST",
+        json: {
+          name: "Synthetic account",
+          email: `${randomUUID()}@example.test`,
+          password: `Synthetic-only-${randomUUID()}`,
+          accountType,
+        },
+      });
+      assert.equal(refused.status, 403);
+      assert.equal(refused.json.error.code, "ENROLLMENT_INVITATION_REQUIRED");
     }
-    for (const accountType of ["operator", "admin"]) {
-      const { response } = await register(context.url, accountType);
-      assert.equal(response.status, 400);
+    assert.equal(
+      context.application.db.prepare("SELECT count(*) AS n FROM users").get().n,
+      0,
+      "A refused sign-up never creates an account",
+    );
+    for (const accountType of ["parent", "student"]) {
+      const { response } = await register(context, accountType);
+      assert.equal(response.status, 200);
+      assert.equal(response.json.session.role, accountType);
     }
   } finally {
     await context.close();
@@ -64,8 +77,8 @@ test("T3-41 people can only sign up as a parent or student; admin is granted by 
 test("T3-42 a signed-in session expires on time and logout ends it for good", async () => {
   const context = await start(3_000);
   try {
-    const { client, response } = await register(context.url, "student");
-    assert.equal(response.status, 201);
+    const { client, response } = await register(context, "student");
+    assert.equal(response.status, 200);
     const cookie = response.headers.get("set-cookie");
     assert.match(cookie, /HttpOnly/);
     assert.match(cookie, /SameSite=Strict/);
@@ -85,7 +98,7 @@ test("T3-42 a signed-in session expires on time and logout ends it for good", as
       "The old cookie stops working after logout",
     );
 
-    const { client: second } = await register(context.url, "parent");
+    const { client: second } = await register(context, "parent");
     assert.equal((await second.request("/api/family")).status, 200);
     await delay(3_200);
     second.expectedUid = "";

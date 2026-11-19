@@ -3,11 +3,13 @@ const { runtimeRevision, dataScope, assertCurrentRevision } = require("./runtime
 const http = require("node:http");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
-const { openDatabase, transaction } = require("./database.cjs");
+const { openDatabase, transaction, SCHEMA_VERSION } = require("./database.cjs");
 const { createServices, userDTO, MAX_FILE_BYTES } = require("./services.cjs");
 const { createAdmissions } = require("./admissions.cjs");
 const { createPayments } = require("./payments.cjs");
+const { createTestCheckout } = require("./testCheckout.cjs");
 const { createAccountServices } = require("./accountServices.cjs");
+const { createIntegrations } = require("./integrations.cjs");
 const { ApiError, fail, object, text, email, password, hash, token, hashPassword, verifyPassword, constantEqual } = require("./security.cjs");
 assertCurrentRevision();
 
@@ -24,7 +26,9 @@ function createApplication(options = {}) {
   const allowedOrigins = new Set(options.allowedOrigins || ["http://127.0.0.1:5173", "http://127.0.0.1:5176", "http://localhost:5173", "http://localhost:5176", "http://127.0.0.1:8787"]);
   if (!allowedOrigins.size || [...allowedOrigins].some((origin) => { try { return new URL(origin).origin !== origin; } catch { return true; } })) throw new Error("Configure explicit application origins, never a wildcard.");
   const db = openDatabase(dataDir);
-  const { services, operator, lists, goals, updates, preparations, reflectionDrafts, calendar, admissionsContext } = createServices(db, dataDir, { localStudentPreview });
+  const { services, operator, lists, goals, updates, preparations, reflectionDrafts, calendar, contactRequests, admissionsContext } = createServices(db, dataDir, { localStudentPreview });
+  // integrationEnv lets tests point Google modes at a local fake; the server itself reads process.env.
+  const integrations = createIntegrations(options.integrations, { publicOpenTimes: () => services.publicOpenTimes() }, options.integrationEnv ?? process.env);
   const sessionTtl = options.sessionTtlMs || 12 * 3600000;
   const cookieName = "tala_session";
   function currentSession(req) {
@@ -66,8 +70,8 @@ function createApplication(options = {}) {
   function setSessionCookie(res, opaque, ttl) {
     res.setHeader("Set-Cookie", `${cookieName}=${opaque}; Path=/api; Max-Age=${Math.floor(ttl / 1000)}; HttpOnly; SameSite=Strict`);
   }
-  function rate(req, group, max = 40) {
-    const key = hash(`${group}\0${req.socket.remoteAddress || "unknown"}`), now = Date.now(), window = 15 * 60000;
+  function rate(req, group, max = 40, client = req.socket.remoteAddress || "unknown") {
+    const key = hash(`${group}\0${client}`), now = Date.now(), window = 15 * 60000;
     transaction(db, () => {
       const previous = db.prepare("SELECT * FROM rate_limits WHERE key=?").get(key);
       if (!previous || previous.window_start <= now - window) db.prepare("INSERT INTO rate_limits VALUES(?,?,1) ON CONFLICT(key) DO UPDATE SET window_start=excluded.window_start,hits=1").run(key, now);
@@ -98,8 +102,10 @@ function createApplication(options = {}) {
       return { user: session.user, session };
     },
   });
-  const admissions = createAdmissions(db, { ...admissionsContext, session: currentSession, mutation });
-  const payments = createPayments(db, { guard: admissionsContext.guard, read: lists.read, config: options.paymentConfig, provider: options.paymentProvider || null });
+  const admissions = createAdmissions(db, { ...admissionsContext, session: currentSession, mutation, integrations });
+  // Billing mode "mock" swaps the live HubSpot links for a TALA test checkout (fictional families only).
+  const testCheckout = !options.paymentProvider && integrations.describe().billing === "mock" ? createTestCheckout() : null;
+  const payments = createPayments(db, { guard: admissionsContext.guard, read: lists.read, config: options.paymentConfig, provider: options.paymentProvider || null, testCheckout });
   operator.addInterviewTime = input => admissions.addAvailability(input);
   operator.createTestOperator = async input => {
     const address = email(input.email), name = input.name ? text(input.name, "operator name", 80) : "Tina · local test";
@@ -154,9 +160,9 @@ function createApplication(options = {}) {
       const url = new URL(req.url, "http://127.0.0.1");
       const route = url.pathname;
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
-      if (route === "/api/auth/local-student-preview" && !localStudentPreview) fail(404, "NOT_FOUND", "This local preview entry is unavailable.");
+      if ((route === "/api/auth/local-student-preview" || route === "/api/auth/local-parent-preview") && !localStudentPreview) fail(404, "NOT_FOUND", "This local preview entry is unavailable.");
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 12, schemaVersion: 10, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 14, schemaVersion: SCHEMA_VERSION, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: integrations.describe().email === "disabled" ? "unavailable" : integrations.describe().email, zoom: "unavailable", ai: "unavailable", integrations: integrations.describe(), payment: testCheckout ? "test_checkout" : "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
       if (req.method === "GET" && route === "/api/session") {
         // A cross-site top-level navigation omits SameSite=Strict cookies but
         // can still accept Set-Cookie. Do not overwrite a signed-in browser
@@ -198,6 +204,42 @@ function createApplication(options = {}) {
           return row;
         }));
       }
+      if (req.method === "POST" && route === "/api/auth/local-parent-preview") {
+        // The family side of the same presentation: a fixed fictional parent,
+        // linked read-only to the fictional preview student. Same limits as
+        // the student preview: explicitly enabled, loopback only, never an
+        // existing person's account.
+        let previewOrigin;
+        try { previewOrigin = new URL(origin); } catch { fail(403, "ORIGIN_DENIED", "Family preview is available on this computer only."); }
+        if (previewOrigin.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(previewOrigin.hostname)
+          || !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress)) fail(403, "ORIGIN_DENIED", "Family preview is available on this computer only.");
+        rate(req, "local-student-preview", 30);
+        object(await body(req), []);
+        mutation(req);
+        if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the family preview.");
+        const people = [
+          { uid: "tala_local_preview_student_v1", address: "student-preview@local.example.test", name: "Alex · student demo", role: "student" },
+          { uid: "tala_local_preview_parent_v1", address: "parent-preview@local.example.test", name: "Jordan · parent demo", role: "parent" },
+        ];
+        const secrets = new Map();
+        for (const person of people)
+          if (!db.prepare("SELECT uid FROM users WHERE uid=?").get(person.uid)) secrets.set(person.uid, await hashPassword(token()));
+        return json(res, rotate(req, res, () => {
+          if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the family preview.");
+          for (const person of people) {
+            const row = db.prepare("SELECT * FROM users WHERE uid=?").get(person.uid);
+            if (row) {
+              if (row.email !== person.address || row.role !== person.role || row.disabled) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+            } else {
+              if (!secrets.has(person.uid) || db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(person.address)) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+              db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)").run(person.uid, person.address, person.name, secrets.get(person.uid), person.role, Date.now());
+            }
+          }
+          db.prepare("INSERT INTO family_links(id,student_uid,parent_uid,consent_reference,recorded_at,status) VALUES(?,?,?,?,?,'active') ON CONFLICT(student_uid,parent_uid) DO UPDATE SET status='active'")
+            .run(randomUUID(), people[0].uid, people[1].uid, "Local preview: fictional family", Date.now());
+          return db.prepare("SELECT * FROM users WHERE uid=?").get(people[1].uid);
+        }));
+      }
       if (req.method === "POST" && route === "/api/auth/register") {
         rate(req, "authentication");
         fail(403, "ENROLLMENT_INVITATION_REQUIRED", "Start an interest application. An approved enrollment invitation is required to create a TALA account.");
@@ -224,7 +266,7 @@ function createApplication(options = {}) {
       }
       if (req.method === "POST" && route === "/api/admissions/interview") {
         rate(req, "admissions-write", 100);
-        return json(res, admissions.book(req, await body(req)));
+        return json(res, await admissions.book(req, await body(req)));
       }
       if (req.method === "POST" && route === "/api/admissions/document-preference") return json(res, admissions.preference(req, await body(req)));
       if (req.method === "POST" && route === "/api/admissions/documents/intents") {
@@ -280,6 +322,25 @@ function createApplication(options = {}) {
         if (req.headers["x-tala-user"] !== undefined) actorFor(req);
         return json(res, rotate(req, res, null));
       }
+      if (req.method === "GET" && route === "/api/public/open-times") {
+        rate(req, "public-open-times", 300);
+        if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "The public calendar does not accept filters.");
+        return json(res, services.publicOpenTimes());
+      }
+      if (req.method === "GET" && route === "/api/public/sessions") {
+        rate(req, "public-sessions", 300);
+        if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "Upcoming sessions do not accept filters.");
+        const listed = await integrations.availability.listSessions();
+        return json(res, { source: listed.source, timeZone: listed.timeZone, sessions: listed.sessions.slice(0, 50) });
+      }
+      if (req.method === "POST" && route === "/api/contact-requests") {
+        const input = contactRequests.validate(await body(req));
+        rate(req, "contact-request", 10);
+        rate(req, "contact-request-all", 200, "all-clients");
+        const saved = contactRequests.submit(input);
+        await contactRequests.acknowledge(saved.id, input.details, integrations.email);
+        return json(res, saved, 201);
+      }
       const actor = actorFor(req);
       let match;
       if (req.method === "GET" && route === "/api/admissions/parent") return json(res, admissions.parent(actor));
@@ -333,6 +394,10 @@ function createApplication(options = {}) {
         rate(req, "payment-verify", 60);
         return json(res, await perform(req, (fresh, input) => payments.verify(fresh, match[1], input, url.searchParams)));
       }
+      if (req.method === "POST" && (match = route.match(/^\/api\/payments\/([^/]+)\/test-checkout$/))) {
+        rate(req, "payment-test-checkout", 30);
+        return json(res, await perform(req, (fresh, input) => payments.completeTest(fresh, match[1], input, url.searchParams)));
+      }
       if (req.method === "GET" && route === "/api/operator/payments") return json(res, payments.operations(actor, url.searchParams));
       if (req.method === "POST" && route === "/api/operator/payments/items") {
         rate(req, "payment-issue", 60);
@@ -369,11 +434,14 @@ function createApplication(options = {}) {
       if (req.method === "GET" && route === "/api/available-times") return json(res, lists.availableTimes(actor, url.searchParams));
       if (req.method === "GET" && route === "/api/operations/evidence") return json(res, lists.operatorEvidence(actor, url.searchParams));
       if (req.method === "GET" && route === "/api/operations/appointments") return json(res, lists.operatorAppointments(actor, url.searchParams));
+      if (req.method === "GET" && route === "/api/operations/contact-requests") return json(res, contactRequests.list(actor, url.searchParams));
+      if (req.method === "POST" && (match = route.match(/^\/api\/operations\/contact-requests\/([^/]+)\/status$/))) return json(res, await perform(req, (fresh, input) => contactRequests.setStatus(fresh, match[1], input)));
       if (req.method === "GET" && route === "/api/operations/learning") return json(res, lists.operatorLearning(actor, url.searchParams));
       if (req.method === "PATCH" && route === "/api/profile") return json(res, await perform(req, (fresh, input) => services.updateProfile(fresh, input)));
       if (req.method === "GET" && route === "/api/availability") return json(res, lists.availability(actor, url.searchParams));
       if (req.method === "POST" && route === "/api/availability") return json(res, await perform(req, (fresh, input) => services.availability(fresh, input)), 201);
       if (req.method === "POST" && route === "/api/appointments") return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input)), 201);
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/availability\/([^/]+)$/))) return json(res, await perform(req, (fresh, input) => services.updateAvailability(fresh, match[1], input)));
       if (req.method === "POST" && (match = route.match(/^\/api\/availability\/([^/]+)\/withdraw$/))) return json(res, await perform(req, (fresh, input) => services.withdrawAvailability(fresh, match[1], input)));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/reschedule$/))) return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input, match[1])));
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/cancel$/))) return json(res, await perform(req, (fresh, input) => services.cancelBooking(fresh, match[1], input)));
@@ -449,6 +517,6 @@ function createApplication(options = {}) {
     db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     db.close();
   }
-  return { server, db, operator, close };
+  return { server, db, operator, integrations, close };
 }
 module.exports = { createApplication };

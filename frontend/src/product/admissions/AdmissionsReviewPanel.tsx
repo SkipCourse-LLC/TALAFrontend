@@ -14,6 +14,7 @@ import {
   announceClassChange,
   useClassWorkspaceRevision,
 } from "../calendar/classWorkspaceSync";
+import { staffMeetingNote } from "./interviewConnection";
 import "./admissionsReview.css";
 import "./studentAccountSetup.css";
 
@@ -526,12 +527,27 @@ function AdmissionsReviewSession({
                         timeZone: "America/Phoenix",
                       }).format(new Date(application.appointment.endsAt))}
                     </p>
-                    <p className="admissions-caption">
-                      Phoenix time.{" "}
-                      {application.appointment.status === "reserved"
-                        ? "Local test booking. Meeting link and email are not connected."
-                        : "Cancelled."}
-                    </p>
+                    {(() => {
+                      const note = staffMeetingNote(application.appointment);
+                      return (
+                        <>
+                          <p className="admissions-caption">
+                            Phoenix time. {note.summary}
+                          </p>
+                          {note.joinUrl && (
+                            <p>
+                              <a
+                                href={note.joinUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                Open the video link
+                              </a>
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </>
                 ) : (
                   <p>Not booked yet.</p>

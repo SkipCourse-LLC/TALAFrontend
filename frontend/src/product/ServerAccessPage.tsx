@@ -26,6 +26,10 @@ export function ServerAccessPage({
     "student",
   );
   const [pending, setPending] = useState(false);
+  const [previewAvailable, setPreviewAvailable] = useState(false);
+  const [openingPreview, setOpeningPreview] = useState<
+    "student" | "parent" | null
+  >(null);
   const [restoring, setRestoring] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<AccessErrors>({});
   const [capsLock, setCapsLock] = useState(false);
@@ -47,6 +51,58 @@ export function ServerAccessPage({
   useEffect(() => {
     if (error) alert.current?.focus();
   }, [error]);
+  useEffect(() => {
+    if (register) return;
+    const request = new AbortController();
+    void talaApi
+      .localStudentPreviewAvailable(request.signal)
+      .then((available) => {
+        if (!request.signal.aborted) setPreviewAvailable(available);
+      })
+      .catch(() => {
+        // An unavailable or unconfigured service must not advertise demo access.
+      });
+    return () => request.abort();
+  }, [register]);
+  /** Opens the local showcase as the demo student or the demo parent. */
+  async function openPreview(kind: "student" | "parent") {
+    if (busy.current || !previewAvailable) return;
+    busy.current = true;
+    setPending(true);
+    setOpeningPreview(kind);
+    setError("");
+    setFieldErrors({});
+    setRecoveryAvailable(false);
+    const request = new AbortController();
+    controller.current = request;
+    try {
+      const user =
+        kind === "parent"
+          ? await talaApi.enterLocalParentPreview(request.signal)
+          : await talaApi.enterLocalStudentPreview(request.signal);
+      if (!active.current || request.signal.aborted) return;
+      setPassword("");
+      onAuthenticated(user);
+      navigate(kind === "parent" ? "/dashboard" : "/dashboard?view=calendar", {
+        replace: true,
+      });
+    } catch (failure) {
+      if (active.current && !request.signal.aborted) {
+        const problem = safeTalaApiError(failure);
+        setError(problem.message);
+        setRecoveryAvailable(true);
+        setRecoveryUncertain(true);
+      }
+    } finally {
+      busy.current = false;
+      if (active.current) {
+        setPending(false);
+        setOpeningPreview(null);
+        setPassword("");
+        setPasswordVisible(false);
+      }
+    }
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy.current) return;
@@ -175,6 +231,37 @@ export function ServerAccessPage({
             ? "A space for your next step."
             : "Your learning is waiting."}
         </p>
+        {!register && previewAvailable && (
+          <section
+            className="product-access-preview"
+            aria-label="Local demo accounts"
+          >
+            <div className="product-access-demo-choices">
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={pending}
+                onClick={() => void openPreview("student")}
+              >
+                {openingPreview === "student"
+                  ? "Opening…"
+                  : "Open student demo"}
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={pending}
+                onClick={() => void openPreview("parent")}
+              >
+                {openingPreview === "parent" ? "Opening…" : "Open parent demo"}
+              </button>
+            </div>
+            <p>No email or password. Local test accounts.</p>
+            <span className="product-access-divider">
+              Or sign in to your account
+            </span>
+          </section>
+        )}
         <form onSubmit={submit} aria-busy={pending} noValidate>
           <fieldset className="product-fields" disabled={pending}>
             <legend className="sr-only">

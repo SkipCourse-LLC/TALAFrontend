@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
+import { SCHEMA_VERSION } from "../database.cjs";
 import { SyntheticHttpClient, assertNoPrivateLocation } from "./support.mjs";
 
 const digest = (value) => createHash("sha256").update(value).digest("hex");
@@ -112,7 +113,7 @@ test("the schema-v1 upgrade preserves existing synthetic sessions, ownership and
     });
     assert.equal(
       application.db.prepare("PRAGMA user_version").get().user_version,
-      10,
+      SCHEMA_VERSION,
     );
     assert.deepEqual(
       application.db.prepare("PRAGMA foreign_key_check").all(),
@@ -127,7 +128,8 @@ test("the schema-v1 upgrade preserves existing synthetic sessions, ownership and
       "A consistent pre-migration backup must exist before upgrading old records",
     );
     const backupPath = join(dataDir, "backups", backups[0]);
-    assert.equal((await stat(backupPath)).mode & 0o777, 0o600);
+    // Windows has no POSIX permission bits; Node reports 0o666 for every file there.
+    if (process.platform !== "win32") assert.equal((await stat(backupPath)).mode & 0o777, 0o600);
     const backup = new DatabaseSync(backupPath, { readOnly: true });
     try {
       assert.equal(backup.prepare("PRAGMA user_version").get().user_version, 1);

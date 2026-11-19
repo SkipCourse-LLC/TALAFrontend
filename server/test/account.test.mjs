@@ -10,7 +10,7 @@ import { spawn } from "node:child_process";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
 import { hashPassword } from "../security.cjs";
-import { SyntheticHttpClient, assertNoPrivateLocation } from "./support.mjs";
+import { SyntheticHttpClient, assertNoPrivateLocation, signUpForTest } from "./support.mjs";
 
 const origin = "http://127.0.0.1:5173";
 const digest = (value) => createHash("sha256").update(value).digest("hex");
@@ -38,16 +38,17 @@ async function harness(options = {}) {
     dataDir,
     get application() { return application; },
     get url() { return baseUrl; },
+    get application() { return application; },
     async restart() { await application.close(); await start(); },
     async close() { try { await application.close(); } finally { await rm(dataDir, { recursive: true, force: true }); } },
   };
 }
-async function register(url, accountType = "student") {
-  const client = new SyntheticHttpClient(url, origin);
+async function register(fixture, accountType = "student") {
+  const client = new SyntheticHttpClient(fixture.url, origin);
   await client.bootstrap();
   const suffix = randomUUID();
   const account = { name: `Synthetic ${accountType}`, email: `${suffix}@example.test`, password: `Synthetic-only-${suffix}`, accountType };
-  const created = ok(await client.request("/api/auth/register", { method: "POST", json: account }));
+  const created = ok(await signUpForTest(fixture.application, client, account));
   return { client, account, user: created.session };
 }
 async function login(url, account, secret = account.password) {
@@ -67,7 +68,7 @@ async function waitUntil(predicate) {
 test("safe session handles isolate users, preserve the current session and make revocation retries non-destructive", { timeout: 90_000 }, async () => {
   const fixture = await harness();
   try {
-    const owner = await register(fixture.url), foreign = await register(fixture.url);
+    const owner = await register(fixture), foreign = await register(fixture);
     const other = await login(fixture.url, owner.account);
     const before = ok(await owner.client.request("/api/account/sessions"));
     assert.equal(before.sessions.length, 2);
@@ -115,7 +116,7 @@ test("safe session handles isolate users, preserve the current session and make 
 test("password changes atomically rotate the current cookie, revoke other sessions and recover a lost response without replaying the change", { timeout: 90_000 }, async () => {
   const fixture = await harness();
   try {
-    const owner = await register(fixture.url), foreign = await register(fixture.url);
+    const owner = await register(fixture), foreign = await register(fixture);
     const other = await login(fixture.url, owner.account), stale = owner.client.copy();
     const oldCookie = owner.client.cookies.get("tala_session"), oldCsrf = owner.client.csrfToken;
     const id = randomUUID(), newSecret = `Replacement-only-${randomUUID()}`;
@@ -166,7 +167,7 @@ test("session revocation or account disable during asynchronous password verific
   const fixture = await harness();
   try {
     for (const mode of ["revoked", "disabled"]) {
-      const owner = await register(fixture.url), revoker = await login(fixture.url, owner.account);
+      const owner = await register(fixture), revoker = await login(fixture.url, owner.account);
       const before = fixture.application.db.prepare("SELECT password_hash FROM users WHERE uid=?").get(owner.user.uid).password_hash;
       const accountKey = digest(`account-password-change\0${owner.user.uid}`);
       // Occupy the same bounded crypto queue so the HTTP handler certainly
@@ -190,7 +191,7 @@ test("session revocation or account disable during asynchronous password verific
 test("per-account password limits apply before hashing and reset only after the configured time window", { timeout: 90_000 }, async () => {
   const fixture = await harness();
   try {
-    const parent = await register(fixture.url, "parent");
+    const parent = await register(fixture, "parent");
     for (let attempt = 0; attempt < 6; attempt += 1) assert.equal((await parent.client.request("/api/account/password", { method: "POST", json: { currentPassword: "Incorrect-synthetic-password", newPassword: `Unchanged-${randomUUID()}`, requestId: randomUUID() } })).status, 401);
     assert.equal((await parent.client.request("/api/account/password", { method: "POST", json: { currentPassword: parent.account.password, newPassword: `Blocked-${randomUUID()}`, requestId: randomUUID() } })).status, 429);
     const key = digest(`account-password-change\0${parent.user.uid}`);
@@ -207,7 +208,7 @@ test("binary upload buffers are concurrency bounded and read-only parents are re
   const fixture = await harness();
   const pending = [];
   try {
-    const student = await register(fixture.url), parent = await register(fixture.url, "parent");
+    const student = await register(fixture), parent = await register(fixture, "parent");
     const route = `/api/evidence/uploads/${randomUUID()}/content`;
     let observed = 0;
     fixture.application.server.on("request", (req) => { if (req.method === "PUT" && req.url === route) observed += 1; });
@@ -251,7 +252,7 @@ test("a login waiting for a SQLite writer cannot revive authentication with a pa
   const fixture = await harness();
   let worker;
   try {
-    const owner = await register(fixture.url);
+    const owner = await register(fixture);
     const loginClient = new SyntheticHttpClient(fixture.url, origin);
     await loginClient.bootstrap();
     const replacement = await hashPassword(`Synthetic-external-replacement-${randomUUID()}`);
@@ -312,7 +313,7 @@ test("slow private downloads have an absolute deadline and cannot retain every f
   try {
     assert.throws(() => createApplication({ dataDir: fixture.dataDir, downloadTtlMs: 0 }), /deadlines/);
     assert.throws(() => createApplication({ dataDir: fixture.dataDir, downloadTtlMs: 30_001 }), /deadlines/);
-    const owner = await register(fixture.url);
+    const owner = await register(fixture);
     const starts = Date.now() + 86_400_000;
     const slot = fixture.application.operator.addAvailability({ startsAt: new Date(starts).toISOString(), endsAt: new Date(starts + 1_800_000).toISOString() });
     const booking = ok(await owner.client.request("/api/appointments", { method: "POST", json: { slotId: slot.id, requestId: randomUUID() } }));

@@ -8,6 +8,7 @@ export const workspaceViews = [
   { id: "learning", label: "Learning records", heading: "records-heading" },
   { id: "evidence", label: "Evidence", heading: "evidence-heading" },
   { id: "progress", label: "Progress", heading: "progress-heading" },
+  { id: "resources", label: "Resources", heading: "resources-heading" },
 ] as const;
 
 export type WorkspaceView = (typeof workspaceViews)[number]["id"];

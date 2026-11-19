@@ -1,0 +1,909 @@
+/* The student portal shell from Hannah's learning calendar mockup. The menu
+   runs the full height of the window on the left; the header and the page sit
+   beside it as one surface. ServerWorkspace sets data-portal="student" (or
+   "family" for parents) on the
+   root element while the student portal is showing. */
+:root[data-portal] {
+  --portal-menu: 272px;
+  --portal-surface: #f3f7f6;
+  --portal-menu-surface: #f8faf9;
+  --portal-line: #dde6e3;
+  --portal-ink: #1f3a37;
+  --portal-muted: #5b6e6a;
+  --portal-teal: #1f5560;
+  --portal-active: #e3ebe8;
+}
+:root[data-portal] body {
+  background: var(--portal-surface);
+}
+
+/* ---- Menu contents (every width) ---- */
+:root[data-portal] .dashboard-side-menu-top {
+  padding-bottom: 16px;
+}
+.student-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 2px 4px;
+  color: var(--portal-ink, #1f3a37);
+}
+.student-sidebar-logo {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--portal-teal, #1f5560);
+  color: #fff;
+}
+.student-sidebar-logo svg {
+  width: 24px;
+  height: 24px;
+}
+.student-sidebar-brand-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.25;
+}
+.student-sidebar-brand-text strong {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.student-sidebar-brand-text small {
+  color: var(--portal-muted, #5b6e6a);
+  font-size: 0.72rem;
+}
+:root[data-portal] .dashboard-side-menu .student-sidebar-year {
+  position: relative;
+  display: block;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+.student-sidebar-year select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 40px 0 14px;
+  border: 1px solid #d3dedb;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--portal-ink, #1f3a37);
+  font: inherit;
+  font-size: 0.9rem;
+  appearance: none;
+  cursor: pointer;
+}
+.student-sidebar-year select:focus-visible {
+  outline: 3px solid #2b6146;
+  outline-offset: 2px;
+}
+.student-sidebar-year > .icon {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--portal-muted, #5b6e6a);
+  pointer-events: none;
+}
+
+/* Sections: quiet rows, a soft fill on the current one. */
+:root[data-portal] .dashboard-side-menu nav {
+  gap: 2px;
+}
+:root[data-portal] .dashboard-side-menu nav button {
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: none;
+  color: #2f4a45;
+  font-size: 0.95rem;
+  font-weight: 450;
+}
+:root[data-portal] .dashboard-side-menu .server-dashboard-nav-symbol {
+  width: 24px;
+  height: 24px;
+  border-radius: 0;
+  background: none;
+  color: #34524c;
+}
+:root[data-portal] .dashboard-side-menu nav button[aria-current="page"] {
+  background: var(--portal-active);
+  color: #133c36;
+  font-weight: 550;
+}
+:root[data-portal]
+  .dashboard-side-menu
+  nav
+  button[aria-current="page"]
+  .server-dashboard-nav-symbol {
+  background: none;
+  color: #133c36;
+}
+:root[data-portal] .dashboard-side-menu nav button:hover:not(:disabled) {
+  background: #ecf1ef;
+}
+:root[data-portal] .dashboard-side-menu nav button[aria-current="page"]:hover {
+  background: var(--portal-active);
+}
+:root[data-portal] .server-dashboard-sidebar .student-updates-count {
+  min-width: 22px;
+  min-height: 22px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #e2e8e6;
+  color: #2f4a45;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+/* My calendars and the sync card, divided from the sections. */
+:root[data-portal] .student-sidebar-extras {
+  gap: 16px;
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--portal-line);
+}
+:root[data-portal] .student-sidebar-calendars {
+  gap: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--portal-line);
+}
+:root[data-portal] .student-sidebar-calendars legend {
+  margin-bottom: 10px;
+  color: var(--portal-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+:root[data-portal] .student-sidebar-calendars label {
+  min-height: 32px;
+  color: #2f4a45;
+  font-size: 0.875rem;
+}
+:root[data-portal] .student-sidebar-calendars input {
+  width: 18px;
+  height: 18px;
+  accent-color: #24564c;
+}
+:root[data-portal] .student-sidebar-count {
+  color: var(--portal-muted);
+  font-size: 0.8rem;
+}
+:root[data-portal] .student-sidebar-sync {
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #e7eeec;
+  color: var(--portal-teal);
+  font-size: 0.85rem;
+}
+:root[data-portal] .student-sidebar-sync > .icon {
+  width: 22px;
+  height: 22px;
+}
+:root[data-portal] .student-sidebar-sync strong {
+  font-weight: 500;
+}
+:root[data-portal] .student-sidebar-sync p {
+  color: #3a524e;
+  line-height: 1.5;
+}
+:root[data-portal] .student-sidebar-sync button {
+  color: var(--portal-teal);
+  font-weight: 500;
+  text-decoration: none;
+}
+:root[data-portal] .student-sidebar-sync button:hover {
+  text-decoration: underline;
+}
+
+/* Settings, help and sign out sit at the foot of the menu. */
+.student-sidebar-foot {
+  display: grid;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+:root[data-portal] .student-sidebar-foot .server-dashboard-account {
+  margin: 0;
+  padding: 0;
+}
+:root[data-portal] .student-sidebar-foot .student-account {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+:root[data-portal] .student-sidebar-foot .student-account > summary,
+:root[data-portal] .student-sidebar-foot .student-sidebar-support a,
+.student-sidebar-signout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: #2f4a45;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 400;
+  text-align: left;
+  text-decoration: none;
+  list-style: none;
+  cursor: pointer;
+}
+:root[data-portal]
+  .student-sidebar-foot
+  .student-account
+  > summary::-webkit-details-marker {
+  display: none;
+}
+:root[data-portal] .student-sidebar-foot .student-account > summary:hover,
+:root[data-portal] .student-sidebar-foot .student-sidebar-support a:hover,
+.student-sidebar-signout:hover:not(:disabled) {
+  background: #ecf1ef;
+}
+:root[data-portal] .student-sidebar-foot .student-account > summary .icon,
+.student-sidebar-signout .icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+:root[data-portal] .student-sidebar-foot .student-account[open] {
+  padding-bottom: 12px;
+}
+:root[data-portal]
+  .student-sidebar-foot
+  .student-account[open]
+  > :not(summary) {
+  margin-inline: 10px;
+}
+:root[data-portal] .student-sidebar-foot .student-sidebar-support {
+  margin: 0;
+}
+.student-sidebar-signout:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.student-sidebar-signout:focus-visible,
+:root[data-portal]
+  .student-sidebar-foot
+  .student-account
+  > summary:focus-visible {
+  outline: 3px solid #2b6146;
+  outline-offset: 2px;
+}
+.student-sidebar-place {
+  margin: 8px 10px 0;
+  color: var(--portal-muted, #5b6e6a);
+  font-size: 0.75rem;
+}
+
+/* ---- The shell on wide screens ---- */
+@media (min-width: 841px) {
+  :root[data-portal] .tala-workspace-header,
+  :root[data-portal] #main-content {
+    margin-left: var(--portal-menu);
+  }
+  :root[data-portal] .tala-workspace-header {
+    background: #fff;
+    border-bottom: 1px solid var(--portal-line);
+  }
+  :root[data-portal] .tala-workspace-header-row {
+    width: auto;
+    max-width: none;
+    min-height: 76px;
+    margin: 0;
+    padding-inline: 40px 32px;
+  }
+  /* The school's mark is at the top of the menu instead. */
+  :root[data-portal] .tala-workspace-header .brand {
+    display: none;
+  }
+  :root[data-portal] .tala-workspace-breadcrumb {
+    font-size: 0.9rem;
+  }
+  :root[data-portal] .tala-workspace-breadcrumb strong {
+    color: var(--portal-ink);
+  }
+  :root[data-portal] .tala-quick-search {
+    min-width: min(340px, 30vw);
+    border-color: transparent;
+    background: #f1f5f4;
+  }
+  :root[data-portal] .tala-quick-search kbd {
+    margin-left: auto;
+  }
+  :root[data-portal] .student-workspace.server-dashboard {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 36px 32px 48px 40px;
+  }
+  :root[data-portal] .server-dashboard-shell {
+    display: block;
+  }
+  :root[data-portal] .server-dashboard-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: var(--portal-menu);
+    min-height: 0;
+    max-height: none;
+    padding: 24px 20px 20px;
+    border: 0;
+    border-right: 1px solid var(--portal-line);
+    border-radius: 0;
+    background: var(--portal-menu-surface);
+    overflow-y: auto;
+  }
+  /* "Updated · Refresh" moves under the calendar so the page opens on its title. */
+  :root[data-portal] .server-dashboard-main[data-workspace-view="calendar"] {
+    display: flex;
+    flex-direction: column;
+  }
+  :root[data-portal]
+    .server-dashboard-main[data-workspace-view="calendar"]
+    > .student-workspace-toolbar {
+    order: 1;
+    padding-block: 16px 0;
+  }
+  :root[data-portal]
+    .server-dashboard-main[data-workspace-view="calendar"]
+    > .student-service-details {
+    order: 2;
+  }
+}
+
+/* The account panel sits in the foot's own column, at every width. */
+:root[data-portal]
+  .server-dashboard
+  .student-sidebar-foot
+  > .server-dashboard-account {
+  grid-column: auto;
+  grid-row: auto;
+  align-self: auto;
+}
+
+/* Small screens: the school's mark, the Sections picker, then one row of
+   Settings, Help and Sign out. */
+@media (max-width: 840px) {
+  :root[data-portal] .dashboard-side-menu .student-sidebar-year,
+  :root[data-portal] .student-sidebar-place {
+    display: none;
+  }
+  :root[data-portal] .server-dashboard .server-dashboard-sidebar {
+    grid-template-columns: minmax(0, 1fr);
+    background: var(--portal-menu-surface);
+  }
+  :root[data-portal]
+    .server-dashboard
+    .server-dashboard-sidebar
+    > :is(
+      .dashboard-side-menu-top,
+      .server-dashboard-mobile-nav,
+      .student-sidebar-foot
+    ) {
+    grid-column: 1;
+  }
+  /* The page header already carries the school's mark here. */
+  :root[data-portal] .dashboard-side-menu-top {
+    display: none;
+  }
+  :root[data-portal] .student-sidebar-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0 4px;
+    margin: 0;
+    padding-top: 4px;
+  }
+  :root[data-portal] .student-sidebar-foot > * {
+    flex: 0 0 auto;
+    width: auto;
+  }
+  :root[data-portal] .student-sidebar-foot .student-account[open] {
+    flex-basis: 100%;
+    order: 1;
+  }
+  :root[data-portal] .student-sidebar-foot .student-account > summary,
+  :root[data-portal] .student-sidebar-foot .student-sidebar-support a,
+  :root[data-portal] .student-sidebar-signout {
+    width: auto;
+    min-height: 44px;
+    gap: 8px;
+    font-size: 0.85rem;
+  }
+}
+
+/* ---- Page titles ---- */
+/* One title per page, named like its menu item, in the mockup's regular
+   weight. The panels' own headings stay for screen readers and focus. */
+.student-page-title h1 {
+  margin: 0 0 1.25rem;
+  color: var(--portal-ink, #1f3a37);
+  font-size: clamp(1.9rem, 2.4vw, 2.35rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+:root[data-portal]
+  :is(
+    #overview-heading,
+    #updates-heading,
+    #meetings-heading,
+    #resources-heading,
+    #plan-heading,
+    #records-heading,
+    #evidence-heading,
+    #progress-heading
+  ) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Headings receive focus when a page opens; that should not draw a box. */
+:root[data-portal] :is(h1, h2, h3)[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* Disclosure toggles get a small chevron instead of the browser's triangle. */
+:root[data-portal]
+  .server-dashboard-main
+  details:not(.meeting-preparation, .meeting-history-date-tools)
+  > summary {
+  list-style: none;
+  cursor: pointer;
+}
+:root[data-portal]
+  .server-dashboard-main
+  details:not(.meeting-preparation, .meeting-history-date-tools)
+  > summary::-webkit-details-marker {
+  display: none;
+}
+:root[data-portal]
+  .server-dashboard-main
+  details:not(.meeting-preparation, .meeting-history-date-tools)
+  > summary::after {
+  content: "";
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  margin-left: 0.5em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  vertical-align: 0.2em;
+  transform: rotate(45deg);
+}
+:root[data-portal]
+  .server-dashboard-main
+  details:not(.meeting-preparation, .meeting-history-date-tools)[open]
+  > summary::after {
+  vertical-align: -0.05em;
+  transform: rotate(-135deg);
+}
+
+/* The portal has no page footer at any width: the menu and header carry
+   Help, Settings and Sign out. */
+:root[data-portal] .quiet-site-footer {
+  display: none;
+}
+@media (max-width: 840px) {
+  /* Phones: the header keeps the account menu (security, help, sign out),
+     the menu card keeps only the section picker and Settings, and the bottom
+     bar mirrors the first four menu items. */
+  :root[data-portal] .tala-workspace-profile {
+    display: block;
+  }
+  :root[data-portal] .student-sidebar-foot > :not(.server-dashboard-account) {
+    display: none;
+  }
+  /* The search button shows just its icon; its name stays for screen
+     readers. */
+  :root[data-portal] .tala-quick-search {
+    min-width: 0;
+    margin-left: auto;
+  }
+  :root[data-portal] .tala-quick-search > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* The section picker comes first in the menu card, then Settings. */
+  :root[data-portal]
+    .server-dashboard
+    .server-dashboard-sidebar
+    .server-dashboard-mobile-nav {
+    grid-row: 1;
+  }
+  :root[data-portal] .server-dashboard .student-sidebar-foot {
+    grid-row: 2;
+  }
+  :root[data-portal] .server-dashboard-mobile-quick span {
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+}
+
+/* ---- One control system for the student portal ----
+   One teal for primary actions, one outline secondary, one segmented tab
+   control, three corner sizes (6 / 8 / 14px). These override the older
+   per-page styles inside the portal only. */
+:root[data-portal] {
+  --ui-primary: #1f5560;
+  --ui-primary-hover: #17444d;
+  --ui-secondary-ink: #1f5560;
+  --ui-line: #c9d6d2;
+  --ui-radius-sm: 6px;
+  --ui-radius: 8px;
+  --ui-radius-lg: 14px;
+}
+/* Primary: 40px, 8px corners, one teal. */
+:root[data-portal]
+  .server-dashboard-main
+  :is(
+    .today-primary-action,
+    .learning-plan-primary,
+    .student-progress-next-action,
+    .button.button-primary,
+    button.button:not(.button-secondary),
+    .tala-class-format-button:not(.tala-class-format-secondary),
+    .tala-cal-enroll:not(.tala-cal-enroll-cancel)
+  ) {
+  min-height: 40px;
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--ui-primary);
+  border-radius: var(--ui-radius);
+  background: var(--ui-primary);
+  box-shadow: none;
+  color: #fff;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+  filter: none;
+}
+:root[data-portal]
+  .server-dashboard-main
+  :is(
+    .today-primary-action,
+    .learning-plan-primary,
+    .student-progress-next-action,
+    .button.button-primary,
+    button.button:not(.button-secondary),
+    .tala-class-format-button:not(.tala-class-format-secondary),
+    .tala-cal-enroll:not(.tala-cal-enroll-cancel)
+  ):hover:not(:disabled) {
+  border-color: var(--ui-primary-hover);
+  background: var(--ui-primary-hover);
+  filter: none;
+}
+/* Small primary inside side panels and cards. */
+:root[data-portal]
+  .server-dashboard-main
+  .tala-cal-today-card
+  .tala-cal-enroll.tala-cal-enroll-small {
+  min-height: 34px;
+  padding: 0.3rem 0.75rem;
+}
+/* Wait list stays the quiet grey button. */
+:root[data-portal]
+  .server-dashboard-main
+  .tala-class-format-button[data-waitlist="true"] {
+  border-color: var(--ui-line);
+  background: #e8eeec;
+  color: #1f3a37;
+}
+/* Secondary: same size, outline. */
+:root[data-portal]
+  .server-dashboard-main
+  :is(
+    .tala-class-format-secondary,
+    .learning-plan-secondary,
+    .evidence-file-picker-choose,
+    .meeting-date-range-apply,
+    .workspace-updates-secondary,
+    .button.button-secondary,
+    .tala-cal-enroll-cancel
+  ) {
+  min-height: 40px;
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: #fff;
+  box-shadow: none;
+  color: var(--ui-secondary-ink);
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+}
+:root[data-portal]
+  .server-dashboard-main
+  :is(
+    .tala-class-format-secondary,
+    .learning-plan-secondary,
+    .evidence-file-picker-choose,
+    .meeting-date-range-apply,
+    .workspace-updates-secondary,
+    .button.button-secondary,
+    .tala-cal-enroll-cancel
+  ):hover:not(:disabled) {
+  background: #eef4f1;
+  filter: none;
+}
+/* Disabled buttons look disabled. */
+:root[data-portal] .server-dashboard-main button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* The calendar's header actions use the same height and corners. */
+:root[data-portal] .tala-calendar .tala-cal-actions .tala-cal-action {
+  min-height: 40px;
+  border-radius: var(--ui-radius);
+  font-weight: 500;
+}
+
+/* Segmented tabs: one control everywhere (My Work tabs, Announcements,
+   Plan filters, My Teachers history, Today view, calendar views, Open
+   Classes switch). */
+:root[data-portal]
+  :is(
+    .student-work-tabs,
+    .workspace-updates-filters,
+    .learning-plan-filters,
+    .meeting-history-filters,
+    .today-view-choice,
+    .tala-cal-views,
+    .tala-classes-switch,
+    .tala-parent-request-filters
+  ) {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-self: center;
+  align-items: center;
+  gap: 2px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px;
+  border: 1px solid #e3eae7;
+  border-radius: var(--ui-radius);
+  background: #f2f6f4;
+}
+:root[data-portal]
+  :is(
+    .student-work-tabs,
+    .workspace-updates-filters,
+    .learning-plan-filters,
+    .meeting-history-filters,
+    .today-view-choice,
+    .tala-cal-views,
+    .tala-classes-switch,
+    .tala-parent-request-filters
+  )
+  > button {
+  min-height: 34px;
+  height: auto;
+  padding: 0.3rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: #4f6460;
+  font-size: 0.85rem !important;
+  font-weight: 400 !important;
+}
+:root[data-portal]
+  :is(
+    .student-work-tabs,
+    .workspace-updates-filters,
+    .learning-plan-filters,
+    .meeting-history-filters,
+    .today-view-choice,
+    .tala-cal-views,
+    .tala-classes-switch,
+    .tala-parent-request-filters
+  )
+  > button:is([aria-pressed="true"], [aria-current="page"]) {
+  border-color: #d4dfd9;
+  background: #fff;
+  color: #173f3a;
+  font-weight: 500 !important;
+  box-shadow: 0 1px 2px #213b3212;
+}
+:root[data-portal]
+  :is(
+    .student-work-tabs,
+    .workspace-updates-filters,
+    .learning-plan-filters,
+    .meeting-history-filters,
+    .today-view-choice,
+    .tala-cal-views,
+    .tala-classes-switch,
+    .tala-parent-request-filters
+  )
+  > button:hover:not([aria-pressed="true"], [aria-current="page"]) {
+  color: #173f3a;
+}
+
+/* Cards and boards: 14px corners; chips and tags: 6px. */
+:root[data-portal]
+  .server-dashboard-main
+  :is(
+    .tala-cal-board,
+    .tala-cal-today-card,
+    .tala-cal-horizon,
+    .tala-classes-board,
+    .product-card,
+    .learning-overview-focus,
+    .learning-overview-meeting,
+    .calendar-enrollment-summary,
+    .student-resources-list li
+  ) {
+  border-radius: var(--ui-radius-lg);
+}
+:root[data-portal]
+  .server-dashboard-main
+  :is(
+    .tala-class-row-meta li,
+    .tala-class-seat,
+    .tala-class-format-pill,
+    .tala-class-status,
+    .tala-cal-class-bottom > span,
+    .tala-day-details-category
+  ) {
+  border-radius: var(--ui-radius-sm);
+}
+/* Format buttons: one teal for both formats; the badge says which. */
+:root[data-portal] .tala-class-format-pill[data-mode="online"] {
+  background: #2c6a62;
+}
+
+/* Family portal: the linked-student picker sits under the school year. */
+:root[data-portal] .dashboard-side-menu .product-family {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+:root[data-portal] .dashboard-side-menu .product-family h2 {
+  margin: 0 4px;
+  color: var(--portal-muted, #5b6e6a);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+:root[data-portal] .dashboard-side-menu .product-family .form-field {
+  margin: 0;
+}
+:root[data-portal] .dashboard-side-menu .product-family label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+:root[data-portal] .dashboard-side-menu .product-family select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #d3dedb;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--portal-ink, #1f3a37);
+  font: inherit;
+  font-size: 0.9rem;
+}
+:root[data-portal] .dashboard-side-menu .product-family p {
+  margin: 0 4px;
+  color: var(--portal-muted, #5b6e6a);
+  font-size: 0.8rem;
+}
+/* "Viewing as Alex · read-only": a quiet line under the page title. */
+:root[data-portal="family"] .student-family-notice.student-family-context {
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--portal-muted, #5b6e6a);
+  font-size: 0.85rem;
+}
+/* Family overview: the payments and class-request summaries are matching
+   cards with the action on the right. */
+:root[data-portal="family"] .server-dashboard-main .tala-parent-class-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  margin: 0 0 1rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid #d9e3df;
+  border-radius: var(--ui-radius-lg);
+  background: #fff;
+  box-shadow: none;
+}
+:root[data-portal="family"]
+  .server-dashboard-main
+  .tala-parent-class-summary
+  :is(h2, h3) {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+:root[data-portal="family"]
+  .server-dashboard-main
+  .tala-parent-class-summary
+  p {
+  margin: 0;
+  color: #4f6460;
+  font-size: 0.875rem;
+}
+/* Class Requests: the page title already names it. */
+:root[data-portal="family"] #classes-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+:root[data-portal="family"] .server-dashboard-main .tala-parent-class-summary,
+:root[data-portal="family"]
+  .server-dashboard-main
+  .tala-parent-class-summary
+  > * {
+  text-align: left;
+}
+@media (max-width: 840px) {
+  /* Phones: pick the student first, then the section, then Settings. */
+  :root[data-portal="family"]
+    .server-dashboard
+    .server-dashboard-sidebar
+    .product-family {
+    grid-row: 1;
+    grid-column: 1;
+    margin: 0;
+  }
+  :root[data-portal="family"]
+    .server-dashboard
+    .server-dashboard-sidebar
+    .server-dashboard-mobile-nav {
+    grid-row: 2;
+  }
+  :root[data-portal="family"] .server-dashboard .student-sidebar-foot {
+    grid-row: 3;
+  }
+  :root[data-portal="family"]
+    .server-dashboard-main
+    .tala-parent-class-summary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  :root[data-portal="family"]
+    .server-dashboard-main
+    .tala-parent-class-summary
+    :is(a, button) {
+    width: 100%;
+  }
+}

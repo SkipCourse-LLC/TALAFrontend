@@ -31,6 +31,9 @@
     "test:learning-experience-unit": "playwright test -c src/product/learningExperienceUnit.config.ts",
     "test:editor-recovery": "playwright test -c src/product/learningEditorRecovery.config.ts",
     "test:evidence-notes": "playwright test -c src/product/evidenceNotesBrowser.config.ts",
+    "test:roles": "playwright test -c src/product/roleSignIn.config.ts",
+    "test:onboarding": "playwright test -c src/onboarding/onboarding.config.ts",
+    "test:student-portal": "playwright test -c src/product/studentPortalUnit.config.ts",
     "build": "npm run typecheck && vite build",
     "build:hosting": "vite build --outDir ../public --emptyOutDir",
     "preview": "vite preview --host 127.0.0.1",
@@ -68,6 +71,6 @@
     "prettier": "3.9.8",
     "typescript": "6.0.3",
     "typescript-eslint": "8.70.0",
-    "vite": "8.3.0"
+    "vite": "8.3.8"
   }
 }

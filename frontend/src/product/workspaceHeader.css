@@ -37,26 +37,62 @@
   font-size: 0.8rem;
   cursor: pointer;
 }
-.tala-quick-search .learning-glyph {
+.tala-quick-search .icon {
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
+}
+.tala-workspace-breadcrumb .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 .tala-quick-search kbd {
   font: inherit;
   font-size: 0.7rem;
   margin-left: 1.5rem;
-  color: #6e8273;
+  /* #6e8273 measured 3.8:1 on #f3f7f4; WCAG AA needs 4.5:1 for small text. */
+  color: #536d5e;
+}
+.tala-workspace-bell {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: #375c47;
+  flex-shrink: 0;
+}
+.tala-workspace-bell:hover {
+  background: #eef4ef;
+}
+.tala-workspace-bell .icon {
+  width: 20px;
+  height: 20px;
 }
 .tala-workspace-profile {
+  position: relative;
+  color: #375c47;
+  font-size: 0.76rem;
+  max-width: 250px;
+}
+.tala-workspace-profile > summary {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  text-decoration: none;
-  color: #375c47;
-  font-size: 0.76rem;
-  max-width: 230px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 999px;
+  padding: 2px 6px 2px 2px;
 }
-.tala-workspace-profile > span:first-child {
+.tala-workspace-profile > summary::-webkit-details-marker {
+  display: none;
+}
+.tala-workspace-profile > summary:focus-visible {
+  outline: 3px solid #2b6146;
+  outline-offset: 3px;
+}
+.tala-workspace-avatar {
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -67,10 +103,58 @@
   color: #3a6949;
   font-size: 0.85rem;
 }
-.tala-workspace-profile > span:last-child {
+.tala-workspace-who {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.tala-workspace-who > span,
+.tala-workspace-who > small {
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+}
+.tala-workspace-who > small {
+  color: #536d5e;
+  font-size: 0.7rem;
+}
+.tala-workspace-profile > summary .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.tala-workspace-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  display: grid;
+  min-width: 190px;
+  padding: 0.4rem;
+  border: 1px solid #d7e1df;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 32px #163e2b24;
+}
+.tala-workspace-menu :is(a, button) {
+  min-height: 40px;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #243a3b;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.tala-workspace-menu :is(a, button):hover {
+  background: #eef4ef;
+}
+.tala-workspace-menu button {
+  border-top: 1px solid #e3eae7;
+  border-radius: 0 0 6px 6px;
 }
 .tala-workspace-header :is(button, a, input):focus-visible,
 .tala-search-dialog :is(button, input):focus-visible {
@@ -181,7 +265,7 @@
   .tala-workspace-header-row {
     gap: 1rem;
   }
-  .tala-workspace-profile > span:last-child {
+  .tala-workspace-who {
     display: none;
   }
   .tala-workspace-breadcrumb {
@@ -225,4 +309,11 @@
 }
 .student-workspace.server-dashboard {
   --container: 1440px;
+}
+
+.tala-search-dialog .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #5b6e6a;
 }

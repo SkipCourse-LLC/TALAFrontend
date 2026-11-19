@@ -3,12 +3,27 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Brand } from "../shared/Brand";
 import { safeTalaApiError, talaApi } from "../api";
 import type { ApiUser, CalendarClass } from "../api";
-import { LearningGlyph } from "./LearningGlyph";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
+import type { WorkspaceView } from "./workspaceViews";
 import { classStatus } from "./calendar/classPresentation";
+import { portalSection } from "./workspaceSections";
+import { Icon } from "../shared/Icon";
 import "./workspaceHeader.css";
 
 type Destination = { id: string; label: string; detail: string; url: string };
+/** What each student page holds, shown under its name in search. */
+const studentPageDetail: Record<WorkspaceView, string> = {
+  overview: "Today's goal, classes and next steps",
+  calendar: "Classes, meetings and goals by day",
+  classes: "Browse classes and sign up",
+  updates: "Changes to your classes, meetings and Evidence",
+  plan: "Your learning goals",
+  meetings: "Book and prepare for meetings",
+  learning: "Notes your teachers shared after meetings",
+  evidence: "Work you uploaded and reflections",
+  progress: "How your goals are going",
+  resources: "Calendar file, programs and help",
+};
 export function WorkspaceHeader({ user }: { user: ApiUser }) {
   const location = useLocation(),
     navigate = useNavigate();
@@ -36,15 +51,27 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
           meetings: "Meetings",
           learning: "Learning summaries",
         }[params.get("panel") ?? "admissions"] ?? "Operations")
-      : workspaceViews.find(
-          (item) => item.id === readWorkspaceView(params.get("view")),
-        )!.label;
+      : user.role === "alumni"
+        ? "Alumni home"
+        : workspaceViews.find(
+            (item) => item.id === readWorkspaceView(params.get("view")),
+          )!.label;
+  const studentView = readWorkspaceView(params.get("view"));
   const pageLabel =
     location.pathname === "/payment"
       ? "Payments"
-      : user.role === "parent" && params.get("view") === "classes"
-      ? "Class requests"
-      : page;
+      : user.role === "student" || user.role === "parent"
+        ? portalPageName(user.role, studentView)
+        : page;
+  const roleLabel =
+    user.uid === "tala_local_preview_student_v1"
+      ? "Student demo"
+      : {
+          student: "Student",
+          parent: "Parent",
+          operator: "School staff",
+          alumni: "Alumni",
+        }[user.role];
   const pages: Destination[] =
     user.role === "operator"
       ? [
@@ -63,7 +90,8 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
           {
             id: "payments",
             label: "Payments",
-            detail: "Authorize approved payment items and inspect receipt status",
+            detail:
+              "Authorize approved payment items and inspect receipt status",
             url: "/dashboard?panel=payments",
           },
           {
@@ -85,27 +113,42 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
             url: "/dashboard?panel=learning",
           },
         ]
-      : workspaceViews
-          .filter((item) => user.role !== "parent" || item.id !== "calendar")
-          .map((item) => ({
-            id: item.id,
-            label:
-              user.role === "parent" && item.id === "classes"
-                ? "Class requests"
-                : item.label,
-            detail:
-              item.id === "classes"
-                ? user.role === "parent"
-                  ? "Approve requests for your linked student"
-                  : "Discover courses and follow your requests"
-                : "Open your saved workspace",
-            url: `/dashboard?view=${item.id}`,
-          }));
+      : user.role === "alumni"
+        ? [
+            {
+              id: "alumni",
+              label: "Alumni home",
+              detail: "Open your alumni page",
+              url: "/dashboard",
+            },
+          ]
+        : workspaceViews
+            .filter(
+              (item) =>
+                user.role !== "parent" ||
+                (item.id !== "calendar" && item.id !== "resources"),
+            )
+            .map((item) => ({
+              id: item.id,
+              label:
+                user.role === "student" || user.role === "parent"
+                  ? portalPageName(user.role, item.id)
+                  : item.label,
+              detail:
+                item.id === "classes"
+                  ? user.role === "parent"
+                    ? "Approve requests for your linked student"
+                    : "Discover courses and follow your requests"
+                  : user.role === "student"
+                    ? studentPageDetail[item.id]
+                    : "Open your saved workspace",
+              url: `/dashboard?view=${item.id}`,
+            }));
   if (user.role === "parent")
     pages.push({
       id: "payments",
       label: "Payments",
-      detail: "View approved fees, HubSpot checkout and payment verification",
+      detail: "Fees approved for your student and their payment status",
       url: "/payment",
     });
   const words = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -156,13 +199,15 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
   }, [isWorkspace]);
   useLayoutEffect(() => {
     if (!open) return;
-    const box = dialog.current;
-    const button = opener.current;
-    box?.showModal();
+    // Close the dialog this effect opened and return focus to the persistent
+    // search button, even if React has detached the refs before cleanup.
+    const openedDialog = dialog.current;
+    const searchButton = opener.current;
+    openedDialog?.showModal();
     input.current?.focus();
     return () => {
-      box?.close();
-      button?.focus({ preventScroll: true });
+      openedDialog?.close();
+      searchButton?.focus({ preventScroll: true });
     };
   }, [open]);
   // Reset the class results when a new student load starts. This is adjusted
@@ -229,9 +274,11 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
               ? "Family portal"
               : user.role === "operator"
                 ? "Staff portal"
-                : "Learning portal"}
+                : user.role === "alumni"
+                  ? "Alumni portal"
+                  : "Learning portal"}
           </span>
-          <span aria-hidden="true">/</span>
+          <Icon name="chevron-right" />
           <strong>{pageLabel}</strong>
         </div>
         <button
@@ -241,20 +288,64 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
           onClick={() => setOpen(true)}
           aria-haspopup="dialog"
         >
-          <LearningGlyph name="book" />
-          <span>Find a page or class</span>
+          <Icon name="search" />
+          <span>
+            {user.role === "student"
+              ? "Search learning portal"
+              : "Find a page or class"}
+          </span>
           <kbd>⌘ K</kbd>
         </button>
-        <Link
-          to="/two-factor"
+        {(user.role === "student" || user.role === "parent") && (
+          <Link
+            to="/dashboard?view=updates"
+            className="tala-workspace-bell"
+            aria-label={user.role === "student" ? "Announcements" : "Updates"}
+            title={user.role === "student" ? "Announcements" : "Updates"}
+          >
+            <Icon name="bell" />
+          </Link>
+        )}
+        <details
           className="tala-workspace-profile"
-          aria-label={`Account security for ${user.name}`}
+          key={`${location.pathname}${location.search}`}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && event.currentTarget.open) {
+              event.preventDefault();
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}
         >
-          <span aria-hidden="true">
-            {Array.from(user.name.trim())[0]?.toUpperCase() ?? "?"}
-          </span>
-          <span>{user.name}</span>
-        </Link>
+          <summary aria-label={`Account menu for ${user.name}`}>
+            <span className="tala-workspace-avatar" aria-hidden="true">
+              {Array.from(user.name.trim())[0]?.toUpperCase() ?? "?"}
+            </span>
+            <span className="tala-workspace-who">
+              <span>{user.name}</span>
+              <small>{roleLabel}</small>
+            </span>
+            <Icon name="chevron-down" />
+          </summary>
+          <div className="tala-workspace-menu">
+            <Link to="/two-factor">Account security</Link>
+            <Link to="/contact">Help &amp; support</Link>
+            {/* The student and family workspace handles this request. */}
+            {(user.role === "student" || user.role === "parent") && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.currentTarget
+                    .closest("details")
+                    ?.removeAttribute("open");
+                  window.dispatchEvent(new Event("tala:request-sign-out"));
+                }}
+              >
+                Sign out
+              </button>
+            )}
+          </div>
+        </details>
       </div>
       {open && (
         <dialog
@@ -337,7 +428,7 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
                     <strong>{item.label}</strong>
                     <small>{item.detail}</small>
                   </span>
-                  <span aria-hidden="true">↗</span>
+                  <Icon name="chevron-right" />
                 </button>
               </div>
             ))}
@@ -361,4 +452,11 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
       )}
     </header>
   );
+}
+
+/** "My Work · Plan", "Learning · Evidence" or "Announcements": a page by its menu name. */
+function portalPageName(role: string, view: WorkspaceView) {
+  const place = portalSection(role, view);
+  const tab = place.tabs?.find((item) => item.view === view);
+  return tab ? `${place.label} · ${tab.label}` : place.label;
 }

@@ -7,6 +7,8 @@ const { transaction } = require("./database.cjs");
 const { fail, object, text, paragraph, identifier, requestId, email, hash, token, password, hashPassword, verifyPassword } = require("./security.cjs");
 const MAX_BYTES = 5 * 1024 * 1024, ACCESS_TTL = 7 * 86400000;
 const iso = value => new Date(value).toISOString();
+const SCHOOL_TIME_ZONE = "America/Phoenix";
+const interviewTime = value => new Intl.DateTimeFormat("en-US", { timeZone: SCHOOL_TIME_ZONE, weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 const optional = (value, label, maximum) => value === undefined || value === "" ? "" : text(value, label, maximum);
 function createAdmissions(db, context) {
   const cookieName = "tala_admissions";
@@ -59,10 +61,13 @@ function createAdmissions(db, context) {
       ...(setup.student_uid ? { studentUid: setup.student_uid } : {}), ...(student ? { student: { uid: student.uid, name: student.name, email: student.email } } : {}) };
   }
   function dto(row) {
-    const appointment = db.prepare("SELECT a.*,s.starts_at,s.ends_at FROM admissions_appointments a JOIN slots s ON s.id=a.slot_id WHERE a.application_id=? ORDER BY a.created_at DESC,a.id DESC LIMIT 1").get(row.id);
+    const appointment = db.prepare(`SELECT a.*,s.starts_at,s.ends_at,m.meeting_status,m.join_url,m.email_status FROM admissions_appointments a JOIN slots s ON s.id=a.slot_id
+      LEFT JOIN admissions_meetings m ON m.appointment_id=a.id WHERE a.application_id=? ORDER BY a.created_at DESC,a.id DESC LIMIT 1`).get(row.id);
     return { id: row.id, parentName: row.parent_name, email: row.email, studentName: row.student_name, gradeBand: row.grade_band, interest: row.interest,
       status: row.status, version: row.version, documentPreference: row.document_preference, studentSetup: studentSetupDTO(row.id),
-      appointment: appointment ? { id: appointment.id, slotId: appointment.slot_id, startsAt: iso(appointment.starts_at), endsAt: iso(appointment.ends_at), status: appointment.status } : null,
+      appointment: appointment ? { id: appointment.id, slotId: appointment.slot_id, startsAt: iso(appointment.starts_at), endsAt: iso(appointment.ends_at), status: appointment.status,
+        meeting: appointment.meeting_status ? { status: appointment.meeting_status, joinUrl: appointment.meeting_status === "ready" && appointment.status === "reserved" ? appointment.join_url : null } : null,
+        confirmationEmail: appointment.email_status ?? null } : null,
       documents: db.prepare("SELECT id,name,content_type,size,uploaded_at FROM admissions_documents WHERE application_id=? AND state='uploaded' ORDER BY uploaded_at,id").all(row.id).map(file => ({ id: file.id, name: file.name, contentType: file.content_type, size: file.size, uploadedAt: iso(file.uploaded_at) })),
       createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), ...(row.enrolled_parent_uid ? { enrolledParentUid: row.enrolled_parent_uid } : {}) };
   }
@@ -74,9 +79,13 @@ function createAdmissions(db, context) {
       ORDER BY s.starts_at,s.id LIMIT 100`).all(Date.now()).map(s => ({ id: s.id, startsAt: iso(s.starts_at), endsAt: iso(s.ends_at), label: s.label, isAvailable: true }));
   }
   function current(req) {
-    return transaction(db, () => { const cap = access(req, false); return { application: cap ? dto(applicationRow(cap.application_id)) : null, slots: cap ? slots() : [], integrations: { email: "unavailable", meeting: "unavailable" }, mode: "local_test" }; });
+    return transaction(db, () => { const cap = access(req, false); return { application: cap ? dto(applicationRow(cap.application_id)) : null, slots: cap ? slots() : [], integrations: integrationStatus(), mode: "local_test" }; });
   }
-  function envelope(row) { return { application: dto(row), slots: slots(), integrations: { email: "unavailable", meeting: "unavailable" }, mode: "local_test" }; }
+  function integrationStatus() {
+    const modes = context.integrations?.describe() ?? {};
+    return { email: !modes.email || modes.email === "disabled" ? "unavailable" : "available", meeting: !modes.meeting || modes.meeting === "disabled" ? "unavailable" : "available" };
+  }
+  function envelope(row) { return { application: dto(row), slots: slots(), integrations: integrationStatus(), mode: "local_test" }; }
   // Receipts contain identifiers and versions only, never applicant notes,
   // passwords, invitation secrets, or historical private document content.
   function operation(scope, kind, input, fn) {
@@ -128,16 +137,59 @@ function createAdmissions(db, context) {
       return envelope(result.row);
     });
   }
-  function book(req, input) {
-    return change(req, input, "book", ["slotId", "requestId", "version"], row => {
+  async function book(req, input) {
+    let booked = null, replaced = null;
+    const result = change(req, input, "book", ["slotId", "requestId", "version"], row => {
       if (!["pending_interview", "interview_scheduled"].includes(row.status)) fail(409, "CONFLICT", "Interview scheduling is closed for this application.");
       const slotId = identifier(input.slotId), available = slots().find(s => s.id === slotId);
       if (!available) fail(409, "CONFLICT", "This interview time is no longer available. Choose another.");
+      replaced = db.prepare("SELECT a.id,m.provider,m.meeting_id FROM admissions_appointments a LEFT JOIN admissions_meetings m ON m.appointment_id=a.id WHERE a.application_id=? AND a.status='reserved'").get(row.id) ?? null;
       db.prepare("UPDATE admissions_appointments SET status='cancelled',updated_at=? WHERE application_id=? AND status='reserved'").run(Date.now(), row.id);
-      const now = Date.now();
-      db.prepare("INSERT INTO admissions_appointments VALUES(?,?,?,'reserved',?,?)").run(randomUUID(), row.id, slotId, now, now);
+      const now = Date.now(), id = randomUUID();
+      db.prepare("INSERT INTO admissions_appointments VALUES(?,?,?,'reserved',?,?)").run(id, row.id, slotId, now, now);
+      booked = { id, startsAt: Date.parse(available.startsAt), endsAt: Date.parse(available.endsAt), parentName: row.parent_name, email: row.email };
       const next = update(row, "interview_scheduled"); audit(row.id, "interview_booked"); return next;
     });
+    // A replayed request already arranged its meeting; never create a second one.
+    if (!booked) return result;
+    await arrangeInterview(booked, replaced);
+    return transaction(db, () => envelope(applicationRow(result.application.id)));
+  }
+  // Runs after the booking is saved. Outside services can fail or be slow, but the
+  // booking stands either way: staff see a failed status, and no link is invented.
+  async function arrangeInterview(booked, replaced) {
+    const services = context.integrations;
+    if (!services) return;
+    if (replaced?.meeting_id && replaced.provider === services.meeting.mode) {
+      let cleanup = "removed";
+      try { await services.meeting.deleteMeeting(replaced.meeting_id); } catch { cleanup = "failed"; }
+      db.prepare("UPDATE admissions_meetings SET cleanup_status=?,updated_at=MAX(updated_at,?) WHERE appointment_id=?").run(cleanup, Date.now(), replaced.id);
+    }
+    let meeting = { provider: "none", meetingId: null, joinUrl: null, status: "unavailable" };
+    if (services.meeting.mode !== "disabled") {
+      try {
+        const created = await services.meeting.createMeeting({ title: `TALA admissions interview: ${booked.parentName}`.slice(0, 120), startsAt: iso(booked.startsAt), endsAt: iso(booked.endsAt) });
+        meeting = { provider: services.meeting.mode, meetingId: created.meetingId, joinUrl: created.joinUrl, status: created.status };
+      } catch { meeting = { provider: services.meeting.mode, meetingId: null, joinUrl: null, status: "failed" }; }
+    }
+    let emailStatus = "unavailable";
+    if (services.email.mode !== "disabled") {
+      const link = meeting.status === "ready" ? `Join by video: ${meeting.joinUrl}` : "We will email you the video link before your interview.";
+      try {
+        await services.email.send({ to: booked.email, subject: "Your TALA admissions interview is booked",
+          text: `Hello ${booked.parentName},\n\nYour TALA admissions interview is booked for ${interviewTime(booked.startsAt)} (Tucson time).\n\n${link}\n\nTo choose a different time, return to your application on the TALA website.\n\nTALA Admissions` });
+        emailStatus = "sent";
+      } catch { emailStatus = "failed"; }
+    }
+    const stillBooked = db.prepare("SELECT status FROM admissions_appointments WHERE id=?").get(booked.id)?.status === "reserved";
+    let cleanup = "none";
+    if (!stillBooked && meeting.meetingId) {
+      // Rebooked while this meeting was being created: remove it rather than leave an orphan.
+      try { await services.meeting.deleteMeeting(meeting.meetingId); cleanup = "removed"; } catch { cleanup = "failed"; }
+    }
+    const now = Date.now();
+    db.prepare(`INSERT INTO admissions_meetings(appointment_id,provider,meeting_id,join_url,meeting_status,email_status,cleanup_status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(appointment_id) DO NOTHING`).run(booked.id, meeting.provider, meeting.meetingId, meeting.joinUrl, meeting.status, emailStatus, cleanup, now, now);
   }
   function preference(req, input) {
     return change(req, input, "preference", ["preference", "requestId", "version"], row => {

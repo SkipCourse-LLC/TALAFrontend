@@ -1,5 +1,5 @@
 {
-  "version": 12,
+  "version": 14,
   "basePath": "/api",
   "defaultOrigin": "http://127.0.0.1:8787",
   "security": {
@@ -47,7 +47,7 @@
       "uid": "UUID",
       "name": "string",
       "email": "string",
-      "role": "student|parent|operator",
+      "role": "student|parent|alumni|operator",
       "emailVerified": false
     },
     "Session": {
@@ -260,6 +260,34 @@
       "updatedAt": "ISO UTC",
       "verifiedAt": "ISO UTC|null",
       "note": "plain status explanation"
+    },
+    "OpenTime": {
+      "id": "UUID",
+      "startsAt": "ISO UTC",
+      "endsAt": "ISO UTC"
+    },
+    "ContactAvailabilityWindow": {
+      "day": "monday|tuesday|wednesday|thursday|friday|saturday|sunday",
+      "startTime": "HH:MM 24-hour, school time zone",
+      "endTime": "HH:MM, later than startTime"
+    },
+    "ContactRequestReceipt": {
+      "id": "UUID",
+      "status": "received",
+      "receivedAt": "ISO UTC"
+    },
+    "ContactRequest": {
+      "id": "UUID",
+      "parentName": "string 1..80",
+      "email": "lowercase email",
+      "phone": "string, 10..15 digits",
+      "preferredMethod": "email|phone|text",
+      "availability": "ContactAvailabilityWindow[] 1..21, weekday order",
+      "timeZone": "America/Phoenix",
+      "notes": "optional string 1..1000",
+      "status": "new|contacted|closed",
+      "receivedAt": "ISO UTC",
+      "updatedAt": "ISO UTC"
     }
   },
   "routes": [
@@ -269,18 +297,19 @@
       "response": {
         "application": "tala-independent-server",
         "version": 1,
-        "contractVersion": 12,
-        "schemaVersion": 10,
+        "contractVersion": 14,
+        "schemaVersion": 13,
         "runtimeRevision": "SHA-256 of source captured at process startup; local reuse compatibility only, not authentication",
         "instanceScope": "SHA-256 of selected absolute data directory; no private path or records are exposed",
         "status": "ok",
         "authentication": "local-server",
-        "emailDelivery": "unavailable",
+        "emailDelivery": "unavailable|mock|gmail (the email integration mode)",
         "zoom": "unavailable",
         "ai": "unavailable",
-        "payment": "hubspot_checkout",
+        "payment": "hubspot_checkout|test_checkout",
         "calendar": "local_catalog",
-        "paymentVerification": "unconfigured|server_adapter"
+        "paymentVerification": "unconfigured|server_adapter",
+        "integrations": "{email, meeting, availability, billing}: the configured adapter mode for each outside service"
       }
     },
     {
@@ -313,6 +342,42 @@
       "path": "/auth/logout",
       "body": {},
       "response": "Session with null session; rotates anonymous cookie/CSRF token"
+    },
+    {
+      "method": "GET",
+      "path": "/public/open-times",
+      "public": true,
+      "query": {},
+      "response": {
+        "times": "OpenTime[] future published unreserved times within 90 days, ascending, at most100",
+        "hasMore": "boolean",
+        "timeZone": "America/Phoenix"
+      },
+      "notes": "No account needed. Rate limited per client. Labels, booking state and staff fields are never included. Any query parameter returns INVALID_INPUT."
+    },
+    {
+      "method": "GET",
+      "path": "/public/sessions",
+      "public": true,
+      "query": {},
+      "response": "{source: local|mock, timeZone: 'America/Phoenix', sessions: [{id, sessionType: one_on_one|pod, label, startsAt, endsAt, capacity, remaining}] up to 50, soonest first}. Comes from the availability integration: local = Tina's published times as 1:1 sessions; mock = placeholder 1:1 and 20:1 pod times until a provider is chosen. Booking stays a contact request.",
+      "notes": "300 per client per 15 minutes. Query parameters are refused."
+    },
+    {
+      "method": "POST",
+      "path": "/contact-requests",
+      "public": true,
+      "body": {
+        "parentName": "string 1..80",
+        "email": "email",
+        "phone": "10..15 digits; digits, spaces, +().- only",
+        "preferredMethod": "email|phone|text",
+        "availability": "ContactAvailabilityWindow[] 1..21, no repeats",
+        "notes": "optional string up to1000",
+        "requestId": "unique string, generated once per form"
+      },
+      "response": "ContactRequestReceipt (201). Replaying a requestId returns the same receipt; reusing it with other details returns CONFLICT. Identical details that are still new within 24 hours return the first receipt.",
+      "notes": "Validated before rate limiting: 10 per client and 200 overall per 15 minutes. There is no endpoint that returns a request to its submitter. A newly saved request gets one acknowledgement email when email is connected; replays and duplicates never send a second one. The email repeats only the name and preferred contact method, never the notes. Email failure does not fail the request."
     },
     {
       "method": "PATCH",
@@ -528,6 +593,18 @@
       }
     },
     {
+      "method": "PATCH",
+      "path": "/availability/:id",
+      "operatorOnly": true,
+      "body": {
+        "startsAt": "ISO UTC",
+        "endsAt": "ISO UTC",
+        "label": "optional string; omitted keeps the current label",
+        "requestId": "unique string"
+      },
+      "response": "ManagedSlot; only unbooked published future slots. A label-only edit keeps the ID. New times withdraw this slot and publish the new interval in one transaction, so the response ID can differ."
+    },
+    {
       "method": "POST",
       "path": "/availability/:id/withdraw",
       "operatorOnly": true,
@@ -650,6 +727,26 @@
         "cursor": "optional scoped keyset cursor"
       },
       "response": "ResourcePage<Appointment & {studentUid,studentName}>; learningRecordId identifies actual published records without loading all summaries"
+    },
+    {
+      "method": "GET",
+      "path": "/operations/contact-requests",
+      "operatorOnly": true,
+      "query": {
+        "status": "all|new|contacted|closed, defaultall",
+        "cursor": "optional scoped keyset cursor"
+      },
+      "response": "ResourcePage<ContactRequest>; newest first. ContactRequest.acknowledgementEmail: sent|failed|unavailable|null"
+    },
+    {
+      "method": "POST",
+      "path": "/operations/contact-requests/:id/status",
+      "operatorOnly": true,
+      "body": {
+        "status": "new|contacted|closed",
+        "requestId": "unique string"
+      },
+      "response": "ContactRequest"
     },
     {
       "method": "GET",
@@ -962,6 +1059,16 @@
     },
     {
       "method": "POST",
+      "path": "/payments/:id/test-checkout",
+      "body": {
+        "outcome": "paid|failed",
+        "requestId": "unique string"
+      },
+      "response": "{recorded: true}. Exists only when TALA_BILLING_ADAPTER=mock: checkout then returns '#/payment/test-checkout/<paymentId>' instead of a live HubSpot link. Own pending payment, fictional example.test families only, one outcome per payment. POST /payments/:id/verify then records it through the normal receipt checks. Results are kept in memory.",
+      "notes": "404 when test checkout is off. No card details are collected and no money moves."
+    },
+    {
+      "method": "POST",
       "path": "/payments/esa",
       "parentOnly": true,
       "body": {
@@ -989,6 +1096,182 @@
         "requestId": "unique idempotency key"
       },
       "response": "{item:PaymentItem}; no Paid field accepted"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/local-student-preview",
+      "public": true,
+      "body": {},
+      "response": "SessionState for the fixed fictional preview student. Only when the server runs with localStudentPreview; loopback origin and socket only; 409 ACTIVE_SESSION while signed in. Grants no admission, family link or staff access."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/local-parent-preview",
+      "public": true,
+      "body": {},
+      "response": "SessionState for the fixed fictional preview parent, linked read-only to the fictional preview student (both created if missing). Only when the server runs with localStudentPreview; loopback origin and socket only; 409 ACTIVE_SESSION while signed in. Grants no admission or staff access."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/enroll",
+      "public": true,
+      "body": {
+        "token": "enrollment invitation token issued by staff",
+        "name": "parent name up to 80",
+        "password": "8..128 characters"
+      },
+      "response": "HTTP 201 SessionState for the new parent account. Account creation, invitation consumption and the session commit in one transaction; 409 ACCOUNT_EXISTS when the invited email already has an account; 409 CONFLICT while signed in."
+    },
+    {
+      "method": "GET",
+      "path": "/admissions/current",
+      "public": true,
+      "query": {},
+      "response": "{application: AdmissionApplication|null, slots: InterviewSlot[], integrations: {email: available|unavailable, meeting: available|unavailable}, mode: 'local_test'}. AdmissionApplication.appointment adds meeting: {status: ready|pending|failed|unavailable, joinUrl: https URL only when ready and still reserved}|null and confirmationEmail: sent|failed|unavailable|null. Uses the private admissions access cookie set by POST /admissions/applications; no TALA account."
+    },
+    {
+      "method": "POST",
+      "path": "/admissions/applications",
+      "public": true,
+      "body": {
+        "parentName": "string 1..80",
+        "email": "email",
+        "studentName": "optional string up to 80",
+        "gradeBand": "optional string up to 40",
+        "interest": "optional paragraph",
+        "requestId": "unique string"
+      },
+      "response": "HTTP 201 admissions envelope; sets the admissions access cookie. 409 CONFLICT while signed in. Rate limited."
+    },
+    {
+      "method": "POST",
+      "path": "/admissions/interview",
+      "public": true,
+      "body": {
+        "slotId": "interview slot id",
+        "version": "current application version",
+        "requestId": "unique string"
+      },
+      "response": "Admissions envelope with status interview_scheduled. One reserved interview per application; a taken or withdrawn slot returns 409 CONFLICT. After the booking is saved the server creates the video meeting and sends one confirmation email (Tucson time, link only when ready). Provider failures leave the booking in place and are reported as failed, never as a made-up link. Rebooking removes the previous meeting without Google notices. A replayed requestId creates no second meeting or email. Uses the private admissions access cookie set by POST /admissions/applications; no TALA account."
+    },
+    {
+      "method": "POST",
+      "path": "/admissions/document-preference",
+      "public": true,
+      "body": {
+        "preference": "bring|upload|undecided",
+        "version": "current application version",
+        "requestId": "unique string"
+      },
+      "response": "Admissions envelope. Uses the private admissions access cookie set by POST /admissions/applications; no TALA account."
+    },
+    {
+      "method": "POST",
+      "path": "/admissions/documents/intents",
+      "public": true,
+      "body": {
+        "name": "file name",
+        "contentType": "allowed document type",
+        "size": "bytes",
+        "sha256": "hex digest",
+        "requestId": "unique string"
+      },
+      "response": "HTTP 201 upload intent for an optional admissions document. Uses the private admissions access cookie set by POST /admissions/applications; no TALA account."
+    },
+    {
+      "method": "PUT",
+      "path": "/admissions/documents/:documentId/content",
+      "public": true,
+      "body": "raw bytes matching the intent's content type, size and sha256",
+      "response": "Stored document metadata. At most 4 concurrent uploads per server. Uses the private admissions access cookie set by POST /admissions/applications; no TALA account."
+    },
+    {
+      "method": "GET",
+      "path": "/admissions/documents/:documentId/content",
+      "public": true,
+      "query": {},
+      "response": "Attachment bytes with Content-Type, Content-Length, X-Content-SHA256. Readable by the applicant's access cookie or by staff; absolute download deadline."
+    },
+    {
+      "method": "POST",
+      "path": "/admissions/invitation/inspect",
+      "public": true,
+      "body": {
+        "token": "enrollment invitation token"
+      },
+      "response": "{valid: true, email, parentName, expiresAt, mode: 'local_test'}; invalid, used or expired tokens return INVITATION_INVALID."
+    },
+    {
+      "method": "POST",
+      "path": "/admissions/access/end",
+      "public": true,
+      "body": {},
+      "response": "{ended: true}; clears the admissions access cookie."
+    },
+    {
+      "method": "GET",
+      "path": "/admissions/parent",
+      "query": {},
+      "response": "{applications: AdmissionApplication[]} for the signed-in parent's enrolled applications, at most 50."
+    },
+    {
+      "method": "GET",
+      "path": "/operator/admissions",
+      "operatorOnly": true,
+      "query": {},
+      "response": "{applications: AdmissionApplication[]} newest first, at most 200."
+    },
+    {
+      "method": "POST",
+      "path": "/operator/admissions/availability",
+      "operatorOnly": true,
+      "body": {
+        "startsAt": "ISO UTC",
+        "endsAt": "ISO UTC",
+        "label": "optional string",
+        "requestId": "unique string"
+      },
+      "response": "HTTP 201 interview slot. Interview times share the slots table with meeting availability and cannot overlap a published time or a reservation."
+    },
+    {
+      "method": "GET",
+      "path": "/operator/admissions/:applicationId",
+      "operatorOnly": true,
+      "query": {},
+      "response": "AdmissionDetail {application, interview, documents, audit, invitation}."
+    },
+    {
+      "method": "POST",
+      "path": "/operator/admissions/:applicationId/review",
+      "operatorOnly": true,
+      "body": {
+        "action": "record_interview|approve|decline",
+        "notes": "optional paragraph up to 2000",
+        "version": "current application version",
+        "requestId": "unique string"
+      },
+      "response": "AdmissionDetail. Approval requires a recorded completed interview."
+    },
+    {
+      "method": "POST",
+      "path": "/operator/admissions/:applicationId/invitation",
+      "operatorOnly": true,
+      "body": {
+        "version": "current application version",
+        "requestId": "unique string"
+      },
+      "response": "AdmissionDetail plus a one-time enrollment invitation token for an approved application. No email is sent; staff deliver the link."
+    },
+    {
+      "method": "POST",
+      "path": "/classes/saved",
+      "studentOnly": true,
+      "body": {
+        "classId": "catalog class id",
+        "saved": "boolean",
+        "requestId": "unique string"
+      },
+      "response": "Save-for-later receipt for the signed-in student; no query parameters."
     }
   ],
   "factory": "createApplication({dataDir,allowedOrigins,sessionTtlMs?,downloadTtlMs?}) returns {server,db,operator,close}; downloadTtlMs is test-factory-only integer100..30000, defaults30000, no environment override. No socket is opened until server.listen()",
@@ -1030,10 +1313,10 @@
     "reflectionDraftTextCharacters": 5000,
     "testCalendarEnrollmentsPerStudent": 500
   },
-  "schemaVersion": 9,
+  "schemaVersion": 12,
   "availabilityPolicy": "Publish times must be ISO 8601 with explicit Z/UTC offset. Withdrawal is transactionally fenced against reservations. Times on a slot are immutable. Publishing an exactly matching withdrawn start/end reactivates its same ID; any changed time uses a new ID. Old cancelled bookings retain original times.",
   "revisionPolicy": "Only a student can revise their own latest needs_revision Evidence for the same booking. Upload captures the current reviewVersion server-side. Final submit rechecks that review and atomically commits a single successor; concurrent or stale revisions conflict. Earlier evidence bytes, review and identifiers remain immutable. Superseded evidence cannot be reviewed again. Counters count all versions, manual review is not academic credit.",
-  "localDatabaseMigration": "Schema8 adds the persisted staff class catalog and extends existing calendar enrollment statuses and format/approval metadata. Existing users, meetings, enrollments, private Evidence files and revisions are preserved. Evidence upload/submission tables gain nullable class_id with exactly one appointment or class context. Before upgrading an older database, startup verifies a private SQLite VACUUM snapshot, migrates transactionally, validates foreign keys, and re-enables relationship enforcement. No accounts or courses are auto-seeded. Backup tooling validates supported schemas without implicit migration. Schema9 adds parent-bound admissions_student_setups and nullable calendar_enrollments.goal_id referencing the same student learning goal. Migration remains additive from schema8, with verified original backup and foreign-key validation.",
+  "localDatabaseMigration": "Schema8 adds the persisted staff class catalog and extends existing calendar enrollment statuses and format/approval metadata. Existing users, meetings, enrollments, private Evidence files and revisions are preserved. Evidence upload/submission tables gain nullable class_id with exactly one appointment or class context. Before upgrading an older database, startup verifies a private SQLite VACUUM snapshot, migrates transactionally, validates foreign keys, and re-enables relationship enforcement. No accounts or courses are auto-seeded. Backup tooling validates supported schemas without implicit migration. Schema9 adds parent-bound admissions_student_setups and nullable calendar_enrollments.goal_id referencing the same student learning goal. Migration remains additive from schema8, with verified original backup and foreign-key validation. Schema12 restores the contact_requests table for the public Contact-me path; it is additive and existing rows are untouched.",
   "accountSecurityPolicy": "Password changes require the current password, per-account and per-IP rate limits, fresh CSRF/session/disabled-account/password checks after each asynchronous hash, and one transaction for credential update, all-session revocation, replacement session and completion receipt. No plaintext or fast password-derived idempotency digest is stored. Session handles grant no authentication and expose neither cookie nor database session hash. Current-session revocation uses logout. After a lost password-change response, bootstrap GET /session and query the completion receipt before claiming success; if the replacement cookie was lost, reauthenticate with the new password. A receipt never restores authentication. No email delivery or MFA is implied.",
   "storageQuotaPolicy": "Logical Evidence quotas include pending intents at creation, with committed storage rechecked at final submit. They bound 100 MiB/1000 versions per owner and 2 GiB/20000 versions per instance, and fail with STORAGE_FULL. They are not a physical disk quota for database history, backup directories or unrelated/orphan files. No submitted Evidence is automatically deleted.",
   "paginationPolicy": "Each page uses a short DEFERRED read snapshot that rechecks the server session, account status, role and target relationship before querying. Filters are applied before LIMIT. Cursors use bounded base64url JSON with a domain-separated HMAC, bound to actor UID, authorized target UID, resource and canonical filters; they expose no password verifier and grant no authentication. Unknown/repeated parameters, tampered cursors or changed scopes return INVALID_INPUT. Historical pages sort (immutable time DESC,id DESC), available times sort ASC. No OFFSET or full-dataset preload is used. Changes to reviews, statuses or search results are live, not a cross-request immutable snapshot: reset pagination after edits or filter changes. /workspace and /operations remain bounded overview summaries, not complete histories.",
@@ -1043,7 +1326,56 @@
   "meetingPreparationPolicy": "One private preparation record per existing appointment. Version0 is a read-only blank default, never an automatically inserted row. Saving requires student ownership of booking and optional goal, a future starts_at and reserved status rechecked under writer fence. Full optimistic version and operation fingerprint avoid overwrites/double submissions; exact historical receipts can be recovered after time/status changes but never authorize a new late write. Goal completion is not required and ready is only self-reported. Current linked parents may read historical preparation but cannot edit it; operators cannot arbitrarily read it. Rescheduling retains preparation on the cancelled original booking, newbooking starts blank, noauto-copy or delete. GET never expires booking or mutates records. No Zoom,attendance,assessment,payment orclinical data collection is implied.",
   "reflectionDraftPolicy": "One private owner-only reflection draft, separate from submitted Evidence and never included in parent,operator,workspace,progress orplan exports. Active students only; fresh session,password,disabled and role checks protect read snapshots and write fences, with CSRF and no query-owner override. Save andclear use optimistic version CAS. Clear stores an empty monotonic tombstone, preventing stale version0 or prior-version writes from resurrecting content. Idempotency operations persist only a hash of input and {version} metadata, never historical title/text. Matching retries return current content only while that confirmed version remains current; superseded retries return CONFLICT and require a fresh GET without reapplying old content. Text/spacing/CRLF are preserved. This is manual persistence, not automatic submission orfile/revision recovery. Clear removes current draft text; protected older SQLite snapshots/backups can still contain prior content and are subject to operational retention.",
   "calendarPolicy": "Staff-published classes and requests persist in the existing SQLite database. Online/In Person is validated against published modalities. One row per student/class prevents duplicates. Pending parent/payment and confirmed requests reserve capacity; excess requests join a FIFO waiting list. Cancellation or parent decline promotes available waitlisted students to pending_approval; promotion never bypasses parent approval or payment. Paid approvals remain pending_payment because no HubSpot verification is connected and no client confirmation endpoint exists. Parent decisions require current enabled roles, active recorded family consent, fresh session, CSRF, optimistic version, and idempotent metadata receipts. Staff withdrawal cancels active requests atomically. Calendar and discovery read these same rows. Existing test enrollments are retained and clearly marked. No attendance, academic credit, email, external meeting, ESA transfer, or production charge is implied.",
-  "admissionsPolicy": "Local interest applications create no users. Expiring scoped HttpOnly capability access is limited to the fictional local evaluation application, never email ownership verification. Tina-purpose slots are writer-fenced and separate from student availability. Private PDF/text uploads are bounded hashed transactional SQLite BLOBs included in verified private database backups. Operator review requires a fresh trusted role and records audit metadata; interview must be recorded before approval. Only approved applications receive 48-hour one-use hash-stored invitations. Parent UUID creation, invite consumption and session rotation share one transaction. Existing accounts retain login; public uninvited registration is closed. Email and meeting delivery remain unavailable; no production or real minor document use is authorized. After parent enrollment, an authorized operator can grant a seven-day student setup bound to that signed-in parent and application. The parent explicitly confirms family access and chooses student credentials. No public bearer token, student fixture, automatic email, account merge or unapproved user creation is involved. Account and family link commit in the same transaction. Metadata-only receipts omit password material; exact retries verify the supplied secret against the existing salted user verifier and cannot reset credentials. One student per admitted application; additional children require separately approved applications.",
+  "admissionsPolicy": "Local interest applications create no users. Expiring scoped HttpOnly capability access is limited to the fictional local evaluation application, never email ownership verification. Tina-purpose slots are writer-fenced and separate from student availability. Private PDF/text uploads are bounded hashed transactional SQLite BLOBs included in verified private database backups. Operator review requires a fresh trusted role and records audit metadata; interview must be recorded before approval. Only approved applications receive 48-hour one-use hash-stored invitations. Parent UUID creation, invite consumption and session rotation share one transaction. Existing accounts retain login; public uninvited registration is closed. Interview meeting links and confirmation emails use the configured meeting and email integrations; no production or real minor document use is authorized. After parent enrollment, an authorized operator can grant a seven-day student setup bound to that signed-in parent and application. The parent explicitly confirms family access and chooses student credentials. No public bearer token, student fixture, automatic email, account merge or unapproved user creation is involved. Account and family link commit in the same transaction. Metadata-only receipts omit password material; exact retries verify the supplied secret against the existing salted user verifier and cannot reset credentials. One student per admitted application; additional children require separately approved applications.",
   "classEvidencePolicy": "Existing Evidence uploads accept either appointmentId, or classId with appointmentId empty. Class submission requires an authenticated student own confirmed enrollment and a class that has started, rechecked at final submit. Evidence and pending-upload DTOs expose optional classId; appointmentId is empty only for a class context. Existing file privacy, storage quotas, review, revisions and goal associations apply. This is learning Evidence, not verification of attendance or credit.",
-  "studentProvisioningPolicy": "No user account is created by an interest form. Provisioning requires interview completion, Tina approval, one-use parent enrollment invitation, parent account creation and separate operator authorization. Setup is visible only through normal authenticated application access, expires after seven days, and cannot be claimed by another parent or staff choosing credentials. Session/role/expiry/version/unique email are rechecked after asynchronous scrypt. The transaction creates exactly one student user and recorded family link. A failed insert rolls back setup, user, link, audit and receipt. Successful confirmation contains student identifier/name/email, never passwords or password hashes."
+  "studentProvisioningPolicy": "No user account is created by an interest form. Provisioning requires interview completion, Tina approval, one-use parent enrollment invitation, parent account creation and separate operator authorization. Setup is visible only through normal authenticated application access, expires after seven days, and cannot be claimed by another parent or staff choosing credentials. Session/role/expiry/version/unique email are rechecked after asynchronous scrypt. The transaction creates exactly one student user and recorded family link. A failed insert rolls back setup, user, link, audit and receipt. Successful confirmation contains student identifier/name/email, never passwords or password hashes.",
+  "integrations": {
+    "configuration": "createApplication({ integrations: { <name>: <mode> } }) or the environment variable listed for each integration. Unknown names or modes stop startup. Screens and routes never change when a mode changes.",
+    "email": {
+      "env": "TALA_EMAIL_ADAPTER",
+      "modes": {
+        "disabled": "default; send() returns 503 INTEGRATION_UNAVAILABLE",
+        "mock": "keeps up to 200 messages in memory; nothing is delivered",
+        "gmail": "sends plain-text mail from TALA_GMAIL_SENDER through the Gmail API (users.messages.send, gmail.send scope only). Uses the same Google credentials as google-meet. Provider failures return 503"
+      },
+      "interface": {
+        "send({to, subject, text})": "Promise<{id, status: delivered_to_mock_outbox|sent}>; subject and recipient are single-line, text may have line breaks"
+      }
+    },
+    "meeting": {
+      "env": "TALA_MEETING_ADAPTER",
+      "modes": {
+        "disabled": "default; createMeeting() returns 503",
+        "mock": "returns https://meet.example.test/<id> links",
+        "google-meet": "creates a Google Calendar event with a Meet link (events.insert, conferenceDataVersion=1, sendUpdates=none). Needs TALA_GOOGLE_CLIENT_ID, TALA_GOOGLE_CLIENT_SECRET, TALA_GOOGLE_REFRESH_TOKEN; optional TALA_GOOGLE_CALENDAR_ID (default primary). Provider failures return 503 and never a link"
+      },
+      "interface": {
+        "createMeeting({title, startsAt, endsAt})": "Promise<{provider, meetingId, status: ready|pending, joinUrl|null, title, startsAt, endsAt}>"
+      },
+      "openQuestion": "Zoom (Jira SCRUM-70/79/88/90) or Google Meet (client mockups, Sherry's branch). Google Meet is built; Zoom would be another mode"
+    },
+    "availability": {
+      "env": "TALA_AVAILABILITY_ADAPTER",
+      "modes": {
+        "local": "default; Tina's published meeting times as 1:1 sessions",
+        "mock": "placeholder 1:1 (Mon/Wed) and 20:1 pod (Tue/Thu) times in America/Phoenix, no network"
+      },
+      "interface": {
+        "listSessions({now?, days?})": "Promise<{source, timeZone, sessions: [{id, sessionType: one_on_one|pod, label, startsAt, endsAt, capacity, remaining}]}>"
+      },
+      "realService": "Not chosen. TALA is moving away from EZAMU (2026-11-14); the placeholder stays until a provider is picked"
+    },
+    "billing": {
+      "env": "TALA_BILLING_ADAPTER",
+      "modes": {
+        "hubspot_links": "default; only the two fixed HubSpot payment links exist, invoice calls return 503",
+        "mock": "in-memory invoices for test mode"
+      },
+      "interface": {
+        "createInvoice({familyUid, reference, lines: [{description, amountCents}]})": "Promise<{id, familyUid, reference, lines, totalCents, status: draft, provider, createdAt}>; never sends the invoice",
+        "getInvoice(id)": "Promise<same invoice shape>"
+      },
+      "realService": "On hold. TALA is moving payments from HubSpot to Chase (2026-11-14); the Chase product is not chosen"
+    }
+  }
 }

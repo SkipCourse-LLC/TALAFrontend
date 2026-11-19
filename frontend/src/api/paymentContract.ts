@@ -56,7 +56,8 @@ export interface PaymentItem {
 export interface PaymentWorkspace {
   integration: {
     provider: "hubspot";
-    checkout: "official_links";
+    /** test_checkout: a TALA test page replaces the live links (billing mode "mock"). */
+    checkout: "official_links" | "test_checkout";
     verification: "unconfigured" | "server_adapter";
     automaticReturn: false;
     esa: "manual_review";

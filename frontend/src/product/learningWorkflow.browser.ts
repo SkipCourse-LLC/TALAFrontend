@@ -8,7 +8,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { provisionAndLogin } from "./browserTestAccounts";
 
 const webOrigin = "http://127.0.0.1:5188";
 const apiOrigin = "http://127.0.0.1:8798";
@@ -88,9 +87,23 @@ test.afterEach(async ({ context }) => {
   expect([...new Set(unexpectedHosts)], "This suite may contact only its temporary local real backend").toEqual([]);
 });
 
+type ProvisionedRole = "student" | "parent";
+// Self sign-up is closed: the fixture provisions the synthetic account with the
+// server's own validators, then the browser signs in through the real login form.
+const provisionAccount = (input: { name: string; email: string; password: string; role: ProvisionedRole }) =>
+  callFixture("provisionAccount", input);
+async function signInThroughLogin(page: Page, account: { email: string; password: string }) {
+  await page.goto("/#/login");
+  await page.getByLabel("Email", { exact: true }).fill(account.email);
+  await page.getByLabel("Password", { exact: true }).fill(account.password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+}
 async function register(page: Page, role: "student" | "parent" = "student"): Promise<Account> {
   const suffix = randomUUID(), account = { name: `Synthetic workflow ${role}`, email: `${suffix}@example.test`, password: `Synthetic-only-${suffix}` };
-  return provisionAndLogin(page, (fixture) => callFixture("provisionAccount", fixture), { ...account, role });
+  await provisionAccount({ ...account, role });
+  await signInThroughLogin(page, account);
+  await expect(page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true })).toBeVisible();
+  return account;
 }
 async function seedSavedWork(page: Page, browser: Browser, student: Account): Promise<Seed> {
   const staffContext = await browser.newContext({ baseURL: webOrigin, timezoneId: "America/Phoenix" });

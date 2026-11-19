@@ -4,8 +4,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
+const { syncFile, syncDirectory } = require("./database.cjs");
 
-const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10]);
+const SUPPORTED_SCHEMAS = new Set([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
 const MAX_FILE = 5 * 1024 * 1024;
 function refuse(message) { throw new Error(message); }
 function localOnly() {
@@ -29,10 +30,6 @@ function newDirectory(value, source) {
   if (within(source, target) || within(target, source)) refuse("The output must be separate from the source directory.");
   fs.mkdirSync(target, { mode: 0o700 });
   return target;
-}
-function syncDirectory(value) {
-  const fd = fs.openSync(value, "r");
-  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
 }
 function digestFile(filename, maximum = Number.MAX_SAFE_INTEGER) {
   const original = fs.lstatSync(filename);
@@ -109,7 +106,7 @@ function copyPrivate(source, target, expectedSize) {
 }
 function checkDatabase(db, expectedSchema) {
   const schema = db.prepare("PRAGMA user_version").get().user_version;
-  if (!SUPPORTED_SCHEMAS.has(schema) || (expectedSchema !== undefined && expectedSchema !== schema)) refuse("This backup tool supports database schemas 2 through 10, matching the manifest. No migration was performed.");
+  if (!SUPPORTED_SCHEMAS.has(schema) || (expectedSchema !== undefined && expectedSchema !== schema)) refuse("This backup tool supports database schemas 2 through 13, matching the manifest. No migration was performed.");
   if (db.prepare("PRAGMA quick_check").get().quick_check !== "ok" || db.prepare("PRAGMA foreign_key_check").get()) refuse("The database failed its consistency check.");
   if (db.prepare("SELECT name FROM sqlite_master WHERE type IN ('trigger','view') LIMIT 1").get()) refuse("This schema does not use triggers or views. Review unsupported database objects before backup or restore.");
   if (db.prepare(`SELECT u.id FROM uploads u LEFT JOIN evidence e ON e.id=u.id
@@ -271,6 +268,13 @@ function checkDatabase(db, expectedSchema) {
     }
     for (const receipt of db.prepare("SELECT * FROM payment_receipts").iterate()) if (!validId(receipt.id) || !validId(receipt.provider_payment_id) || !/^[a-f0-9]{64}$/.test(receipt.digest) || !instant(receipt.occurred_at) || !instant(receipt.received_at)) refuse("A trusted provider receipt has inconsistent metadata.");
   }
+  if (schema >= 13) {
+    for (const meeting of db.prepare("SELECT * FROM admissions_meetings").iterate()) {
+      const link = meeting.join_url === null || (typeof meeting.join_url === "string" && /^https:\/\/[a-z0-9.-]+\/[A-Za-z0-9._~/-]{3,200}$/.test(meeting.join_url));
+      if (!link || (meeting.meeting_id !== null && !plain(meeting.meeting_id, 1024, false)) || !instant(meeting.created_at) || !instant(meeting.updated_at) || meeting.updated_at < meeting.created_at) refuse("An interview meeting record has invalid link or time metadata.");
+    }
+    for (const note of db.prepare("SELECT * FROM contact_request_notifications").iterate()) if (!instant(note.updated_at)) refuse("A contact request notification has invalid time metadata.");
+  }
   return schema;
 }
 function openExisting(filename, readOnly) {
@@ -332,10 +336,7 @@ function createLocalBackup({ dataDir, outputDir }) {
     const manifest = { format: "tala-local-backup", version: 1, schemaVersion: schema, createdAt,
       files: [{ path: "tala.sqlite", ...digestFile(path.join(target, "tala.sqlite")) }, ...files] };
     fs.writeFileSync(path.join(target, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`, { flag: "wx", mode: 0o600 });
-    for (const file of ["tala.sqlite", "manifest.json"]) {
-      const fd = fs.openSync(path.join(target, file), "r");
-      try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-    }
+    for (const file of ["tala.sqlite", "manifest.json"]) syncFile(path.join(target, file));
     flushTree(target);
     writer.exec("ROLLBACK"); locked = false;
     verifyLocalBackup({ directory: target }); complete = true;

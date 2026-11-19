@@ -18,7 +18,9 @@ function configuredAmount(value, fallback) {
   if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1000000) throw new Error("Payment display amounts must be integer cents from 1 through 1000000.");
   return amount;
 }
-function createPayments(db, { guard, read, config = {}, provider = null } = {}) {
+function createPayments(db, { guard, read, config = {}, provider = null, testCheckout = null } = {}) {
+  // Test checkout (billing mode "mock") replaces the live links and supplies its own verifier.
+  if (testCheckout && provider === null) provider = testCheckout.provider;
   const quarterly = configuredAmount(config.quarterlyAmountCents ?? process.env.TALA_HUBSPOT_QUARTERLY_DISPLAY_CENTS, 125000);
   const individual = configuredAmount(config.sessionAmountCents ?? process.env.TALA_HUBSPOT_SESSION_DISPLAY_CENTS, 24000);
   // A provider is installed by trusted server code only, never JSON or a public
@@ -98,7 +100,7 @@ function createPayments(db, { guard, read, config = {}, provider = null } = {}) 
     return row;
   }
   function integration() {
-    return { provider: "hubspot", checkout: "official_links", verification: provider ? "server_adapter" : "unconfigured", automaticReturn: false, esa: "manual_review", ...(provider?.mode === "isolated_test_adapter" ? { testMode: true } : {}) };
+    return { provider: "hubspot", checkout: testCheckout ? "test_checkout" : "official_links", verification: provider ? "server_adapter" : "unconfigured", automaticReturn: false, esa: "manual_review", ...(provider?.mode === "isolated_test_adapter" ? { testMode: true } : {}) };
   }
   function workspace(actor, params) {
     noQuery(params);
@@ -134,8 +136,22 @@ function createPayments(db, { guard, read, config = {}, provider = null } = {}) 
       const row = ownPayment(actor, receipt.id), linked = item(row.item_id);
       if (esa) return { payment: dto(row) };
       const reason = blocked(linked); if (reason || !["pending", "awaiting_verification"].includes(row.status)) fail(409, "CONFLICT", reason || "This payment no longer requires checkout.");
-      return { payment: dto(row), checkoutUrl: CHECKOUTS[linked.type] };
+      return { payment: dto(row), checkoutUrl: testCheckout ? testCheckout.url(row.id) : CHECKOUTS[linked.type] };
     });
+  }
+  /** Test checkout only: records the fictional family's chosen outcome. Verification then runs as usual. */
+  function completeTest(actor, id, input, params) {
+    if (!testCheckout) fail(404, "NOT_FOUND", "Test checkout is not enabled on this server.");
+    noQuery(params); object(input, ["outcome", "requestId"]); requestId(input.requestId); identifier(id);
+    if (!["paid", "failed"].includes(input.outcome)) fail(400, "INVALID_INPUT", "Choose paid or failed for the test payment.");
+    read(actor, () => {
+      const row = ownPayment(actor, id);
+      const address = db.prepare("SELECT email FROM users WHERE uid=?").get(actor.uid)?.email;
+      if (!/@(?:[a-z0-9-]+\.)*example\.test$/i.test(address || "")) fail(403, "FORBIDDEN", "Test checkout accepts fictional test families only.");
+      if (row.provider !== "hubspot" || !["pending", "awaiting_verification"].includes(row.status)) fail(409, "CONFLICT", "This payment no longer needs checkout.");
+    });
+    if (!testCheckout.record(id, input.outcome).accepted) fail(409, "CONFLICT", "This test payment already has a different result.");
+    return { recorded: true };
   }
   function candidateRows() {
     const quarterlyTargets = db.prepare(`SELECT a.id AS applicationId,a.student_name AS studentName,a.parent_name AS parentName,a.enrolled_parent_uid AS parentUid FROM admissions_applications a JOIN users u ON u.uid=a.enrolled_parent_uid AND u.disabled=0 AND u.role='parent'
@@ -230,6 +246,6 @@ function createPayments(db, { guard, read, config = {}, provider = null } = {}) 
     });
     return read(actor, () => ({ payment: dto(ownPayment(actor, receipt.id)) }));
   }
-  return { workspace, operations, issue, checkout: (actor, input, params) => createAttempt(actor, input, params, false), esa: (actor, input, params) => createAttempt(actor, input, params, true), verify, integration };
+  return { workspace, operations, issue, checkout: (actor, input, params) => createAttempt(actor, input, params, false), esa: (actor, input, params) => createAttempt(actor, input, params, true), verify, completeTest, integration };
 }
 module.exports = { createPayments, CHECKOUTS };

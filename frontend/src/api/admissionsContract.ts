@@ -37,6 +37,13 @@ export interface AdmissionApplication {
     startsAt: string;
     endsAt: string;
     status: "reserved" | "cancelled";
+    /** null until the server has tried to create the video link. */
+    meeting?: null | {
+      status: "ready" | "pending" | "failed" | "unavailable";
+      /** Only present when status is "ready". */
+      joinUrl: string | null;
+    };
+    confirmationEmail?: null | "sent" | "failed" | "unavailable";
   };
   documents: AdmissionDocument[];
   createdAt: string;
@@ -47,7 +54,10 @@ export interface AdmissionApplication {
 export interface AdmissionCurrent {
   application: AdmissionApplication | null;
   slots: AdmissionSlot[];
-  integrations: { email: "unavailable"; meeting: "unavailable" };
+  integrations: {
+    email: "available" | "unavailable";
+    meeting: "available" | "unavailable";
+  };
   mode: "local_test";
 }
 export interface AdmissionDetail {

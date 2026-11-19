@@ -8,7 +8,6 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { provisionAndLogin } from "./browserTestAccounts";
 
 interface TestApplication {
   operator: {
@@ -28,16 +27,16 @@ interface TestApplication {
     }): Promise<unknown>;
     promote(email: string): Promise<unknown>;
   };
-  provisionAccount(account: {
+  findUid(email: string): Promise<string>;
+  endBooking(email: string): Promise<{ appointmentId: string }>;
+  dropUnsubmittedFile(uploadId: string): Promise<void>;
+  disableStudent(email: string): Promise<void>;
+  provisionAccount(input: {
     name: string;
     email: string;
     password: string;
     role: "student" | "parent";
   }): Promise<unknown>;
-  findUid(email: string): Promise<string>;
-  endBooking(email: string): Promise<{ appointmentId: string }>;
-  dropUnsubmittedFile(uploadId: string): Promise<void>;
-  disableStudent(email: string): Promise<void>;
   close(): Promise<void>;
 }
 let application: TestApplication;
@@ -142,7 +141,6 @@ async function startIsolatedApplication(
       revokeFamily: (input) => call("revokeFamily", input),
       promote: (email) => call("promote", email),
     },
-    provisionAccount: (account) => call("provisionAccount", account),
     endBooking: async (email) =>
       (await call("endBooking", email)) as { appointmentId: string },
     dropUnsubmittedFile: async (uploadId) => {
@@ -151,6 +149,7 @@ async function startIsolatedApplication(
     disableStudent: async (email) => {
       await call("disableStudent", email);
     },
+    provisionAccount: (input) => call("provisionAccount", input),
     findUid: async (email) => {
       const value = await call("findUid", email);
       if (typeof value !== "string")
@@ -202,94 +201,43 @@ test.afterEach(async ({ page }) => {
   ).toEqual([]);
 });
 
-test("Tina’s interview opens Google Calendar without losing the application", async ({
-  page,
-  context,
-}) => {
-  await context.route("https://calendar.app.google/**", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "text/html",
-      body: "<title>Calendar link test</title>",
-    }),
-  );
-  await page.goto("/#/register");
-  await expect(
-    page.getByRole("heading", { name: "Start your TALA registration" }),
-  ).toBeVisible();
-  const parentName = page.getByLabel("Parent or guardian name");
-  await parentName.fill("Synthetic interview family");
-  const booking = page.getByRole("link", {
-    name: "Schedule an Interview with Tina",
-  });
-  await expect(booking).toHaveAttribute(
-    "href",
-    "https://calendar.app.google/YapTB4MQLus16DATA",
-  );
-  await expect(booking).toHaveAttribute("target", "_blank");
-  const [calendar] = await Promise.all([
-    page.waitForEvent("popup"),
-    booking.click(),
-  ]);
-  await expect(calendar).toHaveURL(
-    "https://calendar.app.google/YapTB4MQLus16DATA",
-  );
-  await expect(
-    page.getByRole("heading", { name: "Start your TALA registration" }),
-  ).toBeVisible();
-  await expect(parentName).toHaveValue("Synthetic interview family");
-  await expect(page).toHaveURL(/#\/register$/);
-  await calendar.close();
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(booking).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
-    ),
-  ).toBe(true);
-  const [mobileCalendar] = await Promise.all([
-    page.waitForEvent("popup"),
-    booking.click(),
-  ]);
-  await expect(mobileCalendar).toHaveURL(
-    "https://calendar.app.google/YapTB4MQLus16DATA",
-  );
-  await mobileCalendar.close();
-});
-
 async function register(
   page: Page,
   role: "student" | "parent" = "student",
+  loseSavedResponse = false,
 ) {
   const suffix = randomUUID();
   const account = {
     name: `Synthetic ${role}`,
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
-    role,
   };
-  return provisionAndLogin(
-    page,
-    (fixture) => application.provisionAccount(fixture),
-    account,
-  );
-}
-async function submitInterestWithLostResponse(page: Page) {
-  await page.goto("/#/register");
-  await page.getByLabel("Parent or guardian name").fill("Synthetic interest parent");
-  await page.getByLabel("Contact email").fill(`${randomUUID()}@example.test`);
-  await page.getByLabel("Student grade").selectOption("6–8");
-  await page.getByLabel("What are you looking for?").fill("A synthetic enrollment inquiry.");
-  await page.route("**/api/admissions/applications", async (route) => {
-    const saved = await route.fetch();
-    expect(saved.ok()).toBe(true);
-    await route.abort("connectionfailed");
-  });
-  await page.getByRole("button", { name: "Continue to meet Tina", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("could not be reached");
-  await page.unroute("**/api/admissions/applications");
-  await page.getByRole("button", { name: "Check saved application", exact: true }).click();
-  await expect(page.getByText("Pending interview", { exact: true })).toBeVisible();
+  // Self sign-up is closed: the fixture provisions the synthetic account with
+  // the server's own validators, then the browser signs in through /#/login.
+  await application.provisionAccount({ ...account, role });
+  await page.goto("/#/login");
+  await page.getByLabel("Email", { exact: true }).fill(account.email);
+  await page.getByLabel("Password", { exact: true }).fill(account.password);
+  if (loseSavedResponse)
+    await page.route("**/api/auth/login", async (route) => {
+      // Complete the real server sign-in/cookie rotation, then lose its browser
+      // response. Recovery must inspect the saved session, not sign in twice.
+      const saved = await route.fetch();
+      expect(saved.ok()).toBe(true);
+      await route.abort("connectionfailed");
+    });
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  if (loseSavedResponse) {
+    await expect(page.getByRole("alert")).toContainText("could not be reached");
+    await page.unroute("**/api/auth/login");
+    await page
+      .getByRole("button", { name: "Check saved session", exact: true })
+      .click();
+  }
+  await expect(
+    page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
+  ).toBeVisible();
+  return account;
 }
 async function publishTimes() {
   for (let offset = 0; offset < 3; offset++) {
@@ -564,11 +512,13 @@ test("student registration, booking changes, private file persistence and mobile
   ).toBeVisible();
   expect(new URL(page.url()).hash).toContain("view=evidence");
   await capture(page, "tala-evidence-desktop-qa.png");
+  // /#/register is the admissions application now; a signed-in user is sent
+  // straight back to their own dashboard instead.
   await page.goto("/#/register");
   await expect(page).toHaveURL(/#\/dashboard(?:\?|$)/);
   await expect(
-    page.getByRole("button", { name: "Create account", exact: true }),
-  ).toHaveCount(0);
+    page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
+  ).toBeVisible();
   const cookie = (await context.cookies()).find(
     (entry) => entry.name === "tala_session",
   );
@@ -675,11 +625,10 @@ test("student registration, booking changes, private file persistence and mobile
   await capture(page, "tala-meetings-mobile-qa.png");
 });
 
-test("lost enrollment responses and rejected upload drafts recover safely, while linked parent access stays read-only", async ({
+test("lost auth responses and rejected upload drafts recover safely, while linked parent access stays read-only", async ({
   page,
 }) => {
-  await submitInterestWithLostResponse(page);
-  const student = await register(page, "student");
+  const student = await register(page, "student", true);
   await publishTimes();
   await book(page);
   await chooseView(page, "evidence");
@@ -818,9 +767,17 @@ test("operator review, availability controls and learning summaries lead to a pr
   await signOut(page);
   await application.operator.promote(operator.email);
   await login(page, operator, true);
-  const reviewTab = page.getByRole("tab", { name: /^Review evidence/ });
-  const meetingsTab = page.getByRole("tab", { name: "Meetings", exact: true });
-  const learningTab = page.getByRole("tab", {
+  const operatorMenu = page.getByRole("navigation", {
+    name: "Operations workspace",
+  });
+  const reviewTab = operatorMenu.getByRole("button", {
+    name: /^Review evidence/,
+  });
+  const meetingsTab = operatorMenu.getByRole("button", {
+    name: "Meetings",
+    exact: true,
+  });
+  const learningTab = operatorMenu.getByRole("button", {
     name: "Learning summaries",
     exact: true,
   });
@@ -831,7 +788,7 @@ test("operator review, availability controls and learning summaries lead to a pr
     .getByRole("textbox", { name: "Review note", exact: true })
     .fill(staffNote);
   await meetingsTab.click();
-  await expect(meetingsTab).toHaveAttribute("aria-selected", "true");
+  await expect(meetingsTab).toHaveAttribute("aria-current", "page");
   await expect(
     page.getByRole("textbox", { name: "Review note", exact: true }),
   ).not.toBeVisible();

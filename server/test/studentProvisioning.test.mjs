@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
+import { SCHEMA_VERSION } from "../database.cjs";
 import { createLocalBackup, verifyLocalBackup } from "../backup.cjs";
 import { SyntheticHttpClient } from "./support.mjs";
 
@@ -112,7 +113,7 @@ test("student provisioning requires the complete approved enrollment chain and a
     await app.close(); const legacy = new DatabaseSync(join(dataDir, "tala.sqlite"));
     legacy.exec("DROP TABLE admissions_student_setups; PRAGMA user_version=8;"); legacy.close();
     base = await start();
-    assert.equal(app.db.prepare("PRAGMA user_version").get().user_version, 9);
+    assert.equal(app.db.prepare("PRAGMA user_version").get().user_version, SCHEMA_VERSION);
     assert.equal(app.db.prepare("SELECT uid FROM users WHERE uid=?").get(studentUid).uid, studentUid);
     assert.equal(app.db.prepare("SELECT count(*) AS n FROM family_links WHERE student_uid=?").get(studentUid).n, 1);
     assert.equal(app.db.prepare("PRAGMA foreign_key_check").get(), undefined);

@@ -35,6 +35,13 @@ import type {
   UploadStatus,
   User,
   ReflectionDraftInput,
+  ContactRequest,
+  ContactRequestInput,
+  ContactRequestReceipt,
+  ContactRequestStatus,
+  CursorPage,
+  OpenTimes,
+  SessionTimes,
 } from "./types";
 
 export { MAX_FILE_BYTES } from "./decoders";
@@ -616,6 +623,43 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       if (!result) throw new TalaApiError("INVALID_RESPONSE");
       return result;
     },
+    async localStudentPreviewAvailable(signal?: AbortSignal): Promise<boolean> {
+      return transport.json("/api/health", { signal }, (raw) => {
+        const value = decode.object(raw);
+        if (value.application !== "tala-independent-server")
+          throw new TalaApiError("INVALID_RESPONSE");
+        return value.localStudentPreview === true;
+      });
+    },
+    async enterLocalStudentPreview(signal?: AbortSignal): Promise<User> {
+      const result = await authAction(
+        "/api/auth/local-student-preview",
+        {},
+        signal,
+      );
+      if (
+        !result ||
+        result.role !== "student" ||
+        result.uid !== "tala_local_preview_student_v1"
+      )
+        throw new TalaApiError("INVALID_RESPONSE");
+      return result;
+    },
+    /** The fictional parent linked to the preview student (local showcase). */
+    async enterLocalParentPreview(signal?: AbortSignal): Promise<User> {
+      const result = await authAction(
+        "/api/auth/local-parent-preview",
+        {},
+        signal,
+      );
+      if (
+        !result ||
+        result.role !== "parent" ||
+        result.uid !== "tala_local_preview_parent_v1"
+      )
+        throw new TalaApiError("INVALID_RESPONSE");
+      return result;
+    },
     async logout(signal?: AbortSignal): Promise<void> {
       if (await authAction("/api/auth/logout", {}, signal))
         throw new TalaApiError("INVALID_RESPONSE");
@@ -1025,6 +1069,74 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         ),
       );
     },
+    /** 1:1 sessions and learning pods from the availability integration. */
+    getPublicSessions(signal?: AbortSignal): Promise<SessionTimes> {
+      return transport.json(
+        "/api/public/sessions",
+        { signal },
+        decode.sessionTimes,
+      );
+    },
+    getPublicOpenTimes(signal?: AbortSignal): Promise<OpenTimes> {
+      return transport.json(
+        "/api/public/open-times",
+        { signal },
+        decode.openTimes,
+      );
+    },
+    /** Reuse the same requestId when retrying so a lost response is not sent twice. */
+    async submitContactRequest(
+      input: ContactRequestInput,
+      signal?: AbortSignal,
+    ): Promise<ContactRequestReceipt> {
+      try {
+        return await transport.json(
+          "/api/contact-requests",
+          {
+            method: "POST",
+            body: JSON.stringify(input),
+            contentType: "application/json",
+            signal,
+          },
+          decode.contactRequestReceipt,
+        );
+      } catch (failure) {
+        // Another tab may have rotated the cookie; never replay automatically.
+        if (failure instanceof TalaApiError && failure.code === "CSRF_INVALID")
+          csrfToken = "";
+        throw failure;
+      }
+    },
+    getContactRequestsPage(
+      query: { status?: "all" | ContactRequestStatus; cursor?: string } = {},
+      signal?: AbortSignal,
+    ): Promise<CursorPage<ContactRequest>> {
+      return authenticated(signal, (_current, transport) =>
+        transport.json(
+          `/api/operations/contact-requests${pageQuery(query)}`,
+          { signal },
+          (raw) => decode.cursorPage(raw, decode.contactRequest),
+        ),
+      );
+    },
+    setContactRequestStatus(
+      contactRequestId: string,
+      input: { status: ContactRequestStatus; requestId: string },
+      signal?: AbortSignal,
+    ): Promise<ContactRequest> {
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          `/api/operations/contact-requests/${inputId(contactRequestId)}/status`,
+          "POST",
+          input,
+          signal,
+          decode.contactRequest,
+        );
+        if (saved.id !== contactRequestId || saved.status !== input.status)
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
+    },
     getOperatorAppointmentsPage(
       query: OperatorAppointmentQuery = {},
       signal?: AbortSignal,
@@ -1095,6 +1207,33 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
           decode.availability,
         ),
       );
+    },
+    updateAvailability(
+      slotId: string,
+      input: {
+        startsAt: string;
+        endsAt: string;
+        label?: string;
+        requestId: string;
+      },
+      signal?: AbortSignal,
+    ) {
+      return authenticated(signal, async (_current, _transport, json) => {
+        const saved = await json(
+          `/api/availability/${inputId(slotId)}`,
+          "PATCH",
+          input,
+          signal,
+          decode.managedSlot,
+        );
+        if (
+          saved.status !== "available" ||
+          saved.startsAt !== new Date(input.startsAt).toISOString() ||
+          saved.endsAt !== new Date(input.endsAt).toISOString()
+        )
+          throw new TalaApiError("INVALID_RESPONSE");
+        return saved;
+      });
     },
     withdrawAvailability(
       slotId: string,

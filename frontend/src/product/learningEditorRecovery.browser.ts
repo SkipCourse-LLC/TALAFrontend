@@ -7,7 +7,6 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { provisionAndLogin } from "./browserTestAccounts";
 
 const webOrigin = "http://127.0.0.1:5190";
 const apiOrigin = "http://127.0.0.1:8800";
@@ -163,17 +162,42 @@ test.afterEach(async ({ context }) => {
   ).toEqual([]);
 });
 
+// Self sign-up is closed: the fixture provisions the synthetic account with the
+// server's own validators, then the browser signs in through the real login form.
+const provisionAccount = (input: {
+  name: string;
+  email: string;
+  password: string;
+  role: "student" | "parent";
+}) => callFixture("provisionAccount", input);
+async function signInThroughLogin(
+  page: Page,
+  account: { email: string; password: string },
+) {
+  await page.goto("/#/login");
+  await page.getByLabel("Email", { exact: true }).fill(account.email);
+  await page.getByLabel("Password", { exact: true }).fill(account.password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+}
 async function register(page: Page) {
   const suffix = randomUUID();
   const account = {
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
   };
-  return provisionAndLogin(
-    page,
-    (fixture) => callFixture("provisionAccount", fixture),
-    { ...account, name: "Synthetic editor recovery student", role: "student" },
-  );
+  await provisionAccount({
+    ...account,
+    name: "Synthetic editor recovery student",
+    role: "student",
+  });
+  await signInThroughLogin(page, account);
+  await expect(
+    page.getByRole("heading", {
+      name: "Hello, Synthetic editor recovery student.",
+      exact: true,
+    }),
+  ).toBeVisible();
+  return account;
 }
 async function chooseView(
   page: Page,

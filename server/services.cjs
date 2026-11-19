@@ -3,17 +3,20 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { TextDecoder } = require("node:util");
-const { transaction } = require("./database.cjs");
+const { transaction, syncDirectory } = require("./database.cjs");
 const { createListServices } = require("./listServices.cjs");
 const { createLearningGoalServices } = require("./learningGoals.cjs");
 const { createWorkspaceUpdates } = require("./workspaceUpdates.cjs");
 const { createMeetingPreparationServices } = require("./meetingPreparation.cjs");
 const { createReflectionDraftServices } = require("./reflectionDrafts.cjs");
 const { createCalendarServices } = require("./calendar.cjs");
+const { createContactRequestServices } = require("./contactRequests.cjs");
 const { fail, object, text, paragraph, identifier, requestId, hash } = require("./security.cjs");
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const OWNER_STORAGE_BYTES = 100 * 1024 * 1024;
 const INSTANCE_STORAGE_BYTES = 2 * 1024 * 1024 * 1024;
+const SCHOOL_TIME_ZONE = "America/Phoenix";
+const PUBLIC_CALENDAR_DAYS = 90;
 const iso = (value) => new Date(value).toISOString();
 const userDTO = (row) => ({ uid: row.uid, name: row.name, email: row.email, role: row.role, emailVerified: row.email_verified === 1 });
 function createServices(db, dataDir, options = {}) {
@@ -44,10 +47,6 @@ function createServices(db, dataDir, options = {}) {
       if (final.size !== row.size || final.mtimeMs !== opened.mtimeMs || hash(bytes) !== row.sha256) fail(409, "INTEGRITY_ERROR", "The private file checksum changed and needs review.");
       return bytes;
     } finally { if (descriptor !== undefined) fs.closeSync(descriptor); }
-  }
-  function syncDirectory(directory) {
-    const descriptor = fs.openSync(directory, "r");
-    try { fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); }
   }
   function stagingArtifact(filename) {
     const stat = fs.lstatSync(filename);
@@ -288,6 +287,33 @@ function createServices(db, dataDir, options = {}) {
         return { id };
       });
       return managedSlotDTO(db.prepare("SELECT * FROM slots WHERE id=?").get(id));
+    },
+    updateAvailability(actor, id, input) {
+      requireOperator(actor); object(input, ["startsAt", "endsAt", "label", "requestId"]); identifier(id);
+      const saved = operation(actor, "update-availability", input.requestId, [id, input.startsAt, input.endsAt, input.label || ""], () => {
+        const slot = db.prepare("SELECT s.*,state.status AS state FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE s.id=?").get(id);
+        if (!slot) fail(404, "NOT_FOUND", "This meeting time is unavailable.");
+        if (slot.state !== "published" || slot.starts_at <= Date.now() || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(id) || db.prepare("SELECT a.id FROM admissions_appointments a JOIN slots s ON s.id=a.slot_id WHERE a.status='reserved' AND s.starts_at<? AND s.ends_at>?").get(slot.ends_at, slot.starts_at)) fail(409, "CONFLICT", "Only unbooked, published future meeting times can be edited.");
+        const starts = zonedTimestamp(input.startsAt), ends = zonedTimestamp(input.endsAt);
+        if (!Number.isFinite(starts) || !Number.isFinite(ends) || starts <= Date.now() || ends - starts < 15 * 60000 || ends - starts > 4 * 3600000) fail(400, "INVALID_INPUT", "Publish a valid future calendar date with an explicit timezone, lasting 15 minutes to 4 hours.");
+        const label = input.label ? text(input.label, "meeting label", 100) : slot.label;
+        if (starts === slot.starts_at && ends === slot.ends_at) {
+          db.prepare("UPDATE slots SET label=? WHERE id=?").run(label, id);
+          db.prepare("UPDATE availability_state SET updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actor.uid, id);
+          return { id };
+        }
+        // Slot times are immutable (old bookings point at them): retire this one and publish a new one.
+        db.prepare("UPDATE availability_state SET status='withdrawn',updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actor.uid, id);
+        return { id: addAvailability({ startsAt: input.startsAt, endsAt: input.endsAt, label }, actor.uid).id };
+      });
+      return managedSlotDTO(db.prepare("SELECT * FROM slots WHERE id=?").get(saved.id));
+    },
+    publicOpenTimes() {
+      const now = Date.now();
+      // Also hide times that overlap a reserved admissions interview: those slots share this table.
+      const rows = db.prepare("SELECT s.id,s.starts_at,s.ends_at FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at>? AND s.starts_at<=? AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') AND NOT EXISTS(SELECT 1 FROM admissions_appointments a JOIN slots occupied ON occupied.id=a.slot_id WHERE a.status='reserved' AND occupied.starts_at<s.ends_at AND occupied.ends_at>s.starts_at) ORDER BY s.starts_at,s.id LIMIT 101").all(now, now + PUBLIC_CALENDAR_DAYS * 86400000);
+      // Labels, booking state and staff fields stay private to the admin view.
+      return { times: rows.slice(0, 100).map((row) => ({ id: row.id, startsAt: iso(row.starts_at), endsAt: iso(row.ends_at) })), hasMore: rows.length > 100, timeZone: SCHOOL_TIME_ZONE };
     },
     reserve(actor, input, replacesId) {
       requireWriter(actor);
@@ -563,6 +589,16 @@ function createServices(db, dataDir, options = {}) {
       db.prepare("UPDATE users SET role='operator' WHERE uid=?").run(row.uid);
       return userDTO(db.prepare("SELECT * FROM users WHERE uid=?").get(row.uid));
     },
+    // Roles are assigned here by an administrator, never by the sign-in form.
+    // "staff" is the display name of the existing operator role.
+    setRole(email, role) {
+      const next = role === "staff" ? "operator" : role;
+      if (!["student", "parent", "alumni", "operator"].includes(next)) fail(400, "INVALID_INPUT", "Choose student, parent, alumni or staff.");
+      const row = db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(text(email, "existing account email", 254));
+      if (!row) fail(404, "NOT_FOUND", "No account uses this email.");
+      db.prepare("UPDATE users SET role=? WHERE uid=?").run(next, row.uid);
+      return userDTO(db.prepare("SELECT * FROM users WHERE uid=?").get(row.uid));
+    },
     addAvailability(input) { return transaction(db, () => addAvailability(input)); },
     linkFamily(input) {
       const studentUid = identifier(input.studentUid), parentUid = identifier(input.parentUid), reference = text(input.consentReference, "consent reference", 120);
@@ -581,7 +617,8 @@ function createServices(db, dataDir, options = {}) {
   const preparations = createMeetingPreparationServices(db, { authorize, operation });
   const reflectionDrafts = createReflectionDraftServices(db, { operation, read: lists.read });
   const calendar = createCalendarServices(db, { operation, read: lists.read, localStudentPreview: options.localStudentPreview === true });
-  return { services, operator, lists, goals, updates, preparations, reflectionDrafts, calendar, admissionsContext: { guard: currentWriter, addAvailability } };
+  const contactRequests = createContactRequestServices(db, { operation, requireOperator, lists });
+  return { services, operator, lists, goals, updates, preparations, reflectionDrafts, calendar, contactRequests, admissionsContext: { guard: currentWriter, addAvailability } };
 }
 function validateContent(bytes, type) {
   if (type === "application/pdf") {

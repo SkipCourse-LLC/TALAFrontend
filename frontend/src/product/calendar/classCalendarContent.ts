@@ -30,7 +30,12 @@ function foldCalendarLine(value: string) {
   return result;
 }
 export function classCalendarContent(course: CalendarClass) {
-  if (course.enrollmentStatus !== "confirmed")
+  return classesCalendarContent([course]);
+}
+
+/** One calendar file with every confirmed class, for "Subscribe to calendar". */
+export function classesCalendarContent(courses: CalendarClass[]) {
+  if (courses.some((course) => course.enrollmentStatus !== "confirmed"))
     throw new TalaApiError("CONFLICT");
   return (
     [
@@ -39,19 +44,25 @@ export function classCalendarContent(course: CalendarClass) {
       "PRODID:-//TALA//Learning Hub//EN",
       "CALSCALE:GREGORIAN",
       "METHOD:PUBLISH",
-      "BEGIN:VEVENT",
-      `UID:${course.id}@classes.tala.local`,
-      `DTSTAMP:${calendarStamp(new Date().toISOString())}`,
-      `DTSTART:${calendarStamp(course.startsAt)}`,
-      `DTEND:${calendarStamp(course.endsAt)}`,
-      `SUMMARY:${escapeCalendarText(course.title)}`,
-      `DESCRIPTION:${escapeCalendarText(`${course.description}\nTeacher: ${course.teacher}\nAttendance: ${course.enrollmentMode === "in_person" ? "In person" : "Online"}\nDownloaded copy. Check TALA for updates.`)}`,
-      `LOCATION:${escapeCalendarText(course.location)}`,
-      "STATUS:CONFIRMED",
-      "END:VEVENT",
+      ...courses.flatMap(classEventLines),
       "END:VCALENDAR",
     ]
       .map(foldCalendarLine)
       .join("\r\n") + "\r\n"
   );
+}
+
+function classEventLines(course: CalendarClass) {
+  return [
+    "BEGIN:VEVENT",
+    `UID:${course.id}@classes.tala.local`,
+    `DTSTAMP:${calendarStamp(new Date().toISOString())}`,
+    `DTSTART:${calendarStamp(course.startsAt)}`,
+    `DTEND:${calendarStamp(course.endsAt)}`,
+    `SUMMARY:${escapeCalendarText(course.title)}`,
+    `DESCRIPTION:${escapeCalendarText(`${course.description}\nTeacher: ${course.teacher}\nAttendance: ${course.enrollmentMode === "in_person" ? "In person" : "Online"}\nDownloaded copy. Check TALA for updates.`)}`,
+    `LOCATION:${escapeCalendarText(course.location)}`,
+    "STATUS:CONFIRMED",
+    "END:VEVENT",
+  ];
 }

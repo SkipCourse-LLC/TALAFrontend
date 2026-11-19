@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient } from "./support.mjs";
+import { SyntheticHttpClient, signUpForTest } from "./support.mjs";
 
 test("legacy private reads recheck actor permissions in the same snapshot as their data", { timeout: 30_000 }, async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "tala-read-auth-test-"));
@@ -18,8 +18,8 @@ test("legacy private reads recheck actor permissions in the same snapshot as the
     const base = `http://127.0.0.1:${app.server.address().port}`;
     async function register(accountType) {
       const client = new SyntheticHttpClient(base, origin); await client.bootstrap();
-      const created = await client.request("/api/auth/register", { method: "POST", json: { name: `Synthetic ${accountType}`, email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType } });
-      assert.equal(created.status, 201);
+      const created = await signUpForTest(app, client, { name: `Synthetic ${accountType}`, email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType });
+      assert.equal(created.status, 200);
       return { client, user: created.json.session };
     }
     const student = await register("student"), staff = await register("student"), parent = await register("parent");

@@ -169,24 +169,20 @@ test("eight-character passwords work for registration, password changes and sign
     replacement: "ijklmnop",
   };
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
+  // Self sign-up is closed. The server's own validators accept the
+  // eight-character password at provisioning; the browser then signs in with it.
+  await provisionAccount({
+    name: account.name,
+    email: account.email,
+    password: account.password,
+    role: "student",
+  });
+  await page.goto("/#/login");
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   const password = page.getByLabel("Password", { exact: true });
-  await expect(password).toHaveAttribute("minlength", "8");
   await expect(password).toHaveAttribute("maxlength", "128");
-  await password.fill("abcdefg");
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  await expect(page.locator("#product-access-password-error")).toHaveText(
-    "Use 8–128 characters.",
-  );
-  await expect(page.locator("#product-password-help")).toHaveCount(0);
   await password.fill(account.password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
   ).toBeVisible();
@@ -235,6 +231,17 @@ test("eight-character passwords work for registration, password changes and sign
   ).toBeVisible();
 });
 
+type ProvisionedRole = "student" | "parent";
+// Self sign-up is closed: the fixture provisions the synthetic account with the
+// server's own validators, then the browser signs in through the real login form.
+const provisionAccount = (input: { name: string; email: string; password: string; role: ProvisionedRole }) =>
+  callFixture("provisionAccount", input);
+async function signInThroughLogin(page: Page, account: { email: string; password: string }) {
+  await page.goto("/#/login");
+  await page.getByLabel("Email", { exact: true }).fill(account.email);
+  await page.getByLabel("Password", { exact: true }).fill(account.password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+}
 async function register(page: Page, role: "student" | "parent" = "student") {
   const suffix = randomUUID();
   const account: Account = {
@@ -242,19 +249,8 @@ async function register(page: Page, role: "student" | "parent" = "student") {
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
   };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page
-    .getByRole("radio", {
-      name: role === "student" ? "Student" : "Parent or guardian",
-      exact: true,
-    })
-    .check();
-  await page.getByLabel("Email", { exact: true }).fill(account.email);
-  await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
+  await provisionAccount({ ...account, role });
+  await signInThroughLogin(page, account);
   await expect(
     page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
   ).toBeVisible();
@@ -391,8 +387,12 @@ test("one independent workspace opens its sidebar and real Overview cards after 
   await page
     .getByRole("button", { name: "Retry connection", exact: true })
     .click();
+  // /#/register now opens the admissions application, not a sign-up form.
   await expect(
-    page.getByRole("heading", { name: "Create account", exact: true }),
+    page.getByRole("heading", {
+      name: "Start your TALA registration",
+      exact: true,
+    }),
   ).toBeVisible();
   await expectAccessible(page);
   await page.screenshot({ path: testInfo.outputPath("register-320.png") });

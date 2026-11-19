@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient, assertNoPrivateLocation } from "./support.mjs";
+import { SyntheticHttpClient, assertNoPrivateLocation, signUpForTest } from "./support.mjs";
 
 async function fixture() {
   const dataDir = await mkdtemp(join(tmpdir(), "tala-learning-goals-"));
@@ -16,8 +16,8 @@ async function fixture() {
   async function register(accountType = "student") {
     const client = new SyntheticHttpClient(baseUrl); await client.bootstrap();
     const account = { name: `Synthetic ${accountType}`, email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType };
-    const result = await client.request("/api/auth/register", { method: "POST", json: account });
-    assert.equal(result.status, 201);
+    const result = await signUpForTest(app, client, account);
+    assert.equal(result.status, 200);
     return { client, user: result.json.session, account };
   }
   return { app, dataDir, baseUrl, register, async close() { await app.close(); await rm(dataDir, { recursive: true, force: true }); } };
@@ -294,7 +294,7 @@ test("goal Evidence link bounds are enforced atomically without removing complet
     // link authorization relies on actual saved Evidence rows, never a client flag.
     for (let index = 0; index < 21; index++) {
       const id = randomUUID(), now = Date.now(); evidenceIds.push(id);
-      f.app.db.prepare("INSERT INTO uploads VALUES(?,?,?,?,?,?,?,'submitted',?,?)").run(id, user.uid, booking.json.id, `Synthetic link ${index}`, "text/plain", 1, "0".repeat(64), now, now + 1200000);
+      f.app.db.prepare("INSERT INTO uploads(id,owner_uid,appointment_id,title,content_type,size,sha256,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?)").run(id, user.uid, booking.json.id, `Synthetic link ${index}`, "text/plain", 1, "0".repeat(64), now, now + 1200000);
       f.app.db.prepare("INSERT INTO evidence(id,owner_uid,appointment_id,title,content_type,size,sha256,submitted_at) VALUES(?,?,?,?,?,?,?,?)").run(id, user.uid, booking.json.id, `Synthetic link ${index}`, "text/plain", 1, "0".repeat(64), now);
       const response = await client.request(`/api/learning-goals/${goal.id}/evidence`, { method: "POST", json: { evidenceId: id, action: "link", version: goal.version, requestId: randomUUID() } });
       if (index < 20) { assert.equal(response.status, 200); goal = response.json; } else assert.equal(response.status, 409);

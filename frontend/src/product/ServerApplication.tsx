@@ -21,6 +21,8 @@ import {
 } from "../public-site/InformationPages";
 import { CommunityPage } from "../public-site/CommunityPage";
 import { NotFoundPage } from "../public-site/NotFoundPage";
+import { ContactRequestPage } from "../onboarding/ContactRequestPage";
+import { OpenTimesPage } from "../onboarding/OpenTimesPage";
 import { talaApi, safeTalaApiError } from "../api";
 import type { ApiUser } from "../api";
 import { ServerAccessPage } from "./ServerAccessPage";
@@ -28,13 +30,17 @@ import { AdmissionStartPage } from "./admissions/AdmissionStartPage";
 import { EnrollmentPage } from "./admissions/EnrollmentPage";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { PaymentPage } from "../payment/PaymentPage";
+import { TestCheckoutPage } from "../payment/TestCheckoutPage";
 import { ServerWorkspace } from "./ServerWorkspace";
 import { OperatorWorkspace } from "./OperatorWorkspace";
+import { AlumniWorkspace } from "./AlumniWorkspace";
 import { AccountSecurityPage } from "./AccountSecurityPage";
 import { ApplicationConnectionNotice } from "./ApplicationConnectionNotice";
 import { useSessionPrivacy } from "./useSessionPrivacy";
 import { WorkspaceVisibility } from "./workspaceVisibility";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
+import type { WorkspaceView } from "./workspaceViews";
+import { portalSection } from "./workspaceSections";
 import "./product.css";
 import "./quietAccount.css";
 
@@ -53,9 +59,11 @@ function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
     document.title =
       pathname === "/two-factor"
         ? "Account security | TALA"
-        : role === "operator"
+        : role === "operator" || role === "alumni"
           ? "Your workspace | TALA"
-          : `${workspaceViews.find((item) => item.id === view)!.label} | TALA`;
+          : role === "student" || role === "parent"
+            ? `${portalPageTitle(role, view)} | TALA`
+            : `${workspaceViews.find((item) => item.id === view)!.label} | TALA`;
   }, [pathname, search, role]);
   useEffect(() => {
     if (pathname !== "/dashboard" && pathname !== "/two-factor") return;
@@ -104,7 +112,12 @@ export function ServerApplication() {
   const loggingOut = useRef(false);
   const restored = useCallback((next: ApiUser | null) => {
     intent.current++;
-    setUser(next);
+    // An unchanged session keeps the same object so nothing re-renders.
+    setUser((current) =>
+      current && next && JSON.stringify(current) === JSON.stringify(next)
+        ? current
+        : next,
+    );
   }, []);
   const privacy = useSessionPrivacy({
     user,
@@ -204,6 +217,8 @@ export function ServerApplication() {
       }}
     />
   ) : null;
+  // Role-aware sign-in: the role in the server session, never the sign-in
+  // form, decides which dashboard /dashboard shows.
   const workspace = user ? (
     user.role === "operator" ? (
       <OperatorWorkspace
@@ -211,6 +226,12 @@ export function ServerApplication() {
         user={user}
         onLogout={logout}
         onExpired={expired}
+      />
+    ) : user.role === "alumni" ? (
+      <AlumniWorkspace
+        key={`${user.uid}:${user.role}:${privacy.accessEpoch}`}
+        user={user}
+        onLogout={logout}
       />
     ) : (
       <ServerWorkspace
@@ -313,7 +334,7 @@ export function ServerApplication() {
                   user ? (
                     <Navigate to="/dashboard" replace />
                   ) : (
-                    <AdmissionStartPage />
+                    (unavailable ?? <AdmissionStartPage />)
                   )
                 }
               />
@@ -360,6 +381,8 @@ export function ServerApplication() {
                 path="contact"
                 element={<CommunityPage kind="contact" />}
               />
+              <Route path="contact-request" element={<ContactRequestPage />} />
+              <Route path="schedule" element={<OpenTimesPage />} />
               <Route path="events" element={<CommunityPage kind="events" />} />
               <Route
                 path="two-factor"
@@ -381,14 +404,29 @@ export function ServerApplication() {
               <Route
                 path="payment"
                 element={
-                  user ? (
+                  user?.role === "parent" ? (
                     <PaymentPage
                       key={`${user.uid}:${privacy.accessEpoch}`}
                       user={user}
                       onExpired={expired}
                     />
                   ) : (
-                    <Navigate to="/login" replace />
+                    // Family payments belong to parents; other roles go home.
+                    <Navigate to={user ? "/dashboard" : "/login"} replace />
+                  )
+                }
+              />
+              <Route
+                path="payment/test-checkout/:paymentId"
+                element={
+                  user?.role === "parent" ? (
+                    <TestCheckoutPage
+                      key={`${user.uid}:${privacy.accessEpoch}`}
+                      user={user}
+                      onExpired={expired}
+                    />
+                  ) : (
+                    <Navigate to={user ? "/dashboard" : "/login"} replace />
                   )
                 }
               />
@@ -404,4 +442,11 @@ export function ServerApplication() {
       </div>
     </>
   );
+}
+
+/** The page's menu name, with its tab: "My Work · Plan", "Learning · Progress". */
+function portalPageTitle(role: string, view: WorkspaceView) {
+  const place = portalSection(role, view);
+  const tab = place.tabs?.find((item) => item.view === view);
+  return tab ? `${place.label} · ${tab.label}` : place.label;
 }
