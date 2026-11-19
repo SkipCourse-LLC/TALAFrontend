@@ -561,13 +561,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   <Icon name="chevron-right" />
                 </button>
               </div>
-              <button
-                type="button"
-                className="tala-cal-today"
-                onClick={() => chooseDay(today)}
-              >
-                Today
-              </button>
               <label className="tala-cal-date-jump">
                 <span className="tala-cal-sr">Jump to date</span>
                 <input

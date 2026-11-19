@@ -645,6 +645,21 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
         throw new TalaApiError("INVALID_RESPONSE");
       return result;
     },
+    /** The fictional parent linked to the preview student (local showcase). */
+    async enterLocalParentPreview(signal?: AbortSignal): Promise<User> {
+      const result = await authAction(
+        "/api/auth/local-parent-preview",
+        {},
+        signal,
+      );
+      if (
+        !result ||
+        result.role !== "parent" ||
+        result.uid !== "tala_local_preview_parent_v1"
+      )
+        throw new TalaApiError("INVALID_RESPONSE");
+      return result;
+    },
     async logout(signal?: AbortSignal): Promise<void> {
       if (await authAction("/api/auth/logout", {}, signal))
         throw new TalaApiError("INVALID_RESPONSE");

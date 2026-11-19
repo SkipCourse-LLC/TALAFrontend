@@ -55,7 +55,9 @@ test("T4-5 T4-8 each of the four roles signs in to its own dashboard and signs o
   await signOutAndConfirm(page);
 
   await signIn(page, parent);
-  await expect(page.getByRole("heading", { name: `Hello, ${parent.name}.`, exact: true })).toBeVisible();
+  // Parents land on the family Overview; the account menu carries their name.
+  await expect(page.getByRole("heading", { level: 1, name: "Overview", exact: true })).toBeVisible();
+  await expect(page.getByLabel(`Account menu for ${parent.name}`, { exact: true })).toBeVisible();
   expect(await sessionRole(page)).toBe("parent");
   await signOutAndConfirm(page);
 

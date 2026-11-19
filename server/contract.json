@@ -1106,6 +1106,13 @@
     },
     {
       "method": "POST",
+      "path": "/auth/local-parent-preview",
+      "public": true,
+      "body": {},
+      "response": "SessionState for the fixed fictional preview parent, linked read-only to the fictional preview student (both created if missing). Only when the server runs with localStudentPreview; loopback origin and socket only; 409 ACTIVE_SESSION while signed in. Grants no admission or staff access."
+    },
+    {
+      "method": "POST",
       "path": "/auth/enroll",
       "public": true,
       "body": {

@@ -26,7 +26,9 @@ export function ServerAccessPage({
   );
   const [pending, setPending] = useState(false);
   const [previewAvailable, setPreviewAvailable] = useState(false);
-  const [openingPreview, setOpeningPreview] = useState(false);
+  const [openingPreview, setOpeningPreview] = useState<
+    "student" | "parent" | null
+  >(null);
   const [restoring, setRestoring] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<AccessErrors>({});
   const [capsLock, setCapsLock] = useState(false);
@@ -61,22 +63,28 @@ export function ServerAccessPage({
       });
     return () => request.abort();
   }, [register]);
-  async function openStudentPreview() {
+  /** Opens the local showcase as the demo student or the demo parent. */
+  async function openPreview(kind: "student" | "parent") {
     if (busy.current || !previewAvailable) return;
     busy.current = true;
     setPending(true);
-    setOpeningPreview(true);
+    setOpeningPreview(kind);
     setError("");
     setFieldErrors({});
     setRecoveryAvailable(false);
     const request = new AbortController();
     controller.current = request;
     try {
-      const user = await talaApi.enterLocalStudentPreview(request.signal);
+      const user =
+        kind === "parent"
+          ? await talaApi.enterLocalParentPreview(request.signal)
+          : await talaApi.enterLocalStudentPreview(request.signal);
       if (!active.current || request.signal.aborted) return;
       setPassword("");
       onAuthenticated(user);
-      navigate("/dashboard?view=calendar", { replace: true });
+      navigate(kind === "parent" ? "/dashboard" : "/dashboard?view=calendar", {
+        replace: true,
+      });
     } catch (failure) {
       if (active.current && !request.signal.aborted) {
         const problem = safeTalaApiError(failure);
@@ -88,7 +96,7 @@ export function ServerAccessPage({
       busy.current = false;
       if (active.current) {
         setPending(false);
-        setOpeningPreview(false);
+        setOpeningPreview(null);
         setPassword("");
         setPasswordVisible(false);
       }
@@ -228,17 +236,29 @@ export function ServerAccessPage({
         {!register && previewAvailable && (
           <section
             className="product-access-preview"
-            aria-label="Local student demo"
+            aria-label="Local demo accounts"
           >
-            <button
-              type="button"
-              className="button button-primary button-full"
-              disabled={pending}
-              onClick={() => void openStudentPreview()}
-            >
-              {openingPreview ? "Opening…" : "Open student demo"}
-            </button>
-            <p>No email or password. Local test account.</p>
+            <div className="product-access-demo-choices">
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={pending}
+                onClick={() => void openPreview("student")}
+              >
+                {openingPreview === "student"
+                  ? "Opening…"
+                  : "Open student demo"}
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={pending}
+                onClick={() => void openPreview("parent")}
+              >
+                {openingPreview === "parent" ? "Opening…" : "Open parent demo"}
+              </button>
+            </div>
+            <p>No email or password. Local test accounts.</p>
             <span className="product-access-divider">
               Or sign in to your account
             </span>

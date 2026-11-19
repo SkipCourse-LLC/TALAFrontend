@@ -137,7 +137,7 @@ export function OpenClassesPanel({
   const title =
     range === "Month"
       ? calendarMonthLabel(anchor.slice(0, 7))
-      : calendarWeekTitle(first, last);
+      : `Week of ${calendarWeekTitle(first, last)}`;
   function move(direction: number) {
     setDay(null);
     setAnchor((current) =>

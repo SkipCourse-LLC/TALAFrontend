@@ -109,7 +109,7 @@ export function occursOnDay(
   );
 }
 
-/** "Week of Nov 15 – 21, 2026", or "Week of Nov 29 – Dec 5, 2026". */
+/** "Nov 15 – 21, 2026", or "Nov 29 – Dec 5, 2026". */
 export function calendarWeekTitle(first: string, last: string) {
   const month = (key: string) =>
     civilDate(key).toLocaleString("en-US", { month: "short", timeZone: "UTC" });
@@ -118,5 +118,5 @@ export function calendarWeekTitle(first: string, last: string) {
     first.slice(0, 7) === last.slice(0, 7)
       ? `${day(last)}`
       : `${month(last)} ${day(last)}`;
-  return `Week of ${month(first)} ${day(first)} – ${end}, ${last.slice(0, 4)}`;
+  return `${month(first)} ${day(first)} – ${end}, ${last.slice(0, 4)}`;
 }

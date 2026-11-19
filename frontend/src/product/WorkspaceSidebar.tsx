@@ -13,8 +13,13 @@ import {
   DashboardSideMenuLabel,
 } from "./DashboardSideMenu";
 import type { WorkspaceView } from "./workspaceViews";
-import { sectionForView, studentSections } from "./workspaceSections";
-import type { StudentSection } from "./workspaceSections";
+import {
+  parentSections,
+  portalSection,
+  sectionForView,
+  studentSections,
+} from "./workspaceSections";
+import type { ParentSection, StudentSection } from "./workspaceSections";
 import {
   SidebarBrand,
   SidebarCalendars,
@@ -37,6 +42,14 @@ const icons: Record<WorkspaceView, IconName> = {
   resources: "folder",
 };
 
+const parentIcons: Record<ParentSection["id"], IconName> = {
+  overview: "grid",
+  requests: "check-circle",
+  announcements: "megaphone",
+  learning: "book",
+  teachers: "people",
+};
+
 const sectionIcons: Record<StudentSection["id"], IconName> = {
   calendar: "calendar",
   work: "grid",
@@ -56,6 +69,7 @@ export function WorkspaceSidebar({
   hasGoalDraft = false,
   hasMeetingDraft = false,
   account,
+  familyPicker,
   calendarFilters,
   onNavigate,
   onSignOut,
@@ -69,6 +83,8 @@ export function WorkspaceSidebar({
   hasGoalDraft?: boolean;
   hasMeetingDraft?: boolean;
   account: ReactNode;
+  /** Parent only: which linked student the family portal shows. */
+  familyPicker?: ReactNode;
   /** Student only: the "My calendars" checkboxes shown under the menu. */
   calendarFilters?: SidebarCalendarFilters;
   onNavigate?: (view: WorkspaceView) => void;
@@ -76,13 +92,13 @@ export function WorkspaceSidebar({
 }) {
   const hintId = useId();
   const student = user.role === "student";
+  const family = user.role === "parent";
+  // Students and families share the redesigned portal shell.
+  const portal = student || family;
   const current = workspaceViews.find((item) => item.id === view)!;
   const section = sectionForView(view);
-  const currentLabel = student
-    ? section.label
-    : user.role === "parent" && view === "classes"
-      ? "Class requests"
-      : current.label;
+  const place = portalSection(user.role, view);
+  const currentLabel = portal ? place.label : current.label;
   const draftHints: Partial<Record<WorkspaceView, string>> = {
     ...(hasEvidenceDraft
       ? { evidence: "Your Evidence draft is kept while you switch sections." }
@@ -141,6 +157,39 @@ export function WorkspaceSidebar({
           </DashboardSideMenuButton>
         );
       })}
+    </nav>
+  );
+
+  const familyNav = (className: string, id?: string, collapsed = false) => (
+    <nav id={id} className={className} aria-label="Workspace sections">
+      {parentSections.map((item) => (
+        <DashboardSideMenuButton
+          key={item.id}
+          collapsed={collapsed}
+          current={place.id === item.id}
+          disabled={disabled}
+          label={item.label}
+          onClick={(event) => {
+            closePicker(event.currentTarget);
+            if (place.id !== item.id) onNavigate?.(item.views[0]);
+            else onNavigate?.(view);
+          }}
+          symbol={<Icon name={parentIcons[item.id]} />}
+        >
+          <DashboardSideMenuLabel>{item.label}</DashboardSideMenuLabel>
+          {item.id === "announcements" && unreadBadge}
+        </DashboardSideMenuButton>
+      ))}
+      <Link
+        to="/payment"
+        className="server-dashboard-payment-link"
+        onClick={(event) => closePicker(event.currentTarget)}
+      >
+        <span className="server-dashboard-nav-symbol">
+          <Icon name="card" />
+        </span>
+        <DashboardSideMenuLabel>Payments</DashboardSideMenuLabel>
+      </Link>
     </nav>
   );
 
@@ -230,14 +279,21 @@ export function WorkspaceSidebar({
         ["updates", "Announcements", "feedback"],
         ["classes", "Open Classes", "book"],
       ]
-    : [
-        ["overview", "Overview", "grid"],
-        ["plan", "Plan", "goal"],
-        user.role === "parent"
-          ? ["meetings", "Meet", "calendar"]
-          : ["calendar", "Calendar", "calendar"],
-        ["evidence", "Evidence", "evidence"],
-      ];
+    : family
+      ? [
+          ["overview", "Overview", "grid"],
+          ["classes", "Requests", "check"],
+          ["updates", "Announcements", "feedback"],
+          ["plan", "Learning", "book"],
+        ]
+      : [
+          ["overview", "Overview", "grid"],
+          ["plan", "Plan", "goal"],
+          user.role === "parent"
+            ? ["meetings", "Meet", "calendar"]
+            : ["calendar", "Calendar", "calendar"],
+          ["evidence", "Evidence", "evidence"],
+        ];
 
   return (
     <DashboardSideMenu
@@ -247,8 +303,8 @@ export function WorkspaceSidebar({
       currentKey={view}
       currentLabel={currentLabel}
       currentText={
-        student
-          ? section.label
+        portal
+          ? place.label
           : view === "plan"
             ? "Plan"
             : view === "learning"
@@ -258,11 +314,20 @@ export function WorkspaceSidebar({
       renderNav={(className, { id, collapsed }) =>
         student
           ? studentNav(className, id, collapsed)
-          : otherNav(className, id, collapsed)
+          : family
+            ? familyNav(className, id, collapsed)
+            : otherNav(className, id, collapsed)
       }
-      brandMark={student ? <SidebarBrand /> : undefined}
-      afterBrand={student ? <SidebarSchoolYear /> : undefined}
-      collapsible={!student}
+      brandMark={portal ? <SidebarBrand /> : undefined}
+      afterBrand={
+        portal ? (
+          <>
+            <SidebarSchoolYear />
+            {family && familyPicker}
+          </>
+        ) : undefined
+      }
+      collapsible={!portal}
     >
       {(collapsed) => (
         <>
@@ -271,17 +336,19 @@ export function WorkspaceSidebar({
               {hint}
             </span>
           ))}
-          {student ? (
+          {portal ? (
             <>
-              <div className="student-sidebar-extras">
-                {calendarFilters && (
-                  <SidebarCalendars
-                    filters={calendarFilters}
-                    disabled={disabled}
-                  />
-                )}
-                <SidebarSyncCard />
-              </div>
+              {student && (
+                <div className="student-sidebar-extras">
+                  {calendarFilters && (
+                    <SidebarCalendars
+                      filters={calendarFilters}
+                      disabled={disabled}
+                    />
+                  )}
+                  <SidebarSyncCard />
+                </div>
+              )}
               <div className="student-sidebar-foot">
                 <div className="server-dashboard-account">{account}</div>
                 <SidebarSupportLinks collapsed={false} />
@@ -348,12 +415,18 @@ export function WorkspaceSidebar({
                 key={id}
                 disabled={disabled}
                 aria-current={
-                  (student ? section.views[0] === id : view === id)
+                  (
+                    student
+                      ? section.views[0] === id
+                      : family
+                        ? portalSection("parent", id).id === place.id
+                        : view === id
+                  )
                     ? "page"
                     : undefined
                 }
                 aria-label={
-                  student
+                  portal
                     ? label
                     : workspaceViews.find((item) => item.id === id)!.label
                 }

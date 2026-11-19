@@ -6,7 +6,7 @@ import type { ApiUser, CalendarClass } from "../api";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
 import type { WorkspaceView } from "./workspaceViews";
 import { classStatus } from "./calendar/classPresentation";
-import { sectionForView, workTabs } from "./workspaceSections";
+import { portalSection } from "./workspaceSections";
 import { Icon } from "../shared/Icon";
 import "./workspaceHeader.css";
 
@@ -57,17 +57,12 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
             (item) => item.id === readWorkspaceView(params.get("view")),
           )!.label;
   const studentView = readWorkspaceView(params.get("view"));
-  const studentSection = sectionForView(studentView);
   const pageLabel =
     location.pathname === "/payment"
       ? "Payments"
-      : user.role === "parent" && params.get("view") === "classes"
-        ? "Class requests"
-        : user.role === "student"
-          ? studentSection.id === "work"
-            ? `My Work · ${workTabs.find((tab) => tab.view === studentView)?.label ?? "Today"}`
-            : studentSection.label
-          : page;
+      : user.role === "student" || user.role === "parent"
+        ? portalPageName(user.role, studentView)
+        : page;
   const roleLabel =
     user.uid === "tala_local_preview_student_v1"
       ? "Student demo"
@@ -136,13 +131,9 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
             .map((item) => ({
               id: item.id,
               label:
-                user.role === "parent" && item.id === "classes"
-                  ? "Class requests"
-                  : user.role === "student"
-                    ? sectionForView(item.id).id === "work"
-                      ? `My Work · ${workTabs.find((tab) => tab.view === item.id)!.label}`
-                      : sectionForView(item.id).label
-                    : item.label,
+                user.role === "student" || user.role === "parent"
+                  ? portalPageName(user.role, item.id)
+                  : item.label,
               detail:
                 item.id === "classes"
                   ? user.role === "parent"
@@ -157,7 +148,7 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
     pages.push({
       id: "payments",
       label: "Payments",
-      detail: "View approved fees, HubSpot checkout and payment verification",
+      detail: "Fees approved for your student and their payment status",
       url: "/payment",
     });
   const words = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -461,4 +452,11 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
       )}
     </header>
   );
+}
+
+/** "My Work · Plan", "Learning · Evidence" or "Announcements": a page by its menu name. */
+function portalPageName(role: string, view: WorkspaceView) {
+  const place = portalSection(role, view);
+  const tab = place.tabs?.find((item) => item.view === view);
+  return tab ? `${place.label} · ${tab.label}` : place.label;
 }

@@ -91,3 +91,33 @@ test("preview does not replace signed-in users or capture existing accounts with
     assert.equal(app.db.prepare("SELECT password_hash FROM users WHERE uid=?").get(staff.uid).password_hash, protectedRow.password_hash);
   });
 });
+
+test("parent preview enters a fictional parent linked read-only to the preview student", async () => {
+  const parentEndpoint = "/api/auth/local-parent-preview";
+  await fixture({ localStudentPreview: false }, async (app, client) => {
+    const browser = client(); await browser.bootstrap();
+    assert.equal((await browser.request(parentEndpoint, { method: "POST", json: {} })).status, 404);
+    assert.equal(app.db.prepare("SELECT count(*) AS n FROM users").get().n, 0);
+  });
+  await fixture({ localStudentPreview: true, allowedOrigins: ["http://127.0.0.1:5173", "https://preview.example.test"] }, async (app, client) => {
+    const browser = client(); await browser.bootstrap();
+    assert.equal((await browser.request(parentEndpoint, { method: "POST", origin: "https://preview.example.test", json: {} })).status, 403);
+    const response = await browser.request(parentEndpoint, { method: "POST", json: {} });
+    assert.equal(response.status, 200);
+    assert.equal(response.json.session.uid, "tala_local_preview_parent_v1");
+    assert.equal(response.json.session.role, "parent");
+    assert.equal(JSON.stringify(response.json).includes("password"), false);
+    const links = (await browser.request("/api/family")).json;
+    assert.deepEqual(links.relationships.map(link => [link.studentUid, link.permissions]), [[previewUid, ["read"]]]);
+    assert.equal((await browser.request("/api/operator/admissions")).status, 403);
+    assert.equal((await browser.request(parentEndpoint, { method: "POST", json: {} })).json.error.code, "ACTIVE_SESSION");
+    await browser.request("/api/auth/logout", { method: "POST", json: {} });
+    // Entering again reuses both people and the one link.
+    assert.equal((await browser.request(parentEndpoint, { method: "POST", json: {} })).status, 200);
+    assert.equal(app.db.prepare("SELECT count(*) AS n FROM users").get().n, 2);
+    assert.equal(app.db.prepare("SELECT count(*) AS n FROM family_links").get().n, 1);
+    // The student preview still opens the same student.
+    await browser.request("/api/auth/logout", { method: "POST", json: {} });
+    assert.equal((await browser.request(endpoint, { method: "POST", json: {} })).json.session.uid, previewUid);
+  });
+});

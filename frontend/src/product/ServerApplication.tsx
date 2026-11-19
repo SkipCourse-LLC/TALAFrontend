@@ -34,7 +34,8 @@ import { ApplicationConnectionNotice } from "./ApplicationConnectionNotice";
 import { useSessionPrivacy } from "./useSessionPrivacy";
 import { WorkspaceVisibility } from "./workspaceVisibility";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
-import { sectionForView, workTabs } from "./workspaceSections";
+import type { WorkspaceView } from "./workspaceViews";
+import { portalSection } from "./workspaceSections";
 import "./product.css";
 import "./quietAccount.css";
 
@@ -55,12 +56,8 @@ function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
         ? "Account security | TALA"
         : role === "operator" || role === "alumni"
           ? "Your workspace | TALA"
-          : role === "student"
-            ? `${
-                sectionForView(view).id === "work"
-                  ? `My Work · ${workTabs.find((tab) => tab.view === view)!.label}`
-                  : sectionForView(view).label
-              } | TALA`
+          : role === "student" || role === "parent"
+            ? `${portalPageTitle(role, view)} | TALA`
             : `${workspaceViews.find((item) => item.id === view)!.label} | TALA`;
   }, [pathname, search, role]);
   useEffect(() => {
@@ -448,4 +445,11 @@ export function ServerApplication() {
       </div>
     </>
   );
+}
+
+/** The page's menu name, with its tab: "My Work · Plan", "Learning · Progress". */
+function portalPageTitle(role: string, view: WorkspaceView) {
+  const place = portalSection(role, view);
+  const tab = place.tabs?.find((item) => item.view === view);
+  return tab ? `${place.label} · ${tab.label}` : place.label;
 }

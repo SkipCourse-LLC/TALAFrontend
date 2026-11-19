@@ -242,3 +242,12 @@
     transition: none !important;
   }
 }
+/* The two local demo accounts sit side by side; they stack on phones. */
+.product-access-demo-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+.product-access-demo-choices .button {
+  width: 100%;
+}

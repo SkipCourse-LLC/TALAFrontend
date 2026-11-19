@@ -65,7 +65,7 @@ import { StudentPageControls } from "./StudentPageControls";
 import { buildBookingCalendar, meetingChangeIsCurrent } from "./meetingHelpers";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import { StudentResources } from "./StudentResources";
-import { sectionForView, workTabs } from "./workspaceSections";
+import { portalSection, sectionForView } from "./workspaceSections";
 import {
   calendarCategories,
   calendarCategoryCounts,
@@ -108,14 +108,20 @@ export function ServerWorkspace({
   const workspaceVisible = useWorkspaceVisible();
   // The student portal is a full-height app: the menu runs down the left edge
   // and the page header sits beside it (see studentShell.css).
-  const studentPortal = user.role === "student" && workspaceVisible;
+  const portal = !workspaceVisible
+    ? null
+    : user.role === "student"
+      ? "student"
+      : user.role === "parent"
+        ? "family"
+        : null;
   useLayoutEffect(() => {
-    if (!studentPortal) return;
-    document.documentElement.dataset.portal = "student";
+    if (!portal) return;
+    document.documentElement.dataset.portal = portal;
     return () => {
       delete document.documentElement.dataset.portal;
     };
-  }, [studentPortal]);
+  }, [portal]);
   const familyRevision = useClassWorkspaceRevision(user.role === "parent");
   const [workspaceParams, setWorkspaceParams] = useSearchParams();
   const parentView = readWorkspaceView(workspaceParams.get("view"));
@@ -242,20 +248,25 @@ export function ServerWorkspace({
   }, []);
   const heading = (
     <>
-      <header className="product-heading">
-        <div>
-          <p className="student-workspace-label">
-            {user.uid === "tala_local_preview_student_v1"
-              ? "Student demo"
-              : user.role === "parent"
-                ? "Family"
+      {user.role === "parent" ? (
+        // The family portal names each page like its menu item.
+        <header className="student-page-title">
+          <h1>{portalSection("parent", parentView).label}</h1>
+        </header>
+      ) : (
+        <header className="product-heading">
+          <div>
+            <p className="student-workspace-label">
+              {user.uid === "tala_local_preview_student_v1"
+                ? "Student demo"
                 : "Student"}
-          </p>
-          <h1>
-            Hello, <bdi>{user.name}</bdi>.
-          </h1>
-        </div>
-      </header>
+            </p>
+            <h1>
+              Hello, <bdi>{user.name}</bdi>.
+            </h1>
+          </div>
+        </header>
+      )}
       {user.role === "parent" && parentView === "overview" && (
         <ParentPaymentSummary key={user.uid} onExpired={onExpired} />
       )}
@@ -311,10 +322,99 @@ export function ServerWorkspace({
       )}
     </>
   );
+  // Which linked student the family portal shows; it sits at the top of
+  // the family menu, under the school year.
+  const familyPicker =
+    user.role === "parent" ? (
+      <section
+        className="product-card product-family"
+        aria-labelledby="family-heading"
+      >
+        <h2 id="family-heading" aria-label="Your linked students">
+          Students
+        </h2>
+        {familyError ? (
+          <>
+            <p className="product-error" role="alert">
+              {familyError}
+            </p>
+            <button
+              className="button button-secondary"
+              onClick={() => setFamilyAttempt((value) => value + 1)}
+            >
+              Retry family access
+            </button>
+          </>
+        ) : !family ? (
+          <p role="status">Checking family access…</p>
+        ) : !linkedStudents.length ? (
+          <p>
+            No linked students yet. Complete authorized Family setup, or contact
+            TALA to review an existing student connection.
+          </p>
+        ) : (
+          <div className="form-field">
+            <label htmlFor="linked-student">Student workspace</label>
+            <select
+              id="linked-student"
+              value={selectedUid}
+              disabled={studentSetupBusy}
+              onChange={(event) => {
+                if (studentSetupDraft) {
+                  setError(
+                    "Finish student account setup or clear its entered details before switching students.",
+                  );
+                  return;
+                }
+                setError("");
+                const next = event.target.value;
+                if (!linkedStudents.some((student) => student.uid === next))
+                  return;
+                const origin = event.currentTarget;
+                // Detail IDs belong to the previously selected student's
+                // scope. Keep the chosen section, never carry those IDs over.
+                setWorkspaceParams(
+                  (previous) => {
+                    const params = new URLSearchParams(previous);
+                    for (const key of [
+                      "document",
+                      "record",
+                      "booking",
+                      "from",
+                      "goal",
+                    ])
+                      params.delete(key);
+                    return params;
+                  },
+                  { replace: true },
+                );
+                setStudentUid(next);
+                requestAnimationFrame(() => {
+                  if (
+                    active.current &&
+                    (document.activeElement === origin ||
+                      document.activeElement === document.body)
+                  )
+                    document
+                      .getElementById("linked-student")
+                      ?.focus({ preventScroll: true });
+                });
+              }}
+            >
+              {linkedStudents.map((student) => (
+                <option key={student.uid} value={student.uid}>
+                  {student.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </section>
+    ) : undefined;
   const sidebarAccount = (
     <>
       <details className="product-card product-profile student-account">
-        {user.role === "student" ? (
+        {user.role === "student" || user.role === "parent" ? (
           <summary aria-label="Settings: my account">
             <Icon name="settings" />
             <span>Settings</span>
@@ -414,92 +514,6 @@ export function ServerWorkspace({
           onChange={setDisplayPreferences}
         />
       </details>
-      {user.role === "parent" && (
-        <section
-          className="product-card product-family"
-          aria-labelledby="family-heading"
-        >
-          <h2 id="family-heading" aria-label="Your linked students">
-            Students
-          </h2>
-          {familyError ? (
-            <>
-              <p className="product-error" role="alert">
-                {familyError}
-              </p>
-              <button
-                className="button button-secondary"
-                onClick={() => setFamilyAttempt((value) => value + 1)}
-              >
-                Retry family access
-              </button>
-            </>
-          ) : !family ? (
-            <p role="status">Checking family access…</p>
-          ) : !linkedStudents.length ? (
-            <p>
-              No linked students yet. Complete authorized Family setup, or
-              contact TALA to review an existing student connection.
-            </p>
-          ) : (
-            <div className="form-field">
-              <label htmlFor="linked-student">Student workspace</label>
-              <select
-                id="linked-student"
-                value={selectedUid}
-                disabled={studentSetupBusy}
-                onChange={(event) => {
-                  if (studentSetupDraft) {
-                    setError(
-                      "Finish student account setup or clear its entered details before switching students.",
-                    );
-                    return;
-                  }
-                  setError("");
-                  const next = event.target.value;
-                  if (!linkedStudents.some((student) => student.uid === next))
-                    return;
-                  const origin = event.currentTarget;
-                  // Detail IDs belong to the previously selected student's
-                  // scope. Keep the chosen section, never carry those IDs over.
-                  setWorkspaceParams(
-                    (previous) => {
-                      const params = new URLSearchParams(previous);
-                      for (const key of [
-                        "document",
-                        "record",
-                        "booking",
-                        "from",
-                        "goal",
-                      ])
-                        params.delete(key);
-                      return params;
-                    },
-                    { replace: true },
-                  );
-                  setStudentUid(next);
-                  requestAnimationFrame(() => {
-                    if (
-                      active.current &&
-                      (document.activeElement === origin ||
-                        document.activeElement === document.body)
-                    )
-                      document
-                        .getElementById("linked-student")
-                        ?.focus({ preventScroll: true });
-                  });
-                }}
-              >
-                {linkedStudents.map((student) => (
-                  <option key={student.uid} value={student.uid}>
-                    {student.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </section>
-      )}
       {/* Parents pay only for staff-approved items, through Payments
           (ParentPaymentSummary → /payment). Fixed live checkout links are not
           shown here: they would skip staff approval. */}
@@ -522,6 +536,7 @@ export function ServerWorkspace({
           onDraftStateChange={setUnsentWork}
           heading={heading}
           sidebarAccount={sidebarAccount}
+          familyPicker={familyPicker}
           actor={user}
           displayPreferences={displayPreferences}
           onDisplayPreferences={setDisplayPreferences}
@@ -538,6 +553,7 @@ export function ServerWorkspace({
             busy={busy || studentSetupBusy}
             disabled
             account={sidebarAccount}
+            familyPicker={familyPicker}
             onSignOut={requestSignOut}
           />
           <div className="server-dashboard-main">
@@ -603,6 +619,7 @@ function LearningWorkspace({
   onDraftStateChange,
   heading,
   sidebarAccount,
+  familyPicker,
   actor,
   displayPreferences,
   onDisplayPreferences,
@@ -617,6 +634,7 @@ function LearningWorkspace({
   onDraftStateChange: (dirty: boolean) => void;
   heading: ReactNode;
   sidebarAccount: ReactNode;
+  familyPicker?: ReactNode;
   actor: ApiUser;
   displayPreferences: TodayPreferences;
   onDisplayPreferences: (next: TodayPreferences) => void;
@@ -2046,6 +2064,7 @@ function LearningWorkspace({
         view={view}
         busy={accountBusy}
         account={sidebarAccount}
+        familyPicker={familyPicker}
         calendarFilters={
           // "My calendars" only changes the calendar, so it only shows there.
           actor.role === "student" &&
@@ -2088,9 +2107,12 @@ function LearningWorkspace({
         ) : (
           heading
         )}
-        {actor.role === "student" && sectionForView(view).id === "work" && (
-          <nav className="student-work-tabs" aria-label="My Work">
-            {workTabs.map((tab) => (
+        {portalSection(actor.role, view).tabs && (
+          <nav
+            className="student-work-tabs"
+            aria-label={portalSection(actor.role, view).tabsLabel}
+          >
+            {portalSection(actor.role, view).tabs!.map((tab) => (
               <button
                 type="button"
                 key={tab.view}
@@ -2113,7 +2135,8 @@ function LearningWorkspace({
           </p>
         )}
         {/* Students see Updated / Refresh only when records failed to load. */}
-        {(actor.role !== "student" || loadError) && (
+        {((actor.role !== "student" && actor.role !== "parent") ||
+          loadError) && (
           <div className="product-actions student-workspace-toolbar">
             <WorkspaceSyncStatus
               loading={loading}
@@ -3018,7 +3041,7 @@ function LearningWorkspace({
               onGoal={openPlan}
             />
           )}
-        {actor.role !== "student" && (
+        {actor.role !== "student" && actor.role !== "parent" && (
           <details className="student-service-details">
             <summary aria-label="About saved records and available services">
               About

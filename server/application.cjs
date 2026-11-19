@@ -160,7 +160,7 @@ function createApplication(options = {}) {
       const url = new URL(req.url, "http://127.0.0.1");
       const route = url.pathname;
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
-      if (route === "/api/auth/local-student-preview" && !localStudentPreview) fail(404, "NOT_FOUND", "This local preview entry is unavailable.");
+      if ((route === "/api/auth/local-student-preview" || route === "/api/auth/local-parent-preview") && !localStudentPreview) fail(404, "NOT_FOUND", "This local preview entry is unavailable.");
       if (changing) mutation(req);
       if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 14, schemaVersion: SCHEMA_VERSION, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: integrations.describe().email === "disabled" ? "unavailable" : integrations.describe().email, zoom: "unavailable", ai: "unavailable", integrations: integrations.describe(), payment: testCheckout ? "test_checkout" : "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
       if (req.method === "GET" && route === "/api/session") {
@@ -202,6 +202,42 @@ function createApplication(options = {}) {
             row = db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
           }
           return row;
+        }));
+      }
+      if (req.method === "POST" && route === "/api/auth/local-parent-preview") {
+        // The family side of the same presentation: a fixed fictional parent,
+        // linked read-only to the fictional preview student. Same limits as
+        // the student preview: explicitly enabled, loopback only, never an
+        // existing person's account.
+        let previewOrigin;
+        try { previewOrigin = new URL(origin); } catch { fail(403, "ORIGIN_DENIED", "Family preview is available on this computer only."); }
+        if (previewOrigin.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(previewOrigin.hostname)
+          || !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress)) fail(403, "ORIGIN_DENIED", "Family preview is available on this computer only.");
+        rate(req, "local-student-preview", 30);
+        object(await body(req), []);
+        mutation(req);
+        if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the family preview.");
+        const people = [
+          { uid: "tala_local_preview_student_v1", address: "student-preview@local.example.test", name: "Alex · student demo", role: "student" },
+          { uid: "tala_local_preview_parent_v1", address: "parent-preview@local.example.test", name: "Jordan · parent demo", role: "parent" },
+        ];
+        const secrets = new Map();
+        for (const person of people)
+          if (!db.prepare("SELECT uid FROM users WHERE uid=?").get(person.uid)) secrets.set(person.uid, await hashPassword(token()));
+        return json(res, rotate(req, res, () => {
+          if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the family preview.");
+          for (const person of people) {
+            const row = db.prepare("SELECT * FROM users WHERE uid=?").get(person.uid);
+            if (row) {
+              if (row.email !== person.address || row.role !== person.role || row.disabled) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+            } else {
+              if (!secrets.has(person.uid) || db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(person.address)) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+              db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)").run(person.uid, person.address, person.name, secrets.get(person.uid), person.role, Date.now());
+            }
+          }
+          db.prepare("INSERT INTO family_links(id,student_uid,parent_uid,consent_reference,recorded_at,status) VALUES(?,?,?,?,?,'active') ON CONFLICT(student_uid,parent_uid) DO UPDATE SET status='active'")
+            .run(randomUUID(), people[0].uid, people[1].uid, "Local preview: fictional family", Date.now());
+          return db.prepare("SELECT * FROM users WHERE uid=?").get(people[1].uid);
         }));
       }
       if (req.method === "POST" && route === "/api/auth/register") {

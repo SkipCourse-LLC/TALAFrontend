@@ -40,6 +40,68 @@ export function sectionForView(view: WorkspaceView): StudentSection {
   );
 }
 
+/**
+ * The family portal menu, in the same pattern as the student's. Parents see
+ * their linked student's records read-only; Payments is its own page.
+ * (Calendar is not offered yet: the calendar API serves students only.)
+ */
+export const parentSections = [
+  { id: "overview", label: "Overview", views: ["overview"] },
+  { id: "requests", label: "Class Requests", views: ["classes"] },
+  { id: "announcements", label: "Announcements", views: ["updates"] },
+  {
+    id: "learning",
+    label: "Learning",
+    views: ["plan", "learning", "evidence", "progress"],
+  },
+  { id: "teachers", label: "Teachers", views: ["meetings"] },
+] as const satisfies ReadonlyArray<{
+  id: string;
+  label: string;
+  views: readonly WorkspaceView[];
+}>;
+
+export type ParentSection = (typeof parentSections)[number];
+
+/** Tabs inside the family Learning section. */
+export const parentLearningTabs: ReadonlyArray<{
+  view: WorkspaceView;
+  label: string;
+}> = [
+  { view: "plan", label: "Plan" },
+  { view: "learning", label: "Learning" },
+  { view: "evidence", label: "Evidence" },
+  { view: "progress", label: "Progress" },
+];
+
+export function parentSectionForView(view: WorkspaceView): ParentSection {
+  return (
+    parentSections.find((section) =>
+      (section.views as readonly WorkspaceView[]).includes(view),
+    ) ?? parentSections[0]
+  );
+}
+
+/** The section and its tabs for either portal. */
+export function portalSection(role: string, view: WorkspaceView) {
+  if (role === "parent") {
+    const section = parentSectionForView(view);
+    return {
+      id: section.id as string,
+      label: section.label as string,
+      tabs: section.id === "learning" ? parentLearningTabs : null,
+      tabsLabel: "Learning",
+    };
+  }
+  const section = sectionForView(view);
+  return {
+    id: section.id as string,
+    label: section.label as string,
+    tabs: section.id === "work" ? workTabs : null,
+    tabsLabel: "My Work",
+  };
+}
+
 /** The school year a date falls in, e.g. "2026 – 2027" (school years start in July). */
 export function schoolYearLabel(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
