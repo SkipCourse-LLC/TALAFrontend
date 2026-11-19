@@ -48,7 +48,9 @@ test("T4-5 T4-8 each of the four roles signs in to its own dashboard and signs o
   const staff = await server.provisionAccount("staff", "Synthetic Role Staff");
 
   await signIn(page, student);
-  await expect(page.getByRole("heading", { name: `Hello, ${student.name}.`, exact: true })).toBeVisible();
+  // Students land on My Work; the account menu carries their name.
+  await expect(page.getByRole("heading", { level: 1, name: "My Work", exact: true })).toBeVisible();
+  await expect(page.getByLabel(`Account menu for ${student.name}`, { exact: true })).toBeVisible();
   expect(await sessionRole(page)).toBe("student");
   await signOutAndConfirm(page);
 
@@ -85,7 +87,9 @@ test("T4-6 a role cannot reach another role's pages by direct URL or API call", 
   await page.goto("/#/payment");
   await expect(page).toHaveURL(/#\/dashboard/);
   await page.goto("/#/dashboard?panel=requests");
-  await expect(page.getByRole("heading", { name: `Hello, ${student.name}.`, exact: true })).toBeVisible();
+  // Students land on My Work; the account menu carries their name.
+  await expect(page.getByRole("heading", { level: 1, name: "My Work", exact: true })).toBeVisible();
+  await expect(page.getByLabel(`Account menu for ${student.name}`, { exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Operations workspace" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Contact requests" })).toHaveCount(0);
   for (const path of ["/api/operations/contact-requests", "/api/operator/admissions", "/api/operator/payments"])
