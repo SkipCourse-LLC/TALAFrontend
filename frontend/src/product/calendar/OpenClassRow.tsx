@@ -7,23 +7,22 @@ import {
   calendarTimeRange,
   phoenixDateKey,
 } from "./calendarDates";
-import { categoryLabels, classPrice, classStatus } from "./classPresentation";
+import {
+  categoryLabels,
+  classPrice,
+  classStatus,
+  teacherName,
+} from "./classPresentation";
 import { classSeatSummary, formatLabel, signUpLabel } from "./openClassFormats";
 
 type Props = {
   course: CalendarClass;
   now: number;
   goals: LearningGoal[];
-  goalId?: string;
   readOnly: boolean;
-  loading: boolean;
   busyClassId: string | null;
-  onEnroll: (
-    classId: string,
-    mode?: ClassMode,
-    goalId?: string,
-  ) => Promise<boolean>;
-  onOpen: () => void;
+  /** Opens the class; a sign-up button passes the format it was for. */
+  onOpen: (mode?: ClassMode) => void;
 };
 
 /**
@@ -36,11 +35,8 @@ export function OpenClassRow({
   course,
   now,
   goals,
-  goalId,
   readOnly,
-  loading,
   busyClassId,
-  onEnroll,
   onOpen,
 }: Props) {
   const seats = classSeatSummary(course);
@@ -83,7 +79,7 @@ export function OpenClassRow({
     >
       <div className="tala-class-row-main">
         <h3 id={`class-row-${course.id}`}>
-          <button type="button" onClick={onOpen}>
+          <button type="button" onClick={() => onOpen()}>
             {course.title}
           </button>
         </h3>
@@ -95,7 +91,7 @@ export function OpenClassRow({
             })}{" "}
             · {calendarTimeRange(course.startsAt, course.endsAt)}
           </li>
-          {course.teacher && <li>{course.teacher}</li>}
+          {course.teacher && <li>{teacherName(course.teacher)}</li>}
           <li>{course.grades}</li>
           <li data-category={course.category}>
             {course.topic || categoryLabels[course.category]}
@@ -143,7 +139,7 @@ export function OpenClassRow({
             <button
               type="button"
               className="tala-class-format-button tala-class-format-secondary"
-              onClick={onOpen}
+              onClick={() => onOpen()}
             >
               View request
             </button>
@@ -163,20 +159,12 @@ export function OpenClassRow({
                   className="tala-class-format-button"
                   data-mode={mode}
                   data-waitlist={full}
-                  disabled={loading || busyClassId !== null}
                   aria-label={`${signUpLabel(mode, full)} for ${course.title}`}
-                  onClick={(event) => {
-                    if (event.detail > 1) return;
-                    void onEnroll(course.id, mode, goalId);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.repeat && ["Enter", " "].includes(event.key))
-                      event.preventDefault();
-                  }}
+                  // Every sign-up opens the class first, with its fee, format
+                  // and learning goal, before anything is sent.
+                  onClick={() => onOpen(mode)}
                 >
-                  {busyClassId === course.id
-                    ? "Saving…"
-                    : signUpLabel(mode, full)}
+                  {signUpLabel(mode, full)}
                 </button>
               )}
             </div>

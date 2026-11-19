@@ -30,6 +30,11 @@ export function classStatus(course: CalendarClass): string {
           : "Open for requests";
   }
 }
+/** The teacher's name without the " · test instructor" suffix of sample data. */
+export function teacherName(teacher: string): string {
+  return teacher.replace(/\s*·\s*test instructor\s*$/i, "");
+}
+
 export function modeLabel(mode: string): string {
   return mode === "in_person" ? "In person" : "Online";
 }

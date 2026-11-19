@@ -224,10 +224,11 @@ export function WorkspaceSidebar({
     readonly [WorkspaceView, string, LearningGlyphName]
   > = student
     ? [
+        // The first four menu items, with the menu's own names.
         ["calendar", "Calendar", "calendar"],
         ["overview", "My Work", "grid"],
-        ["classes", "Classes", "book"],
-        ["evidence", "Evidence", "evidence"],
+        ["updates", "Announcements", "feedback"],
+        ["classes", "Open Classes", "book"],
       ]
     : [
         ["overview", "Overview", "grid"],

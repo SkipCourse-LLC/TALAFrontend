@@ -225,6 +225,17 @@ export function ServerWorkspace({
       setConfirmSignOut(true);
     } else void accountAction(() => onLogout());
   }
+  // The header's account menu asks for sign-out with an event, so the draft
+  // checks above still run.
+  const signOutRequest = useRef(requestSignOut);
+  useEffect(() => {
+    signOutRequest.current = requestSignOut;
+  });
+  useEffect(() => {
+    const requested = () => signOutRequest.current();
+    window.addEventListener("tala:request-sign-out", requested);
+    return () => window.removeEventListener("tala:request-sign-out", requested);
+  }, []);
   const studentProvisioned = useCallback((uid: string) => {
     setStudentUid(uid);
     setFamilyAttempt((value) => value + 1);
@@ -314,11 +325,15 @@ export function ServerWorkspace({
         <p>
           <bdi>{user.email}</bdi> · {user.role}
         </p>
-        <p>
-          {user.emailVerified
-            ? "Email verified."
-            : "Email unverified. Email delivery unavailable."}
-        </p>
+        {/* Verification is not wired up yet, so students are not told
+            their email is "unverified" on every visit. */}
+        {(user.role !== "student" || user.emailVerified) && (
+          <p>
+            {user.emailVerified
+              ? "Email verified."
+              : "Email unverified. Email delivery unavailable."}
+          </p>
+        )}
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -870,7 +885,8 @@ function LearningWorkspace({
       workspaceViews.find((item) => item.id === view)!.heading,
     );
     heading?.focus({ preventScroll: true });
-    heading?.scrollIntoView({ block: "start" });
+    // A new page starts at the top, with the header and page title in view.
+    window.scrollTo({ top: 0, left: 0 });
   }, [view, detailId, historyId, workspaceVisible]);
   useEffect(() => {
     if (
@@ -2031,7 +2047,11 @@ function LearningWorkspace({
         busy={accountBusy}
         account={sidebarAccount}
         calendarFilters={
-          actor.role === "student" && !readOnly && !accessBlocked
+          // "My calendars" only changes the calendar, so it only shows there.
+          actor.role === "student" &&
+          !readOnly &&
+          !accessBlocked &&
+          view === "calendar"
             ? {
                 enabled: shownCalendars,
                 counts: calendarCategoryCounts(
@@ -2056,7 +2076,18 @@ function LearningWorkspace({
         onSignOut={onSignOut}
       />
       <div className="server-dashboard-main" data-workspace-view={view}>
-        {heading}
+        {actor.role === "student" && !readOnly ? (
+          // One page title per page, named like its menu item. Calendar and
+          // Open Classes show their own titled headers, so theirs is for
+          // screen readers only.
+          <header
+            className={`student-page-title${["calendar", "classes"].includes(sectionForView(view).id) ? " sr-only" : ""}`}
+          >
+            <h1>{sectionForView(view).label}</h1>
+          </header>
+        ) : (
+          heading
+        )}
         {actor.role === "student" && sectionForView(view).id === "work" && (
           <nav className="student-work-tabs" aria-label="My Work">
             {workTabs.map((tab) => (
@@ -2988,18 +3019,20 @@ function LearningWorkspace({
               onGoal={openPlan}
             />
           )}
-        <details className="student-service-details">
-          <summary aria-label="About saved records and available services">
-            About
-          </summary>
-          <p>
-            Records stay on this TALA server. Your operator manages backups.
-          </p>
-          <p>
-            Email, live meetings, AI assessment and payments are not connected.
-            Registration does not grant admission or course credit.
-          </p>
-        </details>
+        {actor.role !== "student" && (
+          <details className="student-service-details">
+            <summary aria-label="About saved records and available services">
+              About
+            </summary>
+            <p>
+              Records stay on this TALA server. Your operator manages backups.
+            </p>
+            <p>
+              Email, live meetings, AI assessment and payments are not
+              connected. Registration does not grant admission or course credit.
+            </p>
+          </details>
+        )}
       </div>
     </div>
   );

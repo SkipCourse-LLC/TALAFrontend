@@ -150,7 +150,14 @@
 .student-resources {
   display: grid;
   gap: 1rem;
-  max-width: 760px;
+}
+.student-resources-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+@media (min-width: 841px) {
+  .student-resources-sync {
+    display: none;
+  }
 }
 .student-resources h2 {
   margin: 0;

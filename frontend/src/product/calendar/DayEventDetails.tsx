@@ -5,7 +5,7 @@ import {
   calendarTimeRange,
   phoenixDateKey,
 } from "./calendarDates";
-import { categoryLabels, classStatus } from "./classPresentation";
+import { categoryLabels, classStatus, teacherName } from "./classPresentation";
 import { eventFormat, eventJoinUrl, eventLocation } from "./dayEventText";
 import { Icon } from "../../shared/Icon";
 import type { IconName } from "../../shared/Icon";
@@ -111,7 +111,7 @@ export function DayEventDetails({
         )}
         {course?.teacher && (
           <Fact icon="book" note="Teacher">
-            {course.teacher}
+            {teacherName(course.teacher)}
           </Fact>
         )}
         {course?.enrolled && !course.allDay && (

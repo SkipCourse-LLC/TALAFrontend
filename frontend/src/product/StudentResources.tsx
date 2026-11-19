@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { Icon } from "../shared/Icon";
 import type { IconName } from "../shared/Icon";
 import type { WorkspaceView } from "./workspaceViews";
-import { schoolYearLabel } from "./workspaceSections";
 import { SidebarSyncCard } from "./StudentSidebarExtras";
 import "./studentPortal.css";
 
@@ -21,18 +20,6 @@ export function StudentResources({
   onNavigate: (view: WorkspaceView) => void;
 }) {
   const resources: Resource[] = [
-    {
-      title: "Learning calendar",
-      text: `Classes, meetings and goals for the ${schoolYearLabel()} school year.`,
-      icon: "calendar",
-      view: "calendar",
-    },
-    {
-      title: "Learning plan",
-      text: "Your goals and steps. Export a copy from the Plan tab.",
-      icon: "grid",
-      view: "plan",
-    },
     {
       title: "Programs and session times",
       text: "What TALA offers, with upcoming 1:1 sessions and learning pods.",
@@ -79,7 +66,12 @@ export function StudentResources({
             </li>
           ))}
       </ul>
-      {!readOnly && <SidebarSyncCard />}
+      {/* The menu carries this card on wide screens; phones see it here. */}
+      {!readOnly && (
+        <div className="student-resources-sync">
+          <SidebarSyncCard />
+        </div>
+      )}
     </section>
   );
 }

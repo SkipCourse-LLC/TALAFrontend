@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import type { LearningGoal } from "../../api/types";
-import type { CalendarClass } from "../../api/calendarContract";
+import type { CalendarClass, ClassMode } from "../../api/calendarContract";
 import { StudentClassHistory } from "./StudentClassHistory";
 import { LearningGlyph } from "../LearningGlyph";
 import {
@@ -53,6 +53,8 @@ export function OpenClassesPanel({
   const [filters, setFilters] = useState(emptyCourseFilters);
   const [scope, setScope] = useState("upcoming");
   const [sort, setSort] = useState("date");
+  // Signing up from a row opens the class with that format already chosen.
+  const [detailMode, setDetailMode] = useState<ClassMode>();
   const [detailId, setDetailId] = useState<string | null>(
     initialClassId ?? null,
   );
@@ -91,12 +93,6 @@ export function OpenClassesPanel({
   const detail = courses.find((course) => course.id === detailId);
   const requests = bookable.filter(
     (course) => course.enrolled && Date.parse(course.endsAt) > now,
-  );
-  const published = bookable.filter(
-    (course) =>
-      course.source === "local_catalog" &&
-      course.published !== false &&
-      Date.parse(course.endsAt) > now,
   );
   return (
     <section
@@ -234,12 +230,6 @@ export function OpenClassesPanel({
           {actions.notice && (
             <p className="tala-cal-notice">{actions.notice}</p>
           )}
-          {!published.length && bookable.length > 0 && (
-            <p className="tala-classes-practice">
-              These are practice classes. Staff can publish real classes from
-              the staff workspace.
-            </p>
-          )}
         </div>
       )}
       {actions.error && (
@@ -307,12 +297,12 @@ export function OpenClassesPanel({
                 course={course}
                 now={now}
                 goals={goals}
-                goalId={selectedGoal?.id}
                 readOnly={actions.readOnly}
-                loading={actions.loading}
                 busyClassId={actions.busyClassId}
-                onEnroll={actions.onEnroll}
-                onOpen={() => setDetailId(course.id)}
+                onOpen={(mode) => {
+                  setDetailMode(mode);
+                  setDetailId(course.id);
+                }}
               />
             ))}
             {!filtered.length && !actions.loading && (
@@ -336,7 +326,7 @@ export function OpenClassesPanel({
                       ? "Confirmed classes appear here when they have ended. Add Evidence from a class to reflect on what you learned."
                       : scope === "mine"
                         ? "Explore upcoming classes and send your first request. It will appear here and in your calendar."
-                        : "Try a different search or clear your filters. Staff-published classes appear here as soon as they are saved."}
+                        : "Try a different search or clear your filters."}
                 </p>
                 <button
                   type="button"
@@ -363,6 +353,7 @@ export function OpenClassesPanel({
           }}
           goals={goals}
           defaultGoalId={selectedGoal?.id}
+          defaultMode={detailMode}
           {...actions}
         />
       )}

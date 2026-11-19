@@ -316,10 +316,6 @@
   :root[data-portal="student"] #main-content {
     margin-left: var(--portal-menu);
   }
-  /* The menu carries Help and the school name; no page footer. */
-  :root[data-portal="student"] .quiet-site-footer {
-    display: none;
-  }
   :root[data-portal="student"] .tala-workspace-header {
     background: #fff;
     border-bottom: 1px solid var(--portal-line);
@@ -449,5 +445,99 @@
     min-height: 44px;
     gap: 8px;
     font-size: 0.85rem;
+  }
+}
+
+/* ---- Page titles ---- */
+/* One title per page, named like its menu item, in the mockup's regular
+   weight. The panels' own headings stay for screen readers and focus. */
+.student-page-title h1 {
+  margin: 0 0 1.25rem;
+  color: var(--portal-ink, #1f3a37);
+  font-size: clamp(1.9rem, 2.4vw, 2.35rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+:root[data-portal="student"]
+  :is(
+    #overview-heading,
+    #updates-heading,
+    #meetings-heading,
+    #resources-heading,
+    #plan-heading,
+    #records-heading,
+    #evidence-heading,
+    #progress-heading
+  ) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Headings receive focus when a page opens; that should not draw a box. */
+:root[data-portal="student"] :is(h1, h2, h3)[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* Disclosure toggles get a small chevron instead of the browser's triangle. */
+:root[data-portal="student"]
+  .server-dashboard-main
+  details:not(.meeting-preparation, .meeting-history-date-tools)
+  > summary {
+  list-style: none;
+  cursor: pointer;
+}
+:root[data-portal="student"]
+  .server-dashboard-main
+  details:not(.meeting-preparation, .meeting-history-date-tools)
+  > summary::-webkit-details-marker {
+  display: none;
+}
+:root[data-portal="student"]
+  .server-dashboard-main
+  details:not(.meeting-preparation, .meeting-history-date-tools)
+  > summary::after {
+  content: "";
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  margin-left: 0.5em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  vertical-align: 0.2em;
+  transform: rotate(45deg);
+}
+:root[data-portal="student"]
+  .server-dashboard-main
+  details:not(.meeting-preparation, .meeting-history-date-tools)[open]
+  > summary::after {
+  vertical-align: -0.05em;
+  transform: rotate(-135deg);
+}
+
+/* The portal has no page footer at any width: the menu and header carry
+   Help, Settings and Sign out. */
+:root[data-portal="student"] .quiet-site-footer {
+  display: none;
+}
+@media (max-width: 840px) {
+  /* Phones: the header keeps the account menu (security, help, sign out),
+     the menu card keeps only the section picker and Settings, and the bottom
+     bar mirrors the first four menu items. */
+  :root[data-portal="student"] .tala-workspace-profile {
+    display: block;
+  }
+  :root[data-portal="student"]
+    .student-sidebar-foot
+    > :not(.server-dashboard-account) {
+    display: none;
+  }
+  :root[data-portal="student"] .server-dashboard-mobile-quick span {
+    font-size: 0.68rem;
+    white-space: nowrap;
   }
 }

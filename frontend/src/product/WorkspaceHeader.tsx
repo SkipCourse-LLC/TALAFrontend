@@ -4,12 +4,26 @@ import { Brand } from "../shared/Brand";
 import { safeTalaApiError, talaApi } from "../api";
 import type { ApiUser, CalendarClass } from "../api";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
+import type { WorkspaceView } from "./workspaceViews";
 import { classStatus } from "./calendar/classPresentation";
 import { sectionForView, workTabs } from "./workspaceSections";
 import { Icon } from "../shared/Icon";
 import "./workspaceHeader.css";
 
 type Destination = { id: string; label: string; detail: string; url: string };
+/** What each student page holds, shown under its name in search. */
+const studentPageDetail: Record<WorkspaceView, string> = {
+  overview: "Today's goal, classes and next steps",
+  calendar: "Classes, meetings and goals by day",
+  classes: "Browse classes and sign up",
+  updates: "Changes to your classes, meetings and Evidence",
+  plan: "Your learning goals",
+  meetings: "Book and prepare for meetings",
+  learning: "Notes your teachers shared after meetings",
+  evidence: "Work you uploaded and reflections",
+  progress: "How your goals are going",
+  resources: "Calendar file, programs and help",
+};
 export function WorkspaceHeader({ user }: { user: ApiUser }) {
   const location = useLocation(),
     navigate = useNavigate();
@@ -134,7 +148,9 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
                   ? user.role === "parent"
                     ? "Approve requests for your linked student"
                     : "Discover courses and follow your requests"
-                  : "Open your saved workspace",
+                  : user.role === "student"
+                    ? studentPageDetail[item.id]
+                    : "Open your saved workspace",
               url: `/dashboard?view=${item.id}`,
             }));
   if (user.role === "parent")
@@ -323,6 +339,20 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
           <div className="tala-workspace-menu">
             <Link to="/two-factor">Account security</Link>
             <Link to="/contact">Help &amp; support</Link>
+            {/* The student and family workspace handles this request. */}
+            {(user.role === "student" || user.role === "parent") && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.currentTarget
+                    .closest("details")
+                    ?.removeAttribute("open");
+                  window.dispatchEvent(new Event("tala:request-sign-out"));
+                }}
+              >
+                Sign out
+              </button>
+            )}
           </div>
         </details>
       </div>
@@ -407,7 +437,7 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
                     <strong>{item.label}</strong>
                     <small>{item.detail}</small>
                   </span>
-                  <span aria-hidden="true">↗</span>
+                  <Icon name="chevron-right" />
                 </button>
               </div>
             ))}

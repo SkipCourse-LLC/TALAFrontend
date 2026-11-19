@@ -32,6 +32,7 @@ import {
   modeLabel,
   classPrice,
   statusExplanation,
+  teacherName,
 } from "./classPresentation";
 import type { CalendarEvent } from "./calendarEvent";
 import { DayTimeGrid } from "./DayTimeGrid";
@@ -943,8 +944,7 @@ function CalendarCourseCard({
         {course.title}
       </button>
       <p className="tala-cal-class-meta">
-        {courseFormat(course)} ·{" "}
-        {course.teacher.replace(/\s*·\s*test instructor\s*$/i, "")}
+        {courseFormat(course)} · {teacherName(course.teacher)}
       </p>
       {/* Open classes say so with their Sign up button; requests show their status. */}
       {course.enrolled && (
@@ -973,9 +973,13 @@ function CalendarCourseCard({
           type="button"
           className="tala-cal-enroll tala-cal-enroll-small"
           onClick={onDetails}
-          aria-label={`${course.enrolled ? "View request for" : "Sign up for"} ${course.title}`}
+          aria-label={`${course.enrolled ? "View request for" : course.seatsAvailable === 0 ? "Join wait list for" : "Sign up for"} ${course.title}`}
         >
-          {course.enrolled ? "View request" : "Sign up"}
+          {course.enrolled
+            ? "View request"
+            : course.seatsAvailable === 0
+              ? "Join wait list"
+              : "Sign up"}
         </button>
       </div>
     </article>
@@ -1088,6 +1092,7 @@ export function ClassDetail({
   onEvidence,
   goals = [],
   defaultGoalId,
+  defaultMode,
   ...actions
 }: EnrollmentProps & {
   onClose: () => void;
@@ -1096,9 +1101,16 @@ export function ClassDetail({
   onEvidence?: (classId?: string) => void;
   goals?: LearningGoal[];
   defaultGoalId?: string;
+  /** The format the student picked before opening, such as "Sign up online". */
+  defaultMode?: "online" | "in_person";
 }) {
   const [mode, setMode] = useState<"online" | "in_person">(
-    course.enrollmentMode ?? course.modalities?.[0] ?? "online",
+    course.enrollmentMode ??
+      (defaultMode && course.modalities?.includes(defaultMode)
+        ? defaultMode
+        : undefined) ??
+      course.modalities?.[0] ??
+      "online",
   );
   const [goalId, setGoalId] = useState(
     course.enrollmentGoalId ?? defaultGoalId ?? "",
@@ -1214,7 +1226,9 @@ export function ClassDetail({
       <dl>
         <div>
           <dt>Teacher</dt>
-          <dd>{course.teacher || "Not applicable"}</dd>
+          <dd>
+            {course.teacher ? teacherName(course.teacher) : "Not applicable"}
+          </dd>
         </div>
         <div>
           <dt>Grades</dt>

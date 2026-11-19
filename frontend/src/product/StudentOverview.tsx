@@ -420,45 +420,49 @@ export function StudentOverview({
           readOnly={readOnly}
           onNavigate={onNavigate}
         />
-        <section
-          className="learning-overview-activity"
-          aria-label="Saved activity"
-        >
-          <h3 className="sr-only">Your saved activity</h3>
-          <dl>
-            <div>
-              <dt>
-                <LearningGlyph name="goal" />
-                Goals completed
-              </dt>
-              <dd>{planReady ? completed : "—"}</dd>
-            </div>
-            <div>
-              <dt>
-                <LearningGlyph name="evidence" />
-                Evidence submitted
-              </dt>
-              <dd>{workspace?.progress.submittedEvidenceCount ?? "—"}</dd>
-            </div>
-            <div>
-              <dt>
-                <LearningGlyph name="feedback" />
-                Manually reviewed
-              </dt>
-              <dd>{workspace?.progress.reviewedEvidenceCount ?? "—"}</dd>
-            </div>
-          </dl>
-          <button
-            className="learning-overview-inline-action"
-            type="button"
-            onClick={() => onNavigate("progress")}
-            aria-label="View progress details"
+        {/* Students see these on Progress and Announcements; the family
+            view keeps the summary here. */}
+        {readOnly && (
+          <section
+            className="learning-overview-activity"
+            aria-label="Saved activity"
           >
-            Progress
-            <NextIcon />
-          </button>
-        </section>
-        {unreadUpdates !== undefined && unreadUpdates > 0 && (
+            <h3 className="sr-only">Your saved activity</h3>
+            <dl>
+              <div>
+                <dt>
+                  <LearningGlyph name="goal" />
+                  Goals completed
+                </dt>
+                <dd>{planReady ? completed : "—"}</dd>
+              </div>
+              <div>
+                <dt>
+                  <LearningGlyph name="evidence" />
+                  Evidence submitted
+                </dt>
+                <dd>{workspace?.progress.submittedEvidenceCount ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>
+                  <LearningGlyph name="feedback" />
+                  Manually reviewed
+                </dt>
+                <dd>{workspace?.progress.reviewedEvidenceCount ?? "—"}</dd>
+              </div>
+            </dl>
+            <button
+              className="learning-overview-inline-action"
+              type="button"
+              onClick={() => onNavigate("progress")}
+              aria-label="View progress details"
+            >
+              Progress
+              <NextIcon />
+            </button>
+          </section>
+        )}
+        {readOnly && unreadUpdates !== undefined && unreadUpdates > 0 && (
           <div className="learning-overview-updates">
             <p>
               <strong>
@@ -477,206 +481,222 @@ export function StudentOverview({
             </button>
           </div>
         )}
-        <div className="learning-overview-focus-grid">
-          <article
-            className="learning-overview-focus"
-            aria-labelledby="overview-plan-heading"
-          >
-            <p className="learning-overview-label">Learning plan</p>
-            <h3 id="overview-plan-heading" dir="auto">
-              {goalsError
-                ? "Plan unavailable."
-                : !planReady
-                  ? "Loading plan…"
-                  : focus
-                    ? focus.title
-                    : readOnly
-                      ? "No active goals."
-                      : "Choose a goal."}
-            </h3>
-            {(goalsError || focus?.notes) && (
-              <p className="learning-overview-focus-copy" dir="auto">
-                {goalsError
-                  ? "Open your plan to retry. Saved goals are unchanged."
-                  : notePreview}
-              </p>
+        {(readOnly || booking) && (
+          <div className="learning-overview-focus-grid" data-single={!readOnly}>
+            {/* The goal is already the first thing on Today for students. */}
+            {readOnly && (
+              <article
+                className="learning-overview-focus"
+                aria-labelledby="overview-plan-heading"
+              >
+                <p className="learning-overview-label">Learning plan</p>
+                <h3 id="overview-plan-heading" dir="auto">
+                  {goalsError
+                    ? "Plan unavailable."
+                    : !planReady
+                      ? "Loading plan…"
+                      : focus
+                        ? focus.title
+                        : readOnly
+                          ? "No active goals."
+                          : "Choose a goal."}
+                </h3>
+                {(goalsError || focus?.notes) && (
+                  <p className="learning-overview-focus-copy" dir="auto">
+                    {goalsError
+                      ? "Open your plan to retry. Saved goals are unchanged."
+                      : notePreview}
+                  </p>
+                )}
+                {planReady && focus?.dueDate && (
+                  <p className="learning-overview-target">
+                    {goalDueLabel(focus.dueDate, today).label}
+                  </p>
+                )}
+                {planReady && focus && focus.steps.length > 0 && (
+                  <div className="learning-overview-step-progress">
+                    <label htmlFor="overview-goal-progress">
+                      {focus.steps.filter((step) => step.completed).length} of{" "}
+                      {focus.steps.length} steps checked
+                    </label>
+                    <progress
+                      id="overview-goal-progress"
+                      max={focus.steps.length}
+                      value={
+                        focus.steps.filter((step) => step.completed).length
+                      }
+                    />
+                  </div>
+                )}
+                <div className="learning-overview-focus-footer">
+                  <button
+                    className="button"
+                    type="button"
+                    onClick={() => {
+                      if (focus && onGoal) onGoal(focus.id);
+                      else onNavigate("plan");
+                    }}
+                    aria-label={
+                      focus
+                        ? `${readOnly ? "View goal" : "Open goal"} — ${focus.title}`
+                        : planReady && !goals.length && !readOnly
+                          ? "Choose a goal — Create your first goal"
+                          : "Open learning plan"
+                    }
+                  >
+                    {focus
+                      ? readOnly
+                        ? "View goal"
+                        : "Open goal"
+                      : planReady && !goals.length && !readOnly
+                        ? "Choose a goal"
+                        : "Open plan"}
+                    <LearningGlyph name="arrow" />
+                  </button>
+                  {planReady && activeGoals && activeGoals.length > 0 && (
+                    <span>
+                      {activeGoals.length} active{" "}
+                      {activeGoals.length === 1 ? "goal" : "goals"}
+                    </span>
+                  )}
+                </div>
+              </article>
             )}
-            {planReady && focus?.dueDate && (
-              <p className="learning-overview-target">
-                {goalDueLabel(focus.dueDate, today).label}
-              </p>
-            )}
-            {planReady && focus && focus.steps.length > 0 && (
-              <div className="learning-overview-step-progress">
-                <label htmlFor="overview-goal-progress">
-                  {focus.steps.filter((step) => step.completed).length} of{" "}
-                  {focus.steps.length} steps checked
-                </label>
-                <progress
-                  id="overview-goal-progress"
-                  max={focus.steps.length}
-                  value={focus.steps.filter((step) => step.completed).length}
-                />
+            <article
+              className="learning-overview-meeting"
+              aria-labelledby="overview-meeting-heading"
+            >
+              <div
+                className="learning-overview-meeting-icon"
+                aria-hidden="true"
+              >
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none">
+                  <rect
+                    x="4"
+                    y="5"
+                    width="16"
+                    height="16"
+                    rx="3"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    d="M8 3v4m8-4v4M4 11h16m-12 5h3"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
               </div>
-            )}
-            <div className="learning-overview-focus-footer">
+              <h3 id="overview-meeting-heading">
+                {booking
+                  ? Date.parse(booking.startsAt) <= now
+                    ? "Scheduled meeting"
+                    : "Next meeting"
+                  : "Meetings"}
+              </h3>
+              <p className="learning-overview-meeting-time">
+                {!workspace
+                  ? loading
+                    ? "Loading reservations…"
+                    : "Reservations unavailable."
+                  : booking
+                    ? meetingTime(booking.startsAt, booking.endsAt)
+                    : "No upcoming meeting."}
+              </p>
+              {booking && <p>Live meeting link unavailable.</p>}
               <button
-                className="button"
+                className="learning-overview-inline-action"
                 type="button"
-                onClick={() => {
-                  if (focus && onGoal) onGoal(focus.id);
-                  else onNavigate("plan");
-                }}
+                onClick={() => onNavigate("meetings")}
                 aria-label={
-                  focus
-                    ? `${readOnly ? "View goal" : "Open goal"} — ${focus.title}`
-                    : planReady && !goals.length && !readOnly
-                      ? "Choose a goal — Create your first goal"
-                      : "Open learning plan"
+                  booking
+                    ? "View booking"
+                    : readOnly
+                      ? "View meetings"
+                      : "Find a time for a meeting"
                 }
               >
-                {focus
-                  ? readOnly
-                    ? "View goal"
-                    : "Open goal"
-                  : planReady && !goals.length && !readOnly
-                    ? "Choose a goal"
-                    : "Open plan"}
-                <LearningGlyph name="arrow" />
-              </button>
-              {planReady && activeGoals && activeGoals.length > 0 && (
-                <span>
-                  {activeGoals.length} active{" "}
-                  {activeGoals.length === 1 ? "goal" : "goals"}
-                </span>
-              )}
-            </div>
-          </article>
-          <article
-            className="learning-overview-meeting"
-            aria-labelledby="overview-meeting-heading"
-          >
-            <div className="learning-overview-meeting-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="26" height="26" fill="none">
-                <rect
-                  x="4"
-                  y="5"
-                  width="16"
-                  height="16"
-                  rx="3"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                />
-                <path
-                  d="M8 3v4m8-4v4M4 11h16m-12 5h3"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </div>
-            <h3 id="overview-meeting-heading">
-              {booking
-                ? Date.parse(booking.startsAt) <= now
-                  ? "Scheduled meeting"
-                  : "Next meeting"
-                : "Meetings"}
-            </h3>
-            <p className="learning-overview-meeting-time">
-              {!workspace
-                ? loading
-                  ? "Loading reservations…"
-                  : "Reservations unavailable."
-                : booking
-                  ? meetingTime(booking.startsAt, booking.endsAt)
-                  : "No upcoming meeting."}
-            </p>
-            {booking && <p>Live meeting link unavailable.</p>}
-            <button
-              className="learning-overview-inline-action"
-              type="button"
-              onClick={() => onNavigate("meetings")}
-              aria-label={
-                booking
+                {booking
                   ? "View booking"
                   : readOnly
                     ? "View meetings"
-                    : "Find a time for a meeting"
-              }
-            >
-              {booking
-                ? "View booking"
-                : readOnly
-                  ? "View meetings"
-                  : "Find a time"}
-              <NextIcon />
-            </button>
-          </article>
-        </div>
+                    : "Find a time"}
+                <NextIcon />
+              </button>
+            </article>
+          </div>
+        )}
       </div>
       <div className="learning-overview-full" hidden={focusView}>
+        {/* Students reach Evidence and Learning from the tabs above; these
+            shortcuts only appear when something is waiting for them. */}
         <div className="learning-overview-follow-ups">
-          <button
-            className="learning-overview-follow-up"
-            type="button"
-            onClick={() => {
-              if (revisions[0] && onEvidence) onEvidence(revisions[0].id);
-              else onNavigate("evidence");
-            }}
-          >
-            <span
-              className="learning-overview-follow-up-symbol"
-              aria-hidden="true"
+          {(readOnly || revisions.length > 0) && (
+            <button
+              className="learning-overview-follow-up"
+              type="button"
+              onClick={() => {
+                if (revisions[0] && onEvidence) onEvidence(revisions[0].id);
+                else onNavigate("evidence");
+              }}
             >
-              <LearningGlyph
-                name={revisions.length ? "feedback" : "evidence"}
-              />
-            </span>
-            <span>
-              <strong>
-                {revisions.length ? "Revision requested" : "Evidence"}
-              </strong>
-              <span>
-                {revisions.length
-                  ? "Read your team’s feedback"
-                  : "Files and feedback"}
+              <span
+                className="learning-overview-follow-up-symbol"
+                aria-hidden="true"
+              >
+                <LearningGlyph
+                  name={revisions.length ? "feedback" : "evidence"}
+                />
               </span>
-            </span>
-            <span className="learning-overview-follow-up-action">
-              {revisions.length ? "Feedback" : "Open"}
-              <NextIcon />
-            </span>
-          </button>
-          <button
-            className="learning-overview-follow-up"
-            type="button"
-            onClick={() => {
-              if (unreadRecords[0] && onLearning)
-                onLearning(unreadRecords[0].id);
-              else onNavigate("learning");
-            }}
-          >
-            <span
-              className="learning-overview-follow-up-symbol"
-              aria-hidden="true"
+              <span>
+                <strong>
+                  {revisions.length ? "Revision requested" : "Evidence"}
+                </strong>
+                <span>
+                  {revisions.length
+                    ? "Read your team’s feedback"
+                    : "Files and feedback"}
+                </span>
+              </span>
+              <span className="learning-overview-follow-up-action">
+                {revisions.length ? "Feedback" : "Open"}
+                <NextIcon />
+              </span>
+            </button>
+          )}
+          {(readOnly || unreadRecords.length > 0) && (
+            <button
+              className="learning-overview-follow-up"
+              type="button"
+              onClick={() => {
+                if (unreadRecords[0] && onLearning)
+                  onLearning(unreadRecords[0].id);
+                else onNavigate("learning");
+              }}
             >
-              <LearningGlyph name="book" />
-            </span>
-            <span>
-              <strong>Learning notes</strong>
-              <span>
-                {unreadRecords.length
-                  ? readOnly
-                    ? "Awaiting student review"
-                    : "New notes to read"
-                  : "Published by TALA"}
+              <span
+                className="learning-overview-follow-up-symbol"
+                aria-hidden="true"
+              >
+                <LearningGlyph name="book" />
               </span>
-            </span>
-            <span className="learning-overview-follow-up-action">
-              Open
-              <NextIcon />
-            </span>
-          </button>
+              <span>
+                <strong>Learning notes</strong>
+                <span>
+                  {unreadRecords.length
+                    ? readOnly
+                      ? "Awaiting student review"
+                      : "New notes to read"
+                    : "Published by TALA"}
+                </span>
+              </span>
+              <span className="learning-overview-follow-up-action">
+                Open
+                <NextIcon />
+              </span>
+            </button>
+          )}
         </div>
         <p className="learning-overview-note">
           Self-reported goals. No verified skills, credit or attendance.

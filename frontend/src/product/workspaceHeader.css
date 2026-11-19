@@ -136,15 +136,25 @@
   background: #fff;
   box-shadow: 0 12px 32px #163e2b24;
 }
-.tala-workspace-menu a {
+.tala-workspace-menu :is(a, button) {
+  min-height: 40px;
   padding: 0.55rem 0.7rem;
+  border: 0;
   border-radius: 6px;
+  background: none;
   color: #243a3b;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
   text-decoration: none;
-  font-size: 0.82rem;
+  cursor: pointer;
 }
-.tala-workspace-menu a:hover {
+.tala-workspace-menu :is(a, button):hover {
   background: #eef4ef;
+}
+.tala-workspace-menu button {
+  border-top: 1px solid #e3eae7;
+  border-radius: 0 0 6px 6px;
 }
 .tala-workspace-header :is(button, a, input):focus-visible,
 .tala-search-dialog :is(button, input):focus-visible {
@@ -299,4 +309,11 @@
 }
 .student-workspace.server-dashboard {
   --container: 1440px;
+}
+
+.tala-search-dialog .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: #5b6e6a;
 }

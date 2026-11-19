@@ -93,9 +93,6 @@ export function CalendarEnrollmentSummary({
     >
       <header>
         <div>
-          <span className="calendar-enrollment-summary-label">
-            Your learning, in sync
-          </span>
           <h3 id={headingId}>Classes & requests</h3>
         </div>
         <button
