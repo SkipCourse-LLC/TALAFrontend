@@ -86,7 +86,7 @@
 .home-text-link {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   min-height: 44px;
   color: var(--home-teal);
   font-size: 0.875rem;
@@ -96,10 +96,6 @@
 .home-text-link:hover {
   text-decoration: underline;
   text-underline-offset: 4px;
-}
-.home-text-link .icon {
-  width: 18px;
-  height: 18px;
 }
 .home-card {
   background: var(--home-surface);
@@ -232,6 +228,8 @@
   line-height: 1.6;
 }
 .public-page.home .program-card .text-link {
+  display: inline-flex;
+  align-items: center;
   margin-top: auto;
   padding-top: 24px;
   color: var(--home-teal);
@@ -242,7 +240,7 @@
 /* About and call to action */
 .home-explore {
   display: grid;
-  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
   gap: 24px;
   align-items: stretch;
 }
@@ -282,9 +280,11 @@
   font-size: 0.875rem;
   line-height: 1.6;
 }
+/* The interview button keeps its natural width on one line; on narrow
+   phones it wraps, balanced and centred. */
 .home-community .home-button {
   border-color: var(--home-surface);
-  text-align: center;
+  white-space: nowrap;
 }
 
 /* Focus */
@@ -346,6 +346,13 @@
   .home-learn,
   .home-community {
     padding: 24px;
+  }
+  .home-community .home-button {
+    width: 100%;
+    padding-block: 12px;
+    white-space: normal;
+    text-align: center;
+    text-wrap: balance;
   }
 }
 @media (forced-colors: active) {

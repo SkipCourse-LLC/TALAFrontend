@@ -92,7 +92,7 @@ export function HomePage() {
           <div className="home-section-head">
             <h2>Education built around the learner</h2>
             <Link className="home-text-link" to="/programs">
-              Explore Programs <Icon name="arrow" />
+              Explore Programs <Icon name="link-arrow" />
             </Link>
           </div>
           <ProgramCards />
@@ -112,7 +112,7 @@ export function HomePage() {
                 and learners with severe developmental disabilities.
               </p>
               <Link className="home-text-link" to="/about">
-                Our philosophy <Icon name="arrow" />
+                Our philosophy <Icon name="link-arrow" />
               </Link>
             </div>
           </div>

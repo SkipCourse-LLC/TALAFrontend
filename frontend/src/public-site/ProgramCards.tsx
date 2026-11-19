@@ -15,7 +15,7 @@ export function ProgramCards() {
           <Link className="text-link" to={`/programs?program=${program.id}`}>
             Explore{" "}
             <span className="sr-only">{program.category.toLowerCase()}</span>
-            <Icon name="arrow" />
+            <Icon name="link-arrow" />
           </Link>
         </article>
       ))}

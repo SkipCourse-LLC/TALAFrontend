@@ -68,37 +68,38 @@ export function TuitionPage() {
       </section>
       <section className="container section">
         <h2>Tuition and fees</h2>
-        {/* A fee schedule: each price is set large and the rest of its
-            sentence follows on the same line, so the wording is unchanged. */}
-        <div className="fee-grid">
-          <article className="fee-card fee-card-feature">
+        {/* A fee table: the fee on the left, its price on the right. The
+            amount is emphasised inside the sentence, so the wording is
+            unchanged. */}
+        <div className="fee-table">
+          <article className="fee-row">
             <h3>Annual registration</h3>
             <p>
               <span className="fee-amount">$5,000/year</span> ($1,250
               quarterly).
             </p>
           </article>
-          <article className="fee-card fee-card-included">
+          <article className="fee-row">
             <h3>Faculty Advisor Check-In</h3>
             <p>
               <span className="fee-amount">1 Hour a Week,</span> Included.
             </p>
           </article>
-          <article className="fee-card">
+          <article className="fee-row">
             <h3>In-Person Campus Program</h3>
             <p>
               <span className="fee-amount">$120 per hour</span> ($240 per
               two-hour block).
             </p>
           </article>
-          <article className="fee-card">
+          <article className="fee-row">
             <h3>Virtual Academy group</h3>
             <p>
               <span className="fee-amount">$30 per hour</span> ($60 per two-hour
               block).
             </p>
           </article>
-          <article className="fee-card">
+          <article className="fee-row">
             <h3>Online 1:1 Specialized Tutoring</h3>
             <p>
               <span className="fee-amount">$60 per hour</span>.

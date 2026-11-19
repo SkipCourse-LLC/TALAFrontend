@@ -1,5 +1,7 @@
 const paths = {
   arrow: "M5 12h14m-6-6 6 6-6 6",
+  // A shorter, tighter arrow for text links.
+  "link-arrow": "M5.5 12h12m-5-5 5 5-5 5",
   book: "M12 5v15M3 4c4-1 7 0 9 2 2-2 5-3 9-2v15c-4-1-7 0-9 2-2-2-5-3-9-2Z",
   leaf: "M5 19C0 7 12 2 21 3c0 12-5 19-14 15m-3 3L17 8",
   people:
