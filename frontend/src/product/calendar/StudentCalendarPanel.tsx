@@ -44,7 +44,8 @@ import type { CalendarEvent } from "./calendarEvent";
 import { DayTimeGrid } from "./DayTimeGrid";
 import { DayEventDetails } from "./DayEventDetails";
 import { calendarCategories, SKIPCOURSE_URL } from "./calendarCategories";
-import { HorizonCard, SemesterBadge } from "./CalendarExtras";
+import { HorizonCard } from "./CalendarExtras";
+import { Icon } from "../../shared/Icon";
 import "./studentCalendar.css";
 import "./openClasses.css";
 
@@ -423,13 +424,9 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
     <section className="tala-calendar" aria-labelledby="calendar-heading">
       <header className="tala-cal-page-header">
         <div className="tala-cal-heading-row">
-          <div>
-            <h2 id="calendar-heading" tabIndex={-1}>
-              Learning calendar
-              <SemesterBadge month={month} />
-            </h2>
-            <p>Your classes, meetings and learning goals, together.</p>
-          </div>
+          <h2 id="calendar-heading" tabIndex={-1}>
+            Learning calendar
+          </h2>
           <button
             type="button"
             className="tala-cal-customize"
@@ -447,7 +444,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <span aria-hidden="true">↗</span> SkipCourse
+            <Icon name="download" /> SkipCourse
             <span className="tala-cal-sr"> (opens in a new tab)</span>
           </a>
           {onOpenClasses && (
@@ -456,7 +453,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               className="tala-cal-action"
               onClick={onOpenClasses}
             >
-              <span aria-hidden="true">+</span> Find Classes
+              <Icon name="plus" /> Find Classes
             </button>
           )}
         </div>
@@ -960,17 +957,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
           </div>
         </aside>
       </div>
-      <p className="tala-cal-hint">
-        <span>
-          Select a day for its schedule. All times are shown in Arizona time.
-        </span>
-        <span>
-          <span aria-hidden="true">● </span>
-          {enabled.length === categories.length
-            ? "All calendars visible"
-            : `${enabled.length} of ${categories.length} calendars visible`}
-        </span>
-      </p>
       {detail && (
         <ClassDetail
           course={detail}

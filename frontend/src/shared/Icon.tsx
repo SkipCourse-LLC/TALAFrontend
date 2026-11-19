@@ -26,7 +26,8 @@ const paths = {
   "chevron-down": "m6 9 6 6 6-6",
   external: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
   download: "M12 4v11m-5-5 5 5 5-5M4 20h16",
-  search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm9 16-4-4",
+  plus: "M12 5v14M5 12h14",
+  search:"M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm9 16-4-4",
   megaphone: "M3 10v4h3l8 4V6l-8 4H3Zm14-1.5a4 4 0 0 1 0 7M6 14l1.5 5h3L9 15",
   "chevrons-up-down": "m8 9 4-4 4 4M8 15l4 4 4-4",
 } as const;

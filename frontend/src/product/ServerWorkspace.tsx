@@ -2081,15 +2081,18 @@ function LearningWorkspace({
             <span>Read-only student records</span>
           </p>
         )}
-        <div className="product-actions student-workspace-toolbar">
-          <WorkspaceSyncStatus
-            loading={loading}
-            stale={Boolean(loadError) || accessBlocked}
-            updatedAt={accessBlocked ? null : workspaceUpdatedAt}
-            disabled={busy}
-            onRefresh={retryWorkspace}
-          />
-        </div>
+        {/* Students see Updated / Refresh only when records failed to load. */}
+        {(actor.role !== "student" || loadError) && (
+          <div className="product-actions student-workspace-toolbar">
+            <WorkspaceSyncStatus
+              loading={loading}
+              stale={Boolean(loadError) || accessBlocked}
+              updatedAt={accessBlocked ? null : workspaceUpdatedAt}
+              disabled={busy}
+              onRefresh={retryWorkspace}
+            />
+          </div>
+        )}
         {loadError && (
           <p role="alert" className="product-error">
             {loadError}{" "}

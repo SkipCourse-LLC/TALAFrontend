@@ -20,20 +20,33 @@ export function announceClassChange() {
   }
 }
 
+/** Returning to the tab re-reads classes only after this long away. */
+const RETURN_REFRESH_MS = 5 * 60_000;
+
+/**
+ * Re-reads class data when a class actually changes (in this tab or another)
+ * and when the person comes back after a while. There is no timer: a periodic
+ * re-read made the page visibly reload while someone was using it.
+ */
 export function useClassWorkspaceRevision(enabled = true) {
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     if (!enabled) return;
+    let lastRead = Date.now();
     const refresh = () => {
-      if (document.visibilityState !== "hidden")
-        setRevision((value) => value + 1);
+      if (document.visibilityState === "hidden") return;
+      lastRead = Date.now();
+      setRevision((value) => value + 1);
+    };
+    const returned = () => {
+      if (Date.now() - lastRead >= RETURN_REFRESH_MS) refresh();
     };
     let channel: BroadcastChannel | null = null;
     try {
       if (typeof BroadcastChannel !== "undefined")
         channel = new BroadcastChannel(channelName);
     } catch {
-      // Focus and interval refresh are sufficient when channels are blocked.
+      // Same-tab events and the return refresh still work without channels.
     }
     if (channel)
       channel.onmessage = (event: MessageEvent<unknown>) => {
@@ -46,14 +59,12 @@ export function useClassWorkspaceRevision(enabled = true) {
           refresh();
       };
     window.addEventListener(eventName, refresh);
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    const timer = window.setInterval(refresh, 30000);
+    window.addEventListener("focus", returned);
+    document.addEventListener("visibilitychange", returned);
     return () => {
       window.removeEventListener(eventName, refresh);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
-      window.clearInterval(timer);
+      window.removeEventListener("focus", returned);
+      document.removeEventListener("visibilitychange", returned);
       channel?.close();
     };
   }, [enabled]);

@@ -2,14 +2,6 @@ import type { CalendarEvent } from "./calendarEvent";
 import { calendarTimeRange, phoenixDateKey } from "./calendarDates";
 import "./calendarExtras.css";
 
-/** "Fall semester" / "Spring semester" / "Summer" for the month being viewed. */
-export function SemesterBadge({ month }: { month: string }) {
-  const number = Number(month.slice(5, 7));
-  const label =
-    number >= 8 ? "Fall semester" : number <= 5 ? "Spring semester" : "Summer";
-  return <span className="tala-cal-semester">{label}</span>;
-}
-
 /** "On the horizon": the next couple of events after the selected day. */
 export function HorizonCard({
   events,

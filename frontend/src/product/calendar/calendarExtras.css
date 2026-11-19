@@ -1,18 +1,5 @@
-/* Hannah's portal mockup: header actions, semester badge, board footer,
-   side-panel subtitle and "On the horizon". */
-.tala-cal-semester {
-  display: inline-block;
-  margin-left: 0.6rem;
-  vertical-align: middle;
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--cal-line);
-  border-radius: 5px;
-  background: var(--cal-soft);
-  color: var(--cal-muted);
-  font-size: calc(0.72rem * var(--student-type-scale, 1));
-  font-weight: 500;
-  letter-spacing: 0;
-}
+/* Hannah's portal mockup: header actions, board footer, side-panel subtitle
+   and "On the horizon". */
 .tala-cal-actions {
   order: 2;
   display: flex;
@@ -25,15 +12,21 @@
 .tala-calendar .tala-cal-page-header .tala-cal-customize {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
-  min-height: 40px;
-  padding: 0.45rem 0.9rem;
+  min-height: 36px;
+  padding: 0.3rem 0.9rem;
   border-radius: 7px;
   font: inherit;
   font-size: calc(0.82rem * var(--student-type-scale, 1));
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
+}
+.tala-cal-action .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 .tala-cal-action {
   border: 1px solid var(--home-teal, #225d70);
@@ -72,15 +65,6 @@
   margin: 0;
   padding: 0.7rem 1rem;
   border-top: 1px solid var(--cal-line);
-  color: var(--cal-muted);
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-}
-.tala-cal-hint {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.4rem 1rem;
-  margin: 0.75rem 0 0;
   color: var(--cal-muted);
   font-size: calc(0.75rem * var(--student-type-scale, 1));
 }
@@ -162,7 +146,7 @@
 }
 .tala-calendar .tala-cal-page-header > .tala-cal-heading-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.75rem 1rem;
@@ -186,6 +170,13 @@
 @container tala-calendar (min-width: 1000px) {
   .tala-calendar .tala-cal-page-header {
     grid-template-columns: minmax(650px, 1fr) var(--cal-side, 320px);
+  }
+  /* SkipCourse and Find Classes span the widget below them, half each. */
+  .tala-calendar .tala-cal-page-header .tala-cal-actions {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    margin: 0;
   }
 }
 @container tala-calendar (max-width: 619px) {
