@@ -165,6 +165,19 @@
   align-items: start;
   padding-block: 12px;
 }
+/* The six links sit in one centred row between the brand and the
+   description, wrapping on narrow screens. */
+.public-footer {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+}
+.public-footer nav {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 22px;
+}
 .public-footer > small {
   justify-self: end;
   max-width: 36ch;
@@ -259,6 +272,13 @@
   .footer-top {
     grid-template-columns: 1fr 1fr;
     gap: 24px 16px;
+  }
+  .public-footer {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .public-footer nav {
+    justify-content: flex-start;
   }
   .footer-note,
   .public-footer > small {

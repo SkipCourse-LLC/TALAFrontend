@@ -13,7 +13,6 @@ export function StartBanner({
   const panel = variant === "panel";
   return (
     <section className={panel ? "home-community" : "start-banner container"}>
-      {panel && <Icon name="circle" />}
       <div>
         <h2>Let's talk about your learner.</h2>
         <p>

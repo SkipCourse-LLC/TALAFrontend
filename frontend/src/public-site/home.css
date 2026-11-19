@@ -256,9 +256,6 @@
   background: var(--home-teal);
   color: #e4f0f1;
 }
-.home-community > .icon {
-  color: var(--home-surface);
-}
 .home-community h2 {
   color: var(--home-surface);
   font-size: 1.5rem;
