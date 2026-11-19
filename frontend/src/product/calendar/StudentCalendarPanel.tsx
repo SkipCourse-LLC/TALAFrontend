@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
 } from "react";
 import type {
@@ -718,6 +719,25 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
             <span>
               <span aria-hidden="true">◷ </span>Arizona Time (MST · UTC−07:00)
             </span>
+            {view !== "Day" && (
+              <span className="tala-cal-legend" aria-label="Request colours">
+                {(
+                  [
+                    ["Confirmed", "var(--status-confirmed)"],
+                    ["Waiting for approval", "var(--status-waiting)"],
+                    ["Wait list", "var(--status-waitlist)"],
+                  ] as const
+                ).map(([label, color]) => (
+                  <span key={label}>
+                    <i
+                      aria-hidden="true"
+                      style={{ "--legend": color } as CSSProperties}
+                    />
+                    {label}
+                  </span>
+                ))}
+              </span>
+            )}
             <span>
               {view === "Day"
                 ? `${selectedEvents.length} ${selectedEvents.length === 1 ? "event" : "events"} ${selectedDay === today ? "today" : "this day"}`
