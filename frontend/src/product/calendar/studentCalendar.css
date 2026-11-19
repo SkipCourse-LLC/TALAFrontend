@@ -998,7 +998,7 @@
 }
 @container tala-calendar (min-width: 1000px) {
   .tala-cal-layout {
-    grid-template-columns: minmax(650px, 1fr) 280px;
+    grid-template-columns: minmax(650px, 1fr) var(--cal-side, 320px);
     gap: 1.15rem;
   }
   .tala-cal-toolbar {

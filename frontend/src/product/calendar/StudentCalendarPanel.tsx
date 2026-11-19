@@ -422,12 +422,23 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   return (
     <section className="tala-calendar" aria-labelledby="calendar-heading">
       <header className="tala-cal-page-header">
-        <div>
-          <h2 id="calendar-heading" tabIndex={-1}>
-            Learning calendar
-            <SemesterBadge month={month} />
-          </h2>
-          <p>Your classes, meetings and learning goals, together.</p>
+        <div className="tala-cal-heading-row">
+          <div>
+            <h2 id="calendar-heading" tabIndex={-1}>
+              Learning calendar
+              <SemesterBadge month={month} />
+            </h2>
+            <p>Your classes, meetings and learning goals, together.</p>
+          </div>
+          <button
+            type="button"
+            className="tala-cal-customize"
+            aria-expanded={customizing || filtersActive}
+            aria-controls={`${regionId}-customize`}
+            onClick={() => setCustomizing((value) => !value)}
+          >
+            Customize
+          </button>
         </div>
         <div className="tala-cal-actions">
           <a
@@ -448,21 +459,10 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               <span aria-hidden="true">+</span> Find Classes
             </button>
           )}
-          <button
-            type="button"
-            className="tala-cal-customize"
-            aria-expanded={customizing || filtersActive}
-            aria-controls={`${regionId}-customize`}
-            onClick={() => setCustomizing((value) => !value)}
-          >
-            Customize
-          </button>
         </div>
-        <span className="tala-cal-source">
-          {data?.source === "test_catalog"
-            ? "Local preview · practice data"
-            : "Arizona time · MST"}
-        </span>
+        {data?.source === "test_catalog" && (
+          <span className="tala-cal-source">Local preview · practice data</span>
+        )}
         {/* With the student sidebar, this picker only shows on small screens,
             where the sidebar's "My calendars" is hidden. */}
         {
@@ -617,7 +617,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                 {data?.enrolled.length ? ` (${data.enrolled.length})` : ""}
               </button>
             </div>
-            <span>Phoenix time</span>
           </div>
           <p className="tala-cal-sr" id={`${regionId}-keys`}>
             Use arrow keys to choose a date. Home and End move within a week.
@@ -1008,7 +1007,8 @@ function CalendarCourseCard({
   return (
     <article className="tala-cal-open-class" data-category={course.category}>
       <p className="tala-cal-class-time">
-        {calendarTimeRange(course.startsAt, course.endsAt)}
+        <strong>{calendarTime(course.startsAt)}</strong>
+        <span> – {calendarTime(course.endsAt)}</span>
       </p>
       <button
         type="button"
@@ -1021,17 +1021,20 @@ function CalendarCourseCard({
         {courseFormat(course)} ·{" "}
         {course.teacher.replace(/\s*·\s*test instructor\s*$/i, "")}
       </p>
-      <div className="tala-class-context-line">
-        <span
-          className="tala-class-status"
-          data-status={course.enrollmentStatus}
-        >
-          {classStatus(course)}
-        </span>
-        {course.enrollmentMode && (
-          <span>{modeLabel(course.enrollmentMode)}</span>
-        )}
-      </div>
+      {/* Open classes say so with their Sign up button; requests show their status. */}
+      {course.enrolled && (
+        <div className="tala-class-context-line">
+          <span
+            className="tala-class-status"
+            data-status={course.enrollmentStatus}
+          >
+            {classStatus(course)}
+          </span>
+          {course.enrollmentMode && (
+            <span>{modeLabel(course.enrollmentMode)}</span>
+          )}
+        </div>
+      )}
       <div className="tala-cal-class-bottom">
         <span>{course.grades}</span>
         <span>

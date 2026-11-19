@@ -1,0 +1,453 @@
+/* The student portal shell from Hannah's learning calendar mockup. The menu
+   runs the full height of the window on the left; the header and the page sit
+   beside it as one surface. ServerWorkspace sets data-portal="student" on the
+   root element while the student portal is showing. */
+:root[data-portal="student"] {
+  --portal-menu: 272px;
+  --portal-surface: #f3f7f6;
+  --portal-menu-surface: #f8faf9;
+  --portal-line: #dde6e3;
+  --portal-ink: #1f3a37;
+  --portal-muted: #5b6e6a;
+  --portal-teal: #1f5560;
+  --portal-active: #e3ebe8;
+}
+:root[data-portal="student"] body {
+  background: var(--portal-surface);
+}
+
+/* ---- Menu contents (every width) ---- */
+:root[data-portal="student"] .dashboard-side-menu-top {
+  padding-bottom: 16px;
+}
+.student-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 2px 4px;
+  color: var(--portal-ink, #1f3a37);
+}
+.student-sidebar-logo {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--portal-teal, #1f5560);
+  color: #fff;
+}
+.student-sidebar-logo .icon {
+  width: 24px;
+  height: 24px;
+}
+.student-sidebar-brand-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1.25;
+}
+.student-sidebar-brand-text strong {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.student-sidebar-brand-text small {
+  color: var(--portal-muted, #5b6e6a);
+  font-size: 0.72rem;
+}
+:root[data-portal="student"] .dashboard-side-menu .student-sidebar-year {
+  position: relative;
+  display: block;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+.student-sidebar-year select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 40px 0 14px;
+  border: 1px solid #d3dedb;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--portal-ink, #1f3a37);
+  font: inherit;
+  font-size: 0.9rem;
+  appearance: none;
+  cursor: pointer;
+}
+.student-sidebar-year select:focus-visible {
+  outline: 3px solid #2b6146;
+  outline-offset: 2px;
+}
+.student-sidebar-year > .icon {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--portal-muted, #5b6e6a);
+  pointer-events: none;
+}
+
+/* Sections: quiet rows, a soft fill on the current one. */
+:root[data-portal="student"] .dashboard-side-menu nav {
+  gap: 2px;
+}
+:root[data-portal="student"] .dashboard-side-menu nav button {
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: none;
+  color: #2f4a45;
+  font-size: 0.95rem;
+  font-weight: 450;
+}
+:root[data-portal="student"] .dashboard-side-menu .server-dashboard-nav-symbol {
+  width: 24px;
+  height: 24px;
+  border-radius: 0;
+  background: none;
+  color: #34524c;
+}
+:root[data-portal="student"]
+  .dashboard-side-menu
+  nav
+  button[aria-current="page"] {
+  background: var(--portal-active);
+  color: #133c36;
+  font-weight: 550;
+}
+:root[data-portal="student"]
+  .dashboard-side-menu
+  nav
+  button[aria-current="page"]
+  .server-dashboard-nav-symbol {
+  background: none;
+  color: #133c36;
+}
+:root[data-portal="student"]
+  .dashboard-side-menu
+  nav
+  button:hover:not(:disabled) {
+  background: #ecf1ef;
+}
+:root[data-portal="student"]
+  .dashboard-side-menu
+  nav
+  button[aria-current="page"]:hover {
+  background: var(--portal-active);
+}
+:root[data-portal="student"] .server-dashboard-sidebar .student-updates-count {
+  min-width: 22px;
+  min-height: 22px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #e2e8e6;
+  color: #2f4a45;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+/* My calendars and the sync card, divided from the sections. */
+:root[data-portal="student"] .student-sidebar-extras {
+  gap: 16px;
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--portal-line);
+}
+:root[data-portal="student"] .student-sidebar-calendars {
+  gap: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--portal-line);
+}
+:root[data-portal="student"] .student-sidebar-calendars legend {
+  margin-bottom: 10px;
+  color: var(--portal-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+:root[data-portal="student"] .student-sidebar-calendars label {
+  min-height: 32px;
+  color: #2f4a45;
+  font-size: 0.875rem;
+}
+:root[data-portal="student"] .student-sidebar-calendars input {
+  width: 18px;
+  height: 18px;
+  accent-color: #24564c;
+}
+:root[data-portal="student"] .student-sidebar-count {
+  color: var(--portal-muted);
+  font-size: 0.8rem;
+}
+:root[data-portal="student"] .student-sidebar-sync {
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #e7eeec;
+  color: var(--portal-teal);
+  font-size: 0.85rem;
+}
+:root[data-portal="student"] .student-sidebar-sync > .icon {
+  width: 22px;
+  height: 22px;
+}
+:root[data-portal="student"] .student-sidebar-sync strong {
+  font-weight: 500;
+}
+:root[data-portal="student"] .student-sidebar-sync p {
+  color: #3a524e;
+  line-height: 1.5;
+}
+:root[data-portal="student"] .student-sidebar-sync button {
+  color: var(--portal-teal);
+  font-weight: 500;
+  text-decoration: none;
+}
+:root[data-portal="student"] .student-sidebar-sync button:hover {
+  text-decoration: underline;
+}
+
+/* Settings, help and sign out sit at the foot of the menu. */
+.student-sidebar-foot {
+  display: grid;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+:root[data-portal="student"] .student-sidebar-foot .server-dashboard-account {
+  margin: 0;
+  padding: 0;
+}
+:root[data-portal="student"] .student-sidebar-foot .student-account {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+:root[data-portal="student"] .student-sidebar-foot .student-account > summary,
+:root[data-portal="student"] .student-sidebar-foot .student-sidebar-support a,
+.student-sidebar-signout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: #2f4a45;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 400;
+  text-align: left;
+  text-decoration: none;
+  list-style: none;
+  cursor: pointer;
+}
+:root[data-portal="student"]
+  .student-sidebar-foot
+  .student-account
+  > summary::-webkit-details-marker {
+  display: none;
+}
+:root[data-portal="student"]
+  .student-sidebar-foot
+  .student-account
+  > summary:hover,
+:root[data-portal="student"]
+  .student-sidebar-foot
+  .student-sidebar-support
+  a:hover,
+.student-sidebar-signout:hover:not(:disabled) {
+  background: #ecf1ef;
+}
+:root[data-portal="student"]
+  .student-sidebar-foot
+  .student-account
+  > summary
+  .icon,
+.student-sidebar-signout .icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+:root[data-portal="student"] .student-sidebar-foot .student-account[open] {
+  padding-bottom: 12px;
+}
+:root[data-portal="student"]
+  .student-sidebar-foot
+  .student-account[open]
+  > :not(summary) {
+  margin-inline: 10px;
+}
+:root[data-portal="student"] .student-sidebar-foot .student-sidebar-support {
+  margin: 0;
+}
+.student-sidebar-signout:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.student-sidebar-signout:focus-visible,
+:root[data-portal="student"]
+  .student-sidebar-foot
+  .student-account
+  > summary:focus-visible {
+  outline: 3px solid #2b6146;
+  outline-offset: 2px;
+}
+.student-sidebar-place {
+  margin: 8px 10px 0;
+  color: var(--portal-muted, #5b6e6a);
+  font-size: 0.75rem;
+}
+
+/* ---- The shell on wide screens ---- */
+@media (min-width: 841px) {
+  :root[data-portal="student"] .preview-banner,
+  :root[data-portal="student"] .tala-workspace-header,
+  :root[data-portal="student"] #main-content {
+    margin-left: var(--portal-menu);
+  }
+  /* The menu carries Help and the school name; no page footer. */
+  :root[data-portal="student"] .quiet-site-footer {
+    display: none;
+  }
+  :root[data-portal="student"] .tala-workspace-header {
+    background: #fff;
+    border-bottom: 1px solid var(--portal-line);
+  }
+  :root[data-portal="student"] .tala-workspace-header-row {
+    width: auto;
+    max-width: none;
+    min-height: 76px;
+    margin: 0;
+    padding-inline: 40px 32px;
+  }
+  /* The school's mark is at the top of the menu instead. */
+  :root[data-portal="student"] .tala-workspace-header .brand {
+    display: none;
+  }
+  :root[data-portal="student"] .tala-workspace-breadcrumb {
+    font-size: 0.9rem;
+  }
+  :root[data-portal="student"] .tala-workspace-breadcrumb strong {
+    color: var(--portal-ink);
+  }
+  :root[data-portal="student"] .tala-quick-search {
+    min-width: min(340px, 30vw);
+    border-color: transparent;
+    background: #f1f5f4;
+  }
+  :root[data-portal="student"] .tala-quick-search kbd {
+    margin-left: auto;
+  }
+  :root[data-portal="student"] .student-workspace.server-dashboard {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 36px 32px 48px 40px;
+  }
+  :root[data-portal="student"] .server-dashboard-shell {
+    display: block;
+  }
+  :root[data-portal="student"] .server-dashboard-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: var(--portal-menu);
+    min-height: 0;
+    max-height: none;
+    padding: 24px 20px 20px;
+    border: 0;
+    border-right: 1px solid var(--portal-line);
+    border-radius: 0;
+    background: var(--portal-menu-surface);
+    overflow-y: auto;
+  }
+  /* "Updated · Refresh" moves under the calendar so the page opens on its title. */
+  :root[data-portal="student"]
+    .server-dashboard-main[data-workspace-view="calendar"] {
+    display: flex;
+    flex-direction: column;
+  }
+  :root[data-portal="student"]
+    .server-dashboard-main[data-workspace-view="calendar"]
+    > .student-workspace-toolbar {
+    order: 1;
+    padding-block: 16px 0;
+  }
+  :root[data-portal="student"]
+    .server-dashboard-main[data-workspace-view="calendar"]
+    > .student-service-details {
+    order: 2;
+  }
+}
+
+/* The account panel sits in the foot's own column, at every width. */
+:root[data-portal="student"]
+  .server-dashboard
+  .student-sidebar-foot
+  > .server-dashboard-account {
+  grid-column: auto;
+  grid-row: auto;
+  align-self: auto;
+}
+
+/* Small screens: the school's mark, the Sections picker, then one row of
+   Settings, Help and Sign out. */
+@media (max-width: 840px) {
+  :root[data-portal="student"] .dashboard-side-menu .student-sidebar-year,
+  :root[data-portal="student"] .student-sidebar-place {
+    display: none;
+  }
+  :root[data-portal="student"] .server-dashboard .server-dashboard-sidebar {
+    grid-template-columns: minmax(0, 1fr);
+    background: var(--portal-menu-surface);
+  }
+  :root[data-portal="student"]
+    .server-dashboard
+    .server-dashboard-sidebar
+    > :is(
+      .dashboard-side-menu-top,
+      .server-dashboard-mobile-nav,
+      .student-sidebar-foot
+    ) {
+    grid-column: 1;
+  }
+  /* The page header already carries the school's mark here. */
+  :root[data-portal="student"] .dashboard-side-menu-top {
+    display: none;
+  }
+  :root[data-portal="student"] .student-sidebar-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0 4px;
+    margin: 0;
+    padding-top: 4px;
+  }
+  :root[data-portal="student"] .student-sidebar-foot > * {
+    flex: 0 0 auto;
+    width: auto;
+  }
+  :root[data-portal="student"] .student-sidebar-foot .student-account[open] {
+    flex-basis: 100%;
+    order: 1;
+  }
+  :root[data-portal="student"] .student-sidebar-foot .student-account > summary,
+  :root[data-portal="student"] .student-sidebar-foot .student-sidebar-support a,
+  :root[data-portal="student"] .student-sidebar-signout {
+    width: auto;
+    min-height: 44px;
+    gap: 8px;
+    font-size: 0.85rem;
+  }
+}

@@ -37,9 +37,15 @@
   font-size: 0.8rem;
   cursor: pointer;
 }
-.tala-quick-search .learning-glyph {
+.tala-quick-search .icon {
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
+}
+.tala-workspace-breadcrumb .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 .tala-quick-search kbd {
   font: inherit;

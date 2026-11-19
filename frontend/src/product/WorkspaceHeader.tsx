@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Brand } from "../shared/Brand";
 import { safeTalaApiError, talaApi } from "../api";
 import type { ApiUser, CalendarClass } from "../api";
-import { LearningGlyph } from "./LearningGlyph";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
 import { classStatus } from "./calendar/classPresentation";
 import { sectionForView, workTabs } from "./workspaceSections";
@@ -272,7 +271,7 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
                   ? "Alumni portal"
                   : "Learning portal"}
           </span>
-          <span aria-hidden="true">/</span>
+          <Icon name="chevron-right" />
           <strong>{pageLabel}</strong>
         </div>
         <button
@@ -282,7 +281,7 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
           onClick={() => setOpen(true)}
           aria-haspopup="dialog"
         >
-          <LearningGlyph name="book" />
+          <Icon name="search" />
           <span>
             {user.role === "student"
               ? "Search learning portal"

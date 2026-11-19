@@ -23,12 +23,21 @@ export function DashboardSideMenu({
   currentLabel,
   currentText,
   renderNav,
+  brandMark,
+  afterBrand,
+  collapsible = true,
   children,
 }: {
   /** Accessible name of the whole side menu. */
   label: string;
   /** Visible heading at the top of the menu. */
   brand: string;
+  /** Replaces the default leaf-and-heading brand. */
+  brandMark?: ReactNode;
+  /** Shown between the brand and the sections, such as a school year picker. */
+  afterBrand?: ReactNode;
+  /** Whether the menu can fold into an icon rail on wide screens. */
+  collapsible?: boolean;
   role?: string;
   /** Identifies the active section; the mobile disclosure closes when it changes. */
   currentKey: string;
@@ -40,7 +49,9 @@ export function DashboardSideMenu({
   children?: (collapsed: boolean) => ReactNode;
 }) {
   const navId = useId();
-  const { collapsed, toggle } = useDashboardMenu();
+  const menu = useDashboardMenu();
+  const collapsed = collapsible && menu.collapsed;
+  const toggle = menu.toggle;
   const toggleLabel = collapsed ? "Expand menu" : "Collapse menu";
   return (
     <aside
@@ -50,33 +61,38 @@ export function DashboardSideMenu({
       aria-label={label}
     >
       <div className="dashboard-side-menu-top">
-        <div className="server-dashboard-brand">
-          <Icon name="leaf" />
-          <span className="dashboard-side-menu-brand-text">{brand}</span>
-        </div>
-        <button
-          type="button"
-          className="dashboard-side-menu-toggle"
-          aria-expanded={!collapsed}
-          aria-controls={navId}
-          aria-label={toggleLabel}
-          title={toggleLabel}
-          onClick={toggle}
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {brandMark ?? (
+          <div className="server-dashboard-brand">
+            <Icon name="leaf" />
+            <span className="dashboard-side-menu-brand-text">{brand}</span>
+          </div>
+        )}
+        {collapsible && (
+          <button
+            type="button"
+            className="dashboard-side-menu-toggle"
+            aria-expanded={!collapsed}
+            aria-controls={navId}
+            aria-label={toggleLabel}
+            title={toggleLabel}
+            onClick={toggle}
           >
-            <path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM9 4v16" />
-            <path d={collapsed ? "m13 9 3 3-3 3" : "m16 9-3 3 3 3"} />
-          </svg>
-        </button>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM9 4v16" />
+              <path d={collapsed ? "m13 9 3 3-3 3" : "m16 9-3 3 3 3"} />
+            </svg>
+          </button>
+        )}
       </div>
+      {afterBrand}
       {renderNav("server-dashboard-desktop-nav", { id: navId, collapsed })}
       <details
         className="server-dashboard-mobile-nav"

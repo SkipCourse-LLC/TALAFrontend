@@ -22,7 +22,7 @@
   gap: 0.5rem;
 }
 .tala-calendar .tala-cal-actions .tala-cal-action,
-.tala-calendar .tala-cal-actions .tala-cal-customize {
+.tala-calendar .tala-cal-page-header .tala-cal-customize {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -150,6 +150,137 @@
   color: var(--cal-muted);
   font-size: calc(0.75rem * var(--student-type-scale, 1));
 }
+
+/* Page header as in the mockup: the title with Customize at the board's right
+   edge, and SkipCourse / Find Classes above the side column. */
+.tala-calendar .tala-cal-page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem 1.15rem;
+  margin-bottom: 1.25rem;
+}
+.tala-calendar .tala-cal-page-header > .tala-cal-heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  margin: 0;
+  min-width: 0;
+}
+.tala-calendar .tala-cal-page-header .tala-cal-customize {
+  min-height: 44px;
+  padding-inline: 1.1rem;
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
+}
+.tala-calendar .tala-cal-page-header .tala-cal-actions {
+  order: 0;
+  justify-content: flex-end;
+}
+.tala-calendar .tala-cal-page-header > .tala-cal-source,
+.tala-calendar .tala-cal-page-header > .tala-cal-filters {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+@container tala-calendar (min-width: 1000px) {
+  .tala-calendar .tala-cal-page-header {
+    grid-template-columns: minmax(650px, 1fr) var(--cal-side, 320px);
+  }
+}
+@container tala-calendar (max-width: 619px) {
+  .tala-calendar .tala-cal-page-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tala-calendar .tala-cal-page-header .tala-cal-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Open Classes Today as a timeline: one line joins the day's classes. */
+.tala-calendar .tala-cal-today-card {
+  padding: 1.25rem 1.15rem 1rem;
+}
+.tala-calendar .tala-cal-side-subtitle {
+  margin: -0.55rem 0 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--cal-line);
+}
+.tala-calendar .tala-cal-day-classes {
+  padding-top: 1.1rem;
+}
+.tala-calendar .tala-cal-today-card .tala-cal-open-class {
+  padding: 0 0 1.25rem 1.5rem;
+  border-top: 0;
+}
+.tala-calendar .tala-cal-today-card .tala-cal-open-class::before {
+  top: 0.3rem;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--cal-green);
+}
+.tala-calendar .tala-cal-today-card .tala-cal-open-class::after {
+  content: "";
+  position: absolute;
+  top: 1.15rem;
+  bottom: 0.35rem;
+  left: 3.5px;
+  width: 1px;
+  background: #c9d7d3;
+}
+.tala-calendar .tala-cal-class-time {
+  margin-bottom: 0.15rem;
+  color: var(--cal-muted);
+}
+.tala-calendar .tala-cal-class-time strong {
+  color: var(--cal-ink);
+  font-weight: 500;
+}
+.tala-calendar .tala-cal-today-card .tala-cal-class-title {
+  min-height: 36px;
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+  color: var(--cal-ink);
+}
+.tala-calendar .tala-cal-today-card .tala-cal-class-meta {
+  margin: 0 0 0.65rem;
+}
+.tala-calendar .tala-cal-today-card .tala-class-context-line {
+  margin: 0 0 0.5rem;
+}
+.tala-calendar .tala-cal-today-card .tala-cal-class-bottom {
+  gap: 0.35rem;
+}
+.tala-calendar
+  .tala-cal-today-card
+  .tala-cal-class-bottom
+  > span:not(.tala-cal-ended) {
+  padding: 0.3rem 0.45rem;
+  border-radius: 5px;
+  background: #edf1f0;
+  color: #3e5853;
+  white-space: nowrap;
+}
+.tala-calendar .tala-cal-today-card .tala-cal-enroll.tala-cal-enroll-small {
+  min-height: 34px;
+  padding: 0.3rem 0.65rem;
+  border-color: #33443f;
+  background: #33443f;
+  font-weight: 500 !important;
+  white-space: nowrap;
+}
+.tala-calendar
+  .tala-cal-today-card
+  .tala-cal-enroll.tala-cal-enroll-small:hover:not(:disabled) {
+  background: #1f2f2b;
+}
+.tala-calendar .tala-cal-today-card .tala-cal-full-day {
+  padding-top: 0.9rem;
+  color: var(--home-teal, #225d70);
+  font-size: calc(0.875rem * var(--student-type-scale, 1)) !important;
+}
+
 @media (max-width: 760px) {
   .tala-cal-actions {
     justify-content: flex-start;

@@ -6,21 +6,6 @@
   padding-top: 1rem;
   border-top: 1px solid #dfe8e3;
 }
-.student-sidebar-year {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 0;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid #dfe8e3;
-  border-radius: 8px;
-  color: #243a3b;
-  font-size: 0.8rem;
-}
-.student-sidebar-year span {
-  color: #5b6b6c;
-  font-size: 0.7rem;
-}
 .student-sidebar-calendars {
   display: grid;
   gap: 0.35rem;

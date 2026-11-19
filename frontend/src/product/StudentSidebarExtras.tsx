@@ -6,6 +6,7 @@ import { Icon } from "../shared/Icon";
 import { calendarCategories } from "./calendar/calendarCategories";
 import { classesCalendarContent } from "./calendar/classCalendarContent";
 import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
+import { schoolYearLabel } from "./workspaceSections";
 import "./studentPortal.css";
 
 export interface SidebarCalendarFilters {
@@ -112,14 +113,39 @@ export function SidebarSyncCard() {
   );
 }
 
-/** Settings and Help at the foot of the student menu. */
+/** The school's mark at the top of the student menu. */
+export function SidebarBrand() {
+  return (
+    <div className="student-sidebar-brand">
+      <span className="student-sidebar-logo" aria-hidden="true">
+        <Icon name="book" />
+      </span>
+      <span className="student-sidebar-brand-text">
+        <strong>TALA</strong>
+        <small>Tucson Adaptive Learning Academy</small>
+      </span>
+    </div>
+  );
+}
+
+/** The school year. Only the current year has records so far. */
+export function SidebarSchoolYear() {
+  const year = schoolYearLabel();
+  return (
+    <label className="student-sidebar-year">
+      <span className="sr-only">School year</span>
+      <select defaultValue={year}>
+        <option value={year}>{year}</option>
+      </select>
+      <Icon name="chevrons-up-down" />
+    </label>
+  );
+}
+
+/** Help at the foot of the student menu; Settings is the account panel above it. */
 export function SidebarSupportLinks({ collapsed }: { collapsed: boolean }) {
   return (
-    <nav className="student-sidebar-support" aria-label="Settings and help">
-      <Link to="/two-factor" title={collapsed ? "Settings" : undefined}>
-        <Icon name="settings" />
-        <span className="dashboard-side-menu-label">Settings</span>
-      </Link>
+    <nav className="student-sidebar-support" aria-label="Help">
       <Link to="/contact" title={collapsed ? "Help & support" : undefined}>
         <Icon name="help" />
         <span className="dashboard-side-menu-label">Help &amp; support</span>

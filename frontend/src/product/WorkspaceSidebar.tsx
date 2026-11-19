@@ -13,14 +13,12 @@ import {
   DashboardSideMenuLabel,
 } from "./DashboardSideMenu";
 import type { WorkspaceView } from "./workspaceViews";
-import {
-  schoolYearLabel,
-  sectionForView,
-  studentSections,
-} from "./workspaceSections";
+import { sectionForView, studentSections } from "./workspaceSections";
 import type { StudentSection } from "./workspaceSections";
 import {
+  SidebarBrand,
   SidebarCalendars,
+  SidebarSchoolYear,
   SidebarSupportLinks,
   SidebarSyncCard,
 } from "./StudentSidebarExtras";
@@ -42,7 +40,7 @@ const icons: Record<WorkspaceView, IconName> = {
 const sectionIcons: Record<StudentSection["id"], IconName> = {
   calendar: "calendar",
   work: "grid",
-  announcements: "voice",
+  announcements: "megaphone",
   classes: "book",
   teachers: "people",
   resources: "folder",
@@ -261,6 +259,9 @@ export function WorkspaceSidebar({
           ? studentNav(className, id, collapsed)
           : otherNav(className, id, collapsed)
       }
+      brandMark={student ? <SidebarBrand /> : undefined}
+      afterBrand={student ? <SidebarSchoolYear /> : undefined}
+      collapsible={!student}
     >
       {(collapsed) => (
         <>
@@ -269,60 +270,73 @@ export function WorkspaceSidebar({
               {hint}
             </span>
           ))}
-          {student && !collapsed && (
-            <div className="student-sidebar-extras">
-              <p className="student-sidebar-year">
-                <span>School year</span> {schoolYearLabel()}
-              </p>
-              {calendarFilters && (
-                <SidebarCalendars
-                  filters={calendarFilters}
-                  disabled={disabled}
-                />
-              )}
-              <SidebarSyncCard />
-            </div>
+          {student ? (
+            <>
+              <div className="student-sidebar-extras">
+                {calendarFilters && (
+                  <SidebarCalendars
+                    filters={calendarFilters}
+                    disabled={disabled}
+                  />
+                )}
+                <SidebarSyncCard />
+              </div>
+              <div className="student-sidebar-foot">
+                <div className="server-dashboard-account">{account}</div>
+                <SidebarSupportLinks collapsed={false} />
+                <button
+                  type="button"
+                  className="student-sidebar-signout"
+                  disabled={busy}
+                  onClick={onSignOut}
+                >
+                  <Icon name="logout" />
+                  <span>Sign out</span>
+                </button>
+                <p className="student-sidebar-place">Online · Arizona-based</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="server-dashboard-account">{account}</div>
+              <div className="server-dashboard-identity">
+                <span className="server-dashboard-avatar" aria-hidden="true">
+                  {(Array.from(user.name.trim())[0] ?? "?").toUpperCase()}
+                </span>
+                <div>
+                  <strong>
+                    <bdi>{user.name}</bdi>
+                  </strong>
+                  <span>
+                    {user.uid === "tala_local_preview_student_v1"
+                      ? "Demo · test data"
+                      : user.role === "parent"
+                        ? "Parent"
+                        : "Student"}
+                  </span>
+                </div>
+              </div>
+              <div className="server-dashboard-account-actions">
+                <Link
+                  to="/two-factor"
+                  aria-label="Account security"
+                  title={collapsed ? "Account security" : undefined}
+                >
+                  <Icon name="user" />
+                  <span>Security</span>
+                </Link>
+                <button
+                  type="button"
+                  disabled={busy}
+                  title={collapsed ? "Sign out" : undefined}
+                  onClick={onSignOut}
+                >
+                  <Icon name="logout" />
+                  <span>Sign out</span>
+                </button>
+              </div>
+            </>
           )}
-          {student && <SidebarSupportLinks collapsed={collapsed} />}
-          <div className="server-dashboard-account">{account}</div>
-          <div className="server-dashboard-identity">
-            <span className="server-dashboard-avatar" aria-hidden="true">
-              {(Array.from(user.name.trim())[0] ?? "?").toUpperCase()}
-            </span>
-            <div>
-              <strong>
-                <bdi>{user.name}</bdi>
-              </strong>
-              <span>
-                {user.uid === "tala_local_preview_student_v1"
-                  ? "Demo · test data"
-                  : user.role === "parent"
-                    ? "Parent"
-                    : "Student"}
-              </span>
-            </div>
-          </div>
-          <div className="server-dashboard-account-actions">
-            {!student && (
-              <Link
-                to="/two-factor"
-                aria-label="Account security"
-                title={collapsed ? "Account security" : undefined}
-              >
-                <Icon name="user" />
-                <span>Security</span>
-              </Link>
-            )}
-            <button
-              type="button"
-              disabled={busy}
-              title={collapsed ? "Sign out" : undefined}
-              onClick={onSignOut}
-            >
-              <Icon name="logout" />
-              <span>Sign out</span>
-            </button>
-          </div>
           <nav
             className="server-dashboard-mobile-quick"
             aria-label="Quick navigation"

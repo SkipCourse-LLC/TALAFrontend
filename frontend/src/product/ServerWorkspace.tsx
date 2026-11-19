@@ -89,6 +89,8 @@ import {
 } from "./workspaceSnapshots";
 import "./studentWorkspace.css";
 import "./serverDashboard.css";
+import "./studentShell.css";
+import { Icon } from "../shared/Icon";
 import "./learningExperience.css";
 import "./workspaceReadability.css";
 
@@ -104,6 +106,16 @@ export function ServerWorkspace({
   onProfileSaved: (user: ApiUser) => void;
 }) {
   const workspaceVisible = useWorkspaceVisible();
+  // The student portal is a full-height app: the menu runs down the left edge
+  // and the page header sits beside it (see studentShell.css).
+  const studentPortal = user.role === "student" && workspaceVisible;
+  useLayoutEffect(() => {
+    if (!studentPortal) return;
+    document.documentElement.dataset.portal = "student";
+    return () => {
+      delete document.documentElement.dataset.portal;
+    };
+  }, [studentPortal]);
   const familyRevision = useClassWorkspaceRevision(user.role === "parent");
   const [workspaceParams, setWorkspaceParams] = useSearchParams();
   const parentView = readWorkspaceView(workspaceParams.get("view"));
@@ -291,7 +303,14 @@ export function ServerWorkspace({
   const sidebarAccount = (
     <>
       <details className="product-card product-profile student-account">
-        <summary aria-label="My account">Account</summary>
+        {user.role === "student" ? (
+          <summary aria-label="Settings: my account">
+            <Icon name="settings" />
+            <span>Settings</span>
+          </summary>
+        ) : (
+          <summary aria-label="My account">Account</summary>
+        )}
         <p>
           <bdi>{user.email}</bdi> · {user.role}
         </p>
