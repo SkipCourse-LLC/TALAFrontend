@@ -5,6 +5,7 @@ import { talaApi, safeTalaApiError } from "../api";
 import type { ApiUser } from "../api";
 import { hasTextControls, isWellFormedText } from "./unicodeText";
 import { LearningGlyph } from "./LearningGlyph";
+import { Icon } from "../shared/Icon";
 import "./accessOperations.css";
 
 type AccessField = "name" | "email" | "password";
@@ -168,9 +169,6 @@ export function ServerAccessPage({
   return (
     <section className="auth-layout container product-access">
       <div className="auth-panel">
-        <span className="product-access-symbol" aria-hidden="true">
-          <LearningGlyph name="book" />
-        </span>
         <h1>{register ? "Create account" : "Welcome back."}</h1>
         <p className="product-access-intro">
           {register
@@ -337,7 +335,7 @@ export function ServerAccessPage({
                   }
                   onClick={() => setPasswordVisible((visible) => !visible)}
                 >
-                  {passwordVisible ? "Hide" : "Show"}
+                  <Icon name={passwordVisible ? "eye-off" : "eye"} />
                 </button>
               </div>
               {fieldErrors.password && (
@@ -401,7 +399,14 @@ export function ServerAccessPage({
           {register ? (
             <Link to="/login">Sign in</Link>
           ) : (
-            <Link to="/register">Start registration</Link>
+            // New families start with a call; registration follows it.
+            <a
+              href="https://calendar.app.google/YapTB4MQLus16DATA"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Schedule a Call
+            </a>
           )}
         </p>
         {!register && (

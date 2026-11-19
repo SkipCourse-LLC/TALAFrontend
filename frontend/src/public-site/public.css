@@ -99,13 +99,89 @@
     text-align: left;
   }
 }
+/* FAQ: hairline-separated questions with a chevron on the right. The
+   answer sits clearly below its question; FaqItem animates the height. */
+.public-page .faq-list {
+  max-width: 860px;
+  font-family: var(--font-public);
+}
 .public-page .faq-list details {
-  padding: 20px 0;
-  border-bottom: 1px solid #d5ded8;
+  border-bottom: 1px solid var(--home-line);
+}
+.public-page .faq-list details:first-of-type {
+  border-top: 1px solid var(--home-line);
 }
 .public-page .faq-list summary {
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px 4px 24px 0;
+  color: var(--home-ink);
+  font-size: 1.0625rem;
   font-weight: 600;
+  line-height: 1.4;
+  list-style: none;
+  cursor: pointer;
+}
+.public-page .faq-list summary::-webkit-details-marker {
+  display: none;
+}
+/* The chevron: a small rotated corner that turns to point up when open. */
+.public-page .faq-list summary::after {
+  content: "";
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  color: var(--home-teal);
+  transform: rotate(45deg);
+  transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.public-page
+  .faq-list
+  details[open]:not([data-state="closing"])
+  summary::after {
+  margin-top: 4px;
+  transform: rotate(-135deg);
+}
+.public-page .faq-list summary:hover {
+  color: var(--home-teal);
+  text-decoration: none;
+}
+.public-page .faq-list summary:focus-visible {
+  outline: 3px solid var(--home-teal);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.public-page .faq-list details > p {
+  max-width: 68ch;
+  margin: -4px 0 0;
+  padding: 0 48px 28px 0;
+  color: var(--home-body);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.public-page .faq-list details[open] > p {
+  animation: faq-answer-in 0.32s ease-out;
+}
+@keyframes faq-answer-in {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+}
+.public-page .faq-list > p:last-child {
+  margin-top: 24px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .public-page .faq-list summary::after,
+  .public-page .faq-list details[open] > p {
+    transition: none;
+    animation: none;
+  }
 }
 .public-page .eyebrow {
   margin-bottom: 14px;

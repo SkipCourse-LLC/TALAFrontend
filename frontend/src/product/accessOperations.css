@@ -43,28 +43,45 @@
   accent-color: var(--color-accent);
 }
 
+/* The show/hide control is a small eye icon inside the right edge of the
+   password field. */
 .product-access-password {
+  position: relative;
   display: flex;
-  align-items: stretch;
-  gap: 8px;
+  align-items: center;
 }
 
 .product-access-password input {
   flex: 1;
   min-width: 0;
+  padding-right: 52px;
 }
 
 .product-access-password button {
-  flex-shrink: 0;
-  min-width: 56px;
-  min-height: 48px;
-  padding: 8px;
-  border: 1px solid var(--color-control-line);
-  border-radius: 12px;
-  background: var(--color-surface);
-  color: var(--color-accent);
-  font: inherit;
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-muted);
   cursor: pointer;
+  translate: 0 -50%;
+}
+
+.product-access-password button:hover {
+  background: #f1f5f2;
+  color: var(--color-accent);
+}
+
+.product-access-password button .icon {
+  width: 20px;
+  height: 20px;
 }
 
 .product-access-password button:disabled {
@@ -89,20 +106,6 @@
   border: 1px solid #d4dfce;
   border-radius: 26px;
   background: #fff;
-}
-.product-access .product-access-symbol {
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 24px;
-  border-radius: 17px;
-  background: #edf4e5;
-  color: #315f47;
-}
-.product-access-symbol > svg {
-  width: 28px;
-  height: 28px;
 }
 .product-access .auth-panel h1 {
   margin: 0 0 10px;

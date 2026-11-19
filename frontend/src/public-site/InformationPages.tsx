@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { FaqItem } from "./FaqItem";
 import { StartBanner } from "./StartBanner";
 
 export function AdmissionsPage() {
@@ -126,7 +127,7 @@ export function TuitionPage() {
   );
 }
 
-const questions = [
+const questions: ReadonlyArray<readonly [string, string]> = [
   [
     "Who does TALA serve?",
     "TALA serves students with complex medical needs, severe developmental disabilities, profound learning needs, and other learners who benefit from individualized education. Campus students are ages 5–21; the nationwide Virtual Academy also welcomes learners seeking flexible, personalized education.",
@@ -165,10 +166,7 @@ export function FaqPage() {
       </section>
       <section className="container section faq-list">
         {questions.map(([question, answer]) => (
-          <details key={question}>
-            <summary>{question}</summary>
-            <p>{answer}</p>
-          </details>
+          <FaqItem key={question} question={question} answer={answer} />
         ))}
         <p>
           <Link className="text-link" to="/tuition">
