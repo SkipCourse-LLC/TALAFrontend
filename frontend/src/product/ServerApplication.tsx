@@ -34,6 +34,7 @@ import { ApplicationConnectionNotice } from "./ApplicationConnectionNotice";
 import { useSessionPrivacy } from "./useSessionPrivacy";
 import { WorkspaceVisibility } from "./workspaceVisibility";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
+import { sectionForView, workTabs } from "./workspaceSections";
 import "./product.css";
 import "./quietAccount.css";
 
@@ -54,7 +55,13 @@ function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
         ? "Account security | TALA"
         : role === "operator" || role === "alumni"
           ? "Your workspace | TALA"
-          : `${workspaceViews.find((item) => item.id === view)!.label} | TALA`;
+          : role === "student"
+            ? `${
+                sectionForView(view).id === "work"
+                  ? `My Work · ${workTabs.find((tab) => tab.view === view)!.label}`
+                  : sectionForView(view).label
+              } | TALA`
+            : `${workspaceViews.find((item) => item.id === view)!.label} | TALA`;
   }, [pathname, search, role]);
   useEffect(() => {
     if (pathname !== "/dashboard" && pathname !== "/two-factor") return;

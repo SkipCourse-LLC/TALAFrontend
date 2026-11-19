@@ -43,16 +43,12 @@ import {
 import type { CalendarEvent } from "./calendarEvent";
 import { DayTimeGrid } from "./DayTimeGrid";
 import { DayEventDetails } from "./DayEventDetails";
+import { calendarCategories, SKIPCOURSE_URL } from "./calendarCategories";
+import { HorizonCard, SemesterBadge } from "./CalendarExtras";
 import "./studentCalendar.css";
 import "./openClasses.css";
 
-const categories: { id: CalendarCategory; label: string }[] = [
-  { id: "coursework", label: "Coursework" },
-  { id: "live_sessions", label: "Live sessions" },
-  { id: "learning_support", label: "Learning support" },
-  { id: "clubs_activities", label: "Clubs & activities" },
-  { id: "holidays", label: "Holidays & closures" },
-];
+const categories = calendarCategories;
 type CalendarView = "Month" | "Week" | "Day" | "Agenda";
 export interface StudentCalendarPreferences {
   chosenDay: string;
@@ -80,6 +76,9 @@ export interface StudentCalendarPanelProps {
   onEvidence?: (classId?: string) => void;
   preferences?: StudentCalendarPreferences;
   onPreferencesChange?: (value: StudentCalendarPreferences) => void;
+  /** When given, the sidebar's "My calendars" decides which calendars show. */
+  categories?: CalendarCategory[];
+  onCategoriesChange?: (value: CalendarCategory[]) => void;
   initialClassId?: string;
   onCloseClass?: () => void;
   onCancel: (classId: string) => Promise<boolean>;
@@ -120,6 +119,8 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
     onPreferencesChange,
     initialClassId,
     onCloseClass,
+    categories: controlledCategories,
+    onCategoriesChange,
   } = props;
   const [today] = useState(() => phoenixDateKey(new Date()));
   const [chosenDay, setChosenDay] = useState(
@@ -130,9 +131,20 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   const selectedDay =
     chosenDay.slice(0, 7) === month ? chosenDay : `${month}-01`;
   const [view, setView] = useState<CalendarView>(preferences?.view ?? "Month");
-  const [enabled, setEnabled] = useState<CalendarCategory[]>(
+  const [ownCategories, setOwnCategories] = useState<CalendarCategory[]>(
     () => preferences?.categories ?? categories.map((item) => item.id),
   );
+  const enabled = controlledCategories ?? ownCategories;
+  const setEnabled = (
+    update:
+      | CalendarCategory[]
+      | ((current: CalendarCategory[]) => CalendarCategory[]),
+  ) => {
+    const next = typeof update === "function" ? update(enabled) : update;
+    if (onCategoriesChange) onCategoriesChange(next);
+    else setOwnCategories(next);
+  };
+  const [customizing, setCustomizing] = useState(false);
   const [courseFilters, setCourseFilters] = useState(
     preferences?.filters ?? emptyCourseFilters,
   );
@@ -264,6 +276,23 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
       (course.seatsAvailable ?? 0) > 0 &&
       Date.parse(course.startsAt) > now,
   );
+  const monthEventCount = new Set(
+    eventRanges
+      .filter(
+        (item) =>
+          item.first.slice(0, 7) <= month && item.last.slice(0, 7) >= month,
+      )
+      .map((item) => item.event.id),
+  ).size;
+  const horizon = eventRanges
+    .filter(
+      (item) =>
+        item.first > selectedDay && Date.parse(item.event.startsAt) > now,
+    )
+    .sort((a, b) => a.event.startsAt.localeCompare(b.event.startsAt))
+    .slice(0, 2)
+    .map((item) => item.event);
+  const filtersActive = Object.values(courseFilters).some(Boolean);
   const detail = classes.find((course) => course.id === detailId);
   const monthDays = calendarMonthDays(month);
   const weekDays = calendarWeekDays(selectedDay);
@@ -396,63 +425,92 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
         <div>
           <h2 id="calendar-heading" tabIndex={-1}>
             Learning calendar
+            <SemesterBadge month={month} />
           </h2>
           <p>Your classes, meetings and learning goals, together.</p>
+        </div>
+        <div className="tala-cal-actions">
+          <a
+            className="tala-cal-action tala-cal-action-secondary"
+            href={SKIPCOURSE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span aria-hidden="true">↗</span> SkipCourse
+            <span className="tala-cal-sr"> (opens in a new tab)</span>
+          </a>
+          {onOpenClasses && (
+            <button
+              type="button"
+              className="tala-cal-action"
+              onClick={onOpenClasses}
+            >
+              <span aria-hidden="true">+</span> Find Classes
+            </button>
+          )}
+          <button
+            type="button"
+            className="tala-cal-customize"
+            aria-expanded={customizing || filtersActive}
+            aria-controls={`${regionId}-customize`}
+            onClick={() => setCustomizing((value) => !value)}
+          >
+            Customize
+          </button>
         </div>
         <span className="tala-cal-source">
           {data?.source === "test_catalog"
             ? "Local preview · practice data"
             : "Arizona time · MST"}
         </span>
-        <details
-          className="tala-cal-filters"
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && event.currentTarget.open) {
-              event.preventDefault();
-              event.currentTarget.open = false;
-              event.currentTarget.querySelector("summary")?.focus();
-            }
-          }}
-        >
-          <summary>
-            Calendars <span>{enabled.length} selected</span>
-          </summary>
-          <div>
-            {categories.map((category) => (
-              <label key={category.id} data-category={category.id}>
-                <input
-                  type="checkbox"
-                  checked={enabled.includes(category.id)}
-                  onChange={(event) =>
-                    setEnabled((current) =>
-                      event.target.checked
-                        ? [...current, category.id]
-                        : current.filter((item) => item !== category.id),
-                    )
-                  }
-                />
-                <span>{category.label}</span>
-              </label>
-            ))}
-          </div>
-        </details>
+        {/* With the student sidebar, this picker only shows on small screens,
+            where the sidebar's "My calendars" is hidden. */}
+        {
+          <details
+            className={`tala-cal-filters${onCategoriesChange ? " tala-cal-filters-small-only" : ""}`}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && event.currentTarget.open) {
+                event.preventDefault();
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector("summary")?.focus();
+              }
+            }}
+          >
+            <summary>
+              Calendars <span>{enabled.length} selected</span>
+            </summary>
+            <div>
+              {categories.map((category) => (
+                <label key={category.id} data-category={category.id}>
+                  <input
+                    type="checkbox"
+                    checked={enabled.includes(category.id)}
+                    onChange={(event) =>
+                      setEnabled((current) =>
+                        event.target.checked
+                          ? [...current, category.id]
+                          : current.filter((item) => item !== category.id),
+                      )
+                    }
+                  />
+                  <span>{category.label}</span>
+                </label>
+              ))}
+            </div>
+          </details>
+        }
       </header>
-      <div className="tala-cal-discovery-bar">
+      <div
+        className="tala-cal-discovery-bar"
+        id={`${regionId}-customize`}
+        hidden={!customizing && !filtersActive}
+      >
         <CourseFilters
           courses={classes}
           value={courseFilters}
           onChange={setCourseFilters}
           compact
         />
-        {onOpenClasses && (
-          <button
-            type="button"
-            className="tala-cal-discover"
-            onClick={onOpenClasses}
-          >
-            Explore open classes <span aria-hidden="true">↗</span>
-          </button>
-        )}
       </div>
       <div className="tala-cal-feedback" aria-live="polite" aria-atomic="true">
         {notice && <p className="tala-cal-notice">{notice}</p>}
@@ -755,6 +813,15 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               />
             </div>
           )}
+          <p className="tala-cal-board-footer">
+            <span>
+              <span aria-hidden="true">◷ </span>Arizona Time (MST · UTC−07:00)
+            </span>
+            <span>
+              {monthEventCount} {monthEventCount === 1 ? "event" : "events"}{" "}
+              this month
+            </span>
+          </p>
         </div>
         <aside
           className="tala-cal-side"
@@ -781,7 +848,12 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                 })}
                 <span>{openClasses.length}</span>
               </p>
-              <h3>Day schedule</h3>
+              <h3>
+                {selectedDay === today ? "Open Classes Today" : "Open Classes"}
+              </h3>
+              <p className="tala-cal-side-subtitle">
+                Live sessions &amp; open hours
+              </p>
               <div className="tala-cal-day-classes">
                 {upcomingClasses.map((course) => (
                   <CalendarCourseCard
@@ -874,10 +946,11 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                 className="tala-cal-full-day"
                 onClick={() => setView("Day")}
               >
-                View full day <span aria-hidden="true">→</span>
+                View full day of classes <span aria-hidden="true">→</span>
               </button>
             </section>
           )}
+          <HorizonCard events={horizon} onOpen={openEvent} />
           <div className="tala-cal-shortcuts">
             <button type="button" onClick={onGoals}>
               Learning goals <span aria-hidden="true">↗</span>
@@ -888,6 +961,17 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
           </div>
         </aside>
       </div>
+      <p className="tala-cal-hint">
+        <span>
+          Select a day for its schedule. All times are shown in Arizona time.
+        </span>
+        <span>
+          <span aria-hidden="true">● </span>
+          {enabled.length === categories.length
+            ? "All calendars visible"
+            : `${enabled.length} of ${categories.length} calendars visible`}
+        </span>
+      </p>
       {detail && (
         <ClassDetail
           course={detail}
@@ -911,6 +995,12 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   );
 }
 
+function courseFormat(course: CalendarClass) {
+  const modes = course.modalities ?? [];
+  if (modes.length === 1) return modes[0] === "online" ? "Online" : "In person";
+  return modes.length ? "Online or in person" : "Class";
+}
+
 function CalendarCourseCard({
   course,
   onDetails,
@@ -928,6 +1018,7 @@ function CalendarCourseCard({
         {course.title}
       </button>
       <p className="tala-cal-class-meta">
+        {courseFormat(course)} ·{" "}
         {course.teacher.replace(/\s*·\s*test instructor\s*$/i, "")}
       </p>
       <div className="tala-class-context-line">
@@ -946,14 +1037,17 @@ function CalendarCourseCard({
         <span>
           {course.seatsAvailable === null
             ? "Open"
-            : `${course.seatsAvailable} ${course.seatsAvailable === 1 ? "seat" : "seats"}`}
+            : course.seatsAvailable === 0
+              ? "Waiting list"
+              : `${course.seatsAvailable} open ${course.seatsAvailable === 1 ? "seat" : "seats"}`}
         </span>
         <button
           type="button"
           className="tala-cal-enroll tala-cal-enroll-small"
           onClick={onDetails}
+          aria-label={`${course.enrolled ? "View request for" : "Sign up for"} ${course.title}`}
         >
-          {course.enrolled ? "View request" : "View class"}
+          {course.enrolled ? "View request" : "Sign up"}
         </button>
       </div>
     </article>

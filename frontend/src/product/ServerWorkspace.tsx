@@ -64,6 +64,13 @@ import { useStudentPage } from "./useStudentPage";
 import { StudentPageControls } from "./StudentPageControls";
 import { buildBookingCalendar, meetingChangeIsCurrent } from "./meetingHelpers";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
+import { StudentResources } from "./StudentResources";
+import { sectionForView, workTabs } from "./workspaceSections";
+import {
+  calendarCategories,
+  calendarCategoryCounts,
+} from "./calendar/calendarCategories";
+import type { CalendarCategory } from "../api/calendarContract";
 import { WorkspaceSyncStatus } from "./WorkspaceSyncStatus";
 import { WorkspaceFeedback } from "./WorkspaceFeedback";
 import { LearningGlyph } from "./LearningGlyph";
@@ -1103,6 +1110,10 @@ function LearningWorkspace({
   const pagesEnabled = Boolean(workspace) && !accessBlocked;
   const [calendarPreferences, setCalendarPreferences] =
     useState<StudentCalendarPreferences>();
+  // "My calendars" lives in the sidebar, so the workspace owns which calendars show.
+  const [shownCalendars, setShownCalendars] = useState<CalendarCategory[]>(() =>
+    calendarCategories.map((category) => category.id),
+  );
   const calendar = useStudentCalendar({
     ownerUid,
     enabled: pagesEnabled && !readOnly && actor.role === "student",
@@ -2000,6 +2011,19 @@ function LearningWorkspace({
         view={view}
         busy={accountBusy}
         account={sidebarAccount}
+        calendarFilters={
+          actor.role === "student" && !readOnly && !accessBlocked
+            ? {
+                enabled: shownCalendars,
+                counts: calendarCategoryCounts(
+                  calendar.data,
+                  goals.loaded ? goals.items : [],
+                  calendar.month,
+                ),
+                onChange: setShownCalendars,
+              }
+            : undefined
+        }
         unreadUpdates={accessBlocked ? undefined : unreadUpdates}
         hasEvidenceDraft={
           !accessBlocked &&
@@ -2014,6 +2038,20 @@ function LearningWorkspace({
       />
       <div className="server-dashboard-main" data-workspace-view={view}>
         {heading}
+        {actor.role === "student" && sectionForView(view).id === "work" && (
+          <nav className="student-work-tabs" aria-label="My Work">
+            {workTabs.map((tab) => (
+              <button
+                type="button"
+                key={tab.view}
+                aria-current={view === tab.view ? "page" : undefined}
+                onClick={() => navigateView(tab.view)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        )}
         {readOnly && (
           <p className="student-family-notice student-family-context">
             {learnerName && (
@@ -2113,6 +2151,8 @@ function LearningWorkspace({
               onCloseClass={closeClassDetail}
               preferences={calendarPreferences}
               onPreferencesChange={setCalendarPreferences}
+              categories={shownCalendars}
+              onCategoriesChange={setShownCalendars}
               data={calendar.data}
               loading={calendar.loading}
               error={calendar.error}
@@ -2133,6 +2173,9 @@ function LearningWorkspace({
               onEvidence={beginClassEvidence}
             />
           ))}
+        {view === "resources" && !accessBlocked && (
+          <StudentResources readOnly={readOnly} onNavigate={navigateView} />
+        )}
         {view === "classes" && !readOnly && !accessBlocked && (
           <OpenClassesPanel
             ownerUid={ownerUid}

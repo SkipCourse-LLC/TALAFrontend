@@ -6,6 +6,8 @@ import type { ApiUser, CalendarClass } from "../api";
 import { LearningGlyph } from "./LearningGlyph";
 import { readWorkspaceView, workspaceViews } from "./workspaceViews";
 import { classStatus } from "./calendar/classPresentation";
+import { sectionForView, workTabs } from "./workspaceSections";
+import { Icon } from "../shared/Icon";
 import "./workspaceHeader.css";
 
 type Destination = { id: string; label: string; detail: string; url: string };
@@ -39,14 +41,29 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
       : user.role === "alumni"
         ? "Alumni home"
         : workspaceViews.find(
-          (item) => item.id === readWorkspaceView(params.get("view")),
-        )!.label;
+            (item) => item.id === readWorkspaceView(params.get("view")),
+          )!.label;
+  const studentView = readWorkspaceView(params.get("view"));
+  const studentSection = sectionForView(studentView);
   const pageLabel =
     location.pathname === "/payment"
       ? "Payments"
       : user.role === "parent" && params.get("view") === "classes"
-      ? "Class requests"
-      : page;
+        ? "Class requests"
+        : user.role === "student"
+          ? studentSection.id === "work"
+            ? `My Work · ${workTabs.find((tab) => tab.view === studentView)?.label ?? "Today"}`
+            : studentSection.label
+          : page;
+  const roleLabel =
+    user.uid === "tala_local_preview_student_v1"
+      ? "Student demo"
+      : {
+          student: "Student",
+          parent: "Parent",
+          operator: "School staff",
+          alumni: "Alumni",
+        }[user.role];
   const pages: Destination[] =
     user.role === "operator"
       ? [
@@ -65,7 +82,8 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
           {
             id: "payments",
             label: "Payments",
-            detail: "Authorize approved payment items and inspect receipt status",
+            detail:
+              "Authorize approved payment items and inspect receipt status",
             url: "/dashboard?panel=payments",
           },
           {
@@ -97,21 +115,29 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
             },
           ]
         : workspaceViews
-          .filter((item) => user.role !== "parent" || item.id !== "calendar")
-          .map((item) => ({
-            id: item.id,
-            label:
-              user.role === "parent" && item.id === "classes"
-                ? "Class requests"
-                : item.label,
-            detail:
-              item.id === "classes"
-                ? user.role === "parent"
-                  ? "Approve requests for your linked student"
-                  : "Discover courses and follow your requests"
-                : "Open your saved workspace",
-            url: `/dashboard?view=${item.id}`,
-          }));
+            .filter(
+              (item) =>
+                user.role !== "parent" ||
+                (item.id !== "calendar" && item.id !== "resources"),
+            )
+            .map((item) => ({
+              id: item.id,
+              label:
+                user.role === "parent" && item.id === "classes"
+                  ? "Class requests"
+                  : user.role === "student"
+                    ? sectionForView(item.id).id === "work"
+                      ? `My Work · ${workTabs.find((tab) => tab.view === item.id)!.label}`
+                      : sectionForView(item.id).label
+                    : item.label,
+              detail:
+                item.id === "classes"
+                  ? user.role === "parent"
+                    ? "Approve requests for your linked student"
+                    : "Discover courses and follow your requests"
+                  : "Open your saved workspace",
+              url: `/dashboard?view=${item.id}`,
+            }));
   if (user.role === "parent")
     pages.push({
       id: "payments",
@@ -257,19 +283,49 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
           aria-haspopup="dialog"
         >
           <LearningGlyph name="book" />
-          <span>Find a page or class</span>
+          <span>
+            {user.role === "student"
+              ? "Search learning portal"
+              : "Find a page or class"}
+          </span>
           <kbd>⌘ K</kbd>
         </button>
-        <Link
-          to="/two-factor"
+        {(user.role === "student" || user.role === "parent") && (
+          <Link
+            to="/dashboard?view=updates"
+            className="tala-workspace-bell"
+            aria-label={user.role === "student" ? "Announcements" : "Updates"}
+            title={user.role === "student" ? "Announcements" : "Updates"}
+          >
+            <Icon name="bell" />
+          </Link>
+        )}
+        <details
           className="tala-workspace-profile"
-          aria-label={`Account security for ${user.name}`}
+          key={`${location.pathname}${location.search}`}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && event.currentTarget.open) {
+              event.preventDefault();
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector("summary")?.focus();
+            }
+          }}
         >
-          <span aria-hidden="true">
-            {Array.from(user.name.trim())[0]?.toUpperCase() ?? "?"}
-          </span>
-          <span>{user.name}</span>
-        </Link>
+          <summary aria-label={`Account menu for ${user.name}`}>
+            <span className="tala-workspace-avatar" aria-hidden="true">
+              {Array.from(user.name.trim())[0]?.toUpperCase() ?? "?"}
+            </span>
+            <span className="tala-workspace-who">
+              <span>{user.name}</span>
+              <small>{roleLabel}</small>
+            </span>
+            <Icon name="chevron-down" />
+          </summary>
+          <div className="tala-workspace-menu">
+            <Link to="/two-factor">Account security</Link>
+            <Link to="/contact">Help &amp; support</Link>
+          </div>
+        </details>
       </div>
       {open && (
         <dialog

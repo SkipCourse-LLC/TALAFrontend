@@ -80,6 +80,9 @@ jobs:
       - name: API client unit tests
         run: npm run test:api-client
 
+      - name: Student portal unit tests
+        run: npm run test:student-portal
+
       - name: Contact me and open times (SCRUM-76, SCRUM-77)
         run: npm run test:onboarding
 

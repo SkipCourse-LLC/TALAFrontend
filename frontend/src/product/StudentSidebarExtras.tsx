@@ -1,0 +1,129 @@
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { safeTalaApiError, talaApi } from "../api";
+import type { CalendarCategory } from "../api/calendarContract";
+import { Icon } from "../shared/Icon";
+import { calendarCategories } from "./calendar/calendarCategories";
+import { classesCalendarContent } from "./calendar/classCalendarContent";
+import { usePrivateWorkspaceExport } from "./usePrivateWorkspaceExport";
+import "./studentPortal.css";
+
+export interface SidebarCalendarFilters {
+  enabled: CalendarCategory[];
+  counts: Record<CalendarCategory, number>;
+  onChange: (enabled: CalendarCategory[]) => void;
+}
+
+/** "My calendars": show or hide each calendar, with this month's event count. */
+export function SidebarCalendars({
+  filters,
+  disabled,
+}: {
+  filters: SidebarCalendarFilters;
+  disabled?: boolean;
+}) {
+  return (
+    <fieldset className="student-sidebar-calendars" disabled={disabled}>
+      <legend>My calendars</legend>
+      {calendarCategories.map((category) => (
+        <label key={category.id} data-category={category.id}>
+          <input
+            type="checkbox"
+            checked={filters.enabled.includes(category.id)}
+            onChange={(event) =>
+              filters.onChange(
+                event.target.checked
+                  ? [...filters.enabled, category.id]
+                  : filters.enabled.filter((id) => id !== category.id),
+              )
+            }
+          />
+          <span>{category.label}</span>
+          <span
+            className="student-sidebar-count"
+            aria-label={`${filters.counts[category.id]} this month`}
+          >
+            {filters.counts[category.id]}
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+/** "Your learning, in sync": downloads every confirmed class as one calendar file. */
+export function SidebarSyncCard() {
+  const exportPrivate = usePrivateWorkspaceExport();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const running = useRef<AbortController | null>(null);
+  useEffect(() => () => running.current?.abort(), []);
+  async function subscribe() {
+    if (running.current) return;
+    const controller = new AbortController();
+    running.current = controller;
+    setBusy(true);
+    setMessage("");
+    try {
+      let count = 0;
+      await exportPrivate(async (signal) => {
+        const latest = await talaApi.getClasses(undefined, signal);
+        const confirmed = latest.classes.filter(
+          (course) => course.enrollmentStatus === "confirmed",
+        );
+        count = confirmed.length;
+        if (!count) throw new Error("NO_CONFIRMED_CLASSES");
+        return {
+          blob: new Blob([classesCalendarContent(confirmed)], {
+            type: "text/calendar;charset=utf-8",
+          }),
+          filename: "tala-classes.ics",
+        };
+      }, controller.signal);
+      if (!controller.signal.aborted)
+        setMessage(
+          `${count} ${count === 1 ? "class" : "classes"} added to the file. Open it to add them to your calendar app.`,
+        );
+    } catch (failure) {
+      if (controller.signal.aborted) return;
+      setMessage(
+        failure instanceof Error && failure.message === "NO_CONFIRMED_CLASSES"
+          ? "No confirmed classes yet. Classes appear here once TALA confirms them."
+          : safeTalaApiError(failure).message,
+      );
+    } finally {
+      if (running.current === controller) running.current = null;
+      if (!controller.signal.aborted) setBusy(false);
+    }
+  }
+  return (
+    <section className="student-sidebar-sync" aria-label="Calendar sync">
+      <Icon name="calendar" />
+      <strong>Your learning, in sync.</strong>
+      <p>Keep your class schedule in your own calendar app.</p>
+      <button type="button" onClick={() => void subscribe()} disabled={busy}>
+        {busy ? "Preparing…" : "Subscribe to calendar"}
+        <Icon name="download" />
+      </button>
+      <p className="student-sidebar-sync-status" role="status">
+        {message}
+      </p>
+    </section>
+  );
+}
+
+/** Settings and Help at the foot of the student menu. */
+export function SidebarSupportLinks({ collapsed }: { collapsed: boolean }) {
+  return (
+    <nav className="student-sidebar-support" aria-label="Settings and help">
+      <Link to="/two-factor" title={collapsed ? "Settings" : undefined}>
+        <Icon name="settings" />
+        <span className="dashboard-side-menu-label">Settings</span>
+      </Link>
+      <Link to="/contact" title={collapsed ? "Help & support" : undefined}>
+        <Icon name="help" />
+        <span className="dashboard-side-menu-label">Help &amp; support</span>
+      </Link>
+    </nav>
+  );
+}

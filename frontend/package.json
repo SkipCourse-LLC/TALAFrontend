@@ -33,6 +33,7 @@
     "test:evidence-notes": "playwright test -c src/product/evidenceNotesBrowser.config.ts",
     "test:roles": "playwright test -c src/product/roleSignIn.config.ts",
     "test:onboarding": "playwright test -c src/onboarding/onboarding.config.ts",
+    "test:student-portal": "playwright test -c src/product/studentPortalUnit.config.ts",
     "build": "npm run typecheck && vite build",
     "build:hosting": "vite build --outDir ../public --emptyOutDir",
     "preview": "vite preview --host 127.0.0.1",

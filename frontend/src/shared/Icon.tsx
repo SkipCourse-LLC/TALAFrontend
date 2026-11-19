@@ -20,6 +20,12 @@ const paths = {
   pause: "M8 5v14M16 5v14",
   play: "M7 5v14l12-7Z",
   login: "M14 3h6v18h-6M3 12h12m-4-4 4 4-4 4",
+  bell: "M6 16V11a6 6 0 0 1 12 0v5l2 2H4ZM10 21h4",
+  settings: "M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6",
+  help: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01",
+  "chevron-down": "m6 9 6 6 6-6",
+  external: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
+  download: "M12 4v11m-5-5 5 5 5-5M4 20h16",
 } as const;
 export type IconName = keyof typeof paths;
 export function Icon({

@@ -1,0 +1,163 @@
+/* Hannah's portal mockup: header actions, semester badge, board footer,
+   side-panel subtitle and "On the horizon". */
+.tala-cal-semester {
+  display: inline-block;
+  margin-left: 0.6rem;
+  vertical-align: middle;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--cal-line);
+  border-radius: 5px;
+  background: var(--cal-soft);
+  color: var(--cal-muted);
+  font-size: calc(0.72rem * var(--student-type-scale, 1));
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.tala-cal-actions {
+  order: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.tala-calendar .tala-cal-actions .tala-cal-action,
+.tala-calendar .tala-cal-actions .tala-cal-customize {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0.45rem 0.9rem;
+  border-radius: 7px;
+  font: inherit;
+  font-size: calc(0.82rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.tala-cal-action {
+  border: 1px solid var(--home-teal, #225d70);
+  background: var(--home-teal, #225d70);
+  color: #fff;
+}
+.tala-cal-action-secondary {
+  border-color: #1d3b48;
+  background: #1d3b48;
+}
+.tala-cal-action:hover {
+  filter: brightness(1.1);
+}
+.tala-cal-customize {
+  border: 1px solid var(--home-teal, #225d70);
+  background: #fff;
+  color: var(--home-teal, #225d70);
+}
+.tala-cal-customize[aria-expanded="true"] {
+  background: #e8f0ed;
+}
+.tala-cal-action:focus-visible,
+.tala-cal-customize:focus-visible,
+.tala-cal-horizon button:focus-visible {
+  outline: 3px solid #2b6146;
+  outline-offset: 3px;
+}
+.tala-cal-discovery-bar[hidden] {
+  display: none;
+}
+.tala-cal-board-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin: 0;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--cal-line);
+  color: var(--cal-muted);
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-cal-hint {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin: 0.75rem 0 0;
+  color: var(--cal-muted);
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.tala-cal-side-subtitle {
+  margin: -0.6rem 0 0.9rem;
+  color: var(--cal-muted);
+  font-size: calc(0.78rem * var(--student-type-scale, 1));
+}
+.tala-cal-horizon {
+  background: #fff;
+  border: 1px solid var(--cal-line);
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+}
+.tala-cal-horizon h3 {
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
+  font-weight: 650;
+  margin: 0 0 0.75rem;
+}
+.tala-cal-horizon ul {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tala-cal-horizon li {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+.tala-cal-horizon-date {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  flex-shrink: 0;
+  padding: 0.3rem 0;
+  border: 1px solid var(--cal-line);
+  border-radius: 8px;
+  line-height: 1.1;
+}
+.tala-cal-horizon-date span {
+  color: var(--cal-muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+.tala-cal-horizon-date strong {
+  font-size: 1.05rem;
+}
+.tala-cal-horizon button {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cal-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tala-cal-horizon-title {
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+  font-weight: 600;
+}
+.tala-cal-horizon-meta {
+  color: var(--cal-muted);
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+@media (max-width: 760px) {
+  .tala-cal-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}
+@media (min-width: 841px) {
+  .tala-cal-filters.tala-cal-filters-small-only {
+    display: none;
+  }
+}
