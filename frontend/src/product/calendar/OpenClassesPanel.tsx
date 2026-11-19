@@ -234,6 +234,12 @@ export function OpenClassesPanel({
           {actions.notice && (
             <p className="tala-cal-notice">{actions.notice}</p>
           )}
+          {!published.length && bookable.length > 0 && (
+            <p className="tala-classes-practice">
+              These are practice classes. Staff can publish real classes from
+              the staff workspace.
+            </p>
+          )}
         </div>
       )}
       {actions.error && (
@@ -345,40 +351,6 @@ export function OpenClassesPanel({
               </div>
             )}
           </div>
-          <aside className="tala-classes-guide">
-            <h3>A little clarity, every step.</h3>
-            <ol>
-              <li>
-                <strong>Choose your class</strong>
-                <span>
-                  Find a topic and attendance format that work for you.
-                </span>
-              </li>
-              <li>
-                <strong>Send a request</strong>
-                <span>
-                  A linked parent reviews your choice. Full classes offer a
-                  waiting list.
-                </span>
-              </li>
-              <li>
-                <strong>Watch your calendar</strong>
-                <span>
-                  See approval, payment and confirmation as they change.
-                </span>
-              </li>
-            </ol>
-            <button type="button" onClick={onGoals}>
-              Connect it to a learning goal <span aria-hidden="true">↗</span>
-            </button>
-            <p>Times use America/Phoenix (MST, UTC−07:00).</p>
-            {!published.length && bookable.length > 0 && (
-              <p>
-                These are clearly marked practice classes. Staff can publish
-                real local course records from the staff workspace.
-              </p>
-            )}
-          </aside>
         </div>
       )}
       {detail && (

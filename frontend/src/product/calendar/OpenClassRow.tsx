@@ -26,7 +26,12 @@ type Props = {
   onOpen: () => void;
 };
 
-/** One open class as a row: details on the left, one sign-up line per format. */
+/**
+ * One open class, as in Hannah's Open Classes mockup: the class on the left,
+ * and one line per format on the right with its badge, seats and sign-up
+ * button. A class has one pool of seats, so the counts show once and the
+ * second format says it shares them.
+ */
 export function OpenClassRow({
   course,
   now,
@@ -39,7 +44,8 @@ export function OpenClassRow({
   onOpen,
 }: Props) {
   const seats = classSeatSummary(course);
-  // In Person first, then Online, as in the approved button arrangement.
+  const full = seats?.left === 0;
+  // In Person first, then Online, as in the mockup.
   const modes = (
     course.modalities?.length ? [...course.modalities] : ["online" as const]
   ).sort((a, b) => (a === b ? 0 : a === "in_person" ? -1 : 1));
@@ -48,10 +54,31 @@ export function OpenClassRow({
       "Connected to a learning goal")
     : null;
   const blocked = signUpBlockedReason(course, now, readOnly);
+  // Saving is for classes you are still deciding on, not ones you requested.
+  const canSave = course.source === "local_catalog" && !course.enrolled;
+  const seatCells = (first: boolean) =>
+    !seats ? (
+      <span className="tala-class-seat-gap" aria-hidden="true" />
+    ) : first ? (
+      <>
+        <span className="tala-class-seat">{seats.enrolled} enrolled</span>
+        <span
+          className="tala-class-seat"
+          data-tone={full ? "full" : seats.low ? "low" : undefined}
+        >
+          {full
+            ? "Full"
+            : `${seats.left} ${seats.left === 1 ? "seat" : "seats"} left`}
+        </span>
+      </>
+    ) : (
+      <span className="tala-class-seat-shared">Shared seats</span>
+    );
   return (
     <article
       className="tala-class-row"
       data-category={course.category}
+      data-formats={course.enrolled ? 1 : modes.length}
       aria-labelledby={`class-row-${course.id}`}
     >
       <div className="tala-class-row-main">
@@ -66,11 +93,13 @@ export function OpenClassRow({
               weekday: "short",
               month: "short",
             })}{" "}
-            · {calendarTimeRange(course.startsAt, course.endsAt)} MST
+            · {calendarTimeRange(course.startsAt, course.endsAt)}
           </li>
           {course.teacher && <li>{course.teacher}</li>}
           <li>{course.grades}</li>
-          <li>{course.topic || categoryLabels[course.category]}</li>
+          <li data-category={course.category}>
+            {course.topic || categoryLabels[course.category]}
+          </li>
           <li>{classPrice(course)}</li>
         </ul>
         <p className="tala-class-row-description">
@@ -79,55 +108,38 @@ export function OpenClassRow({
           )}
           {course.description}
         </p>
-        {linkedGoal && (
-          <p className="tala-discovery-linked-goal">
-            <LearningGlyph name="goal" />
-            {linkedGoal}
-          </p>
-        )}
-        {course.source === "local_catalog" && (
-          <ClassSaveButton
-            course={course}
-            disabled={readOnly || busyClassId !== null}
-          />
+        {(linkedGoal || canSave) && (
+          <div className="tala-class-row-extras">
+            {linkedGoal && (
+              <p className="tala-discovery-linked-goal">
+                <LearningGlyph name="goal" />
+                {linkedGoal}
+              </p>
+            )}
+            {canSave && (
+              <ClassSaveButton
+                course={course}
+                disabled={readOnly || busyClassId !== null}
+              />
+            )}
+          </div>
         )}
       </div>
       <div className="tala-class-row-formats">
-        {seats && (
-          <p className="tala-class-row-seats">
-            <span>{seats.enrolled} enrolled</span>
-            <span>
-              {seats.left} {seats.left === 1 ? "seat" : "seats"} left
-            </span>
-            {seats.low && (
-              <strong className="tala-class-row-low">Low availability</strong>
-            )}
-            {seats.left === 0 && (
-              <strong className="tala-class-row-low">
-                Full · wait list open
-              </strong>
-            )}
-            {modes.length > 1 && (
-              <small>Seats are shared by both formats.</small>
-            )}
-          </p>
-        )}
         {course.enrolled ? (
-          <div className="tala-class-format tala-class-format-request">
+          <div className="tala-class-format">
+            <span
+              className="tala-class-format-pill"
+              data-mode={course.enrollmentMode ?? modes[0]}
+            >
+              {formatLabel(course.enrollmentMode ?? modes[0]!)}
+            </span>
             <span
               className="tala-class-status"
               data-status={course.enrollmentStatus}
             >
               {classStatus(course)}
             </span>
-            {course.enrollmentMode && (
-              <span
-                className="tala-class-format-pill"
-                data-mode={course.enrollmentMode}
-              >
-                {formatLabel(course.enrollmentMode)}
-              </span>
-            )}
             <button
               type="button"
               className="tala-class-format-button tala-class-format-secondary"
@@ -137,21 +149,22 @@ export function OpenClassRow({
             </button>
           </div>
         ) : (
-          modes.map((mode) => (
+          modes.map((mode, index) => (
             <div className="tala-class-format" key={mode}>
               <span className="tala-class-format-pill" data-mode={mode}>
                 {formatLabel(mode)}
               </span>
+              {seatCells(index === 0)}
               {blocked ? (
-                <span className="tala-cal-ended">{blocked}</span>
+                <span className="tala-class-format-note">{blocked}</span>
               ) : (
                 <button
                   type="button"
                   className="tala-class-format-button"
                   data-mode={mode}
-                  data-waitlist={seats?.left === 0}
+                  data-waitlist={full}
                   disabled={loading || busyClassId !== null}
-                  aria-label={`${signUpLabel(mode, seats?.left === 0)} for ${course.title}`}
+                  aria-label={`${signUpLabel(mode, full)} for ${course.title}`}
                   onClick={(event) => {
                     if (event.detail > 1) return;
                     void onEnroll(course.id, mode, goalId);
@@ -163,7 +176,7 @@ export function OpenClassRow({
                 >
                   {busyClassId === course.id
                     ? "Saving…"
-                    : signUpLabel(mode, seats?.left === 0)}
+                    : signUpLabel(mode, full)}
                 </button>
               )}
             </div>
