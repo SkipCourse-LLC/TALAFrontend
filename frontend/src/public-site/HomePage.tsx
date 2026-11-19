@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
 import { ProgramCards } from "./ProgramCards";
 import { StartBanner } from "./StartBanner";
+import { Icon } from "../shared/Icon";
 import learningDesk from "../assets/learning-desk.svg";
+import "./home.css";
 
 const distinctions = [
   [
@@ -32,78 +34,94 @@ const distinctions = [
 
 export function HomePage() {
   return (
-    <div className="public-page public-home">
-      <section className="hero container">
-        <div className="hero-copy">
-          <h1>A School Designed Around Health, Dignity &amp; True Potential</h1>
-          <p className="lead">
-            Accredited K-12 Education with Dedicated On-Site Pediatric Clinical
-            Care
-          </p>
-          <p>
-            Finding an educational home for a child with complex medical needs
-            or severe developmental disabilities should never mean choosing
-            between clinical safety and meaningful learning. TALA delivers both
-            through individualized instruction, continuous nursing support, and
-            a sensory-controlled learning environment built specifically for
-            exceptional learners.
-          </p>
-          <div className="button-row">
-            <a
-              className="button"
-              href="https://calendar.app.google/YapTB4MQLus16DATA"
-            >
-              Schedule a Family Interview
-            </a>
-            <Link className="button button-outline" to="/programs">
-              Explore Programs
-            </Link>
+    <div className="public-page home">
+      <section className="home-hero">
+        <div className="home-container home-hero-grid">
+          <div className="home-hero-copy">
+            <h1>
+              A School Designed Around Health, Dignity &amp; True Potential
+            </h1>
+            <p className="home-subtitle">
+              Accredited K-12 Education with Dedicated On-Site Pediatric
+              Clinical Care
+            </p>
+            <p className="home-lead">
+              Finding an educational home for a child with complex medical needs
+              or severe developmental disabilities should never mean choosing
+              between clinical safety and meaningful learning. TALA delivers
+              both through individualized instruction, continuous nursing
+              support, and a sensory-controlled learning environment built
+              specifically for exceptional learners.
+            </p>
+            <div className="home-actions">
+              <a
+                className="home-button home-button-primary"
+                href="https://calendar.app.google/YapTB4MQLus16DATA"
+              >
+                Schedule a Family Interview <Icon name="arrow" />
+              </a>
+              <Link className="home-button" to="/programs">
+                Explore Programs
+              </Link>
+            </div>
+          </div>
+          <figure className="home-hero-art">
+            <img
+              src={learningDesk}
+              width="600"
+              height="570"
+              alt="An illustrated learning journal with a seedling and a mountain sketch."
+            />
+          </figure>
+        </div>
+      </section>
+      <section className="home-section">
+        <div className="home-container">
+          <div className="home-section-head">
+            <h2>What Sets TALA Apart</h2>
+          </div>
+          <div className="content-grid">
+            {distinctions.map(([title, description]) => (
+              <article key={title}>
+                <h3>{title}</h3>
+                <p>{description}</p>
+              </article>
+            ))}
           </div>
         </div>
-        <figure className="hero-art">
-          <img
-            src={learningDesk}
-            width="600"
-            height="570"
-            alt="An illustrated learning journal with a seedling and a mountain sketch."
-          />
-        </figure>
       </section>
-      <section className="section container">
-        <h2>What Sets TALA Apart</h2>
-        <div className="content-grid">
-          {distinctions.map(([title, description]) => (
-            <article key={title}>
-              <h3>{title}</h3>
-              <p>{description}</p>
-            </article>
-          ))}
+      <section className="home-section">
+        <div className="home-container">
+          <div className="home-section-head">
+            <h2>Education built around the learner</h2>
+            <Link className="home-text-link" to="/programs">
+              Explore Programs <Icon name="arrow" />
+            </Link>
+          </div>
+          <ProgramCards />
         </div>
       </section>
-      <section className="section container public-program-section">
-        <div className="section-heading">
-          <h2>Education built around the learner</h2>
-          <Link className="text-link" to="/programs">
-            Explore Programs
-          </Link>
-        </div>
-        <ProgramCards />
-      </section>
-      <section className="container home-about">
-        <div>
-          <h2>A school where care and learning belong together</h2>
-          <p>
-            Tucson Adaptive Learning Academy is an accredited K-12 educational
-            program combining individualized instruction with dedicated
-            pediatric clinical care for medically fragile students and learners
-            with severe developmental disabilities.
-          </p>
-          <Link className="text-link" to="/about">
-            Our philosophy
-          </Link>
+      <section className="home-section">
+        <div className="home-container home-explore">
+          <div className="home-card home-learn">
+            <div>
+              <h2>A school where care and learning belong together</h2>
+            </div>
+            <div>
+              <p>
+                Tucson Adaptive Learning Academy is an accredited K-12
+                educational program combining individualized instruction with
+                dedicated pediatric clinical care for medically fragile students
+                and learners with severe developmental disabilities.
+              </p>
+              <Link className="home-text-link" to="/about">
+                Our philosophy <Icon name="arrow" />
+              </Link>
+            </div>
+          </div>
+          <StartBanner variant="panel" />
         </div>
       </section>
-      <StartBanner />
     </div>
   );
 }

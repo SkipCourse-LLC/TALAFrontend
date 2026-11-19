@@ -1,6 +1,19 @@
-export function StartBanner() {
+import { Icon } from "../shared/Icon";
+
+/**
+ * The interview call to action. "band" is the full-width banner used on the
+ * information pages; "panel" is the home page's teal side panel. Both show
+ * the same text and link.
+ */
+export function StartBanner({
+  variant = "band",
+}: {
+  variant?: "band" | "panel";
+}) {
+  const panel = variant === "panel";
   return (
-    <section className="start-banner container">
+    <section className={panel ? "home-community" : "start-banner container"}>
+      {panel && <Icon name="circle" />}
       <div>
         <h2>Let's talk about your learner.</h2>
         <p>
@@ -10,9 +23,10 @@ export function StartBanner() {
       <div>
         <a
           href="https://calendar.app.google/YapTB4MQLus16DATA"
-          className="button button-light"
+          className={panel ? "home-button" : "button button-light"}
         >
           Schedule a Free One-Hour Family Interview
+          {panel && <Icon name="arrow" />}
         </a>
       </div>
     </section>
