@@ -754,7 +754,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               <WeekTimeGrid
                 days={weekDays}
                 today={today}
-                now={now}
                 eventsFor={dayEvents}
                 header={(day) => dateButton(day, true)}
                 onOpenEvent={openEvent}

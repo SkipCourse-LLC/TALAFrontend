@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { demoEnabled } from "./services/demoConfig";
 import { Brand } from "./Brand";
 import { SiteHeader } from "./SiteHeader";
 
@@ -30,25 +29,8 @@ export function SiteLayout({
       >
         Skip to content
       </a>
-      <div className="preview-banner">
-        {backend === "api" ? (
-          "Local workspace"
-        ) : backend === "firebase-emulator" ? (
-          "TALA · Local Firebase integration · Synthetic test accounts and files only. No live meetings or charges."
-        ) : backend === "firebase-test" ? (
-          "TALA · Approved Firebase test cloud · Synthetic accounts and files only. No real meetings or charges."
-        ) : backend === "firebase" ? (
-          "TALA · Firebase authentication · Scheduling, evidence and payments await team approval."
-        ) : (
-          <>
-            TALA product preview <span aria-hidden="true">·</span>{" "}
-            {demoEnabled
-              ? "Explore with sample data. No real accounts or charges."
-              : "Live account services are not connected."}
-          </>
-        )}
-      </div>
-      {workspaceHeader && ["/dashboard", "/payment"].includes(location.pathname) ? (
+      {workspaceHeader &&
+      ["/dashboard", "/payment"].includes(location.pathname) ? (
         workspaceHeader
       ) : (
         <SiteHeader key={location.pathname} session={session} />
@@ -69,7 +51,9 @@ export function SiteLayout({
               <Link to="/programs">Programs</Link>
               <Link to="/contact">Contact</Link>
             </nav>
-            <small>Local records · External services require authorization.</small>
+            <small>
+              Local records · External services require authorization.
+            </small>
           </div>
         ) : (
           <>
@@ -107,7 +91,9 @@ export function SiteLayout({
                     : "TALA-Hub · Frontend product preview"}
               </span>
               <span>Built for different ways to learn.</span>
-              <span>© {new Date().getFullYear()} TALA. All rights reserved.</span>
+              <span>
+                © {new Date().getFullYear()} TALA. All rights reserved.
+              </span>
             </div>
           </>
         )}

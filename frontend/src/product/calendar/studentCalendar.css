@@ -819,7 +819,7 @@
   font-weight: 500;
   overflow-wrap: break-word;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: var(--title-lines, 3);
 }
 .tala-week-meta {
   margin-top: auto;
@@ -869,15 +869,6 @@
   position: static;
   width: auto;
   height: auto;
-}
-.tala-week-now {
-  position: absolute;
-  z-index: 3;
-  top: calc(var(--now) * var(--week-hour) / 60);
-  left: 0;
-  right: 0;
-  border-top: 2px solid var(--cal-green);
-  pointer-events: none;
 }
 .tala-cal-day-view {
   min-height: 430px;

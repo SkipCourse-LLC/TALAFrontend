@@ -1,15 +1,4 @@
 /* The public site and workspaces share one calm, compact frame. */
-.preview-banner {
-  padding: 9px 20px;
-  background: #eef2ef;
-  text-align: center;
-  color: #43544c;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-}
-.preview-banner span {
-  margin-inline: 8px;
-}
 .site-header {
   background: var(--color-surface);
   border-bottom: 1px solid var(--home-line);
@@ -257,10 +246,6 @@
   }
 }
 @media (max-width: 600px) {
-  .preview-banner {
-    font-size: 0.75rem;
-    padding: 8px 16px;
-  }
   .footer-top {
     grid-template-columns: 1fr 1fr;
     gap: 24px 16px;

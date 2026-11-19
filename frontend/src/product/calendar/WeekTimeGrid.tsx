@@ -2,12 +2,11 @@ import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import type { CalendarEvent } from "./calendarEvent";
 import { calendarDayLabel, calendarTime } from "./calendarDates";
 import { categoryLabels, classStatus } from "./classPresentation";
-import { hourLabel, layoutDay, phoenixMinuteOfDay } from "./dayGridLayout";
+import { hourLabel, layoutDay } from "./dayGridLayout";
 
 type Props = {
   days: string[];
   today: string;
-  now: number;
   eventsFor: (day: string) => CalendarEvent[];
   /** The day's date button, which opens that day. */
   header: (day: string) => ReactNode;
@@ -17,7 +16,7 @@ type Props = {
 
 /** The board is about this tall; hours stretch to fill it. */
 const BOARD_PX = 560;
-const MIN_HOUR_PX = 56;
+const MIN_HOUR_PX = 72;
 const MAX_HOUR_PX = 112;
 const MIN_HOURS = 5;
 
@@ -39,7 +38,6 @@ function shortTime(value: string) {
 export function WeekTimeGrid({
   days,
   today,
-  now,
   eventsFor,
   header,
   onOpenEvent,
@@ -127,9 +125,15 @@ export function WeekTimeGrid({
     length = 0,
     start = 0,
   ) => {
-    // How much fits: time and title always; the calendar name when the block
-    // is at least about three lines tall.
-    const tall = length * (hourPx / 60) >= 64;
+    // Fit the text to the block's real height. Under about two lines, time
+    // and title share one row; otherwise the title gets as many lines as
+    // remain under the time (and the calendar name, on tall blocks).
+    const height = length * (hourPx / 60) - 4;
+    const oneRow = length > 0 && height < 46;
+    const tall = height >= 100;
+    const titleLines = length
+      ? Math.max(1, Math.floor((height - 12 - 17 - (tall ? 17 : 0)) / 16))
+      : 2;
     return (
       <button
         type="button"
@@ -139,10 +143,10 @@ export function WeekTimeGrid({
         data-status={
           event.enrolled ? event.course?.enrollmentStatus : undefined
         }
-        data-short={length > 0 && length * (hourPx / 60) < 40}
+        data-short={oneRow}
         data-start={start}
         onKeyDown={event.allDay ? undefined : moveFocus}
-        style={style}
+        style={{ ...style, "--title-lines": titleLines } as CSSProperties}
         title={`${event.allDay ? "All day" : `${calendarTime(event.startsAt)} – ${calendarTime(event.endsAt)}`} ${event.title}`}
         onClick={(click) => {
           click.stopPropagation();
@@ -151,7 +155,9 @@ export function WeekTimeGrid({
       >
         {!event.allDay && (
           <span className="tala-week-time">
-            {shortTime(event.startsAt)} – {shortTime(event.endsAt)}
+            {shortTime(event.startsAt)}
+            {/* A one-row block keeps its room for the title. */}
+            {!oneRow && ` – ${shortTime(event.endsAt)}`}
           </span>
         )}
         <strong>{event.title}</strong>
@@ -204,11 +210,6 @@ export function WeekTimeGrid({
           ))}
         </div>
         {columns.map((column) => {
-          const nowMinute =
-            column.day === today
-              ? phoenixMinuteOfDay(new Date(now).toISOString(), column.day) -
-                origin
-              : -1;
           return (
             <div
               key={column.day}
@@ -231,13 +232,6 @@ export function WeekTimeGrid({
                   item.end - item.start,
                   item.start,
                 ),
-              )}
-              {nowMinute >= 0 && nowMinute <= minutes && (
-                <i
-                  className="tala-week-now"
-                  aria-hidden="true"
-                  style={{ "--now": nowMinute } as CSSProperties}
-                />
               )}
             </div>
           );

@@ -293,7 +293,6 @@
 
 /* ---- The shell on wide screens ---- */
 @media (min-width: 841px) {
-  :root[data-portal] .preview-banner,
   :root[data-portal] .tala-workspace-header,
   :root[data-portal] #main-content {
     margin-left: var(--portal-menu);
