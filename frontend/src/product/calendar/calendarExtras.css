@@ -8,8 +8,7 @@
   justify-content: flex-end;
   gap: 0.5rem;
 }
-.tala-calendar .tala-cal-actions .tala-cal-action,
-.tala-calendar .tala-cal-page-header .tala-cal-customize {
+.tala-calendar .tala-cal-actions .tala-cal-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -40,22 +39,10 @@
 .tala-cal-action:hover {
   filter: brightness(1.1);
 }
-.tala-cal-customize {
-  border: 1px solid var(--home-teal, #225d70);
-  background: #fff;
-  color: var(--home-teal, #225d70);
-}
-.tala-cal-customize[aria-expanded="true"] {
-  background: #e8f0ed;
-}
 .tala-cal-action:focus-visible,
-.tala-cal-customize:focus-visible,
 .tala-cal-horizon button:focus-visible {
   outline: 3px solid #2b6146;
   outline-offset: 3px;
-}
-.tala-cal-discovery-bar[hidden] {
-  display: none;
 }
 .tala-cal-board-footer {
   display: flex;
@@ -152,11 +139,6 @@
   gap: 0.75rem 1rem;
   margin: 0;
   min-width: 0;
-}
-.tala-calendar .tala-cal-page-header .tala-cal-customize {
-  min-height: 44px;
-  padding-inline: 1.1rem;
-  font-size: calc(0.9rem * var(--student-type-scale, 1));
 }
 .tala-calendar .tala-cal-page-header .tala-cal-actions {
   order: 0;

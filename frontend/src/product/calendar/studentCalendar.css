@@ -752,92 +752,6 @@
   font-weight: 600;
   margin: 0 0 1.25rem;
 }
-.tala-cal-event-list {
-  width: 100%;
-  min-width: 0;
-}
-.tala-cal-event-row {
-  display: grid;
-  grid-template-columns: 145px minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 1rem;
-  width: 100%;
-  text-align: left;
-  border: 0;
-  border-bottom: 1px solid var(--cal-line);
-  background: #fff;
-  padding: 1rem 0.4rem;
-  color: var(--cal-ink);
-}
-.tala-cal-event-row:last-child {
-  border-bottom: 0;
-}
-.tala-cal-event-row:hover {
-  background: #f7faf8;
-}
-.tala-cal-event-time {
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-  line-height: 1.5;
-  color: var(--cal-muted);
-}
-.tala-cal-event-row > span:nth-child(2) {
-  padding-left: 0.75rem;
-  border-left: 3px solid var(--event-color);
-}
-.tala-cal-event-row strong {
-  display: block;
-  font-size: calc(0.85rem * var(--student-type-scale, 1));
-  line-height: 1.5;
-  font-weight: 600;
-}
-.tala-cal-event-row small {
-  display: block;
-  color: var(--cal-muted);
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-  margin-top: 0.3rem;
-}
-.tala-cal-row-status {
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-  color: #4b6e5d;
-  white-space: nowrap;
-}
-.tala-cal-agenda {
-  padding: 0.25rem 1.1rem;
-  min-height: 400px;
-}
-.tala-cal-agenda-day {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 1rem;
-  border-bottom: 1px solid var(--cal-line);
-  padding: 0.85rem 0;
-}
-.tala-cal-agenda-day:last-child {
-  border-bottom: 0;
-}
-.tala-cal-agenda-date {
-  display: grid;
-  align-content: start;
-  justify-items: center;
-  gap: 0.3rem;
-  background: none;
-  border: 0;
-  color: var(--cal-muted);
-  padding: 0.7rem 0.15rem;
-  border-radius: 5px;
-}
-.tala-cal-agenda-date span {
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-}
-.tala-cal-agenda-date strong {
-  font-size: calc(1.5rem * var(--student-type-scale, 1));
-  color: #3a6354;
-  font-weight: 500;
-}
-.tala-cal-agenda .tala-cal-event-row {
-  grid-template-columns: 115px minmax(0, 1fr) auto;
-  gap: 0.6rem;
-}
 .tala-cal-empty {
   text-align: center;
   padding: 3rem 1rem;
@@ -1074,29 +988,6 @@
   .tala-cal-day-view {
     padding: 1rem 0.8rem;
     min-height: 250px;
-  }
-  .tala-cal-event-row,
-  .tala-cal-agenda .tala-cal-event-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.6rem;
-    padding: 0.9rem 0.2rem;
-  }
-  .tala-cal-event-time {
-    grid-column: 1 / -1;
-  }
-  .tala-cal-event-row strong {
-    font-size: calc(0.875rem * var(--student-type-scale, 1));
-  }
-  .tala-cal-agenda {
-    padding: 0.2rem 0.7rem;
-    min-height: 260px;
-  }
-  .tala-cal-agenda-day {
-    grid-template-columns: 35px minmax(0, 1fr);
-    gap: 0.6rem;
-  }
-  .tala-cal-agenda-date strong {
-    font-size: calc(1.35rem * var(--student-type-scale, 1));
   }
   .tala-cal-error {
     align-items: flex-start;
@@ -1575,5 +1466,104 @@
   }
   .tala-day-now {
     border-top-color: Highlight;
+  }
+}
+
+/* Day boxes and events respond to the pointer. A whole day box opens its day,
+   so it lifts slightly; events tint and gain a soft edge. */
+.tala-cal-cell,
+.tala-cal-week-column {
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .tala-cal-cell:hover {
+    background: #edf4f0;
+    box-shadow: inset 0 0 0 1px #b9cfc4;
+  }
+  .tala-cal-cell[data-selected="true"]:hover {
+    background: #edf5f0;
+    box-shadow: inset 0 0 0 2px #447967;
+  }
+  .tala-cal-cell:hover .tala-cal-day-number {
+    color: var(--cal-green);
+  }
+  .tala-cal-week-column:hover {
+    background: #edf4f0;
+  }
+  .tala-cal-chip:hover {
+    background: color-mix(in srgb, var(--event-color) 18%, #fff);
+    box-shadow: 0 1px 3px #1d3b3220;
+  }
+  .tala-cal-week-event:hover {
+    background: color-mix(in srgb, var(--event-color) 14%, #fff);
+    box-shadow: 0 1px 3px #1d3b3220;
+  }
+  .tala-day-block:hover {
+    box-shadow: 0 2px 6px #1d3b3224;
+  }
+  .tala-day-block[aria-pressed="true"]:hover {
+    box-shadow:
+      inset 0 0 0 1.5px var(--event-ink),
+      0 2px 6px #1d3b3224;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tala-cal-cell,
+  .tala-cal-week-column,
+  .tala-cal-chip,
+  .tala-cal-week-event,
+  .tala-day-block {
+    transition:
+      background-color 140ms ease,
+      box-shadow 140ms ease;
+  }
+}
+
+/* Opening a day: the clicked day box grows into the day schedule, and going
+   back to Month or Week shrinks the day into its box. The page around it
+   cross-fades. Browsers without view transitions switch instantly. */
+.tala-day {
+  view-transition-name: tala-day-view;
+}
+::view-transition-group(tala-day-view) {
+  overflow: clip;
+  border-radius: 10px;
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Both pictures keep their real size, pinned to the top left, so the growing
+   box reveals the day rather than stretching it. */
+::view-transition-old(tala-day-view),
+::view-transition-new(tala-day-view) {
+  width: auto;
+  height: auto;
+  object-fit: none;
+  object-position: top left;
+}
+::view-transition-old(tala-day-view) {
+  animation: tala-day-fade-out 200ms ease both;
+}
+::view-transition-new(tala-day-view) {
+  animation: tala-day-fade-in 320ms 60ms ease both;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 260ms;
+}
+@keyframes tala-day-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes tala-day-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

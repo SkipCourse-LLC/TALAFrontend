@@ -25,8 +25,7 @@ import {
   phoenixDateKey,
   shiftCalendarMonth,
 } from "./calendarDates";
-import { ClassSaveButton } from "./ClassSaveButton";
-import { ClassCalendarDownload } from "./ClassCalendarDownload";
+import { flushSync } from "react-dom";
 import { useMeetingClock } from "../useMeetingClock";
 import {
   classStatus,
@@ -34,12 +33,6 @@ import {
   classPrice,
   statusExplanation,
 } from "./classPresentation";
-import { CourseFilters } from "./CourseFilters";
-import {
-  filterCourses,
-  emptyCourseFilters,
-  type CourseFilterValue,
-} from "./courseFilterModel";
 import type { CalendarEvent } from "./calendarEvent";
 import { DayTimeGrid } from "./DayTimeGrid";
 import { DayEventDetails } from "./DayEventDetails";
@@ -50,12 +43,11 @@ import "./studentCalendar.css";
 import "./openClasses.css";
 
 const categories = calendarCategories;
-type CalendarView = "Month" | "Week" | "Day" | "Agenda";
+type CalendarView = "Month" | "Week" | "Day";
 export interface StudentCalendarPreferences {
   chosenDay: string;
   view: CalendarView;
   categories: CalendarCategory[];
-  filters: CourseFilterValue;
 }
 
 export interface StudentCalendarPanelProps {
@@ -144,18 +136,13 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
     if (onCategoriesChange) onCategoriesChange(next);
     else setOwnCategories(next);
   };
-  const [customizing, setCustomizing] = useState(false);
-  const [courseFilters, setCourseFilters] = useState(
-    preferences?.filters ?? emptyCourseFilters,
-  );
   useEffect(() => {
     onPreferencesChange?.({
       chosenDay,
       view,
       categories: enabled,
-      filters: courseFilters,
     });
-  }, [chosenDay, view, enabled, courseFilters, onPreferencesChange]);
+  }, [chosenDay, view, enabled, onPreferencesChange]);
   const [detailId, setDetailId] = useState<string | null>(
     initialClassId ?? null,
   );
@@ -213,14 +200,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
       ),
     [classes, data?.meetings, goals],
   );
-  const matchingClassIds = new Set(
-    filterCourses(classes, courseFilters).map((course) => course.id),
-  );
-  const events = allEvents.filter(
-    (event) =>
-      enabled.includes(event.category) &&
-      (event.kind !== "class" || matchingClassIds.has(event.id)),
-  );
+  const events = allEvents.filter((event) => enabled.includes(event.category));
   const eventRanges = events.map((event) => ({
     event,
     first: phoenixDateKey(event.startsAt),
@@ -284,13 +264,9 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
     .sort((a, b) => a.event.startsAt.localeCompare(b.event.startsAt))
     .slice(0, 2)
     .map((item) => item.event);
-  const filtersActive = Object.values(courseFilters).some(Boolean);
   const detail = classes.find((course) => course.id === detailId);
   const monthDays = calendarMonthDays(month);
   const weekDays = calendarWeekDays(selectedDay);
-  const agendaDays = monthDays.filter(
-    (day) => day.startsWith(month) && dayEvents(day).length,
-  );
   const title =
     view === "Day"
       ? calendarDayLabel(selectedDay, { weekday: undefined, year: "numeric" })
@@ -348,6 +324,53 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
         panel.scrollIntoView({ block: "start" });
     });
   }
+  /** The month cell or week column for a day, for the expand animation. */
+  function dayBox(day: string) {
+    return document.querySelector<HTMLElement>(
+      `.tala-calendar [data-day-box="${day}"]`,
+    );
+  }
+  /** Runs a view change as a view transition when the browser offers one. */
+  function animate(change: () => void, named: () => HTMLElement | null) {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!document.startViewTransition || reduce.matches) {
+      change();
+      return;
+    }
+    let box = named();
+    if (box) box.style.viewTransitionName = "tala-day-view";
+    const transition = document.startViewTransition(() => {
+      if (box) box.style.viewTransitionName = "";
+      flushSync(change);
+      // Going back to Month or Week, the day shrinks into its own box.
+      box = view === "Day" ? named() : null;
+      if (box) box.style.viewTransitionName = "tala-day-view";
+    });
+    void transition.finished.finally(() => {
+      if (box) box.style.viewTransitionName = "";
+    });
+  }
+  /** A day box grows into that day's schedule. */
+  function openDay(day: string) {
+    animate(
+      () => {
+        chooseDay(day);
+        setDayEventId(null);
+        setView("Day");
+      },
+      () => dayBox(day),
+    );
+  }
+  function switchView(next: CalendarView) {
+    if (next === view) return;
+    if (next === "Day") openDay(selectedDay);
+    else if (view === "Day")
+      animate(
+        () => setView(next),
+        () => dayBox(selectedDay),
+      );
+    else setView(next);
+  }
   function eventChip(event: CalendarEvent, day: string) {
     return (
       <button
@@ -355,7 +378,10 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
         key={`${day}-${event.id}`}
         className="tala-cal-chip"
         data-category={event.category}
-        onClick={() => openEvent(event)}
+        onClick={(click) => {
+          click.stopPropagation();
+          openEvent(event);
+        }}
         title={`${event.allDay ? "All day" : calendarTime(event.startsAt)} ${event.title}${event.course ? `, ${classStatus(event.course)}` : ""}`}
       >
         <span className="tala-cal-chip-time">
@@ -391,7 +417,10 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
         aria-pressed={day === selectedDay}
         aria-current={day === today ? "date" : undefined}
         aria-label={`${calendarDayLabel(day, { year: "numeric" })}, ${count} ${count === 1 ? "event" : "events"}${day === today ? ", today" : ""}`}
-        onClick={() => chooseDay(day)}
+        onClick={(event) => {
+          event.stopPropagation();
+          openDay(day);
+        }}
         onKeyDown={(event) => dateKeyDown(event, day)}
       >
         {small && (
@@ -418,15 +447,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
           <h2 id="calendar-heading" tabIndex={-1}>
             Learning calendar
           </h2>
-          <button
-            type="button"
-            className="tala-cal-customize"
-            aria-expanded={customizing || filtersActive}
-            aria-controls={`${regionId}-customize`}
-            onClick={() => setCustomizing((value) => !value)}
-          >
-            Customize
-          </button>
         </div>
         <div className="tala-cal-actions">
           <a
@@ -488,18 +508,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
           </details>
         }
       </header>
-      <div
-        className="tala-cal-discovery-bar"
-        id={`${regionId}-customize`}
-        hidden={!customizing && !filtersActive}
-      >
-        <CourseFilters
-          courses={classes}
-          value={courseFilters}
-          onChange={setCourseFilters}
-          compact
-        />
-      </div>
       <div className="tala-cal-feedback" aria-live="polite" aria-atomic="true">
         {notice && <p className="tala-cal-notice">{notice}</p>}
         {loading && <p>Loading calendar…</p>}
@@ -569,23 +577,21 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               role="group"
               aria-label="Calendar view"
             >
-              {(["Month", "Week", "Day", "Agenda"] as CalendarView[]).map(
-                (item) => (
-                  <button
-                    type="button"
-                    key={item}
-                    aria-pressed={view === item}
-                    onClick={() => setView(item)}
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
+              {(["Month", "Week", "Day"] as CalendarView[]).map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  aria-pressed={view === item}
+                  onClick={() => switchView(item)}
+                >
+                  {item}
+                </button>
+              ))}
             </div>
           </div>
           <p className="tala-cal-sr" id={`${regionId}-keys`}>
-            Use arrow keys to choose a date. Home and End move within a week.
-            Page Up and Page Down change month.
+            Use arrow keys to choose a date and Enter to open its day. Home and
+            End move within a week. Page Up and Page Down change month.
           </p>
           {view === "Month" && (
             <div
@@ -623,6 +629,10 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                     <div
                       className="tala-cal-cell"
                       key={day}
+                      data-day-box={day}
+                      // The whole box opens the day; its date button does the
+                      // same for keyboard and screen reader users.
+                      onClick={() => openDay(day)}
                       data-outside={!day.startsWith(month)}
                       data-selected={day === selectedDay}
                       data-weekend={[0, 6].includes(civilDate(day).getUTCDay())}
@@ -637,9 +647,9 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                             type="button"
                             className="tala-cal-more"
                             aria-label={`${items.length - previews.length} more events on ${calendarDayLabel(day)}`}
-                            onClick={() => {
-                              chooseDay(day);
-                              setView("Day");
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openDay(day);
                             }}
                           >
                             +{items.length - previews.length} more
@@ -672,6 +682,8 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   <section
                     key={day}
                     className="tala-cal-week-column"
+                    data-day-box={day}
+                    onClick={() => openDay(day)}
                     data-selected={day === selectedDay}
                     aria-label={calendarDayLabel(day)}
                   >
@@ -683,7 +695,10 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                           key={event.id}
                           className="tala-cal-week-event"
                           data-category={event.category}
-                          onClick={() => openEvent(event)}
+                          onClick={(click) => {
+                            click.stopPropagation();
+                            openEvent(event);
+                          }}
                         >
                           <span>
                             {event.allDay
@@ -722,51 +737,8 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               />
               <EmptyEvents
                 count={selectedEvents.length}
-                onReset={() => {
-                  setEnabled(categories.map((item) => item.id));
-                  setCourseFilters(emptyCourseFilters);
-                }}
-                filtered={
-                  enabled.length < categories.length ||
-                  Object.values(courseFilters).some(Boolean)
-                }
-              />
-            </div>
-          )}
-          {view === "Agenda" && (
-            <div className="tala-cal-agenda">
-              {agendaDays.map((day) => (
-                <section key={day} className="tala-cal-agenda-day">
-                  <button
-                    type="button"
-                    className="tala-cal-agenda-date"
-                    onClick={() => {
-                      chooseDay(day);
-                      setView("Day");
-                    }}
-                  >
-                    <span>
-                      {calendarDayLabel(day, {
-                        weekday: "short",
-                        month: undefined,
-                        day: undefined,
-                      })}
-                    </span>
-                    <strong>{civilDate(day).getUTCDate()}</strong>
-                  </button>
-                  <EventList events={dayEvents(day)} onOpen={openEvent} />
-                </section>
-              ))}
-              <EmptyEvents
-                count={agendaDays.length}
-                onReset={() => {
-                  setEnabled(categories.map((item) => item.id));
-                  setCourseFilters(emptyCourseFilters);
-                }}
-                filtered={
-                  enabled.length < categories.length ||
-                  Object.values(courseFilters).some(Boolean)
-                }
+                onReset={() => setEnabled(categories.map((item) => item.id))}
+                filtered={enabled.length < categories.length}
               />
             </div>
           )}
@@ -841,8 +813,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   type="button"
                   className="tala-cal-full-day"
                   onClick={() => {
-                    chooseDay(phoenixDateKey(nextAvailable.startsAt));
-                    setView("Day");
+                    openDay(phoenixDateKey(nextAvailable.startsAt));
                   }}
                 >
                   Next available day <span aria-hidden="true">→</span>
@@ -900,7 +871,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               <button
                 type="button"
                 className="tala-cal-full-day"
-                onClick={() => setView("Day")}
+                onClick={() => openDay(selectedDay)}
               >
                 View full day of classes <span aria-hidden="true">→</span>
               </button>
@@ -1029,56 +1000,6 @@ function EmptyEvents({
           Show all calendars
         </button>
       )}
-    </div>
-  );
-}
-
-function EventList({
-  events,
-  onOpen,
-}: {
-  events: CalendarEvent[];
-  onOpen: (event: CalendarEvent) => void;
-}) {
-  return (
-    <div className="tala-cal-event-list">
-      {events.map((event) => (
-        <button
-          type="button"
-          key={event.id}
-          className="tala-cal-event-row"
-          data-category={event.category}
-          onClick={() => onOpen(event)}
-        >
-          <span className="tala-cal-event-time">
-            {event.allDay
-              ? event.kind === "goal"
-                ? "Goal due"
-                : "All day"
-              : calendarTimeRange(event.startsAt, event.endsAt)}
-          </span>
-          <span>
-            <strong>{event.title}</strong>
-            <small>
-              {event.course
-                ? `${event.course.teacher} · ${event.course.grades}`
-                : event.kind === "meeting"
-                  ? "Your saved meeting"
-                  : "Learning goal"}
-            </small>
-          </span>
-          <span className="tala-cal-row-status">
-            {event.enrolled
-              ? event.course
-                ? classStatus(event.course)
-                : "Saved"
-              : event.kind === "class" && !event.allDay
-                ? "Details"
-                : "View"}
-            <span aria-hidden="true"> ›</span>
-          </span>
-        </button>
-      ))}
     </div>
   );
 }
@@ -1287,7 +1208,7 @@ export function ClassDetail({
         {course.allDay
           ? "All day"
           : calendarTimeRange(course.startsAt, course.endsAt)}{" "}
-        · Phoenix time
+        · Arizona time
       </p>
       <p className="tala-cal-detail-description">{course.description}</p>
       <dl>
@@ -1435,13 +1356,6 @@ export function ClassDetail({
             Open online classroom <span aria-hidden="true">↗</span>
           </a>
         )}
-      {course.source === "local_catalog" && !actions.readOnly && (
-        <ClassSaveButton
-          course={course}
-          disabled={actions.busyClassId !== null}
-        />
-      )}
-      <ClassCalendarDownload course={course} />
       {error && (
         <p role="alert" className="tala-cal-error-text">
           {error}
