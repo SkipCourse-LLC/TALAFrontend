@@ -8,6 +8,7 @@ import {
 import type { AdmissionApplication, AdmissionDetail } from "../../api";
 import { usePrivateWorkspaceExport } from "../usePrivateWorkspaceExport";
 import { parseLocalMeetingTime } from "../meetingHelpers";
+import { useMeetingClock } from "../useMeetingClock";
 import { admissionStatusLabel } from "./admissionsDisplay";
 import {
   announceClassChange,
@@ -345,6 +346,8 @@ function AdmissionsReviewSession({
     );
   }
 
+  // Re-renders when the student-setup authorization expires.
+  const setupNow = useMeetingClock([application?.studentSetup?.expiresAt]);
   const canRecord = application?.status === "interview_scheduled";
   const canDecide =
     application?.status === "interviewed" && Boolean(current?.interview);
@@ -774,7 +777,7 @@ function AdmissionsReviewSession({
                       </>
                     ) : application.studentSetup?.status === "authorized" &&
                       Date.parse(application.studentSetup.expiresAt) >
-                        Date.now() ? (
+                        setupNow ? (
                       <>
                         <p>
                           The parent can now sign in and open{" "}

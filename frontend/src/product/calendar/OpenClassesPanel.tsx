@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { LearningGoal } from "../../api/types";
 import type { CalendarClass } from "../../api/calendarContract";
 import { ClassSaveButton } from "./ClassSaveButton";
@@ -8,11 +8,9 @@ import {
   ClassDetail,
   type StudentCalendarPanelProps,
 } from "./StudentCalendarPanel";
-import {
-  CourseFilters,
-  filterCourses,
-  emptyCourseFilters,
-} from "./CourseFilters";
+import { CourseFilters } from "./CourseFilters";
+import { filterCourses, emptyCourseFilters } from "./courseFilterModel";
+import { useMeetingClock } from "../useMeetingClock";
 import {
   categoryLabels,
   classPrice,
@@ -69,10 +67,14 @@ export function OpenClassesPanel({
   const [detailId, setDetailId] = useState<string | null>(
     initialClassId ?? null,
   );
-  useEffect(() => {
+  // Open a newly requested class, adjusted during render.
+  const [seenClassId, setSeenClassId] = useState(initialClassId);
+  if (seenClassId !== initialClassId) {
+    setSeenClassId(initialClassId);
     if (initialClassId) setDetailId(initialClassId);
-  }, [initialClassId]);
-  const now = Date.now();
+  }
+  // Re-renders when a class ends, so the upcoming/past lists stay current.
+  const now = useMeetingClock(courses.map((course) => course.endsAt));
   const bookable = useMemo(
     () => courses.filter((course) => !course.allDay),
     [courses],

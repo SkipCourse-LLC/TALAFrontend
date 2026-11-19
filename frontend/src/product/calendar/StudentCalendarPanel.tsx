@@ -34,12 +34,12 @@ import {
   classPrice,
   statusExplanation,
 } from "./classPresentation";
+import { CourseFilters } from "./CourseFilters";
 import {
-  CourseFilters,
   filterCourses,
   emptyCourseFilters,
   type CourseFilterValue,
-} from "./CourseFilters";
+} from "./courseFilterModel";
 import "./studentCalendar.css";
 import "./openClasses.css";
 
@@ -166,9 +166,12 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   const [detailId, setDetailId] = useState<string | null>(
     initialClassId ?? null,
   );
-  useEffect(() => {
+  // Open a newly requested class, adjusted during render.
+  const [seenClassId, setSeenClassId] = useState(initialClassId);
+  if (seenClassId !== initialClassId) {
+    setSeenClassId(initialClassId);
     if (initialClassId) setDetailId(initialClassId);
-  }, [initialClassId]);
+  }
   const dateButtons = useRef(new Map<string, HTMLButtonElement>());
   const needsDateFocus = useRef(false);
   const regionId = useId();
@@ -1117,31 +1120,43 @@ export function ClassDetail({
   const [editing, setEditing] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const activeGoals = goals.filter((goal) => goal.status === "active");
+  // Re-renders when the class starts, so edit and Evidence options stay current.
+  const now = useMeetingClock([course.startsAt], true);
   const mayEdit =
     ["pending_approval", "waitlisted"].includes(
       course.enrollmentStatus ?? "",
     ) &&
-    Date.parse(course.startsAt) > Date.now() &&
+    Date.parse(course.startsAt) > now &&
     Boolean(actions.onUpdateRequest) &&
     !actions.readOnly;
   const changed =
     mode !== (course.enrollmentMode ?? course.modalities?.[0] ?? "online") ||
     (goalId || null) !== (course.enrollmentGoalId ?? null);
   const linkedGoal = goals.find((goal) => goal.id === course.enrollmentGoalId);
-  useEffect(() => {
+  // Resync the request form from the saved request whenever these inputs
+  // change while not editing (or once editing is no longer allowed). This is
+  // adjusted during render with the same trigger values the effect used.
+  const syncInputs = {
+    version: course.enrollmentVersion,
+    mode: course.enrollmentMode,
+    goal: course.enrollmentGoalId,
+    defaultGoalId,
+    editing,
+    mayEdit,
+  };
+  const [synced, setSynced] = useState(syncInputs);
+  if (
+    (Object.keys(syncInputs) as (keyof typeof syncInputs)[]).some(
+      (key) => !Object.is(synced[key], syncInputs[key]),
+    )
+  ) {
+    setSynced(syncInputs);
     if (!editing || !mayEdit) {
       if (!mayEdit) setEditing(false);
       setMode(course.enrollmentMode ?? course.modalities?.[0] ?? "online");
       setGoalId(course.enrollmentGoalId ?? defaultGoalId ?? "");
     }
-  }, [
-    course.enrollmentVersion,
-    course.enrollmentMode,
-    course.enrollmentGoalId,
-    defaultGoalId,
-    editing,
-    mayEdit,
-  ]);
+  }
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
@@ -1330,7 +1345,7 @@ export function ClassDetail({
         </p>
       )}
       {course.enrollmentStatus === "confirmed" &&
-        Date.parse(course.startsAt) <= Date.now() &&
+        Date.parse(course.startsAt) <= now &&
         onEvidence && (
           <button
             type="button"

@@ -49,10 +49,20 @@ export function OperatorPaymentsPanel({
       writing.current?.abort();
     };
   }, []);
+  // Show loading as soon as a new read starts (attempt, revision or handler
+  // change), adjusted during render instead of from the effect below.
+  const [readKey, setReadKey] = useState({ attempt, revision, onExpired });
+  if (
+    readKey.attempt !== attempt ||
+    readKey.revision !== revision ||
+    readKey.onExpired !== onExpired
+  ) {
+    setReadKey({ attempt, revision, onExpired });
+    setLoading(true);
+  }
   useEffect(() => {
     const controller = new AbortController();
     reading.current = controller;
-    setLoading(true);
     void talaApi.payments
       .operatorWorkspace(controller.signal)
       .then((result) => {

@@ -5,6 +5,7 @@ import type {
   ClassMode,
 } from "../../api/calendarContract";
 import { classLocationProblem } from "./classLocation";
+import { useMeetingClock } from "../useMeetingClock";
 
 function localDateTime(instant: string) {
   const values = new Map(
@@ -66,6 +67,9 @@ export function ClassEditDialog({
     modalities: course.modalities ?? (["online"] as ClassMode[]),
   });
   const [problem, setProblem] = useState("");
+  // Re-renders when the class starts, so time fields lock on schedule.
+  const now = useMeetingClock([course.startsAt]);
+  const started = Date.parse(course.startsAt) <= now;
   const busyRef = useRef(busy);
   useLayoutEffect(() => {
     busyRef.current = busy;
@@ -267,7 +271,7 @@ export function ClassEditDialog({
                 step={1}
                 value={draft.startsAt}
                 onChange={(event) => change("startsAt", event.target.value)}
-                disabled={locked || Date.parse(course.startsAt) <= Date.now()}
+                disabled={locked || started}
                 required
               />
             </label>
@@ -279,7 +283,7 @@ export function ClassEditDialog({
                 step={1}
                 value={draft.endsAt}
                 onChange={(event) => change("endsAt", event.target.value)}
-                disabled={locked || Date.parse(course.startsAt) <= Date.now()}
+                disabled={locked || started}
                 required
               />
             </label>
@@ -336,7 +340,7 @@ export function ClassEditDialog({
           {field("location", "Venue / joining information", 160)}
         </fieldset>
         <p className="tala-class-edit-footnote">
-          {Date.parse(course.startsAt) > Date.now()
+          {!started
             ? "Added places move waiting students to parent approval in the order they joined."
             : "The session has started. Adding places does not promote waiting requests."}{" "}
           Saving does not send an email.

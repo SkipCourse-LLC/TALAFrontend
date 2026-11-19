@@ -197,9 +197,7 @@ export function WorkspaceSidebar({
           <strong>
             <bdi>{user.name}</bdi>
           </strong>
-          <span>
-            {user.role === "parent" ? "Parent" : "Student"}
-          </span>
+          <span>{user.role === "parent" ? "Parent" : "Student"}</span>
         </div>
       </div>
       <div className="server-dashboard-account-actions">

@@ -67,6 +67,7 @@ import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import { WorkspaceSyncStatus } from "./WorkspaceSyncStatus";
 import { WorkspaceFeedback } from "./WorkspaceFeedback";
 import { LearningGlyph } from "./LearningGlyph";
+import { useMeetingClock } from "./useMeetingClock";
 import { WorkspaceDisplayOptions } from "./WorkspaceDisplayOptions";
 import { ParentAdmissionSummary } from "./admissions/ParentAdmissionSummary";
 import { ParentClassApprovals } from "./calendar/ParentClassApprovals";
@@ -1558,11 +1559,15 @@ function LearningWorkspace({
       revisionTarget.supersededByEvidenceId) &&
     !pending,
   );
+  // Re-renders when an enrolled class starts, so "started" stays current.
+  const evidenceNow = useMeetingClock(
+    (calendar.data?.enrolled ?? []).map((course) => course.startsAt),
+  );
   const evidenceClasses = (calendar.data?.enrolled ?? []).filter(
     (course) =>
       course.source === "local_catalog" &&
       course.enrollmentStatus === "confirmed" &&
-      Date.parse(course.startsAt) <= Date.now(),
+      Date.parse(course.startsAt) <= evidenceNow,
   );
   const selectedContext = revisionTarget
     ? revisionTarget.classId

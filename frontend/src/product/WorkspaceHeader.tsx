@@ -156,19 +156,37 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
   }, [isWorkspace]);
   useLayoutEffect(() => {
     if (!open) return;
-    dialog.current?.showModal();
+    const box = dialog.current;
+    const button = opener.current;
+    box?.showModal();
     input.current?.focus();
     return () => {
-      dialog.current?.close();
-      opener.current?.focus({ preventScroll: true });
+      box?.close();
+      button?.focus({ preventScroll: true });
     };
   }, [open]);
+  // Reset the class results when a new student load starts. This is adjusted
+  // during render (not in the loading effect) so no extra effect pass runs.
+  const [loadKey, setLoadKey] = useState({
+    open,
+    uid: user.uid,
+    role: user.role,
+  });
+  if (
+    loadKey.open !== open ||
+    loadKey.uid !== user.uid ||
+    loadKey.role !== user.role
+  ) {
+    setLoadKey({ open, uid: user.uid, role: user.role });
+    if (open && user.role === "student") {
+      setLoading(true);
+      setError("");
+      setCourses([]);
+    }
+  }
   useEffect(() => {
     if (!open || user.role !== "student") return;
     const request = new AbortController();
-    setLoading(true);
-    setError("");
-    setCourses([]);
     void talaApi
       .getClasses(undefined, request.signal)
       .then((result) => {
@@ -189,9 +207,18 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
         .getElementById(`${listId}-${chosenIndex}`)
         ?.scrollIntoView({ block: "nearest" });
   }, [open, listId, chosenIndex]);
-  useEffect(() => {
+  // Close the search dialog on navigation, adjusted during render.
+  const [route, setRoute] = useState({
+    pathname: location.pathname,
+    search: location.search,
+  });
+  if (
+    route.pathname !== location.pathname ||
+    route.search !== location.search
+  ) {
+    setRoute({ pathname: location.pathname, search: location.search });
     setOpen(false);
-  }, [location.pathname, location.search]);
+  }
   return (
     <header className="tala-workspace-header">
       <div className="container tala-workspace-header-row">
