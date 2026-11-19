@@ -616,28 +616,6 @@ export function createTalaApi(options: { fetcher?: typeof fetch } = {}) {
       if (!result) throw new TalaApiError("INVALID_RESPONSE");
       return result;
     },
-    async localStudentPreviewAvailable(signal?: AbortSignal): Promise<boolean> {
-      return transport.json("/api/health", { signal }, (raw) => {
-        const value = decode.object(raw);
-        if (value.application !== "tala-independent-server")
-          throw new TalaApiError("INVALID_RESPONSE");
-        return value.localStudentPreview === true;
-      });
-    },
-    async enterLocalStudentPreview(signal?: AbortSignal): Promise<User> {
-      const result = await authAction(
-        "/api/auth/local-student-preview",
-        {},
-        signal,
-      );
-      if (
-        !result ||
-        result.role !== "student" ||
-        result.uid !== "tala_local_preview_student_v1"
-      )
-        throw new TalaApiError("INVALID_RESPONSE");
-      return result;
-    },
     async logout(signal?: AbortSignal): Promise<void> {
       if (await authAction("/api/auth/logout", {}, signal))
         throw new TalaApiError("INVALID_RESPONSE");

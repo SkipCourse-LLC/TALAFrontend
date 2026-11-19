@@ -198,11 +198,7 @@ export function WorkspaceSidebar({
             <bdi>{user.name}</bdi>
           </strong>
           <span>
-            {user.uid === "tala_local_preview_student_v1"
-              ? "Demo · test data"
-              : user.role === "parent"
-                ? "Parent"
-                : "Student"}
+            {user.role === "parent" ? "Parent" : "Student"}
           </span>
         </div>
       </div>

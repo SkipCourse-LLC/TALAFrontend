@@ -23,8 +23,21 @@ export default defineConfig(({ mode }) => {
   const localApiPort = process.env.TALA_LOCAL_API_PORT || "8787";
   if (!/^\d{4,5}$/.test(localApiPort) || Number(localApiPort) > 65535)
     throw new Error("Choose a valid local API port.");
+  // The public site build (npm run build:hosting in the deploy workflow) sets
+  // no VITE_* values. Compile the production API mode in, with demo mode and
+  // demo tools off, so demo pages and sample data are left out of the bundle.
+  // Builds that choose a mode explicitly (tests, demo, Firebase) are unchanged.
+  const publicSiteDefaults =
+    mode === "production" && !environment.VITE_BACKEND_MODE
+      ? {
+          "import.meta.env.VITE_BACKEND_MODE": JSON.stringify("api"),
+          "import.meta.env.VITE_DEMO_MODE": JSON.stringify("false"),
+          "import.meta.env.VITE_DEMO_TOOLS": JSON.stringify("false"),
+        }
+      : undefined;
   return {
     plugins: [react()],
+    define: publicSiteDefaults,
     // Relative assets + HashRouter work under both root and project subpaths.
     base: "./",
     server: {

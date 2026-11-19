@@ -296,14 +296,7 @@ export function ServerApplication() {
                 path="login"
                 element={
                   user ? (
-                    <Navigate
-                      to={
-                        user.uid === "tala_local_preview_student_v1"
-                          ? "/dashboard?view=calendar"
-                          : "/dashboard"
-                      }
-                      replace
-                    />
+                    <Navigate to="/dashboard" replace />
                   ) : (
                     (unavailable ?? (
                       <ServerAccessPage

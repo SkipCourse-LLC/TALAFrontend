@@ -26,24 +26,27 @@ export function SiteLayout({
       >
         Skip to content
       </a>
-      <div className="preview-banner">
-        {backend === "api" ? (
-          "Local workspace"
-        ) : backend === "firebase-emulator" ? (
-          "TALA · Local Firebase integration · Synthetic test accounts and files only. No live meetings or charges."
-        ) : backend === "firebase-test" ? (
-          "TALA · Approved Firebase test cloud · Synthetic accounts and files only. No real meetings or charges."
-        ) : backend === "firebase" ? (
-          "TALA · Firebase authentication · Scheduling, evidence and payments await team approval."
-        ) : (
-          <>
-            TALA product preview <span aria-hidden="true">·</span>{" "}
-            {demoEnabled
-              ? "Explore with sample data. No real accounts or charges."
-              : "Live account services are not connected."}
-          </>
-        )}
-      </div>
+      {/* The public site (API mode) shows no environment banner. Demo and
+          Firebase test modes keep theirs so sample data is never mistaken
+          for live records. */}
+      {backend !== "api" && (
+        <div className="preview-banner">
+          {backend === "firebase-emulator" ? (
+            "TALA · Local Firebase integration · Synthetic test accounts and files only. No live meetings or charges."
+          ) : backend === "firebase-test" ? (
+            "TALA · Approved Firebase test cloud · Synthetic accounts and files only. No real meetings or charges."
+          ) : backend === "firebase" ? (
+            "TALA · Firebase authentication · Scheduling, evidence and payments await team approval."
+          ) : (
+            <>
+              TALA product preview <span aria-hidden="true">·</span>{" "}
+              {demoEnabled
+                ? "Explore with sample data. No real accounts or charges."
+                : "Live account services are not connected."}
+            </>
+          )}
+        </div>
+      )}
       {workspaceHeader &&
       ["/dashboard", "/payment"].includes(location.pathname) ? (
         workspaceHeader

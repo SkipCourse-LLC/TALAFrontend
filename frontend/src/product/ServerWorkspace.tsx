@@ -214,11 +214,7 @@ export function ServerWorkspace({
       <header className="product-heading">
         <div>
           <p className="student-workspace-label">
-            {user.uid === "tala_local_preview_student_v1"
-              ? "Student demo"
-              : user.role === "parent"
-                ? "Family"
-                : "Student"}
+            {user.role === "parent" ? "Family" : "Student"}
           </p>
           <h1>
             Hello, <bdi>{user.name}</bdi>.

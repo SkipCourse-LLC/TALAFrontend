@@ -197,7 +197,6 @@ export function CalendarEnrollmentSummary({
       {payment > 0 && (
         <p className="calendar-enrollment-summary-next">
           Parent approval is saved. Awaiting trusted payment confirmation.
-          Payments are not connected in this local preview.
         </p>
       )}
       {waiting > 0 && (
