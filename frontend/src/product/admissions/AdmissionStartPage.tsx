@@ -668,9 +668,6 @@ export function AdmissionStartPage() {
   return (
     <section className="container admission-page">
       <header className="admission-header">
-        <p className="admission-local">
-          Local test · Fictional family details only
-        </p>
         <h1>Start your TALA registration</h1>
         <p>First, a conversation. Then, the right next step.</p>
       </header>

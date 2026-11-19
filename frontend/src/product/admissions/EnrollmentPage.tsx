@@ -153,7 +153,6 @@ export function EnrollmentPage({
   return (
     <section className="container admission-page admission-enrollment">
       <header className="admission-header">
-        <p className="admission-local">Local test enrollment</p>
         <h1>Welcome to TALA.</h1>
         <p>Your invitation is the next step.</p>
       </header>
