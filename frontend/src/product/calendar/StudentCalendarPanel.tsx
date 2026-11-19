@@ -39,6 +39,7 @@ import {
 import type { CalendarEvent } from "./calendarEvent";
 import { DayTimeGrid } from "./DayTimeGrid";
 import { WeekTimeGrid } from "./WeekTimeGrid";
+import { CalendarJump } from "./CalendarJump";
 import { DayEventDetails } from "./DayEventDetails";
 import { calendarCategories, SKIPCOURSE_URL } from "./calendarCategories";
 import { HorizonCard } from "./CalendarExtras";
@@ -561,18 +562,16 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   <Icon name="chevron-right" />
                 </button>
               </div>
-              <label className="tala-cal-date-jump">
-                <span className="tala-cal-sr">Jump to date</span>
-                <input
-                  type="date"
+              {/* Month view browses with the arrows; Week and Day views get a
+                  picker for a whole week or a single day. */}
+              {view !== "Month" && (
+                <CalendarJump
+                  mode={view === "Week" ? "week" : "day"}
                   value={selectedDay}
-                  onChange={(event) => {
-                    if (/^20\d{2}-\d{2}-\d{2}$/.test(event.target.value))
-                      chooseDay(event.target.value);
-                  }}
-                  aria-label="Jump to date"
+                  today={today}
+                  onPick={(day) => chooseDay(day)}
                 />
-              </label>
+              )}
             </div>
             <div
               className="tala-cal-views"
@@ -955,6 +954,9 @@ function CalendarCourseCard({
               ? "Waiting list"
               : `${course.seatsAvailable} open ${course.seatsAvailable === 1 ? "seat" : "seats"}`}
         </span>
+        {/* Pushes the button right when it fits on this row; when it wraps,
+            the button starts its own line at the left. */}
+        <span className="tala-cal-class-spacer" aria-hidden="true" />
         <button
           type="button"
           className="tala-cal-enroll tala-cal-enroll-small"

@@ -228,7 +228,7 @@
 .tala-calendar
   .tala-cal-today-card
   .tala-cal-class-bottom
-  > span:not(.tala-cal-ended) {
+  > span:not(.tala-cal-ended, .tala-cal-class-spacer) {
   padding: 0.3rem 0.45rem;
   border-radius: 5px;
   background: #edf1f0;
@@ -264,4 +264,13 @@
   .tala-cal-filters.tala-cal-filters-small-only {
     display: none;
   }
+}
+.tala-calendar .tala-cal-class-bottom > .tala-cal-class-spacer {
+  flex: 1 0 0;
+  min-width: 0;
+  padding: 0;
+  background: none;
+}
+.tala-calendar .tala-cal-class-bottom .tala-cal-enroll.tala-cal-enroll-small {
+  margin-left: 0;
 }

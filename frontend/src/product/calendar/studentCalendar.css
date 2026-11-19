@@ -572,7 +572,7 @@
   align-items: center;
   flex-wrap: wrap;
 }
-.tala-cal-class-bottom > span:not(.tala-cal-ended) {
+.tala-cal-class-bottom > span:not(.tala-cal-ended, .tala-cal-class-spacer) {
   font-size: calc(0.75rem * var(--student-type-scale, 1));
   background: #f2f5f2;
   color: #4a665b;
