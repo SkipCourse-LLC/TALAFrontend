@@ -159,6 +159,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   }
   const [dayEventId, setDayEventId] = useState<string | null>(null);
   const dayDetails = useRef<HTMLElement>(null);
+  const panel = useRef<HTMLElement>(null);
   const dateButtons = useRef(new Map<string, HTMLButtonElement>());
   const needsDateFocus = useRef(false);
   const regionId = useId();
@@ -327,9 +328,12 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
     setDayEventId(event.id);
     // When the details panel sits below the grid, bring it into view.
     requestAnimationFrame(() => {
-      const panel = dayDetails.current;
-      if (panel && panel.getBoundingClientRect().top > window.innerHeight - 80)
-        panel.scrollIntoView({ block: "start" });
+      const details = dayDetails.current;
+      if (
+        details &&
+        details.getBoundingClientRect().top > window.innerHeight - 80
+      )
+        details.scrollIntoView({ block: "start" });
     });
   }
   /** The month cell or week column for a day, for the expand animation. */
@@ -379,6 +383,72 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
       );
     else setView(next);
   }
+  /**
+   * Arrow keys work anywhere on the calendar page, not only on the grid's
+   * dates. In Month and Week they move the chosen date (and focus it, so the
+   * grid's own keys and Enter carry on); in Day, up and down step through the
+   * events and left and right change day.
+   */
+  function pageKeyDown(event: globalThis.KeyboardEvent) {
+    const steps: Record<string, number> = {
+      ArrowLeft: -1,
+      ArrowRight: 1,
+      ArrowUp: -7,
+      ArrowDown: 7,
+    };
+    const step = steps[event.key];
+    if (
+      step === undefined ||
+      event.defaultPrevented ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
+    )
+      return;
+    const target = event.target as HTMLElement | null;
+    // Focus inside the calendar, or on a page area that holds it (the body,
+    // the main region after a click on empty space).
+    const onPage =
+      !target ||
+      !panel.current ||
+      panel.current.contains(target) ||
+      target.contains(panel.current);
+    // Leave keys alone in text fields, menus, pop-ups, dialogs and the day
+    // grid, which handle arrows themselves.
+    if (
+      !onPage ||
+      target?.closest(
+        "input, textarea, select, [contenteditable], summary, details[open], [role='dialog'], dialog, [role='menu'], [role='listbox'], .tala-day",
+      )
+    )
+      return;
+    event.preventDefault();
+    if (view !== "Day") {
+      chooseDay(addCalendarDays(selectedDay, step), true);
+      return;
+    }
+    if (Math.abs(step) === 1) {
+      setDayEventId(null);
+      chooseDay(addCalendarDays(selectedDay, step));
+      return;
+    }
+    const blocks = [
+      ...(panel.current?.querySelectorAll<HTMLElement>(".tala-day-block") ??
+        []),
+    ];
+    (step > 0 ? blocks[0] : blocks.at(-1))?.focus();
+  }
+  const pageKeys = useRef(pageKeyDown);
+  useLayoutEffect(() => {
+    pageKeys.current = pageKeyDown;
+  });
+  useEffect(() => {
+    const listener = (event: globalThis.KeyboardEvent) =>
+      pageKeys.current(event);
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
+  }, []);
   function eventChip(event: CalendarEvent, day: string) {
     return (
       <button
@@ -451,7 +521,11 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   }
 
   return (
-    <section className="tala-calendar" aria-labelledby="calendar-heading">
+    <section
+      className="tala-calendar"
+      ref={panel}
+      aria-labelledby="calendar-heading"
+    >
       <header className="tala-cal-page-header">
         <div className="tala-cal-heading-row">
           <h2 id="calendar-heading" tabIndex={-1}>
@@ -520,7 +594,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
       </header>
       <div className="tala-cal-feedback" aria-live="polite" aria-atomic="true">
         {notice && <p className="tala-cal-notice">{notice}</p>}
-        {loading && <p>Loading calendar…</p>}
       </div>
       {error && (
         <div className="tala-cal-error" role="alert">
@@ -699,6 +772,10 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                 events={selectedEvents}
                 selectedId={dayEvent?.id ?? null}
                 onSelect={selectDayEvent}
+                onShiftDay={(days) => {
+                  setDayEventId(null);
+                  chooseDay(addCalendarDays(selectedDay, days));
+                }}
               />
               <EmptyEvents
                 count={selectedEvents.length}

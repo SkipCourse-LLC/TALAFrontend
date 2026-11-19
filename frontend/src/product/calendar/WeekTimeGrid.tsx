@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import type { CalendarEvent } from "./calendarEvent";
 import { calendarDayLabel, calendarTime } from "./calendarDates";
 import { categoryLabels, classStatus } from "./classPresentation";
@@ -83,7 +83,50 @@ export function WeekTimeGrid({
   const hours = Array.from({ length: hourCount }, (_, i) => firstHour + i);
   const hasAllDay = columns.some((column) => column.allDay.length);
 
-  const block = (event: CalendarEvent, style?: CSSProperties, length = 0) => {
+  /**
+   * Arrow keys between classes: up and down within a day, left and right to
+   * the class nearest in time on the previous or next day that has one.
+   */
+  function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
+    const current = event.currentTarget;
+    const column = current.closest<HTMLElement>(".tala-week-col");
+    if (!column) return;
+    const blocksIn = (element: Element) => [
+      ...element.querySelectorAll<HTMLButtonElement>(".tala-week-block"),
+    ];
+    let target: HTMLButtonElement | undefined;
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      const blocks = blocksIn(column);
+      target =
+        blocks[blocks.indexOf(current) + (event.key === "ArrowDown" ? 1 : -1)];
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      const columns = [
+        ...(column.parentElement?.querySelectorAll(".tala-week-col") ?? []),
+      ];
+      const step = event.key === "ArrowRight" ? 1 : -1;
+      const start = Number(current.dataset.start);
+      for (
+        let index = columns.indexOf(column) + step;
+        index >= 0 && index < columns.length && !target;
+        index += step
+      ) {
+        target = blocksIn(columns[index]!).sort(
+          (a, b) =>
+            Math.abs(Number(a.dataset.start) - start) -
+            Math.abs(Number(b.dataset.start) - start),
+        )[0];
+      }
+    } else return;
+    event.preventDefault();
+    target?.focus();
+  }
+
+  const block = (
+    event: CalendarEvent,
+    style?: CSSProperties,
+    length = 0,
+    start = 0,
+  ) => {
     // How much fits: time and title always; the calendar name when the block
     // is at least about three lines tall.
     const tall = length * (hourPx / 60) >= 64;
@@ -97,6 +140,8 @@ export function WeekTimeGrid({
           event.enrolled ? event.course?.enrollmentStatus : undefined
         }
         data-short={length > 0 && length * (hourPx / 60) < 40}
+        data-start={start}
+        onKeyDown={event.allDay ? undefined : moveFocus}
         style={style}
         title={`${event.allDay ? "All day" : `${calendarTime(event.startsAt)} – ${calendarTime(event.endsAt)}`} ${event.title}`}
         onClick={(click) => {
@@ -184,6 +229,7 @@ export function WeekTimeGrid({
                     "--lanes": item.lanes,
                   } as CSSProperties,
                   item.end - item.start,
+                  item.start,
                 ),
               )}
               {nowMinute >= 0 && nowMinute <= minutes && (

@@ -1620,7 +1620,9 @@
     background: #edf5f0;
     box-shadow: inset 0 0 0 2px #447967;
   }
-  .tala-cal-cell:hover .tala-cal-day-number {
+  .tala-cal-cell:hover
+    .tala-cal-date:not([aria-current="date"])
+    .tala-cal-day-number {
     color: var(--cal-green);
   }
   .tala-week-col:hover {
@@ -1702,4 +1704,19 @@
   ::view-transition-new(*) {
     animation: none !important;
   }
+}
+
+/* Keyboard focus on a date marks its whole day box with one ring, instead of
+   an outline around the date strip that overlaps the day's events. */
+.tala-calendar .tala-cal-date:focus-visible {
+  outline: none;
+}
+.tala-calendar .tala-cal-cell:has(> .tala-cal-date:focus-visible) {
+  background: #eef5f1;
+  box-shadow: inset 0 0 0 3px #194b40;
+}
+.tala-calendar .tala-week-head > div:has(> .tala-cal-date:focus-visible) {
+  border-radius: 6px;
+  background: #eef5f1;
+  box-shadow: inset 0 0 0 2px #194b40;
 }

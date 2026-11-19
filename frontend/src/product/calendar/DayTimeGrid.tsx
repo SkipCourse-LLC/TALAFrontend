@@ -25,6 +25,8 @@ type Props = {
   events: CalendarEvent[];
   selectedId: string | null;
   onSelect: (event: CalendarEvent) => void;
+  /** Left and right arrow keys move to the previous or next day. */
+  onShiftDay?: (days: number) => void;
 };
 
 /**
@@ -39,8 +41,27 @@ export function DayTimeGrid({
   events,
   selectedId,
   onSelect,
+  onShiftDay,
 }: Props) {
   const root = useRef<HTMLDivElement>(null);
+  // After a left/right day change, focus lands on the new day's first event.
+  const focusNewDay = useRef(false);
+  useLayoutEffect(() => {
+    if (!focusNewDay.current) return;
+    focusNewDay.current = false;
+    const target =
+      root.current?.querySelector<HTMLElement>(".tala-day-block") ??
+      root.current?.querySelector<HTMLElement>(".tala-day-grid");
+    target?.focus({ preventScroll: true });
+  }, [day]);
+  function shiftDay(event: KeyboardEvent<HTMLElement>) {
+    if (!onShiftDay || !["ArrowLeft", "ArrowRight"].includes(event.key))
+      return false;
+    event.preventDefault();
+    focusNewDay.current = true;
+    onShiftDay(event.key === "ArrowLeft" ? -1 : 1);
+    return true;
+  }
   const allDay = events.filter((event) => event.allDay);
   const layout = layoutDay(
     events.filter((event) => !event.allDay),
@@ -73,15 +94,10 @@ export function DayTimeGrid({
     element.scrollTop = Math.max(0, (openAt - 30) * pixelsPerMinute);
   }, [day, openAt, minutes]);
 
+  /** Up and down move between the day's events; left and right change day. */
   function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
-    const keys = [
-      "ArrowDown",
-      "ArrowUp",
-      "ArrowRight",
-      "ArrowLeft",
-      "Home",
-      "End",
-    ];
+    if (shiftDay(event)) return;
+    const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
     if (!keys.includes(event.key)) return;
     const blocks = [
       ...(root.current?.querySelectorAll<HTMLButtonElement>(
@@ -94,7 +110,7 @@ export function DayTimeGrid({
         ? 0
         : event.key === "End"
           ? blocks.length - 1
-          : index + (["ArrowDown", "ArrowRight"].includes(event.key) ? 1 : -1);
+          : index + (event.key === "ArrowDown" ? 1 : -1);
     const target = blocks[next];
     if (!target) return;
     event.preventDefault();
@@ -190,8 +206,9 @@ export function DayTimeGrid({
         </span>
       </div>
       <p className="tala-cal-sr">
-        Use the arrow keys to move between events in time order. Press Enter or
-        Space to show event details.
+        Up and down arrow keys move between events in time order; left and right
+        arrow keys go to the previous or next day. Press Enter or Space to show
+        event details.
       </p>
       <div className="tala-day-allday">
         <span className="tala-day-label">All day</span>
@@ -208,6 +225,9 @@ export function DayTimeGrid({
         ref={grid}
         // With no event buttons inside, the scroll area itself takes focus.
         tabIndex={layout.placed.length ? undefined : 0}
+        onKeyDown={(event) => {
+          if (event.target === event.currentTarget) shiftDay(event);
+        }}
         role="group"
         aria-label={`Timed events, ${calendarDayLabel(day)}`}
         style={{ "--day-minutes": minutes } as CSSProperties}

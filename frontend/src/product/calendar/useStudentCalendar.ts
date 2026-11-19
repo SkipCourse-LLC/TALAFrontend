@@ -75,6 +75,13 @@ function mergeEnrollment(data: StudentCalendar, item: CalendarClass) {
   };
 }
 
+/** "2026-11" moved by whole months. */
+function shiftMonth(month: string, months: number) {
+  const date = new Date(`${month}-15T12:00:00Z`);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return date.toISOString().slice(0, 7);
+}
+
 function sameOwner(previous: CalendarSnapshot, owner: string, epoch: number) {
   return previous.ownerUid === owner && previous.epoch === epoch;
 }
@@ -107,6 +114,11 @@ export function useStudentCalendar({
     notice: "",
     busyClassId: null,
   });
+  // The latest snapshot, for the cache check outside render.
+  const snapshotRef = useRef(snapshot);
+  useLayoutEffect(() => {
+    snapshotRef.current = snapshot;
+  });
   const active = useRef(false);
   const identity = useRef(enabled ? ownerUid : "");
   const identityEpoch = useRef(0);
@@ -115,6 +127,14 @@ export function useStudentCalendar({
   const readRequest = useRef<AbortController | null>(null);
   const mutation = useRef<AbortController | null>(null);
   const intents = useRef(new Map<string, EnrollmentIntent>());
+  // Months already read, so moving between them shows data at once instead of
+  // a loading state. Any class change, refresh or retry starts a new stamp,
+  // which retires every cached month.
+  const monthCache = useRef(
+    new Map<string, { stamp: string; data: StudentCalendar }>(),
+  );
+  const prefetching = useRef(new Set<string>());
+  const cacheStamp = useRef("");
   const latest = useRef({ ownerUid, enabled, month, onExpired, identityToken });
 
   useLayoutEffect(() => {
@@ -145,6 +165,37 @@ export function useStudentCalendar({
       mutation.current = null;
       pendingIntents.clear();
     };
+  }, []);
+
+  useLayoutEffect(() => {
+    cacheStamp.current = `${revision}:${attempt}:${classRevision}`;
+  }, [revision, attempt, classRevision]);
+
+  /** Reads the months next to the one on screen into the cache, quietly. */
+  const prefetch = useCallback((months: string[]) => {
+    const context = latest.current;
+    if (!active.current || !context.enabled || !context.ownerUid) return;
+    const owner = context.ownerUid;
+    const stamp = cacheStamp.current;
+    for (const month of months) {
+      const key = `${owner}:${month}`;
+      if (
+        monthCache.current.get(key)?.stamp === stamp ||
+        prefetching.current.has(key)
+      )
+        continue;
+      prefetching.current.add(key);
+      talaApi
+        .getStudentCalendar(month)
+        .then((data) => {
+          if (cacheStamp.current === stamp && latest.current.ownerUid === owner)
+            monthCache.current.set(key, { stamp, data });
+        })
+        .catch(() => {
+          // A failed background read only means that month loads normally.
+        })
+        .finally(() => prefetching.current.delete(key));
+    }
   }, []);
 
   // Retire a query before passive cleanup, including a navigation during a write.
@@ -202,6 +253,11 @@ export function useStudentCalendar({
         talaApi.getClasses(undefined, request.signal),
       ]);
       if (!current()) return;
+      monthCache.current.set(`${owner}:${context.month}`, {
+        stamp: cacheStamp.current,
+        data,
+      });
+      prefetch([shiftMonth(context.month, -1), shiftMonth(context.month, 1)]);
       let confirmedAction: EnrollmentIntent["action"] | undefined;
       for (const [classId, intent] of intents.current) {
         const saved = data.enrolled.find((item) => item.id === classId);
@@ -282,12 +338,30 @@ export function useStudentCalendar({
       if (current())
         setSnapshot((previous) => ({ ...previous, loading: false }));
     }
-  }, []);
+  }, [prefetch]);
 
   useEffect(() => {
     const start = window.setTimeout(() => {
-      if (enabled && ownerUid) void reload();
-      else
+      if (enabled && ownerUid) {
+        // A cached month shows at once; its neighbours load in the background.
+        const cached = monthCache.current.get(`${ownerUid}:${month}`);
+        if (
+          cached?.stamp === cacheStamp.current &&
+          !intents.current.size &&
+          !mutation.current
+        ) {
+          setSnapshot((previous) =>
+            sameOwner(previous, ownerUid, identityEpoch.current)
+              ? { ...previous, data: cached.data, loading: false }
+              : previous,
+          );
+          prefetch([shiftMonth(month, -1), shiftMonth(month, 1)]);
+          if (!sameOwner(snapshotRef.current, ownerUid, identityEpoch.current))
+            void reload();
+          return;
+        }
+        void reload();
+      } else
         setSnapshot({
           ownerUid,
           identity: identityToken,
@@ -307,6 +381,7 @@ export function useStudentCalendar({
     attempt,
     classRevision,
     reload,
+    prefetch,
     identityToken,
   ]);
 
