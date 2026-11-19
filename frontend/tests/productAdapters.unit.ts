@@ -38,7 +38,7 @@ function draft(): EnrollmentDraft {
     timeBlock: "8–10 AM",
     intent: "Enrollment",
     documentsAcknowledged: true,
-    funding: "ESA",
+    funding: "Private",
     fundingAcknowledged: true,
   };
 }
@@ -117,12 +117,12 @@ test("enrollment snapshots the submitted choices and returns only safe receipt m
   const original = draft();
   const pending = service.submit(original, false, signal());
   original.parentName = "Changed while pending";
-  original.funding = "Private";
+  original.funding = "";
   gate.resolve();
   const receipt = await pending;
   expect(receipt).toMatchObject({
     parentName: "Taylor Parent",
-    funding: "ESA",
+    funding: "Private",
     learningMode: "Hybrid",
     timeBlock: "8–10 AM",
     intent: "Enrollment",

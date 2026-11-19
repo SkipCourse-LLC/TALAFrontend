@@ -226,7 +226,12 @@ const account: PaymentSession = {
   email: "parent@example.com",
   name: "Sample Parent",
 };
-const validDraft: PaymentDraft = { funding: "ESA", acknowledged: true };
+// Private funding with a fixed sample method is the only payable demo draft.
+const validDraft: PaymentDraft = {
+  funding: "Private",
+  acknowledged: true,
+  demoMethod: "card",
+};
 
 function deferredWait() {
   const completions: Array<() => void> = [];
@@ -258,7 +263,8 @@ test.describe("SCRUM-48/49: isolated approval and payment adapter", () => {
     expect(await adapter.getApproval(account, signal())).toBe("approved");
     expect(await adapter.submit(account, validDraft, signal())).toEqual({
       mode: "demo",
-      funding: "ESA",
+      funding: "Private",
+      demoMethod: "card",
     });
   });
 
@@ -271,8 +277,9 @@ test.describe("SCRUM-48/49: isolated approval and payment adapter", () => {
       acknowledged: true,
     };
     const missingAcknowledgment: PaymentDraft = {
-      funding: "STO",
+      funding: "Private",
       acknowledged: false,
+      demoMethod: "bank",
     };
     for (const draft of [missingFunding, invalidFunding]) {
       expect(paymentDraftError(draft)).toContain("Choose a funding method");
@@ -305,25 +312,38 @@ test.describe("SCRUM-48/49: isolated approval and payment adapter", () => {
     const receipt = await first;
     const repeat = await adapter.submit(
       account,
-      { funding: "STO", acknowledged: true },
+      { funding: "Private", acknowledged: true, demoMethod: "bank" },
       signal(),
     );
     expect(repeat).toEqual(receipt);
-    expect(adapter.getSnapshot(account).receipt?.funding).toBe("ESA");
-    repeat.funding = "Private";
-    expect(adapter.getSnapshot(account).receipt?.funding).toBe("ESA");
+    expect(adapter.getSnapshot(account).receipt).toEqual(receipt);
+    if (repeat.mode === "demo") repeat.demoMethod = "bank";
+    expect(adapter.getSnapshot(account).receipt).toEqual({
+      mode: "demo",
+      funding: "Private",
+      demoMethod: "card",
+    });
   });
 
   test("submission captures its funding choice before a caller mutates the draft", async () => {
     const wait = deferredWait();
     const adapter = createMockPaymentAdapter({ delay: wait.delay });
     adapter.selectApprovalDemo?.(account, "approved");
-    const draft: PaymentDraft = { funding: "STO", acknowledged: true };
+    const draft: PaymentDraft = {
+      funding: "Private",
+      acknowledged: true,
+      demoMethod: "bank",
+    };
     const result = adapter.submit(account, draft, signal());
-    draft.funding = "Private";
+    draft.funding = "";
+    draft.demoMethod = "card";
     draft.acknowledged = false;
     wait.resolveNext();
-    expect((await result).funding).toBe("STO");
+    expect(await result).toEqual({
+      mode: "demo",
+      funding: "Private",
+      demoMethod: "bank",
+    });
   });
 
   test("explicit cancellation rejects a non-cooperative late response and requires restart", async () => {
@@ -387,10 +407,14 @@ test.describe("SCRUM-48/49: isolated approval and payment adapter", () => {
     expect(adapter.getSnapshot(account).receipt).toBeNull();
     const next = await adapter.submit(
       account,
-      { funding: "STO", acknowledged: true },
+      { funding: "Private", acknowledged: true, demoMethod: "bank" },
       signal(),
     );
-    expect(next.funding).toBe("STO");
+    expect(next).toEqual({
+      mode: "demo",
+      funding: "Private",
+      demoMethod: "bank",
+    });
   });
 
   test("approval change rejects an old non-cooperative submission after approval returns", async () => {
@@ -643,26 +667,21 @@ test.describe("SCRUM-48/49: isolated approval and payment adapter", () => {
   });
 
   test("funding demos ignore method extras and never persist unsolicited credential properties", async () => {
-    for (const funding of ["ESA", "STO", "Private"] as const) {
+    // Private funding with a sample method is the only payable demo choice.
+    for (const demoMethod of ["card", "bank"] as const) {
       const adapter = createMockPaymentAdapter({ delay: async () => {} });
       adapter.selectApprovalDemo?.(account, "approved");
       // Structural caller input can contain extra fields; only allowlisted view data survives.
       const draft = {
-        funding,
+        funding: "Private" as const,
         acknowledged: true,
-        demoMethod: (funding === "Private"
-          ? "card"
-          : "unsupported") as SamplePaymentMethod,
+        demoMethod: demoMethod as SamplePaymentMethod,
         cardNumber: "NOT_A_REAL_CARD",
         securityCode: "NOT_COLLECTED",
         billingAddress: "NOT_COLLECTED",
         credentials: { source: "test-only marker" },
       };
-      const expected = {
-        mode: "demo",
-        funding,
-        ...(funding === "Private" ? { demoMethod: "card" } : {}),
-      };
+      const expected = { mode: "demo", funding: "Private", demoMethod };
       expect(await adapter.submit(account, draft, signal())).toEqual(expected);
       expect(adapter.getSnapshot(account).receipt).toEqual(expected);
     }
