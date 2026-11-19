@@ -684,20 +684,10 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               <div className="tala-cal-month-grid">
                 {monthDays.map((day) => {
                   const items = dayEvents(day);
-                  const priority = (event: CalendarEvent) =>
-                    event.kind === "meeting"
-                      ? 0
-                      : event.kind === "goal"
-                        ? 1
-                        : event.enrolled
-                          ? 2
-                          : event.allDay
-                            ? 3
-                            : 4;
+                  // The day's first events in time order (all-day items
+                  // first), the same order as the Day and Week views.
                   const previews = day.startsWith(month)
-                    ? [...items]
-                        .sort((a, b) => priority(a) - priority(b))
-                        .slice(0, 2)
+                    ? items.slice(0, 2)
                     : [];
                   return (
                     <div
