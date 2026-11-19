@@ -57,14 +57,16 @@ async function expectNoOverflow(page: Page) {
   ).toBeTruthy();
 }
 
-test("homepage Get started link points to the meeting schedule", async ({
+test("homepage interview link points to Tina’s meeting schedule", async ({
   page,
 }) => {
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Get started" })).toHaveAttribute(
-    "href",
-    "https://calendar.app.google/dxMqwMFgLrUwVb157",
-  );
+  await expect(
+    page.getByRole("link", {
+      name: "Schedule a Family Interview",
+      exact: true,
+    }),
+  ).toHaveAttribute("href", "https://calendar.app.google/YapTB4MQLus16DATA");
 });
 
 test("public navigation, filters, refresh, history and not-found route", async ({

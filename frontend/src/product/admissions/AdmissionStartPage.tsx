@@ -15,6 +15,7 @@ import type {
   DocumentPreference,
 } from "../../api";
 import { hasTextControls, isWellFormedText } from "../unicodeText";
+import { InterviewBooking } from "../../registration/InterviewBooking";
 import "./admissions.css";
 
 const statusLabels: Record<AdmissionApplication["status"], string> = {
@@ -425,7 +426,7 @@ function ApplicationPortal({
       )}
       <div className="admission-portal-grid">
         <section className="admission-card">
-          <h2>{booked ? "Your first meeting" : "Meet Tina"}</h2>
+          <h2>{booked ? "Local test meeting" : "Meet Tina"}</h2>
           {booked ? (
             <>
               <p className="admission-meeting-date">
@@ -439,7 +440,8 @@ function ApplicationPortal({
           ) : editable ? (
             <>
               <p className="admission-muted">
-                Choose an interview time. Your account comes after approval.
+                These times are for local test reservations. To book your real
+                interview, use the Google Calendar button above.
               </p>
               {available.length ? (
                 <form
@@ -465,7 +467,7 @@ function ApplicationPortal({
                 >
                   <fieldset className="admission-times" disabled={pending}>
                     <legend className="sr-only">
-                      Available interviews with Tina
+                      Available local test interview times
                     </legend>
                     {available.map((slot) => (
                       <label key={slot.id} className="admission-time">
@@ -489,8 +491,8 @@ function ApplicationPortal({
                 </form>
               ) : (
                 <p className="admission-empty">
-                  No interview times are open. An authorized administrator can
-                  add a time in Admissions.
+                  No local test interview times are open. Use the Google
+                  Calendar button above to see Tina’s available appointments.
                 </p>
               )}
             </>
@@ -672,6 +674,7 @@ export function AdmissionStartPage() {
         <h1>Start your TALA registration</h1>
         <p>First, a conversation. Then, the right next step.</p>
       </header>
+      <InterviewBooking />
       <ol className="admission-steps" aria-label="Registration steps">
         {["Your interest", "Meet Tina", "Enrollment"].map((label, index) => (
           <li
