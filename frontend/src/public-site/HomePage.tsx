@@ -80,9 +80,9 @@ export function HomePage() {
           <div className="home-section-head">
             <h2>What Sets TALA Apart</h2>
           </div>
-          <div className="content-grid">
+          <div className="home-distinctions">
             {distinctions.map(([title, description]) => (
-              <article key={title}>
+              <article className="home-card" key={title}>
                 <h3>{title}</h3>
                 <p>{description}</p>
               </article>

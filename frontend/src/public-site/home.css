@@ -156,6 +156,72 @@
   font-weight: 600;
 }
 
+/* What Sets TALA Apart: six items as a 3 x 2 card grid */
+.home-distinctions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.home-distinctions .home-card {
+  padding: 24px;
+}
+.home-distinctions h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.home-distinctions p {
+  margin-top: 12px !important;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* Program cards in the design's card style (home only) */
+.public-page.home .program-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.public-page.home .program-card {
+  padding: 24px;
+  border: 1px solid var(--home-line);
+  border-radius: 12px;
+  background: var(--home-surface);
+}
+.public-page.home .program-symbol {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 0;
+  border-radius: 8px;
+  background: var(--home-bg);
+}
+.public-page.home .program-symbol .icon {
+  width: 20px;
+  height: 20px;
+  color: var(--home-teal);
+}
+.public-page.home .program-card .category {
+  margin: 24px 0 0;
+  color: var(--home-kicker);
+  font-size: 0.8125rem;
+}
+.public-page.home .program-card h3 {
+  margin: 8px 0 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+.public-page.home .program-card > p:not(.category) {
+  margin: 14px 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.public-page.home .program-card .text-link {
+  margin-top: auto;
+  padding-top: 24px;
+  color: var(--home-teal);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 /* About and call to action */
 .home-explore {
   display: grid;
@@ -218,6 +284,9 @@
 
 /* Tablet */
 @media (max-width: 1100px) {
+  .home-distinctions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .home-explore {
     grid-template-columns: 1fr;
   }
@@ -255,6 +324,10 @@
   .home-section-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .home-distinctions,
+  .public-page.home .program-grid {
+    grid-template-columns: 1fr;
   }
   .home-learn,
   .home-community {
