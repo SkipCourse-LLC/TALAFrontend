@@ -112,9 +112,11 @@
   min-height: 60vh;
 }
 .site-footer {
-  border-top: var(--border-panel);
+  border-top: 1px solid var(--home-line);
   padding-top: 40px;
   background: white;
+  color: var(--home-body);
+  font-family: var(--font-public);
 }
 .footer-top {
   display: grid;
@@ -125,6 +127,9 @@
 .footer-top p {
   font-size: 0.875rem;
   margin: 14px 0 0;
+}
+.footer-top nav a {
+  color: var(--home-teal);
 }
 .footer-top nav {
   display: flex;
@@ -153,6 +158,18 @@
 .footer-note small {
   display: block;
   font-size: 0.8125rem;
+}
+/* Public footer (API mode): brand, links and the one-line description in
+   the redesign's three columns. */
+.public-footer {
+  align-items: start;
+  padding-block: 12px;
+}
+.public-footer > small {
+  justify-self: end;
+  max-width: 36ch;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 .footer-bottom {
   border-top: var(--border-panel);
@@ -243,7 +260,8 @@
     grid-template-columns: 1fr 1fr;
     gap: 24px 16px;
   }
-  .footer-note {
+  .footer-note,
+  .public-footer > small {
     grid-column: 1 / -1;
     justify-self: start;
     max-width: 45ch;

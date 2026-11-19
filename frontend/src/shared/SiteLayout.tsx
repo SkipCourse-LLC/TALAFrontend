@@ -4,6 +4,8 @@ import { demoEnabled } from "./services/demoConfig";
 import { Brand } from "./Brand";
 import { SiteHeader } from "./SiteHeader";
 
+const workspaceRoutes = ["/dashboard", "/payment", "/two-factor"];
+
 export function SiteLayout({
   session,
   backend,
@@ -62,7 +64,15 @@ export function SiteLayout({
         }
       >
         {backend === "api" ? (
-          <div className="container quiet-footer-row">
+          // Public pages use the redesign's footer grid; signed-in workspace
+          // pages keep the one-line row. Both show the same links and text.
+          <div
+            className={
+              workspaceRoutes.includes(location.pathname)
+                ? "container quiet-footer-row"
+                : "container footer-top public-footer"
+            }
+          >
             <Brand />
             <nav aria-label="Footer">
               <Link to="/about">About</Link>
