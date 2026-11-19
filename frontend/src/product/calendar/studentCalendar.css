@@ -375,16 +375,20 @@
 }
 .tala-cal-chip {
   --event-color: var(--cal-coursework);
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
+  /* Time and title flow as one text: two lines at most, wrapping to the
+     chip's left edge. */
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
   width: 100%;
   min-width: 0;
   min-height: 22px;
   text-align: left;
   padding: 0.2rem 0.3rem;
   border: 0;
-  border-left: 2px solid var(--event-color);
+  border-left: 3px solid var(--event-color);
   border-radius: 3px;
   background: #eef3f4;
   color: #3f626c;
@@ -399,19 +403,17 @@
 }
 /* "9a", "3:30p" before each title, as in the mockup. */
 .tala-cal-chip-time {
-  flex-shrink: 0;
-  font-weight: 500;
+  margin-right: 0.25rem;
+  font-weight: 400;
+  opacity: 0.85;
 }
-.tala-cal-chip-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tala-cal-chip-check {
-  margin-left: auto;
-  font-weight: bold;
-  flex-shrink: 0;
+/* Requested classes: a solid edge once confirmed, dashed while pending. */
+.tala-cal-chip:is(
+  [data-status="pending_approval"],
+  [data-status="pending_payment"],
+  [data-status="waitlisted"]
+) {
+  border-left-style: dashed;
 }
 .tala-cal-more {
   display: block;
@@ -671,77 +673,173 @@
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }
-.tala-cal-week-grid {
+/* Week view: seven columns on one time axis, like the Day view. */
+.tala-week {
+  --week-hour: 48px;
+  --week-gutter: 4.5rem;
+  min-width: 640px;
+}
+.tala-week-head,
+.tala-week-allday,
+.tala-week-body {
   display: grid;
-  grid-template-columns: repeat(7, minmax(100px, 1fr));
-  min-width: 700px;
-  min-height: 480px;
+  grid-template-columns: var(--week-gutter) repeat(7, minmax(0, 1fr));
 }
-.tala-cal-week-column {
+.tala-week-head {
+  border-bottom: 1px solid var(--cal-line);
+  background: #f8faf9;
+}
+.tala-week-head > div {
   min-width: 0;
-  border-right: 1px solid var(--cal-line);
+  border-left: 1px solid var(--cal-line);
 }
-.tala-cal-week-column:last-child {
-  border-right: 0;
-}
-.tala-cal-week-column[data-selected="true"] {
-  background: #f5faf7;
+.tala-week-head > div[data-today="true"] {
+  background: #f1f7f4;
 }
 .tala-cal-date-week {
   display: flex;
   flex-direction: column;
-  padding: 0.75rem 0.25rem;
-  border-bottom: 1px solid var(--cal-line);
+  align-items: center;
+  gap: 0.15rem;
+  min-height: 0;
+  padding: 0.5rem 0.25rem;
   border-radius: 0;
-  gap: 0.4rem;
 }
 .tala-cal-week-day {
   color: var(--cal-muted);
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-  font-weight: 400;
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .tala-cal-date-week .tala-cal-day-number {
+  width: 30px;
+  height: 30px;
   font-size: calc(0.9rem * var(--student-type-scale, 1));
-  width: 32px;
-  height: 32px;
 }
 .tala-cal-date-week .tala-cal-today-label {
-  margin: 0;
+  display: none;
 }
-.tala-cal-week-events {
+.tala-week-allday {
+  border-bottom: 1px solid var(--cal-line);
+}
+.tala-week-allday > div {
   display: grid;
-  gap: 0.6rem;
-  padding: 0.65rem 0.4rem;
   align-content: start;
+  gap: 2px;
+  min-width: 0;
+  padding: 3px;
+  border-left: 1px solid var(--cal-line);
 }
-.tala-cal-week-event {
-  display: grid;
-  gap: 0.4rem;
-  min-height: 88px;
-  background: #edf4f1;
-  color: #345b4e;
+.tala-week-label {
+  align-self: center;
+  padding: 0.4rem 0.6rem;
+  color: var(--cal-muted);
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+}
+.tala-week-body {
+  max-height: calc(10 * var(--week-hour));
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.tala-week-hours,
+.tala-week-col {
+  position: relative;
+  height: calc(var(--week-minutes) * var(--week-hour) / 60);
+}
+.tala-week-hours span {
+  position: absolute;
+  top: calc(var(--row) * var(--week-hour) + 4px);
+  left: 0;
+  right: 0;
+  padding: 0 0.6rem;
+  color: var(--cal-muted);
+  font-size: calc(0.68rem * var(--student-type-scale, 1));
+  white-space: nowrap;
+}
+.tala-week-col {
+  min-width: 0;
+  border-left: 1px solid var(--cal-line);
+  background-image:
+    linear-gradient(to bottom, #d3ddd9 0 1px, transparent 1px),
+    linear-gradient(
+      to bottom,
+      transparent calc(var(--week-hour) / 2),
+      #e8eeeb calc(var(--week-hour) / 2),
+      #e8eeeb calc(var(--week-hour) / 2 + 1px),
+      transparent calc(var(--week-hour) / 2 + 1px)
+    );
+  background-size: 100% var(--week-hour);
+  cursor: pointer;
+}
+.tala-week-col[data-today="true"] {
+  background-color: #f6faf8;
+}
+/* Scoped under .tala-week so it outranks ".tala-calendar button { font }". */
+.tala-week .tala-week-block {
+  --event-ink: color-mix(in srgb, var(--event-color) 72%, #0f1f1b);
+  position: absolute;
+  z-index: 1;
+  top: calc(var(--start) * var(--week-hour) / 60 + 1px);
+  left: calc(3px + (100% - 3px) * var(--lane) / var(--lanes));
+  width: calc((100% - 3px) / var(--lanes) - 3px);
+  height: calc(var(--length) * var(--week-hour) / 60 - 2px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px 5px;
   border: 0;
   border-left: 3px solid var(--event-color);
   border-radius: 4px;
-  padding: 0.5rem;
+  background: color-mix(in srgb, var(--event-color) 12%, #fff);
+  color: var(--cal-ink);
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  line-height: 1.25;
   text-align: left;
-  line-height: 1.4;
+  cursor: pointer;
 }
-.tala-cal-week-event > span {
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
+.tala-week-block > span:first-child {
+  color: var(--event-ink);
+  font-weight: 500;
 }
-.tala-cal-week-event > strong {
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-  font-weight: 600;
+.tala-week-block > strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-weight: 500;
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
-.tala-cal-week-event > small {
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
+.tala-week-block[data-short="true"] {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding-block: 0;
 }
-.tala-cal-week-empty {
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-  color: var(--cal-muted);
-  margin: 1rem 0.25rem;
+.tala-week-block[data-short="true"] > strong {
+  -webkit-line-clamp: 1;
+}
+.tala-week-block:is(
+  [data-status="pending_approval"],
+  [data-status="pending_payment"],
+  [data-status="waitlisted"]
+) {
+  border-left-style: dashed;
+}
+.tala-week-allday .tala-week-block {
+  position: static;
+  width: auto;
+  height: auto;
+}
+.tala-week-now {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--now) * var(--week-hour) / 60);
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--cal-green);
+  pointer-events: none;
 }
 .tala-cal-day-view {
   min-height: 430px;
@@ -1472,7 +1570,7 @@
 /* Day boxes and events respond to the pointer. A whole day box opens its day,
    so it lifts slightly; events tint and gain a soft edge. */
 .tala-cal-cell,
-.tala-cal-week-column {
+.tala-week-col {
   cursor: pointer;
 }
 @media (hover: hover) {
@@ -1487,14 +1585,14 @@
   .tala-cal-cell:hover .tala-cal-day-number {
     color: var(--cal-green);
   }
-  .tala-cal-week-column:hover {
-    background: #edf4f0;
+  .tala-week-col:hover {
+    background-color: #edf4f0;
   }
   .tala-cal-chip:hover {
     background: color-mix(in srgb, var(--event-color) 18%, #fff);
     box-shadow: 0 1px 3px #1d3b3220;
   }
-  .tala-cal-week-event:hover {
+  .tala-week-block:hover {
     background: color-mix(in srgb, var(--event-color) 14%, #fff);
     box-shadow: 0 1px 3px #1d3b3220;
   }
@@ -1509,9 +1607,9 @@
 }
 @media (prefers-reduced-motion: no-preference) {
   .tala-cal-cell,
-  .tala-cal-week-column,
+  .tala-week-col,
   .tala-cal-chip,
-  .tala-cal-week-event,
+  .tala-week-block,
   .tala-day-block {
     transition:
       background-color 140ms ease,

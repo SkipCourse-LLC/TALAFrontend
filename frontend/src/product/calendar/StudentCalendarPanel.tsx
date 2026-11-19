@@ -24,6 +24,7 @@ import {
   civilDate,
   phoenixDateKey,
   shiftCalendarMonth,
+  calendarWeekTitle,
 } from "./calendarDates";
 import { flushSync } from "react-dom";
 import { useMeetingClock } from "../useMeetingClock";
@@ -36,6 +37,7 @@ import {
 } from "./classPresentation";
 import type { CalendarEvent } from "./calendarEvent";
 import { DayTimeGrid } from "./DayTimeGrid";
+import { WeekTimeGrid } from "./WeekTimeGrid";
 import { DayEventDetails } from "./DayEventDetails";
 import { calendarCategories, SKIPCOURSE_URL } from "./calendarCategories";
 import { HorizonCard } from "./CalendarExtras";
@@ -268,11 +270,14 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   const detail = classes.find((course) => course.id === detailId);
   const monthDays = calendarMonthDays(month);
   const weekDays = calendarWeekDays(selectedDay);
+  const weekEventCount = new Set(
+    weekDays.flatMap((day) => dayEvents(day).map((event) => event.id)),
+  ).size;
   const title =
     view === "Day"
       ? calendarDayLabel(selectedDay, { weekday: undefined, year: "numeric" })
       : view === "Week"
-        ? `${calendarDayLabel(weekDays[0]!, { weekday: undefined, month: "short" })} – ${calendarDayLabel(weekDays[6]!, { weekday: undefined, month: "short" })}`
+        ? calendarWeekTitle(weekDays[0]!, weekDays[6]!)
         : calendarMonthLabel(month);
 
   useLayoutEffect(() => {
@@ -379,6 +384,9 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
         key={`${day}-${event.id}`}
         className="tala-cal-chip"
         data-category={event.category}
+        data-status={
+          event.enrolled ? event.course?.enrollmentStatus : undefined
+        }
         onClick={(click) => {
           click.stopPropagation();
           openEvent(event);
@@ -393,12 +401,11 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
             : shortTime(event.startsAt)}
         </span>
         <span className="tala-cal-chip-title">{event.title}</span>
+        {/* Status reads as text for screen readers; the chip's edge shows
+            it visually (solid when confirmed, dashed while pending). */}
         {event.enrolled && (
-          <span
-            className="tala-cal-chip-check"
-            aria-label={event.course ? classStatus(event.course) : "Saved"}
-          >
-            {event.course?.enrollmentStatus === "confirmed" ? "✓" : "•"}
+          <span className="tala-cal-sr">
+            , {event.course ? classStatus(event.course) : "Saved"}
           </span>
         )}
       </button>
@@ -676,53 +683,17 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
             <div
               className="tala-cal-week-scroll"
               tabIndex={0}
-              aria-label="Week events, scroll horizontally for all days"
+              aria-label="Week schedule. Scroll for all days and hours."
             >
-              <div className="tala-cal-week-grid">
-                {weekDays.map((day) => (
-                  <section
-                    key={day}
-                    className="tala-cal-week-column"
-                    data-day-box={day}
-                    onClick={() => openDay(day)}
-                    data-selected={day === selectedDay}
-                    aria-label={calendarDayLabel(day)}
-                  >
-                    {dateButton(day, true)}
-                    <div className="tala-cal-week-events">
-                      {dayEvents(day).map((event) => (
-                        <button
-                          type="button"
-                          key={event.id}
-                          className="tala-cal-week-event"
-                          data-category={event.category}
-                          onClick={(click) => {
-                            click.stopPropagation();
-                            openEvent(event);
-                          }}
-                        >
-                          <span>
-                            {event.allDay
-                              ? "All day"
-                              : calendarTime(event.startsAt)}
-                          </span>
-                          <strong>{event.title}</strong>
-                          {event.enrolled && (
-                            <small>
-                              {event.course
-                                ? classStatus(event.course)
-                                : "Saved"}
-                            </small>
-                          )}
-                        </button>
-                      ))}
-                      {!dayEvents(day).length && (
-                        <p className="tala-cal-week-empty">No events</p>
-                      )}
-                    </div>
-                  </section>
-                ))}
-              </div>
+              <WeekTimeGrid
+                days={weekDays}
+                today={today}
+                now={now}
+                eventsFor={dayEvents}
+                header={(day) => dateButton(day, true)}
+                onOpenEvent={openEvent}
+                onOpenDay={openDay}
+              />
             </div>
           )}
           {view === "Day" && (
@@ -750,7 +721,9 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
             <span>
               {view === "Day"
                 ? `${selectedEvents.length} ${selectedEvents.length === 1 ? "event" : "events"} ${selectedDay === today ? "today" : "this day"}`
-                : `${monthEventCount} ${monthEventCount === 1 ? "event" : "events"} this month`}
+                : view === "Week"
+                  ? `${weekEventCount} ${weekEventCount === 1 ? "event" : "events"} this week`
+                  : `${monthEventCount} ${monthEventCount === 1 ? "event" : "events"} this month`}
             </span>
           </p>
         </div>

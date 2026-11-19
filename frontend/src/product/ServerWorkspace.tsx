@@ -2247,7 +2247,6 @@ function LearningWorkspace({
             onUpdateRequest={calendar.updateRequest}
             onRetry={calendar.retry}
             onCalendar={() => navigateView("calendar")}
-            onGoals={() => navigateView("plan")}
             onEvidence={beginClassEvidence}
           />
         )}

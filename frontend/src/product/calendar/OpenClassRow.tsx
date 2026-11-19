@@ -1,7 +1,6 @@
 import type { CalendarClass, ClassMode } from "../../api/calendarContract";
 import type { LearningGoal } from "../../api/types";
 import { LearningGlyph } from "../LearningGlyph";
-import { ClassSaveButton } from "./ClassSaveButton";
 import {
   calendarDayLabel,
   calendarTimeRange,
@@ -20,7 +19,6 @@ type Props = {
   now: number;
   goals: LearningGoal[];
   readOnly: boolean;
-  busyClassId: string | null;
   /** Opens the class; a sign-up button passes the format it was for. */
   onOpen: (mode?: ClassMode) => void;
 };
@@ -31,14 +29,7 @@ type Props = {
  * button. A class has one pool of seats, so the counts show once and the
  * second format says it shares them.
  */
-export function OpenClassRow({
-  course,
-  now,
-  goals,
-  readOnly,
-  busyClassId,
-  onOpen,
-}: Props) {
+export function OpenClassRow({ course, now, goals, readOnly, onOpen }: Props) {
   const seats = classSeatSummary(course);
   const full = seats?.left === 0;
   // In Person first, then Online, as in the mockup.
@@ -50,8 +41,6 @@ export function OpenClassRow({
       "Connected to a learning goal")
     : null;
   const blocked = signUpBlockedReason(course, now, readOnly);
-  // Saving is for classes you are still deciding on, not ones you requested.
-  const canSave = course.source === "local_catalog" && !course.enrolled;
   const seatCells = (first: boolean) =>
     !seats ? (
       <span className="tala-class-seat-gap" aria-hidden="true" />
@@ -104,21 +93,11 @@ export function OpenClassRow({
           )}
           {course.description}
         </p>
-        {(linkedGoal || canSave) && (
-          <div className="tala-class-row-extras">
-            {linkedGoal && (
-              <p className="tala-discovery-linked-goal">
-                <LearningGlyph name="goal" />
-                {linkedGoal}
-              </p>
-            )}
-            {canSave && (
-              <ClassSaveButton
-                course={course}
-                disabled={readOnly || busyClassId !== null}
-              />
-            )}
-          </div>
+        {linkedGoal && (
+          <p className="tala-discovery-linked-goal">
+            <LearningGlyph name="goal" />
+            {linkedGoal}
+          </p>
         )}
       </div>
       <div className="tala-class-row-formats">

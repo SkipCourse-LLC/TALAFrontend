@@ -1,16 +1,30 @@
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { LearningGoal } from "../../api/types";
 import type { CalendarClass, ClassMode } from "../../api/calendarContract";
+import { Icon } from "../../shared/Icon";
 import { StudentClassHistory } from "./StudentClassHistory";
 import { LearningGlyph } from "../LearningGlyph";
 import {
   ClassDetail,
   type StudentCalendarPanelProps,
 } from "./StudentCalendarPanel";
-import { CourseFilters } from "./CourseFilters";
 import { filterCourses, emptyCourseFilters } from "./courseFilterModel";
 import { useMeetingClock } from "../useMeetingClock";
 import { OpenClassRow } from "./OpenClassRow";
+import { teacherName } from "./classPresentation";
+import {
+  addCalendarDays,
+  calendarDayLabel,
+  calendarMonthDays,
+  calendarMonthLabel,
+  calendarWeekDays,
+  calendarWeekTitle,
+  civilDate,
+  phoenixDateKey,
+  shiftCalendarMonth,
+} from "./calendarDates";
+import { phoenixMinuteOfDay, hourLabel } from "./dayGridLayout";
+import { SKIPCOURSE_URL } from "./calendarCategories";
 import "./openClasses.css";
 
 type Props = Pick<
@@ -33,26 +47,35 @@ type Props = Pick<
   goals?: LearningGoal[];
   onExpired?: () => void;
   onCalendar: () => void;
-  onGoals: () => void;
 };
+
+type Range = "Week" | "Month";
+/** Start-time choices for the From / To filters, 6 AM to 9 PM. */
+const HOURS = Array.from({ length: 16 }, (_, index) => index + 6);
+
+/**
+ * Open Classes, from Hannah's mockup: a title with the same actions as the
+ * calendar, then one board with the week (or month), its days, compact
+ * filters and the classes for that period.
+ */
 export function OpenClassesPanel({
   courses,
   ownerUid,
   onExpired,
   onCalendar,
-  onGoals,
   goals = [],
   initialClassId,
   onCloseClass,
   ...actions
 }: Props) {
-  const goalPicker = useId();
-  const [goalId, setGoalId] = useState("");
-  const activeGoals = goals.filter((goal) => goal.status === "active");
-  const selectedGoal = activeGoals.find((goal) => goal.id === goalId);
+  const [tab, setTab] = useState<"open" | "requests">("open");
+  const [today] = useState(() => phoenixDateKey(new Date()));
+  const [anchor, setAnchor] = useState(today);
+  const [range, setRange] = useState<Range>("Week");
+  const [day, setDay] = useState<string | null>(null);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [filters, setFilters] = useState(emptyCourseFilters);
-  const [scope, setScope] = useState("upcoming");
-  const [sort, setSort] = useState("date");
   // Signing up from a row opens the class with that format already chosen.
   const [detailMode, setDetailMode] = useState<ClassMode>();
   const [detailId, setDetailId] = useState<string | null>(
@@ -68,170 +91,114 @@ export function OpenClassesPanel({
   const now = useMeetingClock(
     courses.flatMap((course) => [course.startsAt, course.endsAt]),
   );
-  const bookable = useMemo(
-    () => courses.filter((course) => !course.allDay),
-    [courses],
+  const open = useMemo(
+    () =>
+      courses.filter(
+        (course) =>
+          !course.allDay &&
+          course.published !== false &&
+          Date.parse(course.endsAt) > now,
+      ),
+    [courses, now],
   );
-  const filtered = filterCourses(bookable, filters).filter((course) =>
-    scope === "saved"
-      ? Boolean(course.savedForLater)
-      : course.published === false
-        ? false
-        : scope === "past"
-          ? course.enrollmentStatus === "confirmed" &&
-            Date.parse(course.endsAt) <= now
-          : scope === "mine"
-            ? course.enrolled && Date.parse(course.endsAt) > now
-            : Date.parse(course.endsAt) > now &&
-              (scope !== "available" || (course.seatsAvailable ?? 0) > 0),
-  );
-  filtered.sort((a, b) =>
-    sort === "title"
-      ? a.title.localeCompare(b.title)
-      : a.startsAt.localeCompare(b.startsAt),
-  );
+  const days =
+    range === "Week"
+      ? calendarWeekDays(anchor)
+      : calendarMonthDays(anchor.slice(0, 7)).filter((key) =>
+          key.startsWith(anchor.slice(0, 7)),
+        );
+  const first = days[0]!;
+  const last = days[days.length - 1]!;
+  const inPeriod = open.filter((course) => {
+    const key = phoenixDateKey(course.startsAt);
+    return key >= first && key <= last;
+  });
+  const startMinute = (course: CalendarClass) =>
+    phoenixMinuteOfDay(course.startsAt, phoenixDateKey(course.startsAt));
+  const shown = filterCourses(inPeriod, filters)
+    .filter(
+      (course) =>
+        (!day || phoenixDateKey(course.startsAt) === day) &&
+        (!from || startMinute(course) >= Number(from) * 60) &&
+        (!to || startMinute(course) < Number(to) * 60),
+    )
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   const detail = courses.find((course) => course.id === detailId);
-  const requests = bookable.filter(
+  const requests = courses.filter(
     (course) => course.enrolled && Date.parse(course.endsAt) > now,
+  ).length;
+  const choices = (pick: (course: CalendarClass) => string | undefined) =>
+    [
+      ...new Set(open.map(pick).filter((value): value is string => !!value)),
+    ].sort((a, b) => a.localeCompare(b));
+  const filtered = Boolean(
+    day || from || to || filters.teacher || filters.grades || filters.topic,
   );
+  const title =
+    range === "Month"
+      ? calendarMonthLabel(anchor.slice(0, 7))
+      : calendarWeekTitle(first, last);
+  function move(direction: number) {
+    setDay(null);
+    setAnchor((current) =>
+      range === "Week"
+        ? addCalendarDays(current, direction * 7)
+        : shiftCalendarMonth(current, direction),
+    );
+  }
+  function clearFilters() {
+    setDay(null);
+    setFrom("");
+    setTo("");
+    setFilters(emptyCourseFilters);
+  }
+
   return (
     <section
       className="tala-classes tala-calendar"
       aria-labelledby="classes-heading"
     >
-      <header className="tala-classes-header">
-        <div>
+      <header className="tala-cal-page-header">
+        <div className="tala-cal-heading-row">
           <h2 id="classes-heading" tabIndex={-1}>
-            Find your next discovery.
+            Open Classes
           </h2>
-          <p>Follow a curiosity. Build a skill. Make room for something new.</p>
         </div>
-        <button
-          className="tala-cal-discover"
-          type="button"
-          onClick={onCalendar}
-        >
-          <LearningGlyph name="calendar" /> My calendar
-        </button>
+        <div className="tala-cal-actions">
+          <a
+            className="tala-cal-action tala-cal-action-secondary"
+            href={SKIPCOURSE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Icon name="download" /> SkipCourse
+            <span className="tala-cal-sr"> (opens in a new tab)</span>
+          </a>
+          <button
+            type="button"
+            className="tala-cal-action"
+            onClick={onCalendar}
+          >
+            <Icon name="calendar" /> My calendar
+          </button>
+        </div>
       </header>
-      <div className="tala-classes-intro">
-        <div>
-          <LearningGlyph name="goal" />
-          <p>
-            <strong>Learning that fits you</strong>
-            <span>
-              Choose a class and sign up in person or online. Your parent
-              reviews your request before a place is confirmed.
-            </span>
-          </p>
-        </div>
-        <span>
-          {
-            bookable.filter(
-              (course) =>
-                course.published !== false && Date.parse(course.endsAt) > now,
-            ).length
-          }{" "}
-          classes to explore
-        </span>
-      </div>
-      <div className="tala-discovery-goal-context">
-        <div>
-          <LearningGlyph name="goal" />
-          <label htmlFor={goalPicker}>Exploring for a goal</label>
-        </div>
-        <select
-          id={goalPicker}
-          value={goalId}
-          onChange={(event) => setGoalId(event.target.value)}
+      <div className="tala-classes-switch" role="group" aria-label="Classes">
+        <button
+          type="button"
+          aria-pressed={tab === "open"}
+          onClick={() => setTab("open")}
         >
-          <option value="">Let curiosity lead</option>
-          {activeGoals.map((goal) => (
-            <option key={goal.id} value={goal.id}>
-              {goal.title}
-            </option>
-          ))}
-        </select>
-        <p>
-          {selectedGoal
-            ? "This goal is attached when you sign up for a class."
-            : "Choose a saved goal, or explore something new."}
-        </p>
-        <button type="button" onClick={onGoals}>
-          {activeGoals.length ? "Your learning plan" : "Set your first goal"}
+          Open classes
+        </button>
+        <button
+          type="button"
+          aria-pressed={tab === "requests"}
+          onClick={() => setTab("requests")}
+        >
+          My requests{requests ? ` (${requests})` : ""}
         </button>
       </div>
-      <CourseFilters courses={bookable} value={filters} onChange={setFilters} />
-      <div className="tala-classes-tools">
-        <div role="group" aria-label="Class results">
-          <button
-            type="button"
-            aria-pressed={scope === "upcoming"}
-            onClick={() => setScope("upcoming")}
-          >
-            Upcoming
-          </button>
-          <button
-            type="button"
-            aria-pressed={scope === "available"}
-            onClick={() => setScope("available")}
-          >
-            Seats available
-          </button>
-          <button
-            type="button"
-            aria-pressed={scope === "mine"}
-            onClick={() => setScope("mine")}
-          >
-            My requests ({requests.length})
-          </button>
-          <button
-            type="button"
-            aria-pressed={scope === "saved"}
-            onClick={() => setScope("saved")}
-          >
-            Saved ({bookable.filter((course) => course.savedForLater).length})
-          </button>
-          <button
-            type="button"
-            aria-pressed={scope === "past"}
-            onClick={() => setScope("past")}
-          >
-            Past learning
-          </button>
-          <button
-            type="button"
-            aria-pressed={scope === "history"}
-            onClick={() => setScope("history")}
-          >
-            Request history
-          </button>
-        </div>
-        <label>
-          Sort by{" "}
-          <select
-            value={sort}
-            onChange={(event) => setSort(event.target.value)}
-          >
-            <option value="date">Soonest first</option>
-            <option value="title">Class name</option>
-          </select>
-        </label>
-      </div>
-      {scope !== "history" && (
-        <div
-          aria-live="polite"
-          aria-atomic="true"
-          className="tala-classes-results"
-        >
-          {actions.loading
-            ? "Updating classes…"
-            : `${filtered.length} ${filtered.length === 1 ? "class" : "classes"} found`}
-          {actions.notice && (
-            <p className="tala-cal-notice">{actions.notice}</p>
-          )}
-        </div>
-      )}
       {actions.error && (
         <div className="tala-cal-error" role="alert">
           <p>{actions.error}</p>
@@ -254,14 +221,14 @@ export function OpenClassesPanel({
             type="button"
             onClick={() => {
               onCloseClass?.();
-              setScope("history");
+              setTab("requests");
             }}
           >
-            View request history
+            View my requests
           </button>
         </div>
       )}
-      {scope === "history" ? (
+      {tab === "requests" ? (
         <StudentClassHistory
           ownerUid={ownerUid}
           onOpenClass={setDetailId}
@@ -272,71 +239,223 @@ export function OpenClassesPanel({
           onExpired={onExpired}
         />
       ) : (
-        <div className="tala-classes-layout">
-          <div
-            className="tala-classes-grid tala-classes-rows"
-            aria-busy={actions.loading}
-          >
-            {actions.loading &&
-              !bookable.length &&
-              [0, 1, 2, 3].map((item) => (
-                <div
-                  key={`loading-${item}`}
-                  className="tala-class-skeleton tala-class-row-skeleton"
-                  aria-hidden="true"
+        <div className="tala-classes-board" aria-busy={actions.loading}>
+          <div className="tala-cal-toolbar">
+            <div className="tala-cal-period">
+              <h3 aria-live="polite" aria-atomic="true">
+                {title}
+              </h3>
+              <div className="tala-cal-arrows">
+                <button
+                  type="button"
+                  aria-label={`Previous ${range === "Week" ? "week" : "month"}`}
+                  onClick={() => move(-1)}
                 >
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                </div>
+                  <Icon name="chevron-left" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Next ${range === "Week" ? "week" : "month"}`}
+                  onClick={() => move(1)}
+                >
+                  <Icon name="chevron-right" />
+                </button>
+              </div>
+              <button
+                type="button"
+                className="tala-cal-today"
+                onClick={() => {
+                  setDay(null);
+                  setAnchor(today);
+                }}
+              >
+                Today
+              </button>
+            </div>
+            <div
+              className="tala-cal-views"
+              role="group"
+              aria-label="Classes for"
+            >
+              {(["Week", "Month"] as Range[]).map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  aria-pressed={range === item}
+                  onClick={() => {
+                    setDay(null);
+                    setRange(item);
+                  }}
+                >
+                  {item}
+                </button>
               ))}
-            {filtered.map((course) => (
+            </div>
+          </div>
+          {range === "Week" && (
+            <div
+              className="tala-classes-days"
+              role="group"
+              aria-label="Show one day"
+            >
+              {days.map((key) => {
+                const count = inPeriod.filter(
+                  (course) => phoenixDateKey(course.startsAt) === key,
+                ).length;
+                return (
+                  <button
+                    type="button"
+                    key={key}
+                    aria-pressed={day === key}
+                    aria-label={`${calendarDayLabel(key)}, ${count} ${count === 1 ? "class" : "classes"}`}
+                    data-today={key === today}
+                    disabled={!count}
+                    onClick={() => setDay(day === key ? null : key)}
+                  >
+                    <span>
+                      {calendarDayLabel(key, {
+                        weekday: "short",
+                        month: undefined,
+                        day: undefined,
+                      })}
+                    </span>
+                    <strong>{civilDate(key).getUTCDate()}</strong>
+                    {count > 0 && <i aria-hidden="true">{count}</i>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="tala-classes-filters">
+            <label>
+              <span>From</span>
+              <select
+                value={from}
+                onChange={(event) => setFrom(event.target.value)}
+              >
+                <option value="">Any time</option>
+                {HOURS.map((hour) => (
+                  <option key={hour} value={hour}>
+                    {hourLabel(hour)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>To</span>
+              <select
+                value={to}
+                onChange={(event) => setTo(event.target.value)}
+              >
+                <option value="">Any time</option>
+                {HOURS.map((hour) => (
+                  <option key={hour} value={hour}>
+                    {hourLabel(hour)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Teacher</span>
+              <select
+                value={filters.teacher}
+                onChange={(event) =>
+                  setFilters({ ...filters, teacher: event.target.value })
+                }
+              >
+                <option value="">Any teacher</option>
+                {choices((course) => course.teacher).map((value) => (
+                  <option key={value} value={value}>
+                    {teacherName(value)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Grade</span>
+              <select
+                value={filters.grades}
+                onChange={(event) =>
+                  setFilters({ ...filters, grades: event.target.value })
+                }
+              >
+                <option value="">All grades</option>
+                {choices((course) => course.grades).map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Topic</span>
+              <select
+                value={filters.topic}
+                onChange={(event) =>
+                  setFilters({ ...filters, topic: event.target.value })
+                }
+              >
+                <option value="">All topics</option>
+                {choices((course) => course.topic).map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {filtered && (
+              <button
+                type="button"
+                className="tala-classes-clear"
+                onClick={clearFilters}
+              >
+                Clear filters
+              </button>
+            )}
+            <span className="tala-classes-zone">Arizona time</span>
+          </div>
+          <p
+            className="tala-classes-results"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {actions.loading
+              ? "Updating classes…"
+              : `${shown.length} ${shown.length === 1 ? "class" : "classes"}`}
+          </p>
+          {actions.notice && (
+            <p className="tala-cal-notice">{actions.notice}</p>
+          )}
+          <div className="tala-classes-list">
+            {shown.map((course) => (
               <OpenClassRow
                 key={course.id}
                 course={course}
                 now={now}
                 goals={goals}
                 readOnly={actions.readOnly}
-                busyClassId={actions.busyClassId}
                 onOpen={(mode) => {
                   setDetailMode(mode);
                   setDetailId(course.id);
                 }}
               />
             ))}
-            {!filtered.length && !actions.loading && (
+            {!shown.length && !actions.loading && (
               <div className="tala-classes-empty">
-                <LearningGlyph name="goal" />
+                <LearningGlyph name="calendar" />
                 <h3>
-                  {actions.loading
-                    ? "Finding your classes…"
-                    : scope === "saved"
-                      ? "Keep a little curiosity for later."
-                      : scope === "past"
-                        ? "Your learning story is just beginning."
-                        : scope === "mine"
-                          ? "Your next class starts with curiosity."
-                          : "No classes match yet."}
+                  {filtered
+                    ? "No classes match these filters."
+                    : `No open classes this ${range === "Week" ? "week" : "month"}.`}
                 </h3>
-                <p>
-                  {scope === "saved"
-                    ? "Save a class that catches your eye. Saving does not request a seat or need parent approval."
-                    : scope === "past"
-                      ? "Confirmed classes appear here when they have ended. Add Evidence from a class to reflect on what you learned."
-                      : scope === "mine"
-                        ? "Explore upcoming classes and send your first request. It will appear here and in your calendar."
-                        : "Try a different search or clear your filters."}
-                </p>
                 <button
                   type="button"
-                  className="tala-cal-discover"
-                  onClick={() => {
-                    setFilters(emptyCourseFilters);
-                    setScope("upcoming");
-                  }}
+                  className="tala-classes-clear"
+                  onClick={() => (filtered ? clearFilters() : move(1))}
                 >
-                  Explore all classes
+                  {filtered
+                    ? "Clear filters"
+                    : `Next ${range === "Week" ? "week" : "month"}`}
                 </button>
               </div>
             )}
@@ -352,7 +471,6 @@ export function OpenClassesPanel({
             onCloseClass?.();
           }}
           goals={goals}
-          defaultGoalId={selectedGoal?.id}
           defaultMode={detailMode}
           {...actions}
         />
