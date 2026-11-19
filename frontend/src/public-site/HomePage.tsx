@@ -35,42 +35,40 @@ const distinctions = [
 export function HomePage() {
   return (
     <div className="public-page home">
-      <section className="home-hero">
-        <div className="home-container home-hero-grid">
-          <div className="home-hero-copy">
-            <h1>
-              A School Designed Around Health, Dignity &amp; True Potential
-            </h1>
-            <p className="home-subtitle">
-              Accredited K-12 Education with Dedicated On-Site Pediatric
-              Clinical Care
-            </p>
-            <p className="home-lead">
-              Finding an educational home for a child with complex medical needs
-              or severe developmental disabilities should never mean choosing
-              between clinical safety and meaningful learning. TALA delivers
-              both through individualized instruction, continuous nursing
-              support, and a sensory-controlled learning environment built
-              specifically for exceptional learners.
-            </p>
-            <div className="home-actions">
-              <a
-                className="home-button home-button-primary"
-                href="https://calendar.app.google/YapTB4MQLus16DATA"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Schedule a Family Interview
-              </a>
-              <Link className="home-button" to="/programs">
-                Explore Programs
-              </Link>
-            </div>
+      {/* The hero is main's, exactly as deployed (classes and styles from
+          public.css); only its illustration is animated. */}
+      <section className="hero container">
+        <div className="hero-copy">
+          <h1>A School Designed Around Health, Dignity &amp; True Potential</h1>
+          <p className="lead">
+            Accredited K-12 Education with Dedicated On-Site Pediatric Clinical
+            Care
+          </p>
+          <p>
+            Finding an educational home for a child with complex medical needs
+            or severe developmental disabilities should never mean choosing
+            between clinical safety and meaningful learning. TALA delivers both
+            through individualized instruction, continuous nursing support, and
+            a sensory-controlled learning environment built specifically for
+            exceptional learners.
+          </p>
+          <div className="button-row">
+            <a
+              className="home-button home-button-primary"
+              href="https://calendar.app.google/YapTB4MQLus16DATA"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Schedule a Family Interview
+            </a>
+            <Link className="home-button" to="/programs">
+              Explore Programs
+            </Link>
           </div>
-          <figure className="home-hero-art">
-            <LearningDeskArt />
-          </figure>
         </div>
+        <figure className="hero-art">
+          <LearningDeskArt />
+        </figure>
       </section>
       <section className="home-section">
         <div className="home-container">
