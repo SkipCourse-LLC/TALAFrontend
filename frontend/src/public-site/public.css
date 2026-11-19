@@ -607,7 +607,7 @@
 }
 .public-page .program-detail {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   border: 1px solid transparent;
   border-radius: 24px;
@@ -628,7 +628,7 @@
 }
 .public-page .program-detail-copy {
   min-width: 0;
-  padding: 28px 28px 28px 0;
+  padding: 32px;
 }
 .public-page .program-detail-copy .eyebrow {
   margin-bottom: 10px;
@@ -1003,19 +1003,33 @@
 
 /* Text-link arrows: a short arrow sized to the text and centred on it,
    which steps forward when the link is hovered. */
-:is(.home-text-link, .public-page .program-card .text-link) .icon {
+:is(
+    .home-text-link,
+    .public-page .program-card .text-link,
+    .public-page .program-detail-copy .text-link
+  )
+  .icon {
   flex-shrink: 0;
   width: 1.3em;
   height: 1.3em;
   stroke-width: 1.9;
   transition: translate 0.2s ease;
 }
-:is(.home-text-link, .public-page .program-card .text-link):hover .icon {
+:is(
+    .home-text-link,
+    .public-page .program-card .text-link,
+    .public-page .program-detail-copy .text-link
+  ):hover
+  .icon {
   translate: 2px 0;
 }
 @media (prefers-reduced-motion: reduce) {
-  :is(.home-text-link, .public-page .program-card .text-link) .icon {
+  :is(
+      .home-text-link,
+      .public-page .program-card .text-link,
+      .public-page .program-detail-copy .text-link
+    )
+    .icon {
     transition: none;
   }
 }
-

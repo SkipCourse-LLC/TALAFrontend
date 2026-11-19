@@ -72,16 +72,13 @@ export function ProgramsPage() {
         <div className="program-details">
           {shown.map((p) => (
             <article className="program-detail" key={p.id}>
-              <div className={`program-visual ${p.color}`} aria-hidden="true">
-                <Icon name={p.icon} />
-              </div>
               <div className="program-detail-copy">
                 <p className="eyebrow">{p.category}</p>
                 <h2>{p.title}</h2>
                 <p className="lead">{p.description}</p>
                 <p>{p.detail}</p>
                 <Link className="text-link" to="/admissions">
-                  Admissions <Icon name="arrow" />
+                  Admissions <Icon name="link-arrow" />
                 </Link>
               </div>
             </article>
