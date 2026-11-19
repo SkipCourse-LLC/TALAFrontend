@@ -118,7 +118,15 @@ export function SidebarBrand() {
   return (
     <div className="student-sidebar-brand">
       <span className="student-sidebar-logo" aria-hidden="true">
-        <Icon name="book" />
+        {/* The TALA leaf, the same mark as the site header. */}
+        <svg viewBox="0 0 40 40" fill="none">
+          <path
+            d="M20 34V19M20 25C8 26 4 17 5 8c10-1 16 6 15 17ZM20 19C20 9 26 3 35 4c1 10-5 17-15 15Z"
+            stroke="currentColor"
+            strokeWidth="2.8"
+            strokeLinejoin="round"
+          />
+        </svg>
       </span>
       <span className="student-sidebar-brand-text">
         <strong>TALA</strong>

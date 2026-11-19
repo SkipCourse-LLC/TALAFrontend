@@ -1,4 +1,4 @@
-import type { Ref } from "react";
+import type { ReactNode, Ref } from "react";
 import type { CalendarEvent } from "./calendarEvent";
 import {
   calendarDayLabel,
@@ -7,6 +7,8 @@ import {
 } from "./calendarDates";
 import { categoryLabels, classStatus } from "./classPresentation";
 import { eventFormat, eventJoinUrl, eventLocation } from "./dayEventText";
+import { Icon } from "../../shared/Icon";
+import type { IconName } from "../../shared/Icon";
 
 type Props = {
   event: CalendarEvent | undefined;
@@ -15,6 +17,27 @@ type Props = {
   onGoals: () => void;
   ref?: Ref<HTMLElement>;
 };
+
+/** One line of the details list: an icon, the fact, and a quieter note. */
+function Fact({
+  icon,
+  children,
+  note,
+}: {
+  icon: IconName;
+  children: ReactNode;
+  note?: ReactNode;
+}) {
+  return (
+    <li>
+      <Icon name={icon} />
+      <span>
+        {children}
+        {note && <small>{note}</small>}
+      </span>
+    </li>
+  );
+}
 
 /** The Day view side panel: details for the selected event block. */
 export function DayEventDetails({
@@ -54,54 +77,49 @@ export function DayEventDetails({
       tabIndex={-1}
     >
       <p className="tala-day-details-label">Event details</p>
+      <h3 id={`day-details-${event.id}`}>{event.title}</h3>
       <span
         className="tala-day-details-category"
         data-category={event.category}
       >
         {categoryLabels[event.category]}
       </span>
-      <h3 id={`day-details-${event.id}`}>{event.title}</h3>
       <p className="tala-day-details-description">{description}</p>
-      <dl>
-        <div>
-          <dt>Date and time</dt>
-          <dd>
-            {calendarDayLabel(phoenixDateKey(event.startsAt))}
-            <span>
-              {event.allDay
-                ? "All day"
-                : `${calendarTimeRange(event.startsAt, event.endsAt)} · Arizona time`}
-            </span>
-          </dd>
-        </div>
-        {(format || location) && (
-          <div>
-            <dt>Format and location</dt>
-            <dd>
-              {format}
-              {location && <span>{location}</span>}
-            </dd>
-          </div>
+      <ul className="tala-day-facts">
+        <Fact
+          icon="calendar"
+          note={
+            event.allDay
+              ? "All day"
+              : `${calendarTimeRange(event.startsAt, event.endsAt)} · Arizona time`
+          }
+        >
+          {calendarDayLabel(phoenixDateKey(event.startsAt), {
+            weekday: "long",
+            month: "long",
+          })}
+        </Fact>
+        {(location || format) && (
+          <Fact icon="pin" note={location ? format : undefined}>
+            {location || format}
+          </Fact>
         )}
         {course?.grades && (
-          <div>
-            <dt>Grades</dt>
-            <dd>{course.grades}</dd>
-          </div>
+          <Fact icon="people" note="Who it is for">
+            {course.grades}
+          </Fact>
         )}
         {course?.teacher && (
-          <div>
-            <dt>Teacher</dt>
-            <dd>{course.teacher}</dd>
-          </div>
+          <Fact icon="book" note="Teacher">
+            {course.teacher}
+          </Fact>
         )}
-        {course && !course.allDay && (
-          <div>
-            <dt>Status</dt>
-            <dd>{classStatus(course)}</dd>
-          </div>
+        {course?.enrolled && !course.allDay && (
+          <Fact icon="check-circle" note="Your request">
+            {classStatus(course)}
+          </Fact>
         )}
-      </dl>
+      </ul>
       <div className="tala-day-details-actions">
         {joinUrl && (
           <a
@@ -110,7 +128,9 @@ export function DayEventDetails({
             target="_blank"
             rel="noopener noreferrer"
           >
-            Join virtual room <span aria-hidden="true">↗</span>
+            <Icon name="video" />
+            Join virtual room
+            <span className="tala-cal-sr"> (opens in a new tab)</span>
           </a>
         )}
         {course && !course.allDay && (

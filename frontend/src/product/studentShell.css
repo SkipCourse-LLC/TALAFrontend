@@ -38,7 +38,7 @@
   background: var(--portal-teal, #1f5560);
   color: #fff;
 }
-.student-sidebar-logo .icon {
+.student-sidebar-logo svg {
   width: 24px;
   height: 24px;
 }

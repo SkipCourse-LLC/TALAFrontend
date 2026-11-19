@@ -1,28 +1,41 @@
-import { useRef, type CSSProperties, type KeyboardEvent } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  type CSSProperties,
+  type KeyboardEvent,
+} from "react";
 import type { CalendarEvent } from "./calendarEvent";
 import {
   calendarDayLabel,
+  calendarTime,
   calendarTimeRange,
   civilDate,
 } from "./calendarDates";
 import { categoryLabels, classStatus } from "./classPresentation";
 import { eventFormat, eventLocation } from "./dayEventText";
-import { SLOT_MINUTES, gridRows, hourLabel, layoutDay } from "./dayGridLayout";
+import { hourLabel, layoutDay, phoenixMinuteOfDay } from "./dayGridLayout";
+import type { PlacedEvent } from "./dayGridLayout";
+import { Icon } from "../../shared/Icon";
 
 type Props = {
   day: string;
   today: boolean;
+  /** The current time, for the "now" line on today's schedule. */
+  now: number;
   events: CalendarEvent[];
   selectedId: string | null;
   onSelect: (event: CalendarEvent) => void;
 };
 
-const SLOTS_PER_HOUR = 60 / SLOT_MINUTES;
-
-/** Day view: an all-day row and an hourly grid of focusable event blocks. */
+/**
+ * Day view from Hannah's mockup: a day header, an all-day row, and a time grid
+ * with hour and half-hour lines. Event blocks sit at their real times; events
+ * that overlap share the width side by side.
+ */
 export function DayTimeGrid({
   day,
   today,
+  now,
   events,
   selectedId,
   onSelect,
@@ -33,11 +46,32 @@ export function DayTimeGrid({
     events.filter((event) => !event.allDay),
     day,
   );
+  const origin = layout.firstHour * 60;
+  const minutes = (layout.lastHour - layout.firstHour) * 60;
   const hours = Array.from(
     { length: layout.lastHour - layout.firstHour },
     (_, index) => layout.firstHour + index,
   );
-  const slots = hours.length * SLOTS_PER_HOUR;
+  const nowMinute = today
+    ? phoenixMinuteOfDay(new Date(now).toISOString(), day) - origin
+    : -1;
+  const showNow = nowMinute >= 0 && nowMinute <= minutes;
+  // The grid scrolls inside the board. Open it half an hour before the first
+  // event, or before the current hour on an empty today.
+  const grid = useRef<HTMLDivElement>(null);
+  const firstStart = layout.placed[0]?.start;
+  const openAt =
+    firstStart !== undefined
+      ? firstStart - origin
+      : showNow
+        ? Math.floor(nowMinute / 60) * 60
+        : 0;
+  useLayoutEffect(() => {
+    const element = grid.current;
+    if (!element || !minutes) return;
+    const pixelsPerMinute = element.scrollHeight / minutes;
+    element.scrollTop = Math.max(0, (openAt - 30) * pixelsPerMinute);
+  }, [day, openAt, minutes]);
 
   function moveFocus(event: KeyboardEvent<HTMLButtonElement>) {
     const keys = [
@@ -67,22 +101,42 @@ export function DayTimeGrid({
     target.focus();
   }
 
-  function block(event: CalendarEvent, style?: CSSProperties) {
-    const location = eventLocation(event);
-    const format = eventFormat(event);
-    const details = [location, format].filter(Boolean).join(" · ");
+  function block(event: CalendarEvent, placed?: PlacedEvent<CalendarEvent>) {
+    const selected = selectedId === event.id;
+    const course = event.course;
+    const meta = [eventLocation(event), course?.grades]
+      .filter(Boolean)
+      .join(" · ");
+    const length = placed ? placed.end - placed.start : 0;
+    const style = placed
+      ? ({
+          "--start": placed.start - origin,
+          "--length": length,
+          "--lane": placed.lane,
+          "--lanes": placed.lanes,
+        } as CSSProperties)
+      : undefined;
     return (
       <button
         type="button"
         key={event.id}
         className="tala-day-block"
         data-category={event.category}
-        aria-pressed={selectedId === event.id}
+        data-size={
+          !placed
+            ? "full"
+            : length < 50
+              ? "short"
+              : length < 80
+                ? "medium"
+                : "full"
+        }
+        aria-pressed={selected}
         style={style}
         onClick={() => onSelect(event)}
         onKeyDown={moveFocus}
       >
-        <span className="tala-day-block-top">
+        <span className="tala-day-block-row">
           <strong>{event.title}</strong>
           <span className="tala-day-block-time">
             {event.allDay
@@ -92,15 +146,24 @@ export function DayTimeGrid({
               : calendarTimeRange(event.startsAt, event.endsAt)}
           </span>
         </span>
-        <span className="tala-day-block-bottom">
-          {details && <span>{details}</span>}
-          <span className="tala-day-block-category">
+        <span className="tala-day-block-row tala-day-block-meta">
+          <span>{meta || eventFormat(event)}</span>
+          <span>
             {categoryLabels[event.category]}
-            {event.enrolled && event.course
-              ? ` · ${classStatus(event.course)}`
-              : ""}
+            {event.enrolled && course ? ` · ${classStatus(course)}` : ""}
           </span>
         </span>
+        {course?.description && (
+          <span className="tala-day-block-description">
+            {course.description}
+          </span>
+        )}
+        {selected && (
+          <span className="tala-day-block-open">
+            <Icon name="info" />
+            {eventFormat(event)} · Details open
+          </span>
+        )}
       </button>
     );
   }
@@ -120,7 +183,7 @@ export function DayTimeGrid({
             })}
           </strong>
           {today && <span className="tala-day-today">Today</span>}
-          <small>Classes, meetings and learning goals</small>
+          <small>Live sessions &amp; self-paced learning</small>
         </p>
         <span className="tala-day-count">
           {events.length} {events.length === 1 ? "event" : "events"} scheduled
@@ -142,44 +205,38 @@ export function DayTimeGrid({
       </div>
       <div
         className="tala-day-grid"
+        ref={grid}
+        // With no event buttons inside, the scroll area itself takes focus.
+        tabIndex={layout.placed.length ? undefined : 0}
         role="group"
         aria-label={`Timed events, ${calendarDayLabel(day)}`}
-        style={{
-          gridTemplateColumns: `5.5rem repeat(${layout.lanes}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${slots}, minmax(var(--day-slot), auto))`,
-        }}
+        style={{ "--day-minutes": minutes } as CSSProperties}
       >
-        {hours.map((hour, index) => (
-          <div
-            key={hour}
-            className="tala-day-hour"
-            aria-hidden="true"
-            style={{
-              gridRow: `${index * SLOTS_PER_HOUR + 1} / span ${SLOTS_PER_HOUR}`,
-            }}
-          >
-            <span>{hourLabel(hour)}</span>
-          </div>
-        ))}
-        {layout.placed.map((item) => {
-          const rows = gridRows(item.start, item.end, layout.firstHour);
-          return block(item.event, {
-            gridRow: `${rows.from} / ${rows.to}`,
-            gridColumn:
-              item.span === 0 ? "2 / -1" : `${item.lane + 2} / span 1`,
-          });
-        })}
-        {!layout.placed.length && (
-          <p className="tala-day-none">No timed events on this day.</p>
-        )}
+        <div className="tala-day-hours" aria-hidden="true">
+          {hours.map((hour, index) => (
+            <span key={hour} style={{ "--row": index } as CSSProperties}>
+              {hourLabel(hour)}
+            </span>
+          ))}
+        </div>
+        <div className="tala-day-canvas">
+          {layout.placed.map((item) => block(item.event, item))}
+          {!layout.placed.length && (
+            <p className="tala-day-none">No timed events on this day.</p>
+          )}
+          {showNow && (
+            <div
+              className="tala-day-now"
+              style={{ "--now": nowMinute } as CSSProperties}
+            >
+              <span>
+                <span className="tala-cal-sr">Now, </span>
+                {calendarTime(new Date(now).toISOString())}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
-      <p className="tala-day-foot">
-        <span>Arizona time (MST · UTC−07:00)</span>
-        <span>
-          {layout.placed.length} timed{" "}
-          {layout.placed.length === 1 ? "event" : "events"}
-        </span>
-      </p>
     </div>
   );
 }

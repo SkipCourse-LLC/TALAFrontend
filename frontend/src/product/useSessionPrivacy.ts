@@ -175,12 +175,16 @@ export function useSessionPrivacy({
   }, [invalidate]);
   useEffect(() => {
     mounted.current = true;
+    // Coming back to the tab re-checks the session quietly. Records stay on
+    // screen unless the check finds a different account or no session; hiding
+    // and redrawing the whole workspace on every tab switch read as a reload.
+    // Sign-outs and account changes in other tabs still conceal at once
+    // through the session channel below.
     const focused = () => {
-      if (document.visibilityState === "visible") void check(true, true);
+      if (document.visibilityState === "visible") void check(false, true);
     };
     const visibility = () => {
-      if (document.visibilityState === "hidden") conceal();
-      else focused();
+      if (document.visibilityState === "visible") focused();
     };
     const pageshow = (event: PageTransitionEvent) => {
       if (event.persisted) void check(true, true);

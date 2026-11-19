@@ -56,7 +56,6 @@ export interface StudentCalendarPreferences {
   view: CalendarView;
   categories: CalendarCategory[];
   filters: CourseFilterValue;
-  enrolledOnly: boolean;
 }
 
 export interface StudentCalendarPanelProps {
@@ -149,25 +148,14 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   const [courseFilters, setCourseFilters] = useState(
     preferences?.filters ?? emptyCourseFilters,
   );
-  const [enrolledOnly, setEnrolledOnly] = useState(
-    preferences?.enrolledOnly ?? false,
-  );
   useEffect(() => {
     onPreferencesChange?.({
       chosenDay,
       view,
       categories: enabled,
       filters: courseFilters,
-      enrolledOnly,
     });
-  }, [
-    chosenDay,
-    view,
-    enabled,
-    courseFilters,
-    enrolledOnly,
-    onPreferencesChange,
-  ]);
+  }, [chosenDay, view, enabled, courseFilters, onPreferencesChange]);
   const [detailId, setDetailId] = useState<string | null>(
     initialClassId ?? null,
   );
@@ -231,8 +219,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   const events = allEvents.filter(
     (event) =>
       enabled.includes(event.category) &&
-      (event.kind !== "class" || matchingClassIds.has(event.id)) &&
-      (!enrolledOnly || event.kind !== "class" || event.enrolled),
+      (event.kind !== "class" || matchingClassIds.has(event.id)),
   );
   const eventRanges = events.map((event) => ({
     event,
@@ -259,7 +246,11 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
     (event) => event.kind === "meeting",
   );
   const selectedGoals = selectedEvents.filter((event) => event.kind === "goal");
-  const dayEvent = selectedEvents.find((event) => event.id === dayEventId);
+  // The day opens on its first timed event, as in the mockup.
+  const dayEvent =
+    selectedEvents.find((event) => event.id === dayEventId) ??
+    selectedEvents.find((event) => !event.allDay) ??
+    selectedEvents[0];
   const nextAvailable = classes
     .filter(
       (course) =>
@@ -302,7 +293,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   );
   const title =
     view === "Day"
-      ? calendarDayLabel(selectedDay, { weekday: "short", month: "short" })
+      ? calendarDayLabel(selectedDay, { weekday: undefined, year: "numeric" })
       : view === "Week"
         ? `${calendarDayLabel(weekDays[0]!, { weekday: undefined, month: "short" })} – ${calendarDayLabel(weekDays[6]!, { weekday: undefined, month: "short" })}`
         : calendarMonthLabel(month);
@@ -372,7 +363,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
             ? event.kind === "goal"
               ? "Due"
               : "All day"
-            : calendarTime(event.startsAt)}
+            : shortTime(event.startsAt)}
         </span>
         <span className="tala-cal-chip-title">{event.title}</span>
         {event.enrolled && (
@@ -543,16 +534,23 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   aria-label={`Previous ${view === "Day" ? "day" : view === "Week" ? "week" : "month"}`}
                   onClick={() => navigate(-1)}
                 >
-                  ‹
+                  <Icon name="chevron-left" />
                 </button>
                 <button
                   type="button"
                   aria-label={`Next ${view === "Day" ? "day" : view === "Week" ? "week" : "month"}`}
                   onClick={() => navigate(1)}
                 >
-                  ›
+                  <Icon name="chevron-right" />
                 </button>
               </div>
+              <button
+                type="button"
+                className="tala-cal-today"
+                onClick={() => chooseDay(today)}
+              >
+                Today
+              </button>
               <label className="tala-cal-date-jump">
                 <span className="tala-cal-sr">Jump to date</span>
                 <input
@@ -565,13 +563,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   aria-label="Jump to date"
                 />
               </label>
-              <button
-                type="button"
-                className="tala-cal-today"
-                onClick={() => chooseDay(today)}
-              >
-                Today
-              </button>
             </div>
             <div
               className="tala-cal-views"
@@ -590,29 +581,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   </button>
                 ),
               )}
-            </div>
-          </div>
-          <div className="tala-cal-board-options">
-            <div
-              className="tala-cal-scope"
-              role="group"
-              aria-label="Class list"
-            >
-              <button
-                type="button"
-                aria-pressed={!enrolledOnly}
-                onClick={() => setEnrolledOnly(false)}
-              >
-                All classes
-              </button>
-              <button
-                type="button"
-                aria-pressed={enrolledOnly}
-                onClick={() => setEnrolledOnly(true)}
-              >
-                My requests
-                {data?.enrolled.length ? ` (${data.enrolled.length})` : ""}
-              </button>
             </div>
           </div>
           <p className="tala-cal-sr" id={`${regionId}-keys`}>
@@ -747,22 +715,19 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               <DayTimeGrid
                 day={selectedDay}
                 today={selectedDay === today}
+                now={now}
                 events={selectedEvents}
                 selectedId={dayEvent?.id ?? null}
                 onSelect={selectDayEvent}
               />
               <EmptyEvents
                 count={selectedEvents.length}
-                enrolledOnly={enrolledOnly}
                 onReset={() => {
-                  setCourseFilters(emptyCourseFilters);
                   setEnabled(categories.map((item) => item.id));
-                  setEnrolledOnly(false);
                   setCourseFilters(emptyCourseFilters);
                 }}
                 filtered={
                   enabled.length < categories.length ||
-                  enrolledOnly ||
                   Object.values(courseFilters).some(Boolean)
                 }
               />
@@ -794,16 +759,12 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               ))}
               <EmptyEvents
                 count={agendaDays.length}
-                enrolledOnly={enrolledOnly}
                 onReset={() => {
-                  setCourseFilters(emptyCourseFilters);
                   setEnabled(categories.map((item) => item.id));
-                  setEnrolledOnly(false);
                   setCourseFilters(emptyCourseFilters);
                 }}
                 filtered={
                   enabled.length < categories.length ||
-                  enrolledOnly ||
                   Object.values(courseFilters).some(Boolean)
                 }
               />
@@ -814,8 +775,9 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
               <span aria-hidden="true">◷ </span>Arizona Time (MST · UTC−07:00)
             </span>
             <span>
-              {monthEventCount} {monthEventCount === 1 ? "event" : "events"}{" "}
-              this month
+              {view === "Day"
+                ? `${selectedEvents.length} ${selectedEvents.length === 1 ? "event" : "events"} ${selectedDay === today ? "today" : "this day"}`
+                : `${monthEventCount} ${monthEventCount === 1 ? "event" : "events"} this month`}
             </span>
           </p>
         </div>
@@ -871,12 +833,10 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                 <p className="tala-cal-empty-inline">
                   {earlierClasses.length
                     ? "Classes finished for this date."
-                    : enrolledOnly
-                      ? "No enrolled classes on this date."
-                      : "No open classes on this date."}
+                    : "No open classes on this date."}
                 </p>
               )}
-              {!dayHasOpenSeat && nextAvailable && !enrolledOnly && (
+              {!dayHasOpenSeat && nextAvailable && (
                 <button
                   type="button"
                   className="tala-cal-full-day"
@@ -980,6 +940,14 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
   );
 }
 
+/** "9a", "3:30p": the compact times on month chips, as in the mockup. */
+function shortTime(value: string) {
+  return calendarTime(value)
+    .replace(":00", "")
+    .replace(/\s?AM$/, "a")
+    .replace(/\s?PM$/, "p");
+}
+
 function courseFormat(course: CalendarClass) {
   const modes = course.modalities ?? [];
   if (modes.length === 1) return modes[0] === "online" ? "Online" : "In person";
@@ -1045,23 +1013,17 @@ function CalendarCourseCard({
 
 function EmptyEvents({
   count,
-  enrolledOnly,
   filtered,
   onReset,
 }: {
   count: number;
-  enrolledOnly: boolean;
   filtered: boolean;
   onReset: () => void;
 }) {
   if (count) return null;
   return (
     <div className="tala-cal-empty">
-      <p>
-        {enrolledOnly
-          ? "No enrolled classes here yet."
-          : "No events for these dates."}
-      </p>
+      <p>No events for these dates.</p>
       {filtered && (
         <button type="button" onClick={onReset}>
           Show all calendars

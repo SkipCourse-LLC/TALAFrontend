@@ -20,33 +20,34 @@ export function announceClassChange() {
   }
 }
 
-/** Returning to the tab re-reads classes only after this long away. */
-const RETURN_REFRESH_MS = 5 * 60_000;
-
 /**
- * Re-reads class data when a class actually changes (in this tab or another)
- * and when the person comes back after a while. There is no timer: a periodic
- * re-read made the page visibly reload while someone was using it.
+ * Re-reads class data only when a class actually changes, in this tab or
+ * another. There is no timer and no re-read on returning to the tab: those
+ * made the page visibly reload while someone was using it. A change that
+ * arrives while the tab is hidden is applied when the tab is shown again.
  */
 export function useClassWorkspaceRevision(enabled = true) {
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     if (!enabled) return;
-    let lastRead = Date.now();
+    let missed = false;
     const refresh = () => {
-      if (document.visibilityState === "hidden") return;
-      lastRead = Date.now();
+      if (document.visibilityState === "hidden") {
+        missed = true;
+        return;
+      }
+      missed = false;
       setRevision((value) => value + 1);
     };
     const returned = () => {
-      if (Date.now() - lastRead >= RETURN_REFRESH_MS) refresh();
+      if (missed) refresh();
     };
     let channel: BroadcastChannel | null = null;
     try {
       if (typeof BroadcastChannel !== "undefined")
         channel = new BroadcastChannel(channelName);
     } catch {
-      // Same-tab events and the return refresh still work without channels.
+      // Same-tab change events still work without channels.
     }
     if (channel)
       channel.onmessage = (event: MessageEvent<unknown>) => {

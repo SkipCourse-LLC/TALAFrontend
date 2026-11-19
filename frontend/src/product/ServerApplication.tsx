@@ -110,7 +110,12 @@ export function ServerApplication() {
   const loggingOut = useRef(false);
   const restored = useCallback((next: ApiUser | null) => {
     intent.current++;
-    setUser(next);
+    // An unchanged session keeps the same object so nothing re-renders.
+    setUser((current) =>
+      current && next && JSON.stringify(current) === JSON.stringify(next)
+        ? current
+        : next,
+    );
   }, []);
   const privacy = useSessionPrivacy({
     user,

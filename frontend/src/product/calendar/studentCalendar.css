@@ -192,116 +192,105 @@
   overflow: hidden;
   min-width: 0;
 }
+/* Toolbar as in the mockup: one slim row. Period, arrows and Today on the
+   left; the view switcher on the right. */
 .tala-cal-toolbar {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.75rem;
-  padding: 1rem 1.1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.65rem 1rem;
   border-bottom: 1px solid var(--cal-line);
 }
 .tala-cal-period {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   min-width: 0;
 }
 .tala-cal-period h3 {
-  margin: 0 auto 0 0;
+  margin: 0 0.4rem 0 0;
   min-width: 0;
-  font-size: calc(1rem * var(--student-type-scale, 1));
-  font-weight: 650;
-  letter-spacing: -0.025em;
-  line-height: 1.35;
+  font-size: calc(1.15rem * var(--student-type-scale, 1));
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 .tala-cal-arrows {
   display: flex;
   flex-shrink: 0;
   align-items: center;
+  gap: 2px;
 }
 .tala-cal-arrows button {
-  border: 0;
-  background: transparent;
-  color: var(--cal-muted);
-  font-size: calc(1.4rem * var(--student-type-scale, 1));
-  width: 44px;
-  min-height: 44px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  line-height: 1;
-  border-radius: 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cal-ink);
+}
+.tala-cal-arrows .icon {
+  width: 18px;
+  height: 18px;
 }
 .tala-cal-arrows button:hover {
   background: var(--cal-soft);
   color: var(--cal-green);
 }
 .tala-cal-today {
-  padding: 0.4rem 0.65rem;
-  min-height: 44px;
   flex-shrink: 0;
+  height: 32px;
+  margin-left: 0.25rem;
+  padding: 0 0.75rem;
   border: 1px solid var(--cal-line);
   border-radius: 7px;
   background: #fff;
   font-size: 0.8125rem !important;
   color: var(--cal-ink);
 }
+.tala-cal-today:hover {
+  background: var(--cal-soft);
+}
+.tala-calendar .tala-cal-date-jump input {
+  height: 32px;
+  min-height: 32px;
+  max-width: 128px;
+  padding: 0 0.4rem;
+}
 .tala-cal-views {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 3px;
+  display: inline-flex;
+  gap: 2px;
   padding: 3px;
   background: var(--cal-soft);
-  border: 1px solid #edf1ee;
-  border-radius: 9px;
+  border: 1px solid #e8eeeb;
+  border-radius: 8px;
 }
 .tala-cal-views button {
-  padding: 0.45rem 0.65rem;
+  height: 28px;
+  min-width: 0;
+  padding: 0 0.7rem;
   border: 1px solid transparent;
   border-radius: 6px;
-  font-size: calc(0.8125rem * var(--student-type-scale, 1));
-  color: var(--cal-muted);
   background: transparent;
-  min-height: 44px;
-  min-width: 0;
+  color: var(--cal-muted);
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.tala-cal-views button:hover:not([aria-pressed="true"]) {
+  color: var(--cal-ink);
 }
 .tala-cal-views button[aria-pressed="true"] {
   color: var(--cal-green);
   background: #fff;
   border-color: #d4dfd7;
   box-shadow: 0 1px 2px #213b3210;
-  font-weight: 600;
-}
-.tala-cal-board-options {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.25rem 1.1rem;
-  border-bottom: 1px solid var(--cal-line);
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-  color: var(--cal-muted);
-}
-.tala-cal-board-options > span {
-  white-space: nowrap;
-}
-.tala-cal-scope {
-  display: flex;
-  gap: 1.15rem;
-  min-width: 0;
-}
-.tala-cal-scope button {
-  padding: 0.3rem 0;
-  min-height: 44px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--cal-muted);
-  font-size: calc(0.8125rem * var(--student-type-scale, 1));
-  white-space: nowrap;
-}
-.tala-cal-scope button[aria-pressed="true"] {
-  color: var(--cal-green);
-  border-bottom-color: var(--cal-green);
-  font-weight: 650;
+  font-weight: 500;
 }
 .tala-cal-weekdays {
   display: grid;
@@ -408,8 +397,10 @@
   background: #eef3ee;
   color: #47644e;
 }
+/* "9a", "3:30p" before each title, as in the mockup. */
 .tala-cal-chip-time {
-  display: none;
+  flex-shrink: 0;
+  font-weight: 500;
 }
 .tala-cal-chip-title {
   min-width: 0;
@@ -983,41 +974,16 @@
 }
 
 /* Use a side panel only when the month still has room for seven useful columns. */
-@container tala-calendar (min-width: 620px) {
-  .tala-cal-toolbar {
-    flex-direction: row;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  .tala-cal-period {
-    flex: 1;
-  }
-  .tala-cal-views {
-    flex: 0 0 260px;
-  }
-}
 @container tala-calendar (min-width: 1000px) {
   .tala-cal-layout {
     grid-template-columns: minmax(650px, 1fr) var(--cal-side, 320px);
     gap: 1.15rem;
-  }
-  .tala-cal-toolbar {
-    padding: 1rem;
   }
 }
 @container tala-calendar (min-width: 620px) and (max-width: 999px) {
   .tala-cal-day-classes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 1.75rem;
-  }
-  .tala-cal-period h3 {
-    font-size: calc(0.9375rem * var(--student-type-scale, 1));
-  }
-  .tala-cal-period {
-    gap: 0.2rem;
-  }
-  .tala-cal-arrows button {
-    width: 38px;
   }
 }
 @container tala-calendar (max-width: 619px) {
@@ -1034,32 +1000,31 @@
   .tala-cal-layout {
     gap: 0.9rem;
   }
+  /* Phones: larger touch targets, and the view switcher spans the row. */
   .tala-cal-toolbar {
-    padding: 0.75rem;
-    gap: 0.65rem;
-  }
-  .tala-cal-period {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: 0.2rem;
+    padding: 0.65rem 0.75rem;
   }
   .tala-cal-period h3 {
-    font-size: calc(0.9375rem * var(--student-type-scale, 1));
-    overflow-wrap: normal;
+    flex-basis: 100%;
+    font-size: calc(1.05rem * var(--student-type-scale, 1));
+  }
+  .tala-cal-arrows button,
+  .tala-cal-today,
+  .tala-calendar .tala-cal-date-jump input {
+    height: 40px;
+    min-height: 40px;
+  }
+  .tala-cal-arrows button {
+    width: 40px;
+  }
+  .tala-cal-views {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: 100%;
   }
   .tala-cal-views button {
+    height: 36px;
     padding-inline: 0.25rem;
-  }
-  .tala-cal-board-options {
-    padding: 0.2rem 0.75rem;
-    gap: 0.5rem;
-    font-size: calc(0.6875rem * var(--student-type-scale, 1));
-  }
-  .tala-cal-scope {
-    gap: 0.75rem;
-  }
-  .tala-cal-scope button {
-    font-size: calc(0.75rem * var(--student-type-scale, 1));
   }
   .tala-cal-weekdays span {
     text-align: center;
@@ -1161,8 +1126,7 @@
 }
 @media (forced-colors: active) {
   .tala-cal-date[aria-pressed="true"],
-  .tala-cal-views button[aria-pressed="true"],
-  .tala-cal-scope button[aria-pressed="true"] {
+  .tala-cal-views button[aria-pressed="true"] {
     outline: 2px solid Highlight;
     outline-offset: -2px;
   }
@@ -1177,233 +1141,340 @@
   }
 }
 
-/* Day view: hourly grid with event blocks, plus an event details panel. */
+/* Day view, from Hannah's mockup: a header strip, an all-day row, and a time
+   grid with hour lines, lighter half-hour lines and a "now" line. Blocks sit at
+   their real times; overlapping events share the width. */
 .tala-cal-day-view:has(.tala-day) {
   padding: 0;
   min-height: 0;
 }
 .tala-day {
-  --day-slot: 0.45rem;
-  border-top: 1px solid var(--cal-line);
+  --day-hour: 60px;
+  --day-gutter: 5.25rem;
 }
 .tala-day-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.9rem;
-  padding: 1rem 1.25rem;
+  gap: 0.85rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--cal-line);
   background: var(--cal-soft);
 }
 .tala-day-number {
   display: grid;
   place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 50%;
+  width: 2.4rem;
+  height: 2.4rem;
   border: 1px solid var(--cal-line);
+  border-radius: 50%;
   background: #fff;
-  font-size: calc(1.15rem * var(--student-type-scale, 1));
-  font-weight: 600;
   color: var(--cal-ink);
+  font-size: calc(1.05rem * var(--student-type-scale, 1));
+  font-weight: 500;
 }
 .tala-day-number[data-today="true"] {
-  background: var(--cal-green);
   border-color: var(--cal-green);
+  background: var(--cal-green);
   color: #fff;
 }
 .tala-day-head p {
   margin: 0;
   min-width: 0;
+  line-height: 1.3;
 }
 .tala-day-head strong {
-  font-size: calc(1.05rem * var(--student-type-scale, 1));
-  font-weight: 600;
+  font-size: calc(0.95rem * var(--student-type-scale, 1));
+  font-weight: 500;
 }
 .tala-day-today {
-  margin-left: 0.5rem;
-  font-size: calc(0.7rem * var(--student-type-scale, 1));
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  margin-left: 0.45rem;
   color: var(--cal-green);
+  font-size: calc(0.68rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 .tala-day-head small {
   display: block;
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
   color: var(--cal-muted);
   font-size: calc(0.78rem * var(--student-type-scale, 1));
 }
 .tala-day-count {
-  font-size: calc(0.8rem * var(--student-type-scale, 1));
   color: var(--cal-muted);
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  white-space: nowrap;
 }
 .tala-day-allday {
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr);
-  align-items: center;
-  border-bottom: 2px solid var(--cal-line);
-  min-height: 3.25rem;
+  grid-template-columns: var(--day-gutter) minmax(0, 1fr);
+  min-height: 2.75rem;
+  border-bottom: 1px solid var(--cal-line);
 }
 .tala-day-label {
-  padding: 0.6rem 0.5rem;
-  text-align: center;
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  align-self: center;
+  padding: 0 0.75rem;
   color: var(--cal-muted);
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
 }
 .tala-day-allday > div {
   display: grid;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem 0.5rem 0.75rem;
+  align-content: center;
+  gap: 0.35rem;
   min-width: 0;
+  padding: 0.4rem 0.75rem;
+  border-left: 1px solid var(--cal-line);
 }
 .tala-day-allday p {
   margin: 0;
-  font-size: calc(0.8rem * var(--student-type-scale, 1));
   color: var(--cal-muted);
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
 }
 .tala-day-grid {
   display: grid;
+  grid-template-columns: var(--day-gutter) minmax(0, 1fr);
+  /* About ten hours show at once; the rest scrolls inside the board. */
+  max-height: calc(10 * var(--day-hour));
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.tala-day-grid:focus-visible {
+  outline: 3px solid #194b40;
+  outline-offset: -3px;
+}
+.tala-day-hours {
   position: relative;
-  column-gap: 0.5rem;
-  padding-right: 1rem;
-  min-width: 0;
+  height: calc(var(--day-minutes) * var(--day-hour) / 60);
 }
-.tala-day-hour {
-  grid-column: 1 / -1;
-  border-top: 1px solid var(--cal-line);
-  pointer-events: none;
-}
-.tala-day-hour span {
-  display: block;
-  width: 5.5rem;
-  padding: 0.35rem 0.5rem 0;
-  text-align: center;
-  font-size: calc(0.72rem * var(--student-type-scale, 1));
+.tala-day-hours span {
+  position: absolute;
+  top: calc(var(--row) * var(--day-hour) + 6px);
+  left: 0;
+  right: 0;
+  padding: 0 0.75rem;
   color: var(--cal-muted);
+  font-size: calc(0.72rem * var(--student-type-scale, 1));
   white-space: nowrap;
 }
+.tala-day-canvas {
+  position: relative;
+  min-width: 0;
+  height: calc(var(--day-minutes) * var(--day-hour) / 60);
+  border-left: 1px solid var(--cal-line);
+  background-image:
+    linear-gradient(to bottom, #d3ddd9 0 1px, transparent 1px),
+    linear-gradient(
+      to bottom,
+      transparent calc(var(--day-hour) / 2),
+      #e5ebe8 calc(var(--day-hour) / 2),
+      #e5ebe8 calc(var(--day-hour) / 2 + 1px),
+      transparent calc(var(--day-hour) / 2 + 1px)
+    );
+  background-size: 100% var(--day-hour);
+}
 .tala-day-none {
-  grid-column: 2 / -1;
-  grid-row: 1 / span 12;
-  align-self: center;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
   margin: 0;
-  font-size: calc(0.8rem * var(--student-type-scale, 1));
   color: var(--cal-muted);
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
 }
 .tala-day-block {
-  position: relative;
+  --event-ink: color-mix(in srgb, var(--event-color) 72%, #0f1f1b);
+  position: absolute;
   z-index: 1;
+  top: calc(var(--start) * var(--day-hour) / 60 + 2px);
+  left: calc(0.75rem + (100% - 1.5rem + 6px) * var(--lane) / var(--lanes));
+  width: calc((100% - 1.5rem + 6px) / var(--lanes) - 6px);
+  height: calc(var(--length) * var(--day-hour) / 60 - 4px);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 0.35rem;
+  gap: 0.3rem;
   min-width: 0;
-  margin: 2px 0;
-  border: 1px solid color-mix(in srgb, var(--event-color) 30%, #fff);
-  border-left: 4px solid var(--event-color);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
+  overflow: hidden;
+  padding: 0.5rem 0.85rem;
+  border: 0;
+  border-left: 3px solid var(--event-color);
+  border-radius: 6px;
   background: color-mix(in srgb, var(--event-color) 9%, #fff);
   color: var(--cal-ink);
   text-align: left;
-  overflow-wrap: anywhere;
 }
 .tala-day-block:hover {
-  background: color-mix(in srgb, var(--event-color) 15%, #fff);
+  background: color-mix(in srgb, var(--event-color) 14%, #fff);
 }
 .tala-day-block[aria-pressed="true"] {
-  border-color: var(--cal-green);
-  box-shadow: inset 0 0 0 1px var(--cal-green);
-  background: color-mix(in srgb, var(--event-color) 18%, #fff);
+  z-index: 2;
+  background: color-mix(in srgb, var(--event-color) 13%, #fff);
+  box-shadow: inset 0 0 0 1.5px var(--event-ink);
 }
-.tala-day-block-top,
-.tala-day-block-bottom {
+.tala-day-block-row {
   display: flex;
-  flex-wrap: wrap;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 0.15rem 0.75rem;
-  width: 100%;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.tala-day-block-row > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tala-day-block-row > :last-child {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .tala-day-block strong {
-  font-size: calc(0.88rem * var(--student-type-scale, 1));
-  font-weight: 600;
+  color: var(--event-ink);
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
+  font-weight: 500;
   line-height: 1.35;
 }
 .tala-day-block-time,
-.tala-day-block-bottom {
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
+.tala-day-block-meta,
+.tala-day-block-open {
+  color: var(--event-ink);
+  font-size: calc(0.76rem * var(--student-type-scale, 1));
   line-height: 1.4;
-  color: #3f5249;
 }
-.tala-day-block-category {
-  font-weight: 600;
+/* Blocks with room let a long title take two lines. */
+.tala-day-block[data-size="full"] strong {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
-.tala-day-foot {
+.tala-day-block-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--cal-ink);
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+.tala-day-block-open {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0.75rem 1.25rem;
-  border-top: 1px solid var(--cal-line);
-  font-size: calc(0.75rem * var(--student-type-scale, 1));
-  color: var(--cal-muted);
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: auto;
 }
+.tala-day-block-open .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+/* Short events keep only their title and time; medium ones drop the extras. */
+.tala-day-block[data-size="short"] {
+  justify-content: center;
+  padding-block: 0.15rem;
+}
+.tala-day-block[data-size="short"]
+  :is(.tala-day-block-meta, .tala-day-block-description, .tala-day-block-open),
+.tala-day-block[data-size="medium"]
+  :is(.tala-day-block-description, .tala-day-block-open) {
+  display: none;
+}
+.tala-day-allday .tala-day-block {
+  position: static;
+  width: auto;
+  height: auto;
+}
+.tala-day-now {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--now) * var(--day-hour) / 60);
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--cal-green);
+  pointer-events: none;
+}
+.tala-day-now > span {
+  position: absolute;
+  top: 0;
+  left: calc(0.4rem - var(--day-gutter));
+  width: calc(var(--day-gutter) - 0.8rem);
+  padding: 0.12rem 0;
+  border-radius: 4px;
+  background: var(--cal-green);
+  color: #fff;
+  font-size: calc(0.68rem * var(--student-type-scale, 1));
+  text-align: center;
+  transform: translateY(-50%);
+}
+
+/* Event details, beside the day: title, its calendar, then one fact per line. */
 .tala-day-details-label {
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.85rem;
+  color: var(--cal-muted);
   font-size: calc(0.72rem * var(--student-type-scale, 1));
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--cal-muted);
+}
+.tala-day-details h3 {
+  margin: 0 0 0.55rem;
+  font-size: calc(1.3rem * var(--student-type-scale, 1));
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
 }
 .tala-day-details-category {
   display: inline-block;
+  margin-bottom: 0.85rem;
+  padding: 0.2rem 0.5rem;
   border-radius: 5px;
-  padding: 0.25rem 0.5rem;
   background: color-mix(in srgb, var(--event-color) 12%, #fff);
-  color: var(--cal-ink);
+  color: color-mix(in srgb, var(--event-color) 72%, #0f1f1b);
   font-size: calc(0.75rem * var(--student-type-scale, 1));
-  font-weight: 600;
-}
-.tala-day-details h3 {
-  margin: 0.75rem 0 0.5rem;
-  font-size: calc(1.3rem * var(--student-type-scale, 1));
-  font-weight: 600;
-  line-height: 1.3;
-  letter-spacing: -0.02em;
-  overflow-wrap: anywhere;
+  font-weight: 500;
 }
 .tala-day-details-description {
   margin: 0 0 1rem;
-  font-size: calc(0.85rem * var(--student-type-scale, 1));
-  line-height: 1.6;
   color: #3f5249;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  overflow-wrap: break-word;
 }
-.tala-day-details dl {
+.tala-day-facts {
   display: grid;
-  gap: 0.85rem;
+  gap: 1rem;
   margin: 0;
   padding: 1rem 0;
   border-top: 1px solid var(--cal-line);
   border-bottom: 1px solid var(--cal-line);
+  list-style: none;
 }
-.tala-day-details dt {
-  font-size: calc(0.72rem * var(--student-type-scale, 1));
-  color: var(--cal-muted);
-  margin-bottom: 0.2rem;
+.tala-day-facts li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
 }
-.tala-day-details dd {
-  margin: 0;
-  font-size: calc(0.85rem * var(--student-type-scale, 1));
+.tala-day-facts .icon {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
   color: var(--cal-ink);
-  overflow-wrap: anywhere;
 }
-.tala-day-details dd span {
-  display: block;
+.tala-day-facts li > span {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  color: var(--cal-ink);
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
+  line-height: 1.4;
+  overflow-wrap: break-word;
+}
+.tala-day-facts small {
   color: var(--cal-muted);
-  font-size: calc(0.78rem * var(--student-type-scale, 1));
-  margin-top: 0.15rem;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
 }
 .tala-day-details-actions {
   display: grid;
@@ -1414,34 +1485,34 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  min-height: 44px;
+  gap: 0.5rem;
+  min-height: 42px;
+  padding: 0.5rem 0.9rem;
   border: 1px solid #b8c7be;
   border-radius: 8px;
-  padding: 0.55rem 0.9rem;
   background: #fff;
   color: var(--cal-green);
-  font-size: calc(0.85rem * var(--student-type-scale, 1));
-  font-weight: 600;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  font-weight: 500;
   text-decoration: none;
 }
-.tala-day-details-actions > .tala-day-join {
-  background: var(--color-accent, #174139);
-  border-color: var(--color-accent, #174139);
-  color: #fff;
+.tala-day-details-actions > :is(a, button):hover {
+  background: var(--cal-soft);
+}
+.tala-day-details-actions .icon {
+  width: 18px;
+  height: 18px;
 }
 .tala-day-details-actions > a:focus-visible {
   outline: 3px solid #194b40;
   outline-offset: 3px;
 }
-/* Narrow boards: blocks become a time-ordered list; nothing overlaps. */
+
+/* Narrow boards: the day becomes a time-ordered list; nothing overlaps. */
 @container tala-calendar (max-width: 619px) {
-  .tala-cal-day-view:has(.tala-day) {
-    padding: 0;
-  }
   .tala-day-head {
     grid-template-columns: auto minmax(0, 1fr);
-    padding: 0.85rem;
+    padding: 0.75rem;
   }
   .tala-day-count {
     grid-column: 1 / -1;
@@ -1450,27 +1521,49 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .tala-day-label {
-    text-align: left;
-    padding: 0.6rem 0.85rem 0;
+    padding: 0.6rem 0.75rem 0;
   }
   .tala-day-allday > div {
-    padding: 0.5rem 0.85rem;
+    border-left: 0;
   }
   .tala-day-grid {
+    display: block;
+    max-height: none;
+    overflow: visible;
+  }
+  .tala-day-hours,
+  .tala-day-now {
+    display: none;
+  }
+  .tala-day-canvas {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    padding: 0.75rem 0.85rem;
-  }
-  .tala-day-hour {
-    display: none;
+    height: auto;
+    padding: 0.75rem;
+    border-left: 0;
+    background: none;
   }
   .tala-day-block {
-    margin: 0;
+    position: static;
+    width: auto;
+    height: auto;
     min-height: 44px;
   }
-  .tala-day-foot {
-    padding: 0.75rem 0.85rem;
+  .tala-day-block[data-size] .tala-day-block-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1rem 0.75rem;
+  }
+  .tala-day-block[data-size] .tala-day-block-meta > :first-child {
+    white-space: normal;
+  }
+  .tala-day-block[data-size] .tala-day-block-description {
+    display: -webkit-box;
+  }
+  .tala-day-none {
+    position: static;
+    padding: 1rem 0;
   }
 }
 @media (forced-colors: active) {
@@ -1479,5 +1572,8 @@
   }
   .tala-day-block[aria-pressed="true"] {
     outline: 3px solid Highlight;
+  }
+  .tala-day-now {
+    border-top-color: Highlight;
   }
 }

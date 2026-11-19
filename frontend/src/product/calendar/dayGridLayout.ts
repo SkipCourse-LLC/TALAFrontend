@@ -31,6 +31,8 @@ export type PlacedEvent<T extends Timed> = {
   lane: number;
   /** 0 spans every lane (no overlap); 1 keeps the event in its own lane. */
   span: number;
+  /** How many side-by-side lanes this event's overlapping group uses. */
+  lanes: number;
 };
 export type DayGridLayout<T extends Timed> = {
   firstHour: number;
@@ -77,7 +79,10 @@ export function layoutDay<T extends Timed>(
   const closeCluster = () => {
     const width = laneEnds.length;
     lanes = Math.max(lanes, width);
-    for (const item of cluster) item.span = width === 1 ? 0 : 1;
+    for (const item of cluster) {
+      item.span = width === 1 ? 0 : 1;
+      item.lanes = width;
+    }
     cluster = [];
     laneEnds = [];
   };
@@ -87,7 +92,7 @@ export function layoutDay<T extends Timed>(
     if (lane === -1) lane = laneEnds.length;
     laneEnds[lane] = item.end;
     clusterEnd = Math.max(clusterEnd, item.end);
-    const entry = { ...item, lane, span: 1 };
+    const entry = { ...item, lane, span: 1, lanes: 1 };
     cluster.push(entry);
     placed.push(entry);
   }
