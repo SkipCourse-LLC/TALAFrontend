@@ -29,6 +29,8 @@ export function AdmissionsPage() {
           <a
             className="button"
             href="https://calendar.app.google/YapTB4MQLus16DATA"
+            target="_blank"
+            rel="noopener noreferrer"
           >
             Schedule a Free One-Hour Family Interview
           </a>

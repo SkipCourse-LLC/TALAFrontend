@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ProgramCards } from "./ProgramCards";
 import { StartBanner } from "./StartBanner";
 import { Icon } from "../shared/Icon";
-import learningDesk from "../assets/learning-desk.svg";
+import { LearningDeskArt } from "./LearningDeskArt";
 import "./home.css";
 
 const distinctions = [
@@ -57,6 +57,8 @@ export function HomePage() {
               <a
                 className="home-button home-button-primary"
                 href="https://calendar.app.google/YapTB4MQLus16DATA"
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 Schedule a Family Interview <Icon name="arrow" />
               </a>
@@ -66,12 +68,7 @@ export function HomePage() {
             </div>
           </div>
           <figure className="home-hero-art">
-            <img
-              src={learningDesk}
-              width="600"
-              height="570"
-              alt="An illustrated learning journal with a seedling and a mountain sketch."
-            />
+            <LearningDeskArt />
           </figure>
         </div>
       </section>

@@ -42,7 +42,7 @@ export function AboutPage() {
       </section>
       <section className="container section">
         <h2>Our philosophy</h2>
-        <div className="content-grid">
+        <div className="content-grid philosophy-rows">
           {principles.map(([title, text]) => (
             <article key={title}>
               <h3>{title}</h3>

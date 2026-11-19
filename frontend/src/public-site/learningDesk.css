@@ -1,0 +1,202 @@
+/* The hero's animated learning journal (LearningDeskArt). Idle motion is slow
+   and small; clicks give quick, springy feedback. */
+.learning-desk {
+  --px: 0;
+  --py: 0;
+  display: block;
+  overflow: visible;
+}
+
+/* Depth: each layer follows the pointer by its own distance. */
+.desk-layer {
+  translate: calc(var(--px) * var(--depth) * 1px)
+    calc(var(--py) * var(--depth) * 1px);
+  transition: translate 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Idle motion */
+.desk-float {
+  animation: desk-float 7s ease-in-out infinite;
+}
+@keyframes desk-float {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.desk-wave {
+  animation: desk-drift 11s ease-in-out infinite;
+}
+@keyframes desk-drift {
+  50% {
+    transform: translateX(-8px);
+  }
+}
+.desk-rays {
+  transform-box: view-box;
+  transform-origin: 480px 108px;
+  animation: desk-turn 40s linear infinite;
+}
+@keyframes desk-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.desk-sun-disc {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: desk-glow 5s ease-in-out infinite;
+}
+@keyframes desk-glow {
+  50% {
+    transform: scale(1.05);
+  }
+}
+.desk-small-sun {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: desk-glow 6s ease-in-out 1s infinite;
+}
+.desk-sway {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: desk-sway 5s ease-in-out infinite;
+}
+@keyframes desk-sway {
+  0%,
+  100% {
+    transform: rotate(-2.5deg);
+  }
+  50% {
+    transform: rotate(2.5deg);
+  }
+}
+.desk-pencil {
+  animation: desk-bob 4.5s ease-in-out infinite;
+}
+@keyframes desk-bob {
+  50% {
+    transform: translate(-3px, 5px);
+  }
+}
+.desk-arrow {
+  animation: desk-nudge 3s ease-in-out infinite;
+}
+@keyframes desk-nudge {
+  50% {
+    transform: translateX(6px);
+  }
+}
+
+/* The underline under "I follow my curiosity?" draws itself once. */
+.desk-underline {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: desk-draw 1.4s 0.5s ease-out forwards;
+}
+.desk-doodle {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: desk-draw 0.9s ease-out forwards;
+}
+@keyframes desk-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Clickable parts */
+.desk-clickable {
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+.desk-clickable:hover {
+  filter: brightness(1.06) drop-shadow(0 4px 6px rgb(23 63 56 / 0.18));
+}
+
+/* Seedling growth: each click scales the sprout up from its stem. */
+.desk-sprout {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: scale(var(--grow, 1));
+  transition: transform 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.desk-new-leaf,
+.desk-bloom {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  opacity: 0;
+  transform: scale(0.2);
+  transition:
+    opacity 0.3s,
+    transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.desk-bloom {
+  transform-origin: center;
+}
+:is(.desk-new-leaf, .desk-bloom)[data-shown="true"] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Sun click: the whole sun spins once and pops, on top of its idle motion.
+   Two names so each click restarts the animation. */
+.desk-sun {
+  transform-box: view-box;
+  transform-origin: 480px 108px;
+}
+.desk-sun[data-spin="a"] {
+  animation: desk-spin-a 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.desk-sun[data-spin="b"] {
+  animation: desk-spin-b 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes desk-spin-a {
+  40% {
+    transform: rotate(200deg) scale(1.12);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes desk-spin-b {
+  40% {
+    transform: rotate(200deg) scale(1.12);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Sticky note click: a quick wiggle. */
+.desk-note {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+}
+.desk-note[data-wiggle="true"] {
+  animation: desk-wiggle 0.7s ease-out;
+}
+@keyframes desk-wiggle {
+  20% {
+    transform: rotate(-5deg);
+  }
+  45% {
+    transform: rotate(4deg);
+  }
+  70% {
+    transform: rotate(-2deg);
+  }
+}
+
+/* Visitors who prefer less motion see the picture still; clicks change it
+   without animation. */
+@media (prefers-reduced-motion: reduce) {
+  .learning-desk *,
+  .learning-desk {
+    animation: none !important;
+    transition: none !important;
+  }
+  .desk-underline,
+  .desk-doodle {
+    stroke-dashoffset: 0;
+  }
+}

@@ -132,7 +132,7 @@
   border-radius: 24px;
   background: var(--home-art);
 }
-.home-hero-art > img {
+.home-hero-art > :is(img, svg) {
   position: absolute;
   inset: 6% 10% 10% 12%;
   width: 78%;
@@ -311,7 +311,7 @@
     aspect-ratio: auto;
     padding: 20px;
   }
-  .home-hero-art > img {
+  .home-hero-art > :is(img, svg) {
     position: static;
     width: 100%;
   }

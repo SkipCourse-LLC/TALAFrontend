@@ -17,6 +17,33 @@
 .public-page .content-grid h3 {
   margin-top: 0;
 }
+/* About's philosophy: one principle per row, the title beside its text, so
+   the paragraphs keep a comfortable line length. */
+.public-page .philosophy-rows {
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+.public-page .philosophy-rows article {
+  display: grid;
+  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
+  gap: 8px 40px;
+  align-items: baseline;
+  padding: 26px 32px;
+}
+.public-page .philosophy-rows h3,
+.public-page .philosophy-rows p {
+  margin: 0;
+}
+.public-page .philosophy-rows p {
+  max-width: 68ch;
+  line-height: 1.65;
+}
+@media (max-width: 700px) {
+  .public-page .philosophy-rows article {
+    grid-template-columns: 1fr;
+    padding: 22px;
+  }
+}
 .public-page .faq-list details {
   padding: 20px 0;
   border-bottom: 1px solid #d5ded8;

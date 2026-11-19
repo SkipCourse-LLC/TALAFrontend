@@ -33,6 +33,8 @@ export function CommunityPage({ kind }: { kind: "events" | "contact" }) {
               <a
                 className="button"
                 href="https://calendar.app.google/YapTB4MQLus16DATA"
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 Schedule a Free One-Hour Family Interview
               </a>
@@ -45,7 +47,9 @@ export function CommunityPage({ kind }: { kind: "events" | "contact" }) {
           </p>
         </div>
       </section>
-      <StartBanner />
+      {/* Contact already leads with the interview button, so only the
+          events page repeats it in the band. */}
+      {events && <StartBanner />}
     </div>
   );
 }
