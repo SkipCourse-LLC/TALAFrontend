@@ -23,9 +23,26 @@
 .home p {
   margin: 0;
 }
+/* Same width as main's .container, so the home page lines up with the
+   header and footer. */
 .home-container {
-  width: min(1280px, 100% - 2 * clamp(16px, 5vw, 80px));
+  width: min(var(--container), calc(100% - 80px));
   margin-inline: auto;
+}
+@media (max-width: 1050px) {
+  .home-container {
+    width: calc(100% - 56px);
+  }
+}
+@media (max-width: 850px) {
+  .home-container {
+    width: calc(100% - 40px);
+  }
+}
+@media (max-width: 360px) {
+  .home-container {
+    width: calc(100% - 32px);
+  }
 }
 .home .icon {
   width: 20px;

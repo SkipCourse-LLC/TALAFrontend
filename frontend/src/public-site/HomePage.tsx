@@ -60,7 +60,7 @@ export function HomePage() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Schedule a Family Interview <Icon name="arrow" />
+                Schedule a Family Interview
               </a>
               <Link className="home-button" to="/programs">
                 Explore Programs

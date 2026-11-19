@@ -10,28 +10,14 @@
 .preview-banner span {
   margin-inline: 8px;
 }
+/* The header is main's, exactly as deployed; the home page and footer
+   line up with its container. */
 .site-header {
   background: var(--color-surface);
-  border-bottom: 1px solid var(--home-line);
-  font-family: var(--font-public);
-}
-/* The public header, footer and pages share the design's 1280px grid. */
-.site-header .container,
-.site-footer .container,
-.public-page .container {
-  width: min(1280px, 100% - 2 * clamp(16px, 5vw, 80px));
-}
-/* The public header and footer use the client's teal palette. */
-.site-header .brand,
-.site-footer .brand {
-  color: var(--home-teal);
-}
-.site-header .brand-dot,
-.site-footer .brand-dot {
-  color: var(--home-eyebrow);
+  border-bottom: var(--border-panel);
 }
 .nav-row {
-  min-height: 92px;
+  min-height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -74,36 +60,31 @@
   text-decoration: none;
   white-space: nowrap;
 }
-.primary-nav > a:not(.nav-hub-link) {
-  color: var(--home-body);
-}
 .primary-nav a.active:not(.nav-hub-link) {
-  color: var(--home-teal);
+  color: var(--color-accent);
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 8px;
 }
 .primary-nav a:hover {
-  color: var(--home-teal);
+  color: var(--color-accent);
 }
 .nav-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 10px;
 }
-/* Client mockup: the sign-in link is an outlined teal button. */
 .nav-hub-link {
-  padding: 8px 18px;
-  color: var(--home-teal);
-  background: var(--color-surface);
-  border: 1px solid var(--home-teal);
-  border-radius: 6px;
+  padding: 8px 16px;
+  color: var(--color-accent);
+  background: #edf2ef;
+  border: 1px solid transparent;
+  border-radius: 10px;
   font-weight: 600;
 }
 .nav-hub-link:hover,
 .nav-hub-link.active {
-  background: #eaf2f4;
+  background: #e1ebe5;
 }
 .menu-toggle {
   display: none;

@@ -1,68 +1,26 @@
-import { useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import "./learningDesk.css";
 
 const ALT =
   "An illustrated learning journal with a seedling and a mountain sketch.";
 
-/** Doodles the pencil adds to the journal, one per click. */
-const DOODLES = [
-  // A small star beside "What if…".
-  "M236 30l6 13 14 2-10 10 2 14-12-7-12 7 2-14-10-10 14-2Z",
-  // A loop-de-loop under the curiosity line.
-  "M228 400c10-14 24-14 22 0s-18 14-14 0 22-16 28-2 14 10 24 0",
-  // A tiny sun in the top right corner.
-  "M318 52a10 10 0 1 0 0.1 0Zm0-18v-7m18 25h7m-25 18v7m-18-25h-7",
-] as const;
-
-const GROWTH = [1, 1.14, 1.26, 1.34];
-
 /**
- * The hero's learning-journal illustration, drawn inline so it can move. It
- * drifts gently on its own, tilts toward the pointer for a little depth, and
- * a few parts respond to a click: the seedling grows and blooms, the pencil
- * doodles on the page, the sun spins and the sticky note wiggles. Everything
- * still reads as one image to assistive technology, and the motion stops
- * when the visitor prefers reduced motion.
+ * The hero's learning-journal illustration, drawn inline so its parts can
+ * move: the journal floats, the sun glows and its rays turn, the seedling
+ * sways, the pencil bobs and the underline draws itself. It is decorative
+ * motion only (nothing to click), reads as one image to assistive
+ * technology, and holds still for visitors who prefer reduced motion.
  */
 export function LearningDeskArt() {
-  const art = useRef<SVGSVGElement>(null);
-  const [growth, setGrowth] = useState(0);
-  const [doodles, setDoodles] = useState(0);
-  const [spins, setSpins] = useState(0);
-  const [wiggles, setWiggles] = useState(0);
-
-  function reduceMotion() {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  }
-  function tilt(event: PointerEvent<SVGSVGElement>) {
-    const element = art.current;
-    if (!element || event.pointerType === "touch" || reduceMotion()) return;
-    const box = element.getBoundingClientRect();
-    const x = ((event.clientX - box.left) / box.width) * 2 - 1;
-    const y = ((event.clientY - box.top) / box.height) * 2 - 1;
-    element.style.setProperty("--px", x.toFixed(3));
-    element.style.setProperty("--py", y.toFixed(3));
-  }
-  function settle() {
-    art.current?.style.setProperty("--px", "0");
-    art.current?.style.setProperty("--py", "0");
-  }
-
-  const layer = (depth: number) => ({ "--depth": depth }) as CSSProperties;
-
   return (
     <svg
-      ref={art}
       className="learning-desk"
       viewBox="0 0 600 570"
       fill="none"
       role="img"
       aria-label={ALT}
-      onPointerMove={tilt}
-      onPointerLeave={settle}
     >
       <rect x="10" y="10" width="580" height="550" rx="150" fill="#e7efec" />
-      <g className="desk-layer" style={layer(4)}>
+      <g>
         <path
           className="desk-wave"
           d="M10 390c100-44 196-10 285 37 107 56 204 45 295-6v-46c-82 48-196 12-277-22C197 304 105 330 10 345Z"
@@ -70,14 +28,9 @@ export function LearningDeskArt() {
         />
       </g>
 
-      {/* The sun: rays turn slowly; a click sends them round once. */}
-      <g className="desk-layer" style={layer(16)}>
-        <g
-          className="desk-sun desk-clickable"
-          // Alternating names restart the spin on every click.
-          data-spin={spins === 0 ? "none" : spins % 2 ? "a" : "b"}
-          onClick={() => setSpins((count) => count + 1)}
-        >
+      {/* The sun: rays turn slowly. */}
+      <g>
+        <g className="desk-sun">
           <circle
             className="desk-sun-disc"
             cx="480"
@@ -96,8 +49,8 @@ export function LearningDeskArt() {
         </g>
       </g>
 
-      {/* The journal floats; the pencil adds doodles to it. */}
-      <g className="desk-layer" style={layer(7)}>
+      {/* The journal floats. */}
+      <g>
         <g className="desk-float">
           <g transform="translate(82 73) rotate(-7 205 209)">
             <rect
@@ -165,18 +118,6 @@ export function LearningDeskArt() {
               strokeWidth="2.5"
               strokeLinecap="round"
             />
-            {DOODLES.slice(0, doodles).map((path) => (
-              <path
-                key={path}
-                className="desk-doodle"
-                pathLength={1}
-                d={path}
-                stroke="#b58b2f"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
             <g fill="#a5b9ae">
               <circle cx="22" cy="34" r="5" />
               <circle cx="22" cy="115" r="5" />
@@ -188,19 +129,13 @@ export function LearningDeskArt() {
         </g>
       </g>
 
-      {/* The seedling: leaves sway; each click grows it, then it blooms. */}
-      <g className="desk-layer" style={layer(12)}>
-        <g
-          className="desk-plant desk-clickable"
-          onClick={() => setGrowth((stage) => (stage + 1) % GROWTH.length)}
-        >
+      {/* The seedling's leaves sway. */}
+      <g>
+        <g className="desk-plant">
           <g transform="translate(409 306) rotate(8)">
             <path d="M0 43h105l-12 91H14Z" fill="#c8876c" />
             <path d="M-4 38h113v18H-4Z" fill="#d89c82" />
-            <g
-              className="desk-sprout"
-              style={{ "--grow": GROWTH[growth] } as CSSProperties}
-            >
+            <g>
               <g className="desk-sway">
                 <path
                   d="M53 40V-35"
@@ -221,16 +156,6 @@ export function LearningDeskArt() {
                   stroke="#c2d6bb"
                   strokeWidth="1.5"
                 />
-                <path
-                  className="desk-new-leaf"
-                  data-shown={growth >= 2}
-                  d="M54 26c20 0 34-12 34-30-20-2-34 12-34 30Z"
-                  fill="#7ea37f"
-                />
-                <g className="desk-bloom" data-shown={growth >= 3}>
-                  <circle cx="53" cy="-42" r="9" fill="#edc663" />
-                  <circle cx="53" cy="-42" r="3.5" fill="#c8876c" />
-                </g>
               </g>
             </g>
             <path d="M27 75h51m-49 9h33" stroke="#ad6852" strokeWidth="2" />
@@ -238,14 +163,9 @@ export function LearningDeskArt() {
         </g>
       </g>
 
-      {/* The pencil bobs over the page; a click draws the next doodle. */}
-      <g className="desk-layer" style={layer(10)}>
-        <g
-          className="desk-pencil desk-clickable"
-          onClick={() =>
-            setDoodles((count) => (count >= DOODLES.length ? 0 : count + 1))
-          }
-        >
+      {/* The pencil bobs over the page. */}
+      <g>
+        <g className="desk-pencil">
           <g transform="translate(436 148) rotate(20)">
             <rect width="15" height="166" rx="2" fill="#edc663" />
             <path d="M0 166h15l-7.5 27Z" fill="#d4b997" />
@@ -256,14 +176,8 @@ export function LearningDeskArt() {
         </g>
       </g>
 
-      {/* The sticky note wiggles when clicked. */}
-      <g className="desk-layer" style={layer(9)}>
-        <g
-          key={wiggles}
-          className="desk-note desk-clickable"
-          data-wiggle={wiggles > 0}
-          onClick={() => setWiggles((count) => count + 1)}
-        >
+      <g>
+        <g className="desk-note">
           <g transform="translate(42 455) rotate(-12)">
             <rect width="152" height="86" rx="4" fill="#edc663" />
             <path d="M20 30h106M20 58h82" stroke="#ac892e" strokeWidth="1" />
@@ -281,7 +195,7 @@ export function LearningDeskArt() {
         </g>
       </g>
 
-      <g className="desk-layer" style={layer(6)}>
+      <g>
         <path
           className="desk-arrow"
           d="M503 488c13-8 24-10 35-8m-8-8 10 7-7 9"

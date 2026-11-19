@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Icon, type IconName } from "../shared/Icon";
 import { StartBanner } from "./StartBanner";
 
 const principles = [
@@ -23,6 +24,14 @@ const principles = [
     "Instruction should continue through medical challenges, including flare-ups, recovery, and hospital stays, rather than stopping when students need support most.",
   ],
 ];
+/** Icons for the principles above, in the same order. */
+const principleIcons: IconName[] = [
+  "plus",
+  "user",
+  "leaf",
+  "voice",
+  "calendar",
+];
 export function AboutPage() {
   return (
     <div className="public-page public-about">
@@ -42,9 +51,19 @@ export function AboutPage() {
       </section>
       <section className="container section">
         <h2>Our philosophy</h2>
-        <div className="content-grid philosophy-rows">
-          {principles.map(([title, text]) => (
-            <article key={title}>
+        {/* Health First leads as the tall card; each principle has an icon
+            that echoes it. */}
+        <div className="principle-grid">
+          {principles.map(([title, text], index) => (
+            <article
+              key={title}
+              className={
+                index === 0 ? "principle-card principle-lead" : "principle-card"
+              }
+            >
+              <span className="principle-icon" aria-hidden="true">
+                <Icon name={principleIcons[index] ?? "leaf"} />
+              </span>
               <h3>{title}</h3>
               <p>{text}</p>
             </article>

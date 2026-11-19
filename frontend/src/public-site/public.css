@@ -17,31 +17,166 @@
 .public-page .content-grid h3 {
   margin-top: 0;
 }
-/* About's philosophy: one principle per row, the title beside its text, so
-   the paragraphs keep a comfortable line length. */
-.public-page .philosophy-rows {
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-.public-page .philosophy-rows article {
+/* Tuition fee schedule. The price is the visual: set large in teal, with
+   the rest of its sentence smaller on the same line. Annual registration
+   leads as a wide deep-teal card; the included check-in sits on mint. */
+.public-page .fee-grid {
   display: grid;
-  grid-template-columns: minmax(0, 16rem) minmax(0, 1fr);
-  gap: 8px 40px;
-  align-items: baseline;
-  padding: 26px 32px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  font-family: var(--font-public);
 }
-.public-page .philosophy-rows h3,
-.public-page .philosophy-rows p {
+.public-page .fee-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 26px 28px 30px;
+  border: 1px solid var(--home-line);
+  border-radius: 14px;
+  background: var(--home-surface);
+  color: var(--home-body);
+}
+.public-page .fee-card h3 {
   margin: 0;
+  color: var(--home-ink);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
-.public-page .philosophy-rows p {
-  max-width: 68ch;
+.public-page .fee-card p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.public-page .fee-amount {
+  color: var(--home-teal);
+  font-size: 1.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+.public-page .fee-card-feature {
+  grid-column: span 2;
+  justify-content: space-between;
+  min-height: 190px;
+  border-color: transparent;
+  background: var(--home-teal-dark);
+  color: #cfe1e4;
+}
+.public-page .fee-card-feature h3 {
+  color: #fff;
+  font-size: 1.125rem;
+}
+.public-page .fee-card-feature .fee-amount {
+  color: #fff;
+  font-size: clamp(2.5rem, 4vw, 3.25rem);
+}
+.public-page .fee-card-included {
+  justify-content: space-between;
+  border-color: transparent;
+  background: var(--home-band);
+}
+.public-page .fee-card-included .fee-amount {
+  font-size: 1.5rem;
+}
+
+/* About's philosophy: Health First leads as a tall teal card; the other
+   four principles sit beside it, each with an icon. Titles sit above text. */
+.public-page .principle-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  font-family: var(--font-public);
+}
+.public-page .principle-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px 28px 30px;
+  border: 1px solid var(--home-line);
+  border-radius: 14px;
+  background: var(--home-surface);
+  color: var(--home-body);
+}
+.public-page .principle-card h3 {
+  margin: 8px 0 0;
+  color: var(--home-ink);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.public-page .principle-card p {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 0.9375rem;
   line-height: 1.65;
 }
-@media (max-width: 700px) {
-  .public-page .philosophy-rows article {
+.public-page .principle-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--home-band);
+  color: var(--home-teal);
+}
+.public-page .principle-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+.public-page .principle-lead {
+  grid-row: span 2;
+  justify-content: flex-end;
+  padding: 32px;
+  border-color: transparent;
+  background: var(--home-teal-dark);
+  color: #cfe1e4;
+}
+.public-page .principle-lead .principle-icon {
+  margin-bottom: auto;
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+}
+.public-page .principle-lead h3 {
+  color: #fff;
+  font-size: clamp(1.5rem, 2.4vw, 1.875rem);
+  line-height: 1.2;
+}
+.public-page .principle-lead p {
+  font-size: 1rem;
+}
+
+@media (max-width: 900px) {
+  .public-page .fee-grid,
+  .public-page .principle-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .public-page .principle-lead {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    min-height: 0;
+  }
+  .public-page .principle-lead .principle-icon {
+    margin-bottom: 12px;
+  }
+  .public-page .fee-card-feature {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 600px) {
+  .public-page .fee-grid,
+  .public-page .principle-grid {
     grid-template-columns: 1fr;
+  }
+  .public-page .fee-card,
+  .public-page .principle-card {
     padding: 22px;
+  }
+}
+@media (forced-colors: active) {
+  .public-page :is(.fee-card, .principle-card) {
+    border: 1px solid CanvasText;
   }
 }
 .public-page .faq-list details {
@@ -944,4 +1079,13 @@
 }
 .public-page .start-banner h2 {
   margin-bottom: 0;
+}
+
+/* Card paragraphs set their own colour: the page-wide paragraph colour
+   would otherwise put grey text on the deep-teal cards. */
+.public-page :is(.fee-card, .principle-card) p {
+  color: var(--home-body);
+}
+.public-page :is(.fee-card-feature, .principle-lead) p {
+  color: #d6e7ea;
 }
