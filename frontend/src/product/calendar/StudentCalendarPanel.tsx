@@ -791,11 +791,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   chooseDay(addCalendarDays(selectedDay, days));
                 }}
               />
-              <EmptyEvents
-                count={selectedEvents.length}
-                onReset={() => setEnabled(categories.map((item) => item.id))}
-                filtered={enabled.length < categories.length}
-              />
             </div>
           )}
           <p className="tala-cal-board-footer">
@@ -1074,28 +1069,6 @@ function CalendarCourseCard({
         </button>
       </div>
     </article>
-  );
-}
-
-function EmptyEvents({
-  count,
-  filtered,
-  onReset,
-}: {
-  count: number;
-  filtered: boolean;
-  onReset: () => void;
-}) {
-  if (count) return null;
-  return (
-    <div className="tala-cal-empty">
-      <p>No events for these dates.</p>
-      {filtered && (
-        <button type="button" onClick={onReset}>
-          Show all calendars
-        </button>
-      )}
-    </div>
   );
 }
 

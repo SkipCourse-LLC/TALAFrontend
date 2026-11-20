@@ -241,9 +241,6 @@ export function DayTimeGrid({
         </div>
         <div className="tala-day-canvas">
           {layout.placed.map((item) => block(item.event, item))}
-          {!layout.placed.length && (
-            <p className="tala-day-none">No timed events on this day.</p>
-          )}
           {showNow && (
             <div
               className="tala-day-now"

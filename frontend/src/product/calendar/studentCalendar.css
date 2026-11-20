@@ -879,23 +879,7 @@
   font-weight: 600;
   margin: 0 0 1.25rem;
 }
-.tala-cal-empty {
-  text-align: center;
-  padding: 3rem 1rem;
-  font-size: calc(0.85rem * var(--student-type-scale, 1));
-  color: var(--cal-muted);
-}
-.tala-cal-empty p {
-  margin: 0 0 0.75rem;
-}
-.tala-cal-empty button {
-  color: var(--cal-green);
-  border: 1px solid var(--cal-line);
-  background: #fff;
-  border-radius: 6px;
-  padding: 0.6rem 0.85rem;
-  font-size: calc(0.8rem * var(--student-type-scale, 1));
-}
+
 .tala-cal-sr {
   position: absolute;
   width: 1px;
@@ -1291,15 +1275,6 @@
     );
   background-size: 100% var(--day-hour);
 }
-.tala-day-none {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  margin: 0;
-  color: var(--cal-muted);
-  font-size: calc(0.8rem * var(--student-type-scale, 1));
-}
 .tala-day-block {
   --event-ink: color-mix(in srgb, var(--event-color) 72%, #0f1f1b);
   position: absolute;
@@ -1578,10 +1553,6 @@
   }
   .tala-day-block[data-size] .tala-day-block-description {
     display: -webkit-box;
-  }
-  .tala-day-none {
-    position: static;
-    padding: 1rem 0;
   }
 }
 @media (forced-colors: active) {
