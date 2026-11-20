@@ -242,9 +242,6 @@ export function OpenClassesPanel({
         <div className="tala-classes-board" aria-busy={actions.loading}>
           <div className="tala-cal-toolbar">
             <div className="tala-cal-period">
-              <h3 aria-live="polite" aria-atomic="true">
-                {title}
-              </h3>
               <div className="tala-cal-arrows">
                 <button
                   type="button"
@@ -261,16 +258,11 @@ export function OpenClassesPanel({
                   <Icon name="chevron-right" />
                 </button>
               </div>
-              <button
-                type="button"
-                className="tala-cal-today"
-                onClick={() => {
-                  setDay(null);
-                  setAnchor(today);
-                }}
-              >
-                Today
-              </button>
+              {/* After the controls, so the arrows stay put as the title
+                  changes width. */}
+              <h3 aria-live="polite" aria-atomic="true">
+                {title}
+              </h3>
             </div>
             <div
               className="tala-cal-views"
