@@ -68,12 +68,14 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
   const roleLabel =
     user.uid === "tala_local_preview_student_v1"
       ? "Student demo"
-      : {
-          student: "Student",
-          parent: "Parent",
-          operator: "School staff",
-          alumni: "Alumni",
-        }[user.role];
+      : user.uid === "tala_local_preview_parent_v1"
+        ? "Parent demo"
+        : {
+            student: "Student",
+            parent: "Parent",
+            operator: "School staff",
+            alumni: "Alumni",
+          }[user.role];
   const pages: Destination[] =
     user.role === "operator"
       ? [
