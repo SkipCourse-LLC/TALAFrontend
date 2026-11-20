@@ -223,8 +223,8 @@ export function LearningPlanPanel({
         if (!active.current) return;
         const target = document.getElementById(`learning-goal-${focusGoalId}`);
         if (!target?.getClientRects().length) return;
+        // The goal takes focus; the page itself stays at its top.
         target.focus({ preventScroll: true });
-        target.scrollIntoView({ block: "center", behavior: "instant" });
         focusedGoal.current = focusGoalId;
       });
     });

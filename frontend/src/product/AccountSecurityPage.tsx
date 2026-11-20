@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "../shared/Icon";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { newRequestId, safeTalaApiError, talaApi, TalaApiError } from "../api";
@@ -95,7 +96,7 @@ function PasswordField({
           onClick={onVisibility}
           disabled={disabled}
         >
-          {visible ? "Hide" : "Show"}
+          <Icon name={visible ? "eye-off" : "eye"} />
         </button>
       </div>
       {help && !error && (
@@ -457,19 +458,6 @@ export function AccountSecurityPage({
         Back
       </Link>
       <header className="account-security-heading">
-        <span className="account-security-symbol" aria-hidden="true">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z" />
-            <path d="m8 12 3 3 5-6" />
-          </svg>
-        </span>
         <h1 aria-label="Account security">Security</h1>
       </header>
       <div className="account-security-identity">

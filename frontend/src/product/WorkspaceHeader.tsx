@@ -60,9 +60,11 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
   const pageLabel =
     location.pathname === "/payment"
       ? "Payments"
-      : user.role === "student" || user.role === "parent"
-        ? portalPageName(user.role, studentView)
-        : page;
+      : location.pathname === "/two-factor"
+        ? "Security"
+        : user.role === "student" || user.role === "parent"
+          ? portalPageName(user.role, studentView)
+          : page;
   const roleLabel =
     user.uid === "tala_local_preview_student_v1"
       ? "Student demo"

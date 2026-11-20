@@ -2,7 +2,7 @@ import type { CalendarEvent } from "./calendarEvent";
 import { calendarTimeRange, phoenixDateKey } from "./calendarDates";
 import "./calendarExtras.css";
 
-/** "On the horizon": the next couple of events after the selected day. */
+/** "Future Events": the next couple of events after the selected day. */
 export function HorizonCard({
   events,
   onOpen,
@@ -13,7 +13,7 @@ export function HorizonCard({
   if (!events.length) return null;
   return (
     <section className="tala-cal-horizon" aria-labelledby="tala-cal-horizon">
-      <h3 id="tala-cal-horizon">On the horizon</h3>
+      <h3 id="tala-cal-horizon">Future Events</h3>
       <ul>
         {events.map((event) => {
           const day = phoenixDateKey(event.startsAt);

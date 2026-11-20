@@ -161,7 +161,6 @@ export function MeetingPreparationPanel({
       return;
     focusedOpenRequest.current = openRequest;
     preparationSummary.current?.focus({ preventScroll: true });
-    preparationSummary.current?.scrollIntoView({ block: "start" });
   }, [visible, opened, openRequest]);
 
   useLayoutEffect(() => {

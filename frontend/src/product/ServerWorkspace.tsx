@@ -722,6 +722,8 @@ function LearningWorkspace({
   useLayoutEffect(() => {
     focusScope.current = { view, visible: workspaceVisible };
   }, [view, workspaceVisible]);
+  // When the current page was opened, so links into it don't scroll it.
+  const viewOpenedAt = useRef(0);
   const focusInView = useCallback(function focusInView(
     expectedView: WorkspaceView,
     selector: string,
@@ -747,7 +749,10 @@ function LearningWorkspace({
       )
         return;
       target.focus({ preventScroll: true });
-      if (scroll) target.scrollIntoView({ block: scroll });
+      // A link that just opened this page lands at its top, not partway down;
+      // only actions within the page already open scroll to their section.
+      if (scroll && performance.now() - viewOpenedAt.current > 600)
+        target.scrollIntoView({ block: scroll });
     });
     focusFrames.current.add(frame);
   }, []);
@@ -891,9 +896,12 @@ function LearningWorkspace({
     }
     if (previousView.current === view) return;
     previousView.current = view;
+    viewOpenedAt.current = performance.now();
     returningFromDetails.current = null;
     if (view === "meetings" && preparationNavigation.current) {
+      // The preparation form takes focus; the page still opens at its top.
       preparationNavigation.current = false;
+      window.scrollTo({ top: 0, left: 0 });
       return;
     }
     preparationNavigation.current = false;

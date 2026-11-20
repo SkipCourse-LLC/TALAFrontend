@@ -50,7 +50,8 @@ export function SiteLayout({
         </div>
       )}
       {workspaceHeader &&
-      ["/dashboard", "/payment"].includes(location.pathname) ? (
+      // Signed-in pages (including account security) keep the portal header.
+      workspaceRoutes.includes(location.pathname) ? (
         workspaceHeader
       ) : (
         <SiteHeader key={location.pathname} session={session} />

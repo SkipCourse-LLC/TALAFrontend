@@ -142,17 +142,21 @@
   font: inherit;
   font-size: calc(1rem * var(--student-type-scale, 1));
 }
+/* Show/hide is a small eye icon, as on the sign-in page. */
 .account-security-password button {
+  display: grid;
+  place-items: center;
   border: 0;
   background: transparent;
-  padding: 10px 15px;
-  color: var(--security-accent);
-  font: inherit;
-  font-size: calc(0.88rem * var(--student-type-scale, 1));
-  font-weight: 600;
-  min-width: 64px;
+  padding: 0;
+  color: var(--color-muted, #5b6e64);
+  min-width: 48px;
   min-height: 48px;
   cursor: pointer;
+}
+.account-security-password button .icon {
+  width: 20px;
+  height: 20px;
 }
 .account-security-password button:hover {
   background: #eef2ef;
@@ -357,20 +361,6 @@
 }
 .account-security button:disabled {
   opacity: 0.6;
-}
-.account-security .account-security-symbol {
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 17px;
-  margin-bottom: 20px;
-  background: #eaf2e2;
-  color: #426d35;
-}
-.account-security-symbol > svg {
-  width: 28px;
-  height: 28px;
 }
 .account-security .account-security-identity {
   padding: 22px 24px;
