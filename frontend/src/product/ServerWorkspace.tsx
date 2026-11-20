@@ -921,14 +921,15 @@ function LearningWorkspace({
       return;
     }
     preparationNavigation.current = false;
+    // A new page starts at the top, with the header and page title in view,
+    // including when a link opens one of its records in a dialog.
+    window.scrollTo({ top: 0, left: 0 });
     // A direct record link opens its own native dialog and owns focus there.
     if (detailId || historyId) return;
     const heading = document.getElementById(
       workspaceViews.find((item) => item.id === view)!.heading,
     );
     heading?.focus({ preventScroll: true });
-    // A new page starts at the top, with the header and page title in view.
-    window.scrollTo({ top: 0, left: 0 });
   }, [view, detailId, historyId, workspaceVisible]);
   useEffect(() => {
     if (
@@ -1223,7 +1224,10 @@ function LearningWorkspace({
       !accessBlocked &&
       evidenceMode === "note"
     )
-      document.getElementById("evidence-reflection")?.focus();
+      // Focus moves to the note; the page stays where the link opened it.
+      document
+        .getElementById("evidence-reflection")
+        ?.focus({ preventScroll: true });
   }, [
     busy,
     evidenceFocusRequest,
