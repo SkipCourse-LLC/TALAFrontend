@@ -759,9 +759,10 @@ test("the unified sidebar and Overview keep saved records, Evidence drafts, meet
       consentReference: "Synthetic isolated UI validation only",
     });
     await parentPage.reload();
+    // One linked student: the menu has nothing to choose, so no picker.
     await expect(
       parentPage.getByLabel("Student workspace", { exact: true }),
-    ).toHaveValue(studentUid);
+    ).toHaveCount(0);
     await choose(parentPage, "Learning records");
     await expect(
       parentPage.getByText("Read-only.", { exact: true }),

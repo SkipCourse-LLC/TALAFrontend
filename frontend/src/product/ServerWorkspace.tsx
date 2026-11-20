@@ -323,9 +323,12 @@ export function ServerWorkspace({
     </>
   );
   // Which linked student the family portal shows; it sits at the top of
-  // the family menu, under the school year.
+  // the family menu, under the school year. With one linked student there is
+  // nothing to choose, so the menu leaves it out.
+  const onlyOneStudent =
+    Boolean(family) && !familyError && linkedStudents.length === 1;
   const familyPicker =
-    user.role === "parent" ? (
+    user.role === "parent" && !onlyOneStudent ? (
       <section
         className="product-card product-family"
         aria-labelledby="family-heading"
