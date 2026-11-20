@@ -554,7 +554,7 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
       <header className="tala-cal-page-header">
         <div className="tala-cal-heading-row">
           <h2 id="calendar-heading" tabIndex={-1}>
-            Learning calendar
+            Learning Calendar
           </h2>
         </div>
         <div className="tala-cal-actions">
