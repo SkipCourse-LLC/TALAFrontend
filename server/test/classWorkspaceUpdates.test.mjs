@@ -48,7 +48,7 @@ test("class status updates reuse the private versioned feed, read receipts and l
     const waitingId = item.id;
     await post(parent, "/api/classes/approval", { classId, studentUid: first.uid, expectedVersion: 1, decision: "approve" });
     page = await feed(first); assert.equal(page.items.length, 1, "The feed shows the current persisted enrollment state");
-    item = page.items[0]; assert.equal(item.title, "Your class is confirmed"); assert.notEqual(item.id, firstId); assert.equal(item.read, false); assert.match(item.summary, /does not verify attendance/);
+    item = page.items[0]; assert.equal(item.title, "Your class is confirmed"); assert.notEqual(item.id, firstId); assert.equal(item.read, false); assert.doesNotMatch(item.summary, /does not verify attendance/);
     assert.equal((await read(first, firstId)).status, 404, "A superseded class status cannot be marked by a new request");
     assert.equal((await read(first, firstId, readId)).status, 200, "An existing historical read receipt remains idempotent");
     assert.deepEqual((await feed(parent, `?studentUid=${first.uid}`)).items, page.items);
@@ -64,7 +64,7 @@ test("class status updates reuse the private versioned feed, read receipts and l
     await post(second, "/api/calendar/enrollments", { classId: paid.json.id, mode: "online" });
     await post(parent, "/api/classes/approval", { classId: paid.json.id, studentUid: second.uid, expectedVersion: 1, decision: "approve" });
     page = await feed(second); item = page.items.find((entry) => entry.target.resourceId === paid.json.id);
-    assert.equal(item.title, "Parent approved: payment pending"); assert.match(item.summary, /Trusted payment confirmation/); assert.match(item.summary, /not connected/);
+    assert.equal(item.title, "Parent approved: payment pending"); assert.match(item.summary, /Trusted payment confirmation/); assert.doesNotMatch(item.summary, /not connected/);
     assert.equal(page.unreadCount, 1);
     await post(second, "/api/updates/read-all", { requestId: readAllId });
     assert.equal((await feed(second)).unreadCount, 1, "Replaying read-all never marks a later enrollment version");

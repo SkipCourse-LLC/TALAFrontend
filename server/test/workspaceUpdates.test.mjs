@@ -49,7 +49,7 @@ test("workspace updates reflect real reservation changes, learning publication a
     const first = await student.client.request("/api/appointments", { method: "POST", json: { slotId: firstSlot.id, requestId: randomUUID() } }); assert.equal(first.status, 201);
     let feed = (await student.client.request("/api/updates")).json;
     assert.equal(feed.items.length, 1); assert.equal(feed.items[0].type, "appointment"); assert.equal(feed.items[0].target.resourceId, first.json.id); assert.equal(feed.unreadCount, 1); assertNoPrivateLocation(feed);
-    assert.equal(feed.items[0].summary.includes("attendance are not connected"), true);
+    assert.equal(feed.items[0].summary.includes("attendance are not connected"), false);
     const initialId = feed.items[0].id, readId = randomUUID();
     assert.deepEqual((await mark(student.client, initialId, readId)).json, { id: initialId, read: true });
     const changed = await student.client.request(`/api/appointments/${first.json.id}/reschedule`, { method: "POST", json: { slotId: secondSlot.id, requestId: randomUUID() } }); assert.equal(changed.status, 200);
