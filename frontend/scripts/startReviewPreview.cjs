@@ -64,84 +64,84 @@ const CENTER = "TALA learning center";
 const SERIES = {
   algebra: {
     title: "Algebra foundations", topic: "Mathematics", category: "coursework",
-    teacher: "Ms. Okafor · preview teacher", grades: "Grades 6–8", modes: ["online", "in_person"],
+    teacher: "Ms. Okafor", grades: "Grades 6–8", modes: ["online", "in_person"],
     price: 0, capacity: 14, day: 1, start: "09:00", minutes: 60, weeks: [-3, -1, 0, 1, 3],
     location: `${CENTER} · Room 2, or online`,
     description: "Work with variables, expressions and one-step equations through short practice sets. Bring a notebook and a pencil.",
   },
   study: {
     title: "Study skills: plan your week", topic: "Study skills", category: "learning_support",
-    teacher: "Ms. Brennan · preview teacher", grades: "All grades", modes: ["online"],
+    teacher: "Ms. Brennan", grades: "All grades", modes: ["online"],
     price: 0, capacity: 20, day: 1, start: "15:30", minutes: 45, weeks: [-2, 0, 2],
     location: "Online classroom · link shared by the teacher",
     description: "Set up a simple weekly planner, break large assignments into steps and decide what to do first. Leave with a plan for the coming week.",
   },
   essay: {
     title: "College essay workshop", topic: "Writing", category: "coursework",
-    teacher: "Mr. Delgado · preview teacher", grades: "Grades 9–12", modes: ["online"],
+    teacher: "Mr. Delgado", grades: "Grades 9–12", modes: ["online"],
     price: 2000, capacity: 10, day: 2, start: "13:00", minutes: 60, weeks: [-2, 0, 2, 4],
     location: "Online classroom · link shared by the teacher",
     description: "Brainstorm a personal story, outline it and get feedback on an opening paragraph. Bring a prompt from a college you are considering.",
   },
   budget: {
     title: "Financial literacy: your first budget", topic: "Life skills", category: "live_sessions",
-    teacher: "Ms. Brennan · preview teacher", grades: "Grades 9–12", modes: ["online"],
+    teacher: "Ms. Brennan", grades: "Grades 9–12", modes: ["online"],
     price: 1000, capacity: 12, day: 2, start: "10:30", minutes: 60, weeks: [-1, 1, 3],
     location: "Online classroom · link shared by the teacher",
     description: "Read a sample pay stub, list monthly costs and build a simple budget in a spreadsheet.",
   },
   circuit: {
     title: "Lab: build a simple circuit", topic: "Science", category: "live_sessions",
-    teacher: "Dr. Lindqvist · preview teacher", grades: "Grades 6–8", modes: ["in_person"],
+    teacher: "Dr. Lindqvist", grades: "Grades 6–8", modes: ["in_person"],
     price: 1500, capacity: 8, day: 3, start: "10:30", minutes: 90, weeks: [-2, 1, 3],
     location: `${CENTER} · Science lab`,
     description: "Wire a battery, switch and LED on a breadboard, then measure what changes when you add a resistor. The fee covers the parts kit you take home.",
   },
   studio: {
     title: "Studio art: individual session", topic: "Creative arts", category: "coursework",
-    teacher: "Ms. Reyes · preview teacher", grades: "All grades", modes: ["in_person"],
+    teacher: "Ms. Reyes", grades: "All grades", modes: ["in_person"],
     price: 24000, capacity: 1, day: 3, start: "13:00", minutes: 120, weeks: [-1, 1, 2, 3, 4],
     location: `${CENTER} · Art studio`,
     description: "A two-hour, one-to-one studio session in drawing or painting, planned around the student's own project. Materials are provided.",
   },
   robotics: {
     title: "Robotics club", topic: "Technology", category: "clubs_activities",
-    teacher: "Dr. Lindqvist · preview teacher", grades: "All grades", modes: ["in_person"],
+    teacher: "Dr. Lindqvist", grades: "All grades", modes: ["in_person"],
     price: 2500, capacity: 8, day: 3, start: "16:30", minutes: 90, weeks: [-2, 0, 3],
     location: `${CENTER} · Maker room`,
     description: "Build and program a small wheeled robot in teams of two. The fee covers shared kits and replacement parts.",
   },
   homework: {
     title: "Homework help: math & science", topic: "Mathematics", category: "learning_support",
-    teacher: "Ms. Okafor · preview teacher", grades: "Grades 6–8", modes: ["online"],
+    teacher: "Ms. Okafor", grades: "Grades 6–8", modes: ["online"],
     price: 0, capacity: 6, day: 4, start: "15:30", minutes: 45, weeks: [-2, 0, 2],
     location: "Online classroom · link shared by the teacher",
     description: "Bring this week's assignment and work through it with a teacher in a small group.",
   },
   reading: {
     title: "Reading circle: short fiction", topic: "Reading", category: "live_sessions",
-    teacher: "Mr. Delgado · preview teacher", grades: "Grades 6–8", modes: ["online", "in_person"],
+    teacher: "Mr. Delgado", grades: "Grades 6–8", modes: ["online", "in_person"],
     price: 0, capacity: 10, day: 4, start: "10:00", minutes: 60, weeks: [-1, 0, 2, 3],
     location: `${CENTER} · Library corner, or online`,
     description: "Read one short story together and talk about character, setting and the choices the author made.",
   },
   chess: {
     title: "Chess club", topic: "Games & strategy", category: "clubs_activities",
-    teacher: "Mr. Haddad · preview teacher", grades: "All grades", modes: ["in_person"],
+    teacher: "Mr. Haddad", grades: "All grades", modes: ["in_person"],
     price: 0, capacity: 16, day: 5, start: "16:30", minutes: 60, weeks: [-3, -1, 2, 4],
     location: `${CENTER} · Commons`,
     description: "Learn openings, play practice games and review one game as a group. Beginners are welcome.",
   },
   spanish: {
     title: "Spanish conversation hour", topic: "Languages", category: "live_sessions",
-    teacher: "Sra. Molina · preview teacher", grades: "Grades 9–12", modes: ["online", "in_person"],
+    teacher: "Sra. Molina", grades: "Grades 9–12", modes: ["online", "in_person"],
     price: 1200, capacity: 8, day: 5, start: "10:30", minutes: 60, weeks: [0, 1, 3, 4],
     location: `${CENTER} · Room 5, or online`,
     description: "Practice everyday conversation in small groups, from ordering food to giving directions. Some Spanish experience is helpful.",
   },
   nature: {
     title: "Saturday nature walk", topic: "Science", category: "clubs_activities",
-    teacher: "Ms. Reyes · preview teacher", grades: "All grades", modes: ["in_person"],
+    teacher: "Ms. Reyes", grades: "All grades", modes: ["in_person"],
     price: 0, capacity: 12, day: 6, start: "09:00", minutes: 90, weeks: [-2, 1, 3],
     location: "Trailhead meeting point · details from the teacher",
     description: "Walk a local trail, sketch three things you notice and record them in a field journal. Wear closed-toe shoes and bring water.",
@@ -211,8 +211,8 @@ const PEERS = ["Riley", "Morgan", "Sasha", "Jules", "Avery", "Quinn", "Rowan", "
     "INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)",
   );
   const accountsCreated = now - 60 * DAY;
-  insertUser.run(student, "student-preview@local.example.test", "Alex · student demo", encoded, "student", accountsCreated);
-  insertUser.run(parent, "parent-preview@local.example.test", "Jordan · parent demo", encoded, "parent", accountsCreated);
+  insertUser.run(student, "student-preview@local.example.test", "Alex Rivera", encoded, "student", accountsCreated);
+  insertUser.run(parent, "parent-preview@local.example.test", "Jordan Rivera", encoded, "parent", accountsCreated);
   insertUser.run(staff, "staff@review.example.test", "Tina · staff preview", encoded, "operator", accountsCreated);
   const peers = PEERS.map((name, index) => {
     const uid = randomUUID();
@@ -485,7 +485,7 @@ const PEERS = ["Riley", "Morgan", "Sasha", "Jules", "Avery", "Quinn", "Rowan", "
     applied = now - 21 * DAY;
   db.prepare(
     "INSERT INTO admissions_applications(id,parent_name,email,student_name,grade_band,interest,status,document_preference,version,created_at,updated_at,enrolled_parent_uid) VALUES(?,?,?,?,?,?,'enrolled','bring',5,?,?,?)",
-  ).run(applicationId, "Jordan · parent demo", "parent-preview@local.example.test", "Sam · new learner preview", "Grades 6–8",
+  ).run(applicationId, "Jordan Rivera", "parent-preview@local.example.test", "Sam Rivera", "Grades 6–8",
     "Fictional review family. Interview and family approval already completed.", applied, now - 3 * DAY, parent);
   db.prepare("INSERT INTO admissions_interviews VALUES(?,'completed',?,?,?)").run(
     applicationId, "Fictional review interview. No meeting was conducted.", staff, now - 14 * DAY,

@@ -198,7 +198,7 @@ function createApplication(options = {}) {
             if (row.email !== address || row.role !== "student" || row.disabled) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
           } else {
             if (!encoded || db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
-            db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,'student',?)").run(uid, address, "Alex · student demo", encoded, Date.now());
+            db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,'student',?)").run(uid, address, "Alex Rivera", encoded, Date.now());
             row = db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
           }
           return row;
@@ -218,8 +218,8 @@ function createApplication(options = {}) {
         mutation(req);
         if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the family preview.");
         const people = [
-          { uid: "tala_local_preview_student_v1", address: "student-preview@local.example.test", name: "Alex · student demo", role: "student" },
-          { uid: "tala_local_preview_parent_v1", address: "parent-preview@local.example.test", name: "Jordan · parent demo", role: "parent" },
+          { uid: "tala_local_preview_student_v1", address: "student-preview@local.example.test", name: "Alex Rivera", role: "student" },
+          { uid: "tala_local_preview_parent_v1", address: "parent-preview@local.example.test", name: "Jordan Rivera", role: "parent" },
         ];
         const secrets = new Map();
         for (const person of people)

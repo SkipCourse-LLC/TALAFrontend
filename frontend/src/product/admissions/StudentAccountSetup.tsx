@@ -234,7 +234,7 @@ export function StudentAccountSetup({
         <p>
           {setup?.status === "expired"
             ? "Ask Tina to renew student setup authorization. Your parent account is ready."
-            : "Tina must authorize student setup after enrollment. You will then choose the student’s separate sign-in details here."}
+            : "TALA must authorize student setup after enrollment. You will then choose the student’s separate sign-in details here."}
         </p>
         <button
           type="button"
