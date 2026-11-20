@@ -472,9 +472,6 @@ export function AccountSecurityPage({
           {user.emailVerified ? "Email verified" : "Email not verified"}
         </span>
       </div>
-      <p className="account-security-help quiet-account-unavailable">
-        Email verification, recovery emails and 2FA are unavailable.
-      </p>
       <p
         className={
           message
