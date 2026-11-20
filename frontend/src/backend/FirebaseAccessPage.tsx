@@ -34,6 +34,8 @@ export function FirebaseAccessPage({
   const errorBox = useRef<HTMLParagraphElement>(null);
   const local = backendMode === "firebase-emulator";
   const isolated = local || backendMode === "firebase-test";
+  // Sign-in-only cloud mode (taladev): Google accounts, no test-account form.
+  const live = backendMode === "firebase";
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -127,13 +129,32 @@ export function FirebaseAccessPage({
         <p>
           {local
             ? "Firebase Local Emulator · Synthetic test data only. No SkipCourse production accounts are changed."
-            : "Approved Firebase test cloud · Synthetic accounts only. The test operator must approve and verify your account before protected services are available."}
+            : live
+              ? "Sign in with your Google account."
+              : "Approved Firebase test cloud · Synthetic accounts only. The test operator must approve and verify your account before protected services are available."}
         </p>
         {register && !isolated ? (
           <p role="status">
             Live registration is awaiting the team's account provisioning and
             consent contract. <Link to="/login">Sign in</Link>
           </p>
+        ) : live && !mfa && !register ? (
+          <div className="firebase-google-sign-in">
+            <button
+              type="button"
+              className="button"
+              disabled={pending}
+              onClick={() =>
+                void run(async () => {
+                  await firebaseAuthService.signInWithGoogle();
+                  if (mounted.current)
+                    navigate("/dashboard", { replace: true });
+                })
+              }
+            >
+              {pending ? "Signing in…" : "Continue with Google"}
+            </button>
+          </div>
         ) : (
           <form onSubmit={submit}>
             <fieldset disabled={pending} className="firebase-fields">
@@ -306,7 +327,7 @@ export function FirebaseAccessPage({
                 Reset password
               </button>
             )}
-            {!register && !local && (
+            {!register && backendMode === "firebase-test" && (
               <p>
                 Test account recovery and email verification are managed by the
                 authorized test operator. Google sign-in is unavailable here to

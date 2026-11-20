@@ -163,6 +163,10 @@ export function prepareFirebaseInitialization<T>(
     ready = Promise.resolve();
   } else if (configuration.mode === "firebase-test") {
     ready = verifyFirebaseTestProject(configuration, fetcher).then(run);
+  } else if (configuration.mode === "firebase") {
+    // Sign-in only: Auth is used; no data service is ever called (no namespace).
+    run();
+    ready = Promise.resolve();
   } else {
     ready = Promise.reject(
       new FirebaseConfigurationError(
@@ -361,10 +365,37 @@ export function resolveFirebaseConfiguration(
       namespace: firebaseNamespace(mode),
     };
   }
-  // Retain the legacy mode value for existing links/configuration, but never
-  // initialize a production SDK from a client-side approval flag. Production
-  // activation requires a separately reviewed release and deployed Rules.
-  throw new FirebaseConfigurationError(
-    "Production Firebase access is disabled in this release. Use firebase-emulator or a team-approved isolated firebase-test environment.",
-  );
+  // Sign-in-only cloud mode (the taladev site, approved by the project owner
+  // for skip-class-slsru4): Google sign-in against the configured project.
+  // It has no TALA data namespace, so the app makes no Firestore, Storage or
+  // Functions requests and writes nothing to the project's databases. TALA
+  // data features stay off until a separate, reviewed TALA database exists.
+  if (
+    populated(env, "VITE_FIREBASE_PRODUCTION_APPROVED") ||
+    Object.keys(env).some(
+      (key) =>
+        key.startsWith("VITE_FIREBASE_") &&
+        key.includes("EMULATOR") &&
+        populated(env, key),
+    )
+  )
+    throw new FirebaseConfigurationError(
+      "Sign-in configuration cannot include production approval or Emulator destinations.",
+    );
+  const options = cloudOptions(env);
+  if (
+    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(options.projectId!) ||
+    options.projectId!.startsWith("demo-") ||
+    !/^[a-z0-9.-]+\.(firebaseapp\.com|web\.app)$/.test(options.authDomain!) ||
+    !/^1:\d+:web:[a-f0-9]+$/.test(options.appId!)
+  )
+    throw new FirebaseConfigurationError(
+      "Configure the Firebase Web App's project ID, Auth domain and app ID.",
+    );
+  if (
+    !["localhost", "127.0.0.1", "[::1]", "::1"].includes(pageHostname) &&
+    pageProtocol !== "https:"
+  )
+    throw new FirebaseConfigurationError("Firebase sign-in requires HTTPS.");
+  return { mode, options, functionsRegion: "us-central1" };
 }

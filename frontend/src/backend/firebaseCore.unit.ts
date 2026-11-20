@@ -84,13 +84,13 @@ test("emulator mode rejects production project overrides and remote destinations
   ).toThrow("local port");
 });
 
-test("production Firebase cannot activate from a client approval flag", () => {
+test("live Firebase is sign-in only and never activates from a client approval flag", () => {
   expect(() =>
     resolveFirebaseConfiguration(
       { VITE_BACKEND_MODE: "firebase" },
       "localhost",
     ),
-  ).toThrow("Production Firebase access is disabled");
+  ).toThrow("Configure VITE_FIREBASE_PROJECT_ID");
   expect(() =>
     resolveFirebaseConfiguration(
       {
@@ -100,7 +100,34 @@ test("production Firebase cannot activate from a client approval flag", () => {
       },
       "localhost",
     ),
-  ).toThrow("Production Firebase access is disabled");
+  ).toThrow("cannot include production approval");
+  const signInOnly = {
+    VITE_BACKEND_MODE: "firebase",
+    VITE_FIREBASE_PROJECT_ID: "skip-class-slsru4",
+    VITE_FIREBASE_API_KEY: "public-web-api-key",
+    VITE_FIREBASE_AUTH_DOMAIN: "skip-class-slsru4.firebaseapp.com",
+    VITE_FIREBASE_APP_ID: "1:123456789:web:abc123",
+    VITE_FIREBASE_STORAGE_BUCKET: "skip-class-slsru4.firebasestorage.app",
+  };
+  expect(() =>
+    resolveFirebaseConfiguration(signInOnly, "taladev.web.app", "http:"),
+  ).toThrow("requires HTTPS");
+  expect(() =>
+    resolveFirebaseConfiguration(
+      { ...signInOnly, VITE_FIREBASE_APP_ID: "not-a-web-app" },
+      "taladev.web.app",
+      "https:",
+    ),
+  ).toThrow("Configure the Firebase Web App");
+  const configuration = resolveFirebaseConfiguration(
+    signInOnly,
+    "taladev.web.app",
+    "https:",
+  );
+  expect(configuration.mode).toBe("firebase");
+  // No data namespace: the app makes no Firestore, Storage or Functions calls.
+  expect(configuration.namespace).toBeUndefined();
+  expect(configuration.emulator).toBeUndefined();
 });
 
 const approvedTestConfiguration = {

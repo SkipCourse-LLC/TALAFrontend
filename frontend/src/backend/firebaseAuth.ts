@@ -1,12 +1,14 @@
 import {
   createUserWithEmailAndPassword,
   getIdTokenResult,
+  GoogleAuthProvider,
   getMultiFactorResolver,
   onIdTokenChanged,
   reload,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   TotpMultiFactorGenerator,
   updateProfile as updateAuthProfile,
@@ -78,8 +80,21 @@ async function exclusive<T>(action: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Isolated test environments accept only synthetic @example.test accounts.
+ * Sign-in-only cloud mode (taladev) accepts the signed-in Google account.
+ */
+function validateSessionEmail(email: string): void {
+  if (getFirebaseClient().mode === "firebase") {
+    if (!email.includes("@"))
+      throw new FirebaseAuthServiceError("NOT_AUTHENTICATED");
+    return;
+  }
+  validateSyntheticAccountEmail(email);
+}
+
 async function toSession(user: User): Promise<FirebaseSession> {
-  validateSyntheticAccountEmail(user.email ?? "");
+  validateSessionEmail(user.email ?? "");
   const token = await getIdTokenResult(user);
   if (token.claims.aud !== getFirebaseClient().app.options.projectId)
     throw new FirebaseAuthServiceError(
@@ -107,7 +122,7 @@ async function currentUser(): Promise<User> {
   await client.auth.authStateReady();
   if (!client.auth.currentUser)
     throw new FirebaseAuthServiceError("NOT_AUTHENTICATED");
-  validateSyntheticAccountEmail(client.auth.currentUser.email ?? "");
+  validateSessionEmail(client.auth.currentUser.email ?? "");
   return client.auth.currentUser;
 }
 
@@ -212,7 +227,8 @@ export const firebaseAuthService = {
       await client.ready;
       await client.auth.authStateReady();
       if (signingOut) throw new FirebaseAuthServiceError("NOT_AUTHENTICATED");
-      if (client.auth.currentUser) throw new FirebaseAuthServiceError("ACTIVE_SESSION");
+      if (client.auth.currentUser)
+        throw new FirebaseAuthServiceError("ACTIVE_SESSION");
       pendingMfa.clear();
       const credential = await createUserWithEmailAndPassword(
         client.auth,
@@ -253,9 +269,26 @@ export const firebaseAuthService = {
   },
 
   signInWithGoogle(): Promise<FirebaseSession> {
-    // Popup sign-in may provision a real Google identity before its email can
-    // be inspected. This synthetic-only release cannot safely offer that path.
-    return Promise.reject(new FirebaseAuthServiceError("PROVIDER_UNCONFIRMED"));
+    // Isolated test environments stay synthetic-only: a popup could create a
+    // real Google identity there. Sign-in-only cloud mode is for real Google
+    // accounts, approved by the project owner.
+    if (getFirebaseClient().mode !== "firebase")
+      return Promise.reject(
+        new FirebaseAuthServiceError("PROVIDER_UNCONFIRMED"),
+      );
+    return exclusive(async () => {
+      const client = getFirebaseClient();
+      await client.ready;
+      pendingMfa.clear();
+      try {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        const credential = await signInWithPopup(client.auth, provider);
+        return await toSession(credential.user);
+      } catch (error) {
+        return captureMfa(error);
+      }
+    });
   },
 
   async signOut(): Promise<void> {
@@ -325,6 +358,13 @@ export const firebaseAuthService = {
   async getProfile(): Promise<FirebaseUserProfile> {
     try {
       const user = await currentUser();
+      // Sign-in-only mode reads nothing from the project's databases.
+      if (getFirebaseClient().mode === "firebase")
+        return {
+          uid: user.uid,
+          exists: true,
+          displayName: (user.displayName ?? "").slice(0, 80),
+        };
       const snapshot = await getDoc(
         doc(getFirebaseClient().db, "users", user.uid),
       );
