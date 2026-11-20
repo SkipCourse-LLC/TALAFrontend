@@ -24,7 +24,7 @@ export function StudentResources({
       title: "Programs and session times",
       text: "What TALA offers, with upcoming 1:1 sessions and learning pods.",
       icon: "book",
-      to: "/programs",
+      view: "classes",
     },
     {
       title: "Account security",
