@@ -296,6 +296,17 @@
 
 /* ---- The shell on wide screens ---- */
 @media (min-width: 841px) {
+  /* The page itself paints the menu column, so its background and edge run
+     the full height of long pages (and full-page captures), not just the
+     window-high fixed menu. */
+  :root[data-portal] body {
+    background: linear-gradient(
+      to right,
+      var(--portal-menu-surface) calc(var(--portal-menu) - 1px),
+      var(--portal-line) calc(var(--portal-menu) - 1px) var(--portal-menu),
+      var(--portal-surface) var(--portal-menu)
+    );
+  }
   :root[data-portal] .tala-workspace-header,
   :root[data-portal] #main-content {
     margin-left: var(--portal-menu);
