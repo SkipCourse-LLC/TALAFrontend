@@ -437,8 +437,7 @@ export function StudentClassHistory({
         </footer>
       )}
       <p className="student-history-footnote">
-        Times use Arizona time (America/Phoenix, MST, UTC−07:00). A confirmed
-        enrollment does not verify attendance or learning credit.
+        Times use Arizona time (America/Phoenix, MST, UTC−07:00).
       </p>
     </section>
   );

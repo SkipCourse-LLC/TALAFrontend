@@ -375,8 +375,7 @@ export function StudentProgress({
         </button>
       </div>
       <p className="student-progress-boundary">
-        Saved activity only. Attendance, mastery, AI assessment and course
-        credit aren’t verified.
+        Saved activity only.
       </p>
       <details className="student-progress-details">
         <summary>Details</summary>

@@ -876,10 +876,6 @@ export function MeetingPanel({
                       Cancel
                     </button>
                   </div>
-                  <p className="meeting-help">
-                    Calendar downloads don’t sync changes. Attendance is
-                    unconfirmed.
-                  </p>
                   {!readOnly && !pendingUploadsKnown && (
                     <p
                       className="meeting-help meeting-blocked-help"
@@ -1030,7 +1026,7 @@ export function MeetingPanel({
                   <fieldset
                     className="meeting-quick-times"
                     disabled={blocked}
-                    aria-describedby="meeting-slot-help"
+                    aria-describedby={booking ? "meeting-slot-help" : undefined}
                   >
                     <legend className="sr-only">Available meeting times</legend>
                     {quickSlots.map((slot) => (
@@ -1090,7 +1086,7 @@ export function MeetingPanel({
                             if (day) setDayKey(day.key);
                             setAllTimesOpen(true);
                           }}
-                          aria-describedby="meeting-slot-help"
+                          aria-describedby={booking ? "meeting-slot-help" : undefined}
                         >
                           <option value="">Choose a time</option>
                           {slotDays.map((day) => (
@@ -1124,11 +1120,11 @@ export function MeetingPanel({
                       <span>Choose a time to continue.</span>
                     )}
                   </div>
-                  <p id="meeting-slot-help" className="meeting-help">
-                    {booking
-                      ? "Confirm the change before it’s saved."
-                      : "A reservation doesn’t confirm attendance or admission."}
-                  </p>
+                  {booking && (
+                    <p id="meeting-slot-help" className="meeting-help">
+                      Confirm the change before it’s saved.
+                    </p>
+                  )}
                   {slotId && !selected && (
                     <p role="status" className="meeting-help">
                       Time unavailable. Choose another or refresh.
@@ -1248,9 +1244,6 @@ export function MeetingPanel({
             </div>
             <p id="booking-history-search-help" className="sr-only">
               Searches loaded bookings. Load more to search other records.
-            </p>
-            <p className="meeting-history-context">
-              Reservations don’t confirm attendance.
             </p>
             <details
               className="meeting-history-date-tools"

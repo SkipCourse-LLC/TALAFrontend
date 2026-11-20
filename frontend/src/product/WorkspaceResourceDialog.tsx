@@ -366,7 +366,7 @@ export function WorkspaceResourceDialog({
             <>
               <p className="workspace-detail-integration">
                 <LearningGlyph name="calendar" />
-                Live link unavailable. Attendance unconfirmed.
+                Live link not connected.
               </p>
               <div className="workspace-detail-actions">
                 {saved.booking.status !== "cancelled" && (
