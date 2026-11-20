@@ -40,18 +40,6 @@ export function CalendarEnrollmentSummary({
         ) && Date.parse(item.endsAt) <= now,
     )
     .sort((a, b) => b.endsAt.localeCompare(a.endsAt))[0];
-  const pending = enrolled.filter(
-    (item) => item.enrollmentStatus === "pending_approval",
-  ).length;
-  const payment = enrolled.filter(
-    (item) => item.enrollmentStatus === "pending_payment",
-  ).length;
-  const confirmed = enrolled.filter(
-    (item) => item.enrollmentStatus === "confirmed",
-  ).length;
-  const waiting = enrolled.filter(
-    (item) => item.enrollmentStatus === "waitlisted",
-  ).length;
   const practiceOnly =
     data &&
     enrolled.every((item) => item.source === "test_catalog") &&
@@ -79,11 +67,22 @@ export function CalendarEnrollmentSummary({
     month: "short",
     day: "numeric",
   });
+  const month = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    month: "short",
+  });
+  const day = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    day: "numeric",
+  });
   const time = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     hour: "numeric",
     minute: "2-digit",
   });
+  // Minimal list: a date block, the title with one meta line, and the
+  // request status. Status explanations live in Calendar and the class
+  // details, not here.
   return (
     <section
       className="calendar-enrollment-summary"
@@ -92,76 +91,68 @@ export function CalendarEnrollmentSummary({
       aria-busy={loading}
     >
       <header>
-        <div>
-          <h3 id={headingId}>Classes & requests</h3>
-        </div>
-        <button
-          type="button"
-          onClick={onCalendar}
-          aria-label="Open student calendar"
-        >
-          Calendar <LearningGlyph name="arrow" />
-        </button>
-      </header>
-      {enrolled.length > 0 ? (
-        <>
-          <p className="calendar-enrollment-summary-count">
-            {enrolled.length} upcoming{" "}
-            {enrolled.length === 1 ? "class request" : "class requests"}
-            {error ? " · Updates unavailable" : ""}
-          </p>
-          {(pending > 0 || payment > 0 || confirmed > 0 || waiting > 0) && (
-            <div
-              className="calendar-enrollment-summary-totals"
-              aria-label="Enrollment status summary"
-            >
-              {pending > 0 && (
-                <span data-status="pending_approval">
-                  {pending} awaiting parent
-                </span>
-              )}
-              {payment > 0 && (
-                <span data-status="pending_payment">
-                  {payment} payment pending
-                </span>
-              )}
-              {confirmed > 0 && (
-                <span data-status="confirmed">{confirmed} confirmed</span>
-              )}
-              {waiting > 0 && (
-                <span data-status="waitlisted">{waiting} waiting list</span>
-              )}
-            </div>
+        <h3 id={headingId}>
+          Classes & requests
+          {enrolled.length > 0 && (
+            <span className="calendar-enrollment-summary-count">
+              <span className="sr-only">, </span>
+              {enrolled.length}
+              <span className="sr-only"> upcoming</span>
+            </span>
           )}
-          <ul>
-            {enrolled.slice(0, compact ? 2 : 3).map((item) => (
+        </h3>
+        <div className="calendar-enrollment-summary-links">
+          {enrolled.length > 0 && onOpenClasses && (
+            <button type="button" onClick={onOpenClasses}>
+              Explore classes
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onCalendar}
+            aria-label="Open student calendar"
+          >
+            Calendar <LearningGlyph name="arrow" />
+          </button>
+        </div>
+      </header>
+      {error && enrolled.length > 0 && (
+        <p className="calendar-enrollment-summary-note">Updates unavailable.</p>
+      )}
+      {enrolled.length > 0 ? (
+        <ul>
+          {enrolled.slice(0, compact ? 2 : 3).map((item) => {
+            const starts = new Date(item.startsAt);
+            const mode =
+              item.enrollmentMode === "online"
+                ? "Online"
+                : item.enrollmentMode === "in_person"
+                  ? "In person"
+                  : "";
+            return (
               <li key={item.id}>
                 <span
-                  className="calendar-enrollment-summary-symbol"
+                  className="calendar-enrollment-summary-date"
                   aria-hidden="true"
                 >
-                  <LearningGlyph name="calendar" />
+                  <span>{month.format(starts)}</span>
+                  <strong>{day.format(starts)}</strong>
                 </span>
                 <div>
                   <strong dir="auto">{item.title}</strong>
-                  <time dateTime={item.startsAt}>
-                    {date.format(new Date(item.startsAt))} ·{" "}
-                    {item.allDay
-                      ? "All day"
-                      : time.format(new Date(item.startsAt))}
-                    {" · Arizona"}
-                  </time>
-                  {(item.enrollmentMode || item.teacher) && (
-                    <span className="calendar-enrollment-summary-meta">
-                      {item.enrollmentMode === "online"
-                        ? "Online"
-                        : item.enrollmentMode === "in_person"
-                          ? "In person"
-                          : ""}
-                      {item.enrollmentMode && item.teacher ? " · " : ""}
-                      <bdi>{item.teacher}</bdi>
-                    </span>
-                  )}
+                  <span className="calendar-enrollment-summary-meta">
+                    <time dateTime={item.startsAt}>
+                      <span className="sr-only">{date.format(starts)}, </span>
+                      {item.allDay ? "All day" : time.format(starts)}
+                    </time>
+                    {mode && ` · ${mode}`}
+                    {item.teacher && (
+                      <>
+                        {" · "}
+                        <bdi>{item.teacher}</bdi>
+                      </>
+                    )}
+                  </span>
                 </div>
                 <span
                   className="calendar-enrollment-summary-status"
@@ -170,64 +161,36 @@ export function CalendarEnrollmentSummary({
                   {status(item)}
                 </span>
               </li>
-            ))}
-          </ul>
-        </>
+            );
+          })}
+        </ul>
       ) : loading && !data ? (
         <p role="status">Loading classes…</p>
       ) : error ? (
         <p>Classes unavailable. Open Calendar to retry.</p>
       ) : (
         <div className="calendar-enrollment-summary-empty">
-          <p>No upcoming requests. Find a class that fits your goals.</p>
+          <p>No upcoming requests.</p>
           <button type="button" onClick={onOpenClasses ?? onCalendar}>
             Find a class <LearningGlyph name="arrow" />
           </button>
         </div>
       )}
-      {pending > 0 && (
-        <p className="calendar-enrollment-summary-next">
-          A parent with approved family access can review requests in their
-          Family hub. Ask TALA if your family connection is missing.
-        </p>
-      )}
-      {payment > 0 && (
-        <p className="calendar-enrollment-summary-next">
-          Parent approval is saved. Awaiting trusted payment confirmation.
-        </p>
-      )}
-      {waiting > 0 && (
-        <p className="calendar-enrollment-summary-next">
-          Waiting list requests do not reserve a seat. Check Calendar for
-          updates.
-        </p>
-      )}
       {recentSession && onEvidence && (
         <div className="calendar-enrollment-summary-evidence">
-          <div>
-            <strong>Make your learning visible</strong>
-            <p>
-              <bdi>{recentSession.title}</bdi> has ended. Add a reflection or
-              file and link it to your goal.
-            </p>
-          </div>
+          <p>
+            <bdi>{recentSession.title}</bdi> has ended.
+          </p>
           <button type="button" onClick={onEvidence}>
-            Add Evidence <LearningGlyph name="arrow" />
+            Add evidence
           </button>
         </div>
       )}
-      <footer className="calendar-enrollment-summary-footer">
+      {practiceOnly && (
         <p className="calendar-enrollment-summary-note">
-          {practiceOnly
-            ? "Practice catalog. No school registration or credit."
-            : "Requests, approval and confirmed seats stay in sync with Calendar."}
+          Practice catalog. No school registration or credit.
         </p>
-        {enrolled.length > 0 && onOpenClasses && (
-          <button type="button" onClick={onOpenClasses}>
-            Explore classes <LearningGlyph name="arrow" />
-          </button>
-        )}
-      </footer>
+      )}
     </section>
   );
 }
