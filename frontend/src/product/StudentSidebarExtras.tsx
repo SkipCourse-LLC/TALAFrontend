@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { safeTalaApiError, talaApi } from "../api";
 import type { CalendarCategory } from "../api/calendarContract";
 import { Icon } from "../shared/Icon";
@@ -58,6 +59,21 @@ export function SidebarSyncCard() {
   const [message, setMessage] = useState("");
   const running = useRef<AbortController | null>(null);
   useEffect(() => () => running.current?.abort(), []);
+  // The result is a passing note: it clears after a few seconds and whenever
+  // another page opens, so it never lingers on later views.
+  const location = useLocation();
+  const page = `${location.pathname}?${new URLSearchParams(location.search).get("view") ?? ""}`;
+  const shownOn = useRef(page);
+  useEffect(() => {
+    if (shownOn.current === page) return;
+    shownOn.current = page;
+    setMessage("");
+  }, [page]);
+  useEffect(() => {
+    if (!message) return;
+    const timer = window.setTimeout(() => setMessage(""), 6000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
   async function subscribe() {
     if (running.current) return;
     const controller = new AbortController();
