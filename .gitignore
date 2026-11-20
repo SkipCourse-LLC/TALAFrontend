@@ -81,3 +81,13 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+
+# Local build output, env files and tool folders (never commit)
+/public/
+server.env
+*.env
+*.local
+.codex/
+*.map
+.firebase/
+.emulator-data/
