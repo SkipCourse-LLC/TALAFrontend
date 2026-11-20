@@ -26,7 +26,11 @@ export function useSessionPrivacy({
   const mounted = useRef(false);
   const concealed = useRef(false);
   const queued = useRef(false);
-  const runAgain = useRef<() => void>(() => {});
+  // Whether any check queued behind the current one needs to hide records.
+  // Quiet checks (tab focus, tab visible) queue a quiet re-run, so returning
+  // to the tab never flashes "Checking session…" over the workspace.
+  const queuedHide = useRef(false);
+  const runAgain = useRef<(hide?: boolean) => void>(() => {});
   const focus = useRef<HTMLElement | null>(null);
   useEffect(() => {
     latest.current = { user, ready, onRestored };
@@ -46,7 +50,10 @@ export function useSessionPrivacy({
       if (!mounted.current || !latest.current.ready) return;
       if (hide) conceal();
       if (request.current) {
-        if (forceAfterCurrent) queued.current = true;
+        if (forceAfterCurrent) {
+          queued.current = true;
+          if (hide) queuedHide.current = true;
+        }
         return;
       }
       const controller = new AbortController();
@@ -141,20 +148,23 @@ export function useSessionPrivacy({
           setChecking(false);
         if (queued.current && mounted.current) {
           queued.current = false;
-          queueMicrotask(() => runAgain.current());
+          const hideNext = queuedHide.current;
+          queuedHide.current = false;
+          queueMicrotask(() => runAgain.current(hideNext));
         }
       }
     },
     [conceal, intent],
   );
   useEffect(() => {
-    runAgain.current = () => {
-      void check(true);
+    runAgain.current = (hide = true) => {
+      void check(hide);
     };
   }, [check]);
   const invalidate = useCallback(() => {
     generation.current++;
     queued.current = false;
+    queuedHide.current = false;
     request.current?.abort();
     request.current = null;
     focus.current = null;
