@@ -167,6 +167,11 @@ export function StudentOverview({
     now,
   });
   const first = tasks[0];
+  // Today already leads with this booking ("Prepare for your next meeting"),
+  // so students don't get a second card for the same reservation.
+  const meetingInToday =
+    first?.kind === "booking" && first.targetId === booking?.id;
+  const showMeetingCard = Boolean(booking) && !meetingInToday;
   const quickGoal =
     first?.kind === "goal"
       ? goals?.find(
@@ -481,7 +486,7 @@ export function StudentOverview({
             </button>
           </div>
         )}
-        {(readOnly || booking) && (
+        {(readOnly || showMeetingCard) && (
           <div className="learning-overview-focus-grid" data-single={!readOnly}>
             {/* The goal is already the first thing on Today for students. */}
             {readOnly && (
@@ -604,7 +609,6 @@ export function StudentOverview({
                     ? meetingTime(booking.startsAt, booking.endsAt)
                     : "No upcoming meeting."}
               </p>
-              {booking && <p>Live meeting link unavailable.</p>}
               <button
                 className="learning-overview-inline-action"
                 type="button"
@@ -698,9 +702,6 @@ export function StudentOverview({
             </button>
           )}
         </div>
-        <p className="learning-overview-note">
-          Self-reported goals. No verified skills, credit or attendance.
-        </p>
       </div>
     </section>
   );
