@@ -5,7 +5,7 @@ import { meetingTime } from "./format";
 import { sortLearningGoals, goalDueLabel } from "./learningPlanHelpers";
 import { useLocalCalendarDay } from "./useLocalCalendarDay";
 import { useWorkspaceVisible } from "./workspaceVisibility";
-import { buildTodayTasks } from "./studentTodayHelpers";
+import { buildTodayTasks, learnerPossessive } from "./studentTodayHelpers";
 import type {
   SavedReflectionDraftSummary,
   TodayTask,
@@ -88,7 +88,10 @@ export function StudentOverview({
   calendarError,
   onCalendar,
   onOpenClasses,
+  learnerName,
 }: {
+  /** The student a family is viewing; read-only headings use their name. */
+  learnerName?: string;
   workspace?: ApiWorkspace;
   learning?: ApiLearningRecords;
   loading: boolean;
@@ -163,9 +166,11 @@ export function StudentOverview({
     learning,
     goals: planReady ? goals : undefined,
     readOnly,
+    learnerName,
     savedReflectionDraft,
     now,
   });
+  const whose = learnerPossessive(readOnly, learnerName);
   const first = tasks[0];
   // Today already leads with this booking ("Prepare for your next meeting"),
   // so students don't get a second card for the same reservation.
@@ -388,6 +393,7 @@ export function StudentOverview({
               : undefined
           }
           quickGoalFeedback={quickFeedback}
+          whose={whose}
           loading={loading || goalsLoading}
           stale={stale || goalsError || !workspace}
         />
@@ -423,6 +429,7 @@ export function StudentOverview({
           nextKind={tasks[0]?.kind}
           stale={stale || goalsError}
           readOnly={readOnly}
+          whose={whose}
           onNavigate={onNavigate}
         />
         {/* Students see these on Progress and Announcements; the family
@@ -432,7 +439,7 @@ export function StudentOverview({
             className="learning-overview-activity"
             aria-label="Saved activity"
           >
-            <h3 className="sr-only">Your saved activity</h3>
+            <h3 className="sr-only">{whose} saved activity</h3>
             <dl>
               <div>
                 <dt>

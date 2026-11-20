@@ -14,7 +14,10 @@ export function TodayTaskPanel({
   stale,
   quickGoalStep,
   quickGoalFeedback,
+  whose = "Your",
 }: {
+  /** "Your" for the student, "Alex’s" for a family viewing read-only. */
+  whose?: string;
   tasks: TodayTask[];
   preferences: TodayPreferences;
   onPreferences: (next: TodayPreferences) => void;
@@ -113,7 +116,7 @@ export function TodayTaskPanel({
         aria-labelledby={`${baseId}-next-heading`}
       >
         <header className="sr-only">
-          <h3 id={`${baseId}-next-heading`}>Your next step</h3>
+          <h3 id={`${baseId}-next-heading`}>{whose} next step</h3>
         </header>
         {stale && !loading && (
           <p className="today-stale" role="status">

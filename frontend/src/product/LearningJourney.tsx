@@ -13,8 +13,11 @@ export function LearningJourney({
   nextKind,
   stale,
   readOnly = false,
+  whose = "Your",
   onNavigate,
 }: {
+  /** "Your" for the student, "Alex’s" for a family viewing read-only. */
+  whose?: string;
   goalCount?: number;
   bookingCount?: number;
   classCount?: number;
@@ -46,7 +49,7 @@ export function LearningJourney({
     {
       view: "plan",
       icon: "goal",
-      label: "Your goals",
+      label: `${whose} goals`,
       count: goalCount,
       unit: "saved",
       empty: readOnly ? "No saved goals" : "Start small",
@@ -62,7 +65,7 @@ export function LearningJourney({
     {
       view: "evidence",
       icon: "evidence",
-      label: "Your work",
+      label: `${whose} work`,
       count: evidenceCount,
       unit: "submitted",
       empty: readOnly ? "No submissions" : "Share your work",
@@ -79,7 +82,7 @@ export function LearningJourney({
   return (
     <section className="learning-journey" aria-labelledby={heading}>
       <div className="learning-journey-heading">
-        <h3 id={heading}>Your learning journey</h3>
+        <h3 id={heading}>{whose} learning journey</h3>
         <span>{stale ? "Last saved view" : "At your pace"}</span>
       </div>
       <ul className="learning-journey-stages">

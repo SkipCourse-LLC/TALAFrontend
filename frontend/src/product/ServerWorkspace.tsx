@@ -2209,6 +2209,7 @@ function LearningWorkspace({
             loading={loading}
             stale={Boolean(loadError)}
             readOnly={readOnly}
+            learnerName={learnerName}
             goals={goals.loaded ? goals.items : undefined}
             goalsLoading={goals.loading}
             goalsError={Boolean(goals.error)}

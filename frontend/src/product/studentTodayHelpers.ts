@@ -62,12 +62,22 @@ export type TodayTask = {
   endsAt?: string;
 };
 
+/**
+ * "Alex’s" for a family viewing a student read-only; "Your" for the student.
+ * Falls back to "Your" when no name is known.
+ */
+export function learnerPossessive(readOnly: boolean, learnerName?: string) {
+  const first = learnerName?.trim().split(/\s+/)[0];
+  return readOnly && first ? `${first}’s` : "Your";
+}
+
 /** A bounded queue of real saved records, never an inferred course assessment. */
 export function buildTodayTasks({
   workspace,
   learning,
   goals,
   readOnly,
+  learnerName,
   savedReflectionDraft,
   now,
 }: {
@@ -75,9 +85,12 @@ export function buildTodayTasks({
   learning?: ApiLearningRecords;
   goals?: LearningGoal[];
   readOnly: boolean;
+  /** The student a family is viewing; read-only headings use their name. */
+  learnerName?: string;
   savedReflectionDraft?: SavedReflectionDraftSummary;
   now: number;
 }): TodayTask[] {
+  const whose = learnerPossessive(readOnly, learnerName);
   const queue: { priority: number; task: TodayTask }[] = [];
   const booking = [...(workspace?.activeAppointments ?? [])]
     .filter(
@@ -97,9 +110,13 @@ export function buildTodayTasks({
         targetId: booking.id,
         category: "Reserved meeting",
         title:
-          Date.parse(booking.startsAt) <= now
-            ? "Review your scheduled meeting"
-            : "Prepare for your next meeting",
+          whose !== "Your"
+            ? Date.parse(booking.startsAt) <= now
+              ? `${whose} scheduled meeting`
+              : `${whose} next meeting`
+            : Date.parse(booking.startsAt) <= now
+              ? "Review your scheduled meeting"
+              : "Prepare for your next meeting",
         description:
           "Open the saved reservation and your preparation notes. A live meeting link is not connected, and attendance is not confirmed.",
         brief: "Live meeting link unavailable.",
