@@ -40,7 +40,10 @@ export default defineConfig(({ mode }) => {
     define: publicSiteDefaults,
     // Relative assets + HashRouter work under both root and project subpaths.
     base: "./",
+    // Dev and preview servers stay on this machine: the API trusts loopback
+    // requests, so they must never be reachable from the network.
     server: {
+      host: "127.0.0.1",
       proxy: {
         "/api": {
           target: `http://127.0.0.1:${localApiPort}`,
@@ -49,6 +52,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     preview: {
+      host: "127.0.0.1",
       proxy: {
         "/api": {
           target: `http://127.0.0.1:${localApiPort}`,
