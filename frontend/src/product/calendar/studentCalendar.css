@@ -211,7 +211,7 @@
   min-width: 0;
 }
 .tala-cal-period h3 {
-  margin: 0 0.4rem 0 0;
+  margin: 0 0 0 0.5rem;
   min-width: 0;
   font-size: calc(1.15rem * var(--student-type-scale, 1));
   font-weight: 500;
@@ -1031,6 +1031,7 @@
   }
   .tala-cal-period h3 {
     flex-basis: 100%;
+    margin-left: 0;
     font-size: calc(1.05rem * var(--student-type-scale, 1));
   }
   .tala-cal-arrows button,

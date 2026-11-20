@@ -641,9 +641,6 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
         <div className="tala-cal-board" aria-busy={loading}>
           <div className="tala-cal-toolbar">
             <div className="tala-cal-period">
-              <h3 aria-live="polite" aria-atomic="true">
-                {title}
-              </h3>
               <div className="tala-cal-arrows">
                 <button
                   type="button"
@@ -670,6 +667,11 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   onPick={(day) => chooseDay(day)}
                 />
               )}
+              {/* The title comes after the controls so the arrows and picker
+                  stay in place while the date text changes width. */}
+              <h3 aria-live="polite" aria-atomic="true">
+                {title}
+              </h3>
             </div>
             <div
               className="tala-cal-views"
