@@ -338,11 +338,7 @@ export function HubSpotPaymentPage({
         <>
           {testCheckout && (
             <div className="payment-demo-notice" role="note">
-              <strong>Test checkout</strong>
-              <span>
-                TALA has not chosen its payment provider yet. Checkout opens a
-                TALA test page: no card details, no real money.
-              </span>
+              <span>Test checkout: no real payment is taken.</span>
             </div>
           )}
           {fictionalAccount && !testCheckout && (
@@ -368,19 +364,17 @@ export function HubSpotPaymentPage({
           <div className="hubspot-payment-intro">
             <div>
               <strong>
-                {testCheckout
-                  ? "Test checkout"
-                  : "Secure checkout with HubSpot"}
+                {testCheckout ? "Checkout" : "Secure checkout with HubSpot"}
               </strong>
               <p>
                 {testCheckout
-                  ? "Choose a test result on the TALA test page. Your TALA status updates after the result is verified."
+                  ? "Your TALA status updates after checkout."
                   : "Enter payment details on HubSpot’s official checkout. Your TALA status updates after the payment is verified."}
               </p>
             </div>
-            <span className="hubspot-provider-label">
-              {testCheckout ? "Test mode" : "HubSpot Payments"}
-            </span>
+            {!testCheckout && (
+              <span className="hubspot-provider-label">HubSpot Payments</span>
+            )}
           </div>
           {workspace?.integration.verification === "unconfigured" && (
             <div className="hubspot-payment-verification" role="note">
@@ -550,12 +544,12 @@ export function HubSpotPaymentPage({
                                   <span>
                                     <strong>
                                       {testCheckout
-                                        ? "Test checkout"
+                                        ? "Online checkout"
                                         : "HubSpot checkout"}
                                     </strong>
                                     <small>
                                       {testCheckout
-                                        ? "Try the payment flow on a TALA test page."
+                                        ? "Pay on the checkout page."
                                         : "Pay securely on the official payment page."}
                                     </small>
                                   </span>
@@ -578,11 +572,13 @@ export function HubSpotPaymentPage({
                               </fieldset>
                               {funding === "hubspot" ? (
                                 <>
-                                  <p className="payment-small">
-                                    {testCheckout
-                                      ? "No real payment is made in test checkout."
-                                      : "Confirm the final amount, billing frequency and terms on HubSpot before paying."}
-                                  </p>
+                                  {!testCheckout && (
+                                    <p className="payment-small">
+                                      Confirm the final amount, billing
+                                      frequency and terms on HubSpot before
+                                      paying.
+                                    </p>
+                                  )}
                                   <button
                                     type="button"
                                     className="payment-button payment-submit"
@@ -592,7 +588,7 @@ export function HubSpotPaymentPage({
                                     {busy === selected.id
                                       ? "Opening checkout…"
                                       : testCheckout
-                                        ? "Open test checkout"
+                                        ? "Open checkout"
                                         : "Pay now on HubSpot"}
                                   </button>
                                 </>
@@ -691,19 +687,23 @@ export function HubSpotPaymentPage({
                           compatible payment option.
                         </p>
                       )}
-                      <p className="payment-small">{product.priceNotice}</p>
                     </section>
+                  ))}
+                  {/* Every product carries the same price notice; show it once. */}
+                  {[
+                    ...new Set(
+                      workspace.products
+                        .map((product) => product.priceNotice)
+                        .filter(Boolean),
+                    ),
+                  ].map((priceNotice) => (
+                    <p className="payment-small" key={priceNotice}>
+                      {priceNotice}
+                    </p>
                   ))}
                   <div className="hubspot-payment-next">
                     <h3>After checkout</h3>
-                    <p>
-                      Return to this page to check your payment status.
-                      Automatic return from HubSpot is not configured.
-                    </p>
-                    <p>
-                      Keep your HubSpot receipt. The server must confirm payment
-                      before TALA marks the item as paid.
-                    </p>
+                    <p>Return to this page to check your payment status.</p>
                   </div>
                 </aside>
               </div>
