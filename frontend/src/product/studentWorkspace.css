@@ -472,14 +472,6 @@
   padding: 0;
   border: 0;
 }
-.student-workspace .student-page-controls.is-idle > .sr-only:focus {
-  position: static;
-  width: auto;
-  height: auto;
-  margin-top: 12px;
-  clip-path: none;
-  white-space: normal;
-}
 .student-service-details summary {
   min-height: 44px;
   padding-block: 12px;
