@@ -426,7 +426,7 @@ export function ServerWorkspace({
           <summary aria-label="My account">Account</summary>
         )}
         <p>
-          <bdi>{user.email}</bdi> · {user.role}
+          <bdi>{user.email}</bdi>
         </p>
         {/* Verification is not wired up yet, so students are not told
             their email is "unverified" on every visit. */}
