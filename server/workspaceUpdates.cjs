@@ -60,15 +60,15 @@ function createWorkspaceUpdates(db, { authorize, operation }) {
     if (row.type === "class") {
       const title = `${row.detail}. `;
       if (row.class_status === "pending_approval") return title + "A seat is reserved while an authorized linked parent reviews this request in the Family hub.";
-      if (row.class_status === "pending_payment") return title + "Parent approval is saved. Trusted payment confirmation is still required. Payment processing is not connected locally.";
-      if (row.class_status === "confirmed") return title + "This class is confirmed. Open its saved format and schedule. Confirmation does not verify attendance or award credit.";
+      if (row.class_status === "pending_payment") return title + "Parent approval is saved. Trusted payment confirmation is still required.";
+      if (row.class_status === "confirmed") return title + "This class is confirmed. Open its saved format and schedule.";
       if (row.class_status === "waitlisted") return title + "No seat is reserved. If a seat becomes available, the request will still require parent approval.";
       if (row.class_status === "declined") return title + "Your linked parent declined this request. No seat is reserved.";
-      return title + "This request is cancelled and no seat is reserved. A class withdrawal can also cancel a request.";
+      return title + "This request is cancelled and no seat is reserved.";
     }
     if (row.type === "learning") return "An authorized team member published a learning summary. Open your learning records to review it.";
-    if (row.type === "review") return `${row.detail}. Open the saved Evidence to read the team's feedback. A manual review does not award credit or verify a skill.`;
-    return `${row.detail}. This records a meeting reservation only. Live meeting access and attendance are not connected.`;
+    if (row.type === "review") return `${row.detail}. Open the saved Evidence to read the team's feedback.`;
+    return `${row.detail}.`;
   }
   function dto(row) {
     return { id: row.id, type: row.type, title: row.title, summary: summary(row), occurredAt: iso(row.occurred_at), read: row.is_read === 1, target: { view: row.view, resourceId: row.resource_id } };
