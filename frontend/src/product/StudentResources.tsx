@@ -32,12 +32,6 @@ export function StudentResources({
       icon: "user",
       to: "/two-factor",
     },
-    {
-      title: "Help & support",
-      text: "Questions about classes, meetings or your account? Contact TALA.",
-      icon: "help",
-      to: "/contact",
-    },
   ];
   return (
     <section className="student-resources" aria-labelledby="resources-heading">

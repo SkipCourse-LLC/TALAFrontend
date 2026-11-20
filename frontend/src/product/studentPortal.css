@@ -89,7 +89,7 @@
   gap: 0.15rem;
   margin: 0.25rem 0 0.75rem;
 }
-.student-sidebar-support a {
+.student-sidebar-support .student-sidebar-help {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -100,22 +100,26 @@
   font-size: 0.82rem;
   text-decoration: none;
 }
-.student-sidebar-support a:hover {
-  background: #eef4ef;
+/* Placeholder: muted and inert until help has a destination. */
+.student-sidebar-support .student-sidebar-help:disabled {
+  border: 0;
+  background: none;
+  color: #8a9a92;
+  font: inherit;
+  cursor: default;
 }
 .student-sidebar-support .icon {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
 }
-.student-sidebar-support a:focus-visible,
 .student-sidebar-sync button:focus-visible,
 .student-work-tabs button:focus-visible,
 .student-resources-list :is(a, button):focus-visible {
   outline: 3px solid #2b6146;
   outline-offset: 3px;
 }
-.dashboard-side-menu[data-collapsed="true"] .student-sidebar-support a {
+.dashboard-side-menu[data-collapsed="true"] .student-sidebar-support .student-sidebar-help {
   justify-content: center;
   padding: 0;
 }

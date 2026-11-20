@@ -224,7 +224,7 @@
   box-shadow: none;
 }
 :root[data-portal] .student-sidebar-foot .student-account > summary,
-:root[data-portal] .student-sidebar-foot .student-sidebar-support a,
+:root[data-portal] .student-sidebar-foot .student-sidebar-support .student-sidebar-help,
 .student-sidebar-signout {
   display: flex;
   align-items: center;
@@ -251,7 +251,6 @@
   display: none;
 }
 :root[data-portal] .student-sidebar-foot .student-account > summary:hover,
-:root[data-portal] .student-sidebar-foot .student-sidebar-support a:hover,
 .student-sidebar-signout:hover:not(:disabled) {
   background: #ecf1ef;
 }
@@ -272,6 +271,10 @@
 }
 :root[data-portal] .student-sidebar-foot .student-sidebar-support {
   margin: 0;
+}
+:root[data-portal] .student-sidebar-foot .student-sidebar-help:disabled {
+  color: #8a9a92;
+  cursor: default;
 }
 .student-sidebar-signout:disabled {
   cursor: default;
@@ -419,7 +422,7 @@
     order: 1;
   }
   :root[data-portal] .student-sidebar-foot .student-account > summary,
-  :root[data-portal] .student-sidebar-foot .student-sidebar-support a,
+  :root[data-portal] .student-sidebar-foot .student-sidebar-support .student-sidebar-help,
   :root[data-portal] .student-sidebar-signout {
     width: auto;
     min-height: 44px;

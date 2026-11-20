@@ -331,7 +331,6 @@ export function WorkspaceHeader({ user }: { user: ApiUser }) {
           </summary>
           <div className="tala-workspace-menu">
             <Link to="/two-factor">Account security</Link>
-            <Link to="/contact">Help &amp; support</Link>
             {/* The student and family workspace handles this request. */}
             {(user.role === "student" || user.role === "parent") && (
               <button

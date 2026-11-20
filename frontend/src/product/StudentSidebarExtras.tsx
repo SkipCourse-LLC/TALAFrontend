@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { safeTalaApiError, talaApi } from "../api";
 import type { CalendarCategory } from "../api/calendarContract";
 import { Icon } from "../shared/Icon";
@@ -150,14 +149,23 @@ export function SidebarSchoolYear() {
   );
 }
 
-/** Help at the foot of the student menu; Settings is the account panel above it. */
+/**
+ * Help at the foot of the student menu; Settings is the account panel above it.
+ * A disabled placeholder until TALA decides where help should go.
+ */
 export function SidebarSupportLinks({ collapsed }: { collapsed: boolean }) {
   return (
-    <nav className="student-sidebar-support" aria-label="Help">
-      <Link to="/contact" title={collapsed ? "Help & support" : undefined}>
+    <div className="student-sidebar-support">
+      <button
+        type="button"
+        className="student-sidebar-help"
+        disabled
+        aria-disabled="true"
+        title={collapsed ? "Help & support" : undefined}
+      >
         <Icon name="help" />
         <span className="dashboard-side-menu-label">Help &amp; support</span>
-      </Link>
-    </nav>
+      </button>
+    </div>
   );
 }
