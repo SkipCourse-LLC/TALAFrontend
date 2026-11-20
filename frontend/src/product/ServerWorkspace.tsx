@@ -649,6 +649,19 @@ function LearningWorkspace({
   const workspaceVisible = useWorkspaceVisible();
   const exportPrivateFile = usePrivateWorkspaceExport();
   const view = readWorkspaceView(searchParams.get("view"));
+  // Families have no Calendar page; an old or typed link opens Overview.
+  useEffect(() => {
+    if (!readOnly || view !== "calendar") return;
+    setSearchParams(
+      (previous) => {
+        const params = new URLSearchParams(previous);
+        params.set("view", "overview");
+        params.delete("class");
+        return params;
+      },
+      { replace: true },
+    );
+  }, [readOnly, view, setSearchParams]);
   const previousView = useRef(view);
   const detailOpener = useRef<HTMLElement | null>(null);
   const returningFromDetails = useRef<{
@@ -2225,14 +2238,7 @@ function LearningWorkspace({
         )}
         {view === "calendar" &&
           !accessBlocked &&
-          (readOnly ? (
-            <section aria-labelledby="calendar-heading">
-              <h2 id="calendar-heading" tabIndex={-1}>
-                Calendar
-              </h2>
-              <p>Open Calendar from the student’s workspace.</p>
-            </section>
-          ) : (
+          !readOnly && (
             <StudentCalendarPanel
               initialClassId={searchParams.get("class") ?? undefined}
               onCloseClass={closeClassDetail}
@@ -2259,7 +2265,7 @@ function LearningWorkspace({
               onOpenClasses={() => navigateView("classes")}
               onEvidence={beginClassEvidence}
             />
-          ))}
+          )}
         {view === "resources" && !accessBlocked && (
           <StudentResources readOnly={readOnly} onNavigate={navigateView} />
         )}
