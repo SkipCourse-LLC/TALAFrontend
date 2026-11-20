@@ -110,7 +110,8 @@ function createContactRequestServices(db, { operation, requireOperator, lists })
     /**
      * Sends one "we received your request" email per saved request. The claim row
      * is written before sending, so a resent form never sends a second email.
-     * The email repeats only the family's name, never their notes.
+     * The email repeats nothing the sender typed (no name or notes), so the
+     * form can't be used to send chosen text from TALA's address.
      */
     async acknowledge(id, details, emailService) {
       if (!emailService) return;
@@ -119,7 +120,7 @@ function createContactRequestServices(db, { operation, requireOperator, lists })
       let status = "sent";
       try {
         await emailService.send({ to: details.email, subject: "TALA received your request",
-          text: `Hello ${details.parentName},\n\nThank you for contacting TALA. We received your request and will reach out by ${METHOD_WORDS[details.preferredMethod]} soon.\n\nTALA` });
+          text: `Hello,\n\nThank you for contacting TALA. We received your request and will reach out by ${METHOD_WORDS[details.preferredMethod]} soon.\n\nTALA` });
       } catch { status = "failed"; }
       db.prepare("UPDATE contact_request_notifications SET email_status=?,updated_at=? WHERE contact_request_id=?").run(status, Date.now(), id);
     },

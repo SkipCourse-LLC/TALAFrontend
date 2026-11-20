@@ -31,7 +31,7 @@ const iso = (value) => new Date(value).toISOString();
 // ---- email --------------------------------------------------------------
 function emailAdapter(mode, google) {
   if (mode === "disabled") return { mode, send: () => unavailable("email") };
-  if (mode === "gmail") return createGmailAdapter({ tokens: google.tokens(), apiBase: google.settings.apiBase, sender: google.settings.gmailSender });
+  if (mode === "gmail") return limitPerRecipient(createGmailAdapter({ tokens: google.tokens(), apiBase: google.settings.apiBase, sender: google.settings.gmailSender }));
   const outbox = [];
   return {
     mode,
@@ -43,6 +43,28 @@ function emailAdapter(mode, google) {
       return { id: saved.id, status: "delivered_to_mock_outbox" };
     },
     outbox: () => outbox.map((message) => ({ ...message })),
+  };
+}
+
+// Real email is capped per recipient, so public forms can't be used to flood
+// one inbox from TALA's address. Mock delivery has no cap, for tests.
+const RECIPIENT_LIMIT = 3;
+const RECIPIENT_WINDOW_MS = 24 * 60 * 60 * 1000;
+function limitPerRecipient(adapter) {
+  const sent = new Map();
+  return {
+    ...adapter,
+    async send(message) {
+      const to = String(message?.to ?? "").toLowerCase();
+      const now = Date.now();
+      const recent = (sent.get(to) ?? []).filter((time) => now - time < RECIPIENT_WINDOW_MS);
+      if (recent.length >= RECIPIENT_LIMIT)
+        throw Object.assign(new Error("Email limit reached for this recipient."), { code: "EMAIL_RECIPIENT_LIMIT" });
+      recent.push(now);
+      sent.set(to, recent);
+      if (sent.size > 10_000) sent.delete(sent.keys().next().value);
+      return adapter.send(message);
+    },
   };
 }
 

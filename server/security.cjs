@@ -40,7 +40,11 @@ function requestId(value) {
 }
 function email(value) {
   const normalized = text(value, "email address", 254).toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) fail(400, "INVALID_INPUT", "Enter a valid email address.");
+  // A plain mailbox only: dot-atom local part and a hostname domain. This
+  // rejects query strings, commas and angle brackets that could turn the
+  // address into extra recipients or a crafted mailto: link.
+  if (!/^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(normalized))
+    fail(400, "INVALID_INPUT", "Enter a valid email address.");
   return normalized;
 }
 function password(value, register = true) {

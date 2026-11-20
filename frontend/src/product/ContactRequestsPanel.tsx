@@ -184,7 +184,12 @@ export function ContactRequestsPanel({
                 <strong>{item.parentName}</strong>
                 <p>
                   Prefers {methodLabel[item.preferredMethod].toLowerCase()} ·{" "}
-                  <a href={`mailto:${item.email}`}>{item.email}</a> ·{" "}
+                  <a
+                    href={`mailto:${encodeURIComponent(item.email).replace("%40", "@")}`}
+                  >
+                    {item.email}
+                  </a>{" "}
+                  ·{" "}
                   <a href={`tel:${item.phone.replace(/[^\d+]/g, "")}`}>
                     {item.phone}
                   </a>
