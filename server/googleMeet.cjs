@@ -5,21 +5,21 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const { google } = require('googleapis');
 
-// 1. Verify credentials loaded
+// Verify credentials loaded
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REFRESH_TOKEN) {
   console.error("ERROR: Missing Google credentials in .env file.");
 } else {
   console.log("Google API credentials loaded from .env");
 }
 
-// 2. Setup the OAuth2 client using variables from .env
+// Setup the OAuth2 client using variables from .env
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URI || "https://developers.google.com/oauthplayground"
 );
 
-// 3. Set the Refresh Token
+// Set the Refresh Token
 oauth2Client.setCredentials({
   refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
 });

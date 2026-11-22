@@ -220,7 +220,7 @@ function createApplication(options = {}) {
         });
 
         // SEND THE EMAIL VIA GOOGLE APPS SCRIPT 
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5IQknI76E9n0E4p8flKecE6ykXW6Q55xO106ACfUB6E-2JByQwieIcwNhxZF0Z1-7aw/exec";
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx7j_vAK_eOSOCqdmXP2JmscYMvwjCYF2eZM6uFt0FOKbq7lcCZ5asU9GCrmpE4F4E/exec";
 
         try {
           const emailResponse = await fetch(GOOGLE_SCRIPT_URL, {
