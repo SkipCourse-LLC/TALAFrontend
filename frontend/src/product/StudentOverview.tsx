@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ApiWorkspace, ApiLearningRecords, LearningGoal } from "../api";
 import type { WorkspaceView } from "./workspaceViews";
@@ -699,7 +700,7 @@ export function StudentOverview({
                     ? readOnly
                       ? "Awaiting student review"
                       : "New notes to read"
-                    : "Published by TALA"}
+                    : `Published by ${schoolConfig.brand.shortName}`}
                 </span>
               </span>
               <span className="learning-overview-follow-up-action">

@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import {
   useCallback,
   useEffect,
@@ -353,7 +354,7 @@ export function ServerWorkspace({
         ) : !linkedStudents.length ? (
           <p>
             No linked students yet. Complete authorized Family setup, or contact
-            TALA to review an existing student connection.
+            {" "}{schoolConfig.brand.shortName} to review an existing student connection.
           </p>
         ) : (
           <div className="form-field">
@@ -576,7 +577,7 @@ export function ServerWorkspace({
                   Your student’s workspace comes next
                 </h2>
                 <p>
-                  Use Family setup above after Tina authorizes student access.
+                  Use Family setup above after {schoolConfig.admissions.interviewer} authorizes student access.
                   Creating the student account also records your approved family
                   connection.
                 </p>
@@ -3069,7 +3070,7 @@ function LearningWorkspace({
               About
             </summary>
             <p>
-              Records stay on this TALA server. Your operator manages backups.
+              Records stay on this {schoolConfig.brand.shortName} server. Your operator manages backups.
             </p>
             <p>
               Email, live meetings, AI assessment and payments are not

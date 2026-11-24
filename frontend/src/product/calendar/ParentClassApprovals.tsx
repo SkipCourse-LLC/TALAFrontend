@@ -1,3 +1,4 @@
+import { schoolConfig } from "../../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { newRequestId, safeTalaApiError, talaApi } from "../../api";
@@ -282,7 +283,7 @@ export function ParentClassApprovals({
                 <p className="tala-role-payment-note">
                   <Link to="/payment">View approved payment options</Link>. Enrollment
                   stays pending until a trusted receipt confirms payment. If no
-                  matching payment item is listed, contact TALA.
+                  matching payment item is listed, contact {schoolConfig.brand.shortName}.
                 </p>
               )}
               {item.status === "waitlisted" &&
@@ -297,7 +298,7 @@ export function ParentClassApprovals({
                   item.status,
                 ) && (
                   <p className="tala-role-payment-note">
-                    This class has ended. Contact TALA about any unresolved
+                    This class has ended. Contact {schoolConfig.brand.shortName} about any unresolved
                     enrollment or payment.
                   </p>
                 )}

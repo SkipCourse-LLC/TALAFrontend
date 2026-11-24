@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { Link } from "react-router-dom";
 import { FaqItem } from "./FaqItem";
 import { StartBanner } from "./StartBanner";
@@ -6,12 +7,15 @@ export function AdmissionsPage() {
   return (
     <div className="public-page">
       <section className="page-intro container">
-        <h1>Is TALA the Right Fit?</h1>
+        <h1>Is {schoolConfig.brand.shortName} the Right Fit?</h1>
         <p className="lead">
           Finding the right educational home starts with understanding your
           learner and your family.
         </p>
-        <p>TALA may be a strong fit for families seeking:</p>
+        <p>
+          {schoolConfig.brand.shortName} may be a strong fit for families
+          seeking:
+        </p>
         <ul>
           <li>Specialized educational support</li>
           <li>Medically informed instruction</li>
@@ -22,14 +26,15 @@ export function AdmissionsPage() {
           <li>ESA-funded educational services for qualifying students</li>
         </ul>
         <p>
-          Arizona families may be able to use specialized ESA funding to help
-          offset educational costs. We welcome a conversation about your
-          learner's needs, program fit, and funding options.
+          {schoolConfig.location.regionName} families may be able to use
+          specialized ESA funding to help offset educational costs. We welcome a
+          conversation about your learner's needs, program fit, and funding
+          options.
         </p>
         <div className="button-row">
           <a
             className="button"
-            href="https://calendar.app.google/YapTB4MQLus16DATA"
+            href={schoolConfig.admissions.interviewUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -58,6 +63,8 @@ export function AdmissionsPage() {
   );
 }
 
+const { tuition } = schoolConfig.publicContent;
+
 export function TuitionPage() {
   return (
     <div className="public-page">
@@ -76,8 +83,8 @@ export function TuitionPage() {
           <article className="fee-row">
             <h3>Annual registration</h3>
             <p>
-              <span className="fee-amount">$5,000/year</span> ($1,250
-              quarterly).
+              <span className="fee-amount">{tuition.annual.amount}</span>
+              {tuition.annual.detail}
             </p>
           </article>
           <article className="fee-row">
@@ -89,21 +96,24 @@ export function TuitionPage() {
           <article className="fee-row">
             <h3>In-Person Campus Program</h3>
             <p>
-              <span className="fee-amount">$120 per hour</span> ($240 per
-              two-hour block).
+              <span className="fee-amount">{tuition.campus.amount}</span>
+              {tuition.campus.detail}
             </p>
           </article>
           <article className="fee-row">
             <h3>Virtual Academy group</h3>
             <p>
-              <span className="fee-amount">$30 per hour</span> ($60 per two-hour
-              block).
+              <span className="fee-amount">{tuition.virtualGroup.amount}</span>
+              {tuition.virtualGroup.detail}
             </p>
           </article>
           <article className="fee-row">
             <h3>Online 1:1 Specialized Tutoring</h3>
             <p>
-              <span className="fee-amount">$60 per hour</span>.
+              <span className="fee-amount">
+                {tuition.virtualIndividual.amount}
+              </span>
+              {tuition.virtualIndividual.detail}
             </p>
           </article>
         </div>
@@ -111,15 +121,16 @@ export function TuitionPage() {
       <section className="container section">
         <h2>Funding options</h2>
         <p>
-          Arizona Empowerment Scholarship Account (ESA) funding is a primary
-          option for Arizona families. Qualifying students can use specialized
-          funding to help offset costs, subject to program rules and
-          eligibility.
+          {schoolConfig.location.regionName} Empowerment Scholarship Account
+          (ESA) funding is a primary option for{" "}
+          {schoolConfig.location.regionName} families. Qualifying students can
+          use specialized funding to help offset costs, subject to program rules
+          and eligibility.
         </p>
         <p>
-          TALA also accepts School Tuition Organization (STO) scholarships and
-          private pay. Discuss your circumstances and funding questions with our
-          team.
+          {schoolConfig.brand.shortName} also accepts School Tuition
+          Organization (STO) scholarships and private pay. Discuss your
+          circumstances and funding questions with our team.
         </p>
       </section>
       <StartBanner />
@@ -127,42 +138,15 @@ export function TuitionPage() {
   );
 }
 
-const questions: ReadonlyArray<readonly [string, string]> = [
-  [
-    "Who does TALA serve?",
-    "TALA serves students with complex medical needs, severe developmental disabilities, profound learning needs, and other learners who benefit from individualized education. Campus students are ages 5–21; the nationwide Virtual Academy also welcomes learners seeking flexible, personalized education.",
-  ],
-  [
-    "Is clinical support available?",
-    "A licensed nurse is on site every hour of the in-person campus program. Virtual students learn remotely; on-site nursing is not a virtual service.",
-  ],
-  [
-    "Is the campus accessible?",
-    "The Tucson micro-campus is wheelchair accessible and designed to be sensory-conscious, with support for students who need direct care, transfers, or monitoring.",
-  ],
-  [
-    "How are programs scheduled?",
-    "The campus uses double-shift scheduling and a 50-week continuous calendar. The Virtual Academy offers flexible scheduling, small-group and individual options, and a weekly faculty advisor.",
-  ],
-  [
-    "What does TALA cost?",
-    "Annual registration is $5,000/year ($1,250 quarterly). Faculty advisor check-ins are included. Campus is $120/hour ($240 per two-hour block); virtual group is $30/hour ($60 per two-hour block); online 1:1 specialized tutoring is $60/hour.",
-  ],
-  [
-    "Can families use ESA or scholarships?",
-    "Qualifying Arizona students may use ESA funding to help offset costs. TALA also accepts STO scholarships and private pay; eligibility and funding rules apply.",
-  ],
-  [
-    "How do we begin?",
-    "Schedule a free one-hour family interview to discuss your learner's needs, program fit, and next steps. An interview does not guarantee enrollment.",
-  ],
-];
+const questions = schoolConfig.publicContent.faq;
 export function FaqPage() {
   return (
     <div className="public-page">
       <section className="page-intro container">
         <h1>Frequently asked questions</h1>
-        <p className="lead">Answers for families considering TALA.</p>
+        <p className="lead">
+          Answers for families considering {schoolConfig.brand.shortName}.
+        </p>
       </section>
       <section className="container section faq-list">
         {questions.map(([question, answer]) => (

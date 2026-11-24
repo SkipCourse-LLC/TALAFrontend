@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -641,7 +642,7 @@ function SecurityFlow({ session, onRefresh }: SecurityPageProps) {
           <p>
             Keep your authenticator available for future sign-ins. Account
             recovery, factor removal and recovery-code generation are not
-            connected in TALA yet. Contact the team's existing support process
+            connected in {schoolConfig.brand.shortName} yet. Contact the team's existing support process
             if you lose access.
           </p>
           <details className="two-factor-details">

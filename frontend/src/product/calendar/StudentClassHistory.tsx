@@ -1,3 +1,4 @@
+import { schoolConfig } from "../../config/schoolConfig";
 import { useEffect, useId, useMemo, useState } from "react";
 import { safeTalaApiError, talaApi } from "../../api";
 import type { ClassEnrollment } from "../../api/calendarContract";
@@ -45,10 +46,10 @@ function requestDescription(item: ClassEnrollment, ended: boolean) {
   switch (item.status) {
     case "pending_approval":
       return ended
-        ? "Class time has passed. Contact TALA about this unresolved request."
+        ? `Class time has passed. Contact ${schoolConfig.brand.shortName} about this unresolved request.`
         : "Waiting for your linked parent’s approval.";
     case "pending_payment":
-      return "Your parent approved this request. Contact TALA for the approved payment process; your place remains pending.";
+      return `Your parent approved this request. Contact ${schoolConfig.brand.shortName} for the approved payment process; your place remains pending.`;
     case "confirmed":
       return ended
         ? "Class time has ended. Record what you learned with Evidence."

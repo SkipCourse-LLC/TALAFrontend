@@ -1,3 +1,4 @@
+import { schoolConfig } from "../../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -153,7 +154,7 @@ export function EnrollmentPage({
   return (
     <section className="container admission-page admission-enrollment">
       <header className="admission-header">
-        <h1>Welcome to TALA.</h1>
+        <h1>Welcome to {schoolConfig.brand.shortName}.</h1>
         <p>Your invitation is the next step.</p>
       </header>
       <section className="admission-card">
@@ -194,7 +195,7 @@ export function EnrollmentPage({
           <>
             <h2>Open your enrollment invitation.</h2>
             <p>
-              Use the link from Tina. It expires and can only create one parent
+              Use the link from {schoolConfig.admissions.interviewer}. It expires and can only create one parent
               account.
             </p>
             <Link to="/register">Check your application</Link>
@@ -279,7 +280,7 @@ export function EnrollmentPage({
         )}
         {error && !uncertain && !invitation && (
           <p>
-            Ask Tina for a new invitation if this link has expired or was
+            Ask {schoolConfig.admissions.interviewer} for a new invitation if this link has expired or was
             already used.
           </p>
         )}

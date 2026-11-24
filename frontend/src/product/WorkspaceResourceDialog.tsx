@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { talaApi, newRequestId, safeTalaApiError, TalaApiError } from "../api";
 import type {
@@ -451,7 +452,7 @@ export function WorkspaceResourceDialog({
             saved.record && (
               <>
                 <p className="workspace-detail-help">
-                  TALA summary ·{" "}
+                  {schoolConfig.brand.shortName} summary ·{" "}
                   <time dateTime={saved.record.updatedAt}>
                     {new Date(saved.record.updatedAt).toLocaleString()}
                   </time>

@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Icon } from "../shared/Icon";
@@ -70,7 +71,7 @@ export function DashboardContent({
           assigned learning will appear here.
         </p>
         <Link className="button" to="/programs">
-          Explore TALA programs
+          Explore {schoolConfig.brand.shortName} programs
         </Link>
       </div>
     );

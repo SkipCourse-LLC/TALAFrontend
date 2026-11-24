@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../shared/Icon";
 import type { FormEvent } from "react";
@@ -635,7 +636,7 @@ export function AccountSecurityPage({
             </summary>
             <p>
               Email and authenticator services are not connected. For account
-              recovery, contact your authorized TALA operator.
+              recovery, contact your authorized {schoolConfig.brand.shortName} operator.
             </p>
             <p>
               Leaving this page does not cancel a submitted password change. If
@@ -714,7 +715,7 @@ export function AccountSecurityPage({
             <>
               <ul
                 className="account-security-session-list"
-                aria-label="Your active TALA sessions"
+                aria-label={`Your active ${schoolConfig.brand.shortName} sessions`}
               >
                 {orderedSessions.map((session: ApiAccountSession) => (
                   <li key={session.id} data-current={session.current}>

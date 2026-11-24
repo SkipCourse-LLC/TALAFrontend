@@ -1,3 +1,4 @@
+import { schoolConfig } from "../../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import {
   admissionsApi,
@@ -332,7 +333,7 @@ function AdmissionsReviewSession({
           {
             startsAt: start.toISOString(),
             endsAt: end.toISOString(),
-            label: "Interview with Tina",
+            label: `Interview with ${schoolConfig.admissions.interviewer}`,
             requestId,
           },
           signal,
@@ -517,7 +518,7 @@ function AdmissionsReviewSession({
                 </section>
               )}
               <section className="admissions-section">
-                <h4>Interview with Tina</h4>
+                <h4>Interview with {schoolConfig.admissions.interviewer}</h4>
                 {application.appointment ? (
                   <>
                     <p>
