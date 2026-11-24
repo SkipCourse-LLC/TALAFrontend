@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { LearningGlyph } from "./LearningGlyph";
 import "./applicationConnectionNotice.css";
 
@@ -17,7 +18,7 @@ export function ApplicationConnectionNotice({
         <span className="application-connection-symbol" aria-hidden="true">
           <LearningGlyph name="refresh" />
         </span>
-        <h1 id="application-connection-heading">TALA is unavailable.</h1>
+        <h1 id="application-connection-heading">{schoolConfig.brand.shortName} is unavailable.</h1>
         <p>Please try again.</p>
       </div>
       <button
@@ -31,7 +32,7 @@ export function ApplicationConnectionNotice({
       <details>
         <summary>Details</summary>
         <p>{error}</p>
-        <p>For local development, start the TALA server, then retry.</p>
+        <p>For local development, start the {schoolConfig.brand.shortName} server, then retry.</p>
       </details>
     </main>
   );

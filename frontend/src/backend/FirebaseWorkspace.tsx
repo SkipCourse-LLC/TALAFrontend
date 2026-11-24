@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -51,7 +52,7 @@ export function FirebaseWorkspace(props: FirebaseWorkspaceProps) {
   ) {
     return (
       <section className="firebase-workspace container">
-        <h1>Your TALA account</h1>
+        <h1>Your {schoolConfig.brand.shortName} account</h1>
         <div className="firebase-workspace-panel">
           <h2>Workspace integration awaiting approval</h2>
           <p>
@@ -107,7 +108,7 @@ function AccountRoleNotice({ session, onLogout }: FirebaseWorkspaceProps) {
       <h1>
         {session.trustedRole === "parent"
           ? "Your family workspace"
-          : "Your TALA workspace"}
+          : `Your ${schoolConfig.brand.shortName} workspace`}
       </h1>
       <div className="firebase-workspace-panel">
         <h2>Account role confirmed</h2>

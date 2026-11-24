@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { Link } from "react-router-dom";
 import { ProgramCards } from "./ProgramCards";
 import { StartBanner } from "./StartBanner";
@@ -47,7 +48,7 @@ export function HomePage() {
           <p>
             Finding an educational home for a child with complex medical needs
             or severe developmental disabilities should never mean choosing
-            between clinical safety and meaningful learning. TALA delivers both
+            between clinical safety and meaningful learning. {schoolConfig.brand.shortName} delivers both
             through individualized instruction, continuous nursing support, and
             a sensory-controlled learning environment built specifically for
             exceptional learners.
@@ -55,7 +56,7 @@ export function HomePage() {
           <div className="button-row">
             <a
               className="home-button home-button-primary"
-              href="https://calendar.app.google/YapTB4MQLus16DATA"
+              href={schoolConfig.admissions.interviewUrl}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -73,7 +74,7 @@ export function HomePage() {
       <section className="home-section">
         <div className="home-container">
           <div className="home-section-head">
-            <h2>What Sets TALA Apart</h2>
+            <h2>What Sets {schoolConfig.brand.shortName} Apart</h2>
           </div>
           <div className="home-distinctions">
             {distinctions.map(([title, description]) => (
@@ -104,7 +105,7 @@ export function HomePage() {
             </div>
             <div>
               <p>
-                Tucson Adaptive Learning Academy is an accredited K-12
+                {schoolConfig.brand.name} is an accredited K-12
                 educational program combining individualized instruction with
                 dedicated pediatric clinical care for medically fragile students
                 and learners with severe developmental disabilities.

@@ -1,3 +1,4 @@
+import { schoolConfig } from "../../config/schoolConfig";
 import type { CalendarClass } from "../../api/calendarContract";
 import { phoenixDateKey } from "./calendarDates";
 
@@ -83,11 +84,11 @@ export function statusExplanation(course: CalendarClass): string {
     case "pending_approval":
       return "Your request is saved. A linked parent must approve it before your place is confirmed.";
     case "pending_payment":
-      return "Your parent approved this request. Payment is still required. Contact TALA for payment instructions; your place is confirmed after payment is verified.";
+      return `Your parent approved this request. Payment is still required. Contact ${schoolConfig.brand.shortName} for payment instructions; your place is confirmed after payment is verified.`;
     case "confirmed":
       return "Your place is confirmed. Check the location and any instructions before class.";
     case "waitlisted":
-      return "You are on the waiting list. This is not a confirmed place; TALA will review availability.";
+      return `You are on the waiting list. This is not a confirmed place; ${schoolConfig.brand.shortName} will review availability.`;
     case "declined":
       return "Your parent declined this request. Talk with them before requesting again.";
     case "cancelled":

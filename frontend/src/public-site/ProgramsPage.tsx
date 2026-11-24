@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { Link, useSearchParams } from "react-router-dom";
 import { programs } from "./programContent";
 import { Icon } from "../shared/Icon";
@@ -15,8 +16,9 @@ export function ProgramsPage() {
       <section className="page-intro container">
         <h1>Specialized Education, In Person and Nationwide</h1>
         <p className="lead">
-          Explore medically informed education on our Tucson campus and flexible
-          online special needs education nationwide.
+          Explore medically informed education on our{" "}
+          {schoolConfig.location.city} campus and flexible online special needs
+          education nationwide.
         </p>
       </section>
       <section

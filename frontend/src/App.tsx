@@ -1,3 +1,4 @@
+import { schoolConfig } from "./config/schoolConfig";
 import { lazy, Suspense, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { SiteLayout } from "./shared/SiteLayout";
@@ -45,7 +46,7 @@ export default function App() {
       <Suspense
         fallback={
           <div className="container state-panel" role="status">
-            Connecting to your TALA server…
+            Connecting to your {schoolConfig.brand.shortName} server…
           </div>
         }
       >

@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import {
   useCallback,
   useEffect,
@@ -1171,7 +1172,7 @@ export function MeetingPanel({
                         ? "Retry below."
                         : times.nextCursor
                           ? "Load more to see other published times."
-                          : "Check later or ask your TALA team."}
+                          : `Check later or ask your ${schoolConfig.brand.shortName} team.`}
                   </p>
                   {!times.loading &&
                     !times.moreLoading &&

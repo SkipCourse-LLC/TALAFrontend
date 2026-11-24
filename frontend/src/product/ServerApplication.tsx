@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import {
   lazy,
   Suspense,
@@ -58,12 +59,12 @@ function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
     const view = readWorkspaceView(new URLSearchParams(search).get("view"));
     document.title =
       pathname === "/two-factor"
-        ? "Account security | TALA"
+        ? `Account security | ${schoolConfig.brand.shortName}`
         : role === "operator" || role === "alumni"
-          ? "Your workspace | TALA"
+          ? `Your workspace | ${schoolConfig.brand.shortName}`
           : role === "student" || role === "parent"
-            ? `${portalPageTitle(role, view)} | TALA`
-            : `${workspaceViews.find((item) => item.id === view)!.label} | TALA`;
+            ? `${portalPageTitle(role, view)} | ${schoolConfig.brand.shortName}`
+            : `${workspaceViews.find((item) => item.id === view)!.label} | ${schoolConfig.brand.shortName}`;
   }, [pathname, search, role]);
   useEffect(() => {
     if (pathname !== "/dashboard" && pathname !== "/two-factor") return;

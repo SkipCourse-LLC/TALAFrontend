@@ -1,3 +1,4 @@
+import { schoolConfig } from "../../config/schoolConfig";
 import { useEffect, useId, useRef, useState } from "react";
 import { newRequestId, safeTalaApiError, talaApi } from "../../api";
 import type {
@@ -281,7 +282,7 @@ export function ClassesWorkspace({
         </span>
       </header>
       <p className="tala-role-prototype">
-        Teaching workspace layout for Hannah and Tina’s review.
+        Teaching workspace layout for Hannah and {schoolConfig.admissions.interviewer}’s review.
       </p>
       <p className="tala-role-feedback" role="status">
         {notice}
@@ -651,8 +652,8 @@ export function ClassesWorkspace({
                   maxLength={160}
                   placeholder={
                     inPerson
-                      ? "TALA campus, room…"
-                      : "Joining details shared by TALA"
+                      ? `${schoolConfig.brand.shortName} campus, room…`
+                      : `Joining details shared by ${schoolConfig.brand.shortName}`
                   }
                 />
               </label>

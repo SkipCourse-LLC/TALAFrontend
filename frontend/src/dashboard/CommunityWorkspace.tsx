@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { Link } from "react-router-dom";
 import type { DemoSession } from "../shared/services/serviceTypes";
 import type { EnrollmentReceipt } from "../registration/enrollmentService";
@@ -28,7 +29,7 @@ export function CommunityWorkspace({
     <section className="container community-workspace">
       <header className="community-heading">
         <div>
-          <p className="eyebrow">Your TALA community</p>
+          <p className="eyebrow">Your {schoolConfig.brand.shortName} community</p>
           <h1>{session.role} workspace</h1>
           <p className="lead">Welcome, {session.name}.</p>
         </div>
@@ -168,7 +169,7 @@ export function CommunityWorkspace({
               Enrollment status &amp; payment <Icon name="arrow" />
             </Link>
             <p className="small">
-              A demo approval is a preview state, not a decision issued by TALA.
+              A demo approval is a preview state, not a decision issued by {schoolConfig.brand.shortName}.
             </p>
           </section>
 
@@ -249,7 +250,7 @@ export function CommunityWorkspace({
                 : "Discover learning opportunities and keep up with the developing community. Alumni membership and benefits are not connected in this preview."}
             </p>
             <Link className="button" to="/programs">
-              Explore TALA programs <Icon name="arrow" />
+              Explore {schoolConfig.brand.shortName} programs <Icon name="arrow" />
             </Link>
           </section>
           <section
@@ -271,7 +272,7 @@ export function CommunityWorkspace({
               Enrollment status &amp; payment <Icon name="arrow" />
             </Link>
             <Link className="text-link" to="/learn-more">
-              Learn more about TALA <Icon name="arrow" />
+              Learn more about {schoolConfig.brand.shortName} <Icon name="arrow" />
             </Link>
           </section>
         </div>

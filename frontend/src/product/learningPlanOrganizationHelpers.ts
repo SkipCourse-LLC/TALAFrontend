@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import type { LearningGoal } from "../api";
 import { sortLearningGoals } from "./learningPlanHelpers";
 
@@ -72,7 +73,7 @@ export function learningPlanArtifact(
   if (format === "json") content = `${JSON.stringify(saved, null, 2)}\n`;
   else {
     const lines = [
-      "TALA learning plan",
+      `${schoolConfig.brand.shortName} learning plan`,
       `Exported: ${saved.exportedAt}`,
       "",
       "Personal planning records. Completion does not verify a skill or award course credit.",

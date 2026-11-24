@@ -1,3 +1,4 @@
+import { schoolConfig } from "../../config/schoolConfig";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { admissionsApi, newRequestId, safeTalaApiError } from "../../api";
@@ -169,7 +170,7 @@ export function StudentAccountSetup({
       else {
         setError(
           problem.code === "ACCOUNT_EXISTS"
-            ? "This email cannot be used for a new student account. Choose a separate student address or ask TALA for help with an existing account."
+            ? `This email cannot be used for a new student account. Choose a separate student address or ask ${schoolConfig.brand.shortName} for help with an existing account.`
             : problem.message,
         );
         if (
@@ -233,8 +234,8 @@ export function StudentAccountSetup({
         </h4>
         <p>
           {setup?.status === "expired"
-            ? "Ask Tina to renew student setup authorization. Your parent account is ready."
-            : "TALA must authorize student setup after enrollment. You will then choose the student’s separate sign-in details here."}
+            ? `Ask ${schoolConfig.admissions.interviewer} to renew student setup authorization. Your parent account is ready.`
+            : `${schoolConfig.brand.shortName} must authorize student setup after enrollment. You will then choose the student’s separate sign-in details here.`}
         </p>
         <button
           type="button"
@@ -257,7 +258,7 @@ export function StudentAccountSetup({
         <div>
           <h4 id={`${id}-heading`}>Set up the student account</h4>
           <p>
-            TALA approved this step. Choose separate sign-in details for{" "}
+            {schoolConfig.brand.shortName} approved this step. Choose separate sign-in details for{" "}
             {application.studentName || "your student"}.
           </p>
         </div>

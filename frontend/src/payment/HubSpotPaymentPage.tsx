@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { newRequestId, safeTalaApiError, talaApi } from "../api";
@@ -300,7 +301,7 @@ export function HubSpotPaymentPage({
       if (!active.current || controller.signal.aborted) return;
       applyPayment(response.payment);
       setNotice(
-        "Your ESA review request is saved. TALA must confirm the funding process; no ESA funds have been accessed or charged.",
+        `Your ESA review request is saved. ${schoolConfig.brand.shortName} must confirm the funding process; no ESA funds have been accessed or charged.`,
       );
     } catch (failure) {
       if (controller.signal.aborted) return;
@@ -368,8 +369,8 @@ export function HubSpotPaymentPage({
               </strong>
               <p>
                 {testCheckout
-                  ? "Your TALA status updates after checkout."
-                  : "Enter payment details on HubSpot’s official checkout. Your TALA status updates after the payment is verified."}
+                  ? `Your ${schoolConfig.brand.shortName} status updates after checkout.`
+                  : `Enter payment details on HubSpot’s official checkout. Your ${schoolConfig.brand.shortName} status updates after the payment is verified.`}
               </p>
             </div>
             {!testCheckout && (
@@ -378,11 +379,11 @@ export function HubSpotPaymentPage({
           </div>
           {workspace?.integration.verification === "unconfigured" && (
             <div className="hubspot-payment-verification" role="note">
-              <strong>Payment verification awaits TALA authorization</strong>
+              <strong>Payment verification awaits {schoolConfig.brand.shortName} authorization</strong>
               <p>
-                Official checkout links are available for eligible items. TALA
+                Official checkout links are available for eligible items. {schoolConfig.brand.shortName}{" "}
                 has not connected a verified payment receipt service yet, so a
-                completed checkout stays awaiting verification until TALA can
+                completed checkout stays awaiting verification until {schoolConfig.brand.shortName} can
                 confirm it. Returning here does not mark a payment as paid.
               </p>
             </div>
@@ -427,7 +428,7 @@ export function HubSpotPaymentPage({
                     Your approved payment items
                   </h2>
                   <p className="payment-small">
-                    TALA assigns each item to an approved application or class
+                    {schoolConfig.brand.shortName} assigns each item to an approved application or class
                     request and a specific billing period.
                   </p>
                   {workspace.items.length ? (
@@ -565,7 +566,7 @@ export function HubSpotPaymentPage({
                                   <span>
                                     <strong>ESA funding review</strong>
                                     <small>
-                                      Ask TALA to confirm the funding process.
+                                      Ask {schoolConfig.brand.shortName} to confirm the funding process.
                                     </small>
                                   </span>
                                 </label>
@@ -616,7 +617,7 @@ export function HubSpotPaymentPage({
                           {selected.payment && waiting(selected.payment) && (
                             <p className="payment-small">
                               A checkout has already been started for this item.
-                              Check its status or contact TALA before paying
+                              Check its status or contact {schoolConfig.brand.shortName} before paying
                               again; an unverified payment may already have been
                               collected.
                             </p>
@@ -648,7 +649,7 @@ export function HubSpotPaymentPage({
                     <div className="hubspot-payment-empty">
                       <h3>No assigned payment items yet</h3>
                       <p>
-                        TALA must approve the application or class request and
+                        {schoolConfig.brand.shortName} must approve the application or class request and
                         assign its payment item before checkout becomes
                         available.
                       </p>
@@ -683,7 +684,7 @@ export function HubSpotPaymentPage({
                       ) : (
                         <p className="payment-small">
                           This checkout is for an approved in-person, two-hour
-                          session. Other class formats require TALA to confirm a
+                          session. Other class formats require {schoolConfig.brand.shortName} to confirm a
                           compatible payment option.
                         </p>
                       )}
@@ -752,7 +753,7 @@ export function HubSpotPaymentPage({
                             <summary>Payment reference</summary>
                             <dl>
                               <div>
-                                <dt>TALA reference</dt>
+                                <dt>{schoolConfig.brand.shortName} reference</dt>
                                 <dd>{payment.id}</dd>
                               </div>
                               <div>

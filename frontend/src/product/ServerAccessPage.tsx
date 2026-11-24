@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -482,13 +483,13 @@ export function ServerAccessPage({
           </div>
         )}
         <p className="product-access-switch">
-          <span>{register ? "Already have an account?" : "New to TALA?"}</span>{" "}
+          <span>{register ? "Already have an account?" : `New to ${schoolConfig.brand.shortName}?`}</span>{" "}
           {register ? (
             <Link to="/login">Sign in</Link>
           ) : (
             // New families start with a call; registration follows it.
             <a
-              href="https://calendar.app.google/YapTB4MQLus16DATA"
+              href={schoolConfig.admissions.interviewUrl}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -504,7 +505,7 @@ export function ServerAccessPage({
         <details className="quiet-account-about">
           <summary>About</summary>
           <p>
-            Your account is saved on this TALA server. The server checks your
+            Your account is saved on this {schoolConfig.brand.shortName} server. The server checks your
             password; this browser uses a private session cookie.
           </p>
           <p>

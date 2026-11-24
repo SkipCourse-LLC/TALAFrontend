@@ -201,6 +201,61 @@ test.afterEach(async ({ page }) => {
   ).toEqual([]);
 });
 
+test("Tina’s interview opens Google Calendar without losing the application", async ({
+  page,
+  context,
+}) => {
+  await context.route("https://calendar.app.google/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<title>Calendar link test</title>",
+    }),
+  );
+  await page.goto("/#/register");
+  await expect(
+    page.getByRole("heading", { name: "Start your TALA registration" }),
+  ).toBeVisible();
+  const parentName = page.getByLabel("Parent or guardian name");
+  await parentName.fill("Synthetic interview family");
+  const booking = page.getByRole("link", {
+    name: "Schedule an Interview with Tina",
+  });
+  await expect(booking).toHaveAttribute(
+    "href",
+    "https://calendar.app.google/YapTB4MQLus16DATA",
+  );
+  await expect(booking).toHaveAttribute("target", "_blank");
+  const [calendar] = await Promise.all([
+    page.waitForEvent("popup"),
+    booking.click(),
+  ]);
+  await expect(calendar).toHaveURL(
+    "https://calendar.app.google/YapTB4MQLus16DATA",
+  );
+  await expect(
+    page.getByRole("heading", { name: "Start your TALA registration" }),
+  ).toBeVisible();
+  await expect(parentName).toHaveValue("Synthetic interview family");
+  await expect(page).toHaveURL(/#\/register$/);
+  await calendar.close();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(booking).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  const [mobileCalendar] = await Promise.all([
+    page.waitForEvent("popup"),
+    booking.click(),
+  ]);
+  await expect(mobileCalendar).toHaveURL(
+    "https://calendar.app.google/YapTB4MQLus16DATA",
+  );
+  await mobileCalendar.close();
+});
+
 async function register(
   page: Page,
   role: "student" | "parent" = "student",

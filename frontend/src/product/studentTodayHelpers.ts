@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import type { ApiLearningRecords, ApiWorkspace, LearningGoal } from "../api";
 import { sortLearningGoals } from "./learningPlanHelpers";
 
@@ -205,8 +206,8 @@ export function buildTodayTasks({
         category: "Published learning summary",
         title: "Read a saved learning summary",
         description:
-          "A note from your TALA team is waiting for the student’s review. Opening it does not mark it as reviewed.",
-        brief: "Published by your TALA team.",
+          `A note from your ${schoolConfig.brand.shortName} team is waiting for the student’s review. Opening it does not mark it as reviewed.`,
+        brief: `Published by your ${schoolConfig.brand.shortName} team.`,
         action: "Read learning summary",
       },
     });

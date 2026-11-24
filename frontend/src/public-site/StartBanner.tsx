@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 /**
  * The interview call to action. "band" is the full-width banner used on the
  * information pages; "panel" is the home page's teal side panel. Both show
@@ -14,12 +15,12 @@ export function StartBanner({
       <div>
         <h2>Let's talk about your learner.</h2>
         <p>
-          Meet with our team to explore whether TALA is right for your family.
+          Meet with our team to explore whether {schoolConfig.brand.shortName} is right for your family.
         </p>
       </div>
       <div>
         <a
-          href="https://calendar.app.google/YapTB4MQLus16DATA"
+          href={schoolConfig.admissions.interviewUrl}
           target="_blank"
           rel="noopener noreferrer"
           className={panel ? "home-button" : "button button-light"}

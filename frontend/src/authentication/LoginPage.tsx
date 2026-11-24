@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AuthForm } from "./AuthForm";
@@ -119,7 +120,7 @@ function LoginPageContent({
       <div className="auth-panel">
         <h1>Welcome back.</h1>
         <p>
-          New to TALA? <Link to="/register">Create a demo profile</Link>
+          New to {schoolConfig.brand.shortName}? <Link to="/register">Create a demo profile</Link>
         </p>
         {state?.fromPayment && (
           <p className="notice" role="status">

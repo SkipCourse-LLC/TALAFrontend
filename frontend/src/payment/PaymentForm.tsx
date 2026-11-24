@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { demoToolsEnabled } from "./paymentRuntime";
@@ -317,7 +318,7 @@ function PaymentFormContent({
                 <p id="payment-funding-hint" className="payment-small">
                   {isDemo
                     ? "Private means self-funded. No charge is made in this demo."
-                    : "Private means self-funded. Fees must be confirmed by TALA."}
+                    : `Private means self-funded. Fees must be confirmed by ${schoolConfig.brand.shortName}.`}
                 </p>
               </div>
             </div>
@@ -337,7 +338,7 @@ function PaymentFormContent({
                 <div className="funding-explanation">
                   <strong>Private funding</strong>
                   <p>
-                    Fees must be confirmed by TALA before completing a real
+                    Fees must be confirmed by {schoolConfig.brand.shortName} before completing a real
                     payment.
                   </p>
                 </div>
@@ -516,7 +517,7 @@ function PaymentFormContent({
             </svg>
           </span>
           <div>
-            <strong>TALA family enrollment</strong>
+            <strong>{schoolConfig.brand.shortName} family enrollment</strong>
             <p className="payment-small">
               Program and schedule to be confirmed
             </p>
@@ -539,7 +540,7 @@ function PaymentFormContent({
           )}
           <div>
             <dt>Enrollment fees</dt>
-            <dd>To be confirmed by TALA</dd>
+            <dd>To be confirmed by {schoolConfig.brand.shortName}</dd>
           </div>
           {isDemo && (
             <div>
@@ -557,7 +558,7 @@ function PaymentFormContent({
         <p className="payment-checkout-summary-note">
           {isDemo
             ? "This preview does not charge or authorize a payment."
-            : "TALA must confirm your enrollment fees and funding eligibility."}
+            : `${schoolConfig.brand.shortName} must confirm your enrollment fees and funding eligibility.`}
         </p>
         <details className="payment-details">
           <summary>About payment information</summary>
