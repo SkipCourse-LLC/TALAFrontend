@@ -1,3 +1,4 @@
+import { schoolConfig } from "./src/config/schoolConfig.ts";
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import {
@@ -24,7 +25,52 @@ export default defineConfig(({ mode }) => {
   if (!/^\d{4,5}$/.test(localApiPort) || Number(localApiPort) > 65535)
     throw new Error("Choose a valid local API port.");
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: "school-page-metadata",
+        transformIndexHtml(html) {
+          const {
+            brand,
+            location,
+            publicContent: { seo },
+          } = schoolConfig;
+          const escapeHtml = (value: string) =>
+            value
+              .replaceAll("&", "&amp;")
+              .replaceAll("<", "&lt;")
+              .replaceAll(">", "&gt;")
+              .replaceAll('"', "&quot;");
+          const structuredData = {
+            "@context": "https://schema.org",
+            "@type": "School",
+            name: brand.name,
+            alternateName: brand.shortName,
+            url: brand.website,
+            description: seo.structuredDataDescription,
+            educationalLevel: seo.educationalLevel,
+            knowsAbout: seo.knowsAbout,
+            address: {
+              "@type": "PostalAddress",
+              addressLocality: location.city,
+              addressRegion: location.region,
+              addressCountry: location.country,
+            },
+          };
+          return html
+            .replace("%SCHOOL_THEME_COLOR%", () => escapeHtml(brand.themeColor))
+            .replace("%SCHOOL_DESCRIPTION%", () =>
+              escapeHtml(seo.homeDescription),
+            )
+            .replace("%SCHOOL_TITLE%", () =>
+              escapeHtml(`${seo.homeTitle} | ${brand.name}`),
+            )
+            .replace("%SCHOOL_STRUCTURED_DATA%", () =>
+              JSON.stringify(structuredData).replaceAll("<", "\\u003c"),
+            );
+        },
+      },
+    ],
     // Relative assets + HashRouter work under both root and project subpaths.
     base: "./",
     server: {

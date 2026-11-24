@@ -24,8 +24,10 @@ test("families can explore programs, admissions, tuition and FAQs", async ({
     page.getByRole("heading", { name: "Virtual Academy" }),
   ).toBeVisible();
   const filter = page.getByRole("combobox", { name: "Filter programs" });
+  const filterButton = page.getByRole("button", { name: "Nationwide online" });
+  await expect(filter.or(filterButton).filter({ visible: true })).toBeVisible();
   if (await filter.isVisible()) await filter.selectOption("virtual");
-  else await page.getByRole("button", { name: "Nationwide online" }).click();
+  else await filterButton.click();
   await expect(page.locator(".program-detail")).toHaveCount(1);
   await expect(
     page.getByRole("heading", { name: "Virtual Academy" }),

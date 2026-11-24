@@ -225,11 +225,13 @@
   font-size: calc(0.7rem * var(--student-type-scale, 1));
   color: #38614d;
 }
+.tala-class-status[data-capacity="low"],
 .tala-class-status[data-status="pending_approval"],
 .tala-class-status[data-status="pending_payment"] {
   background: #f8f0dc;
   color: #76561c;
 }
+.tala-class-status[data-capacity="full"],
 .tala-class-status[data-status="waitlisted"] {
   background: #eef0f6;
   color: #4c5e7e;
@@ -279,10 +281,11 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.7rem;
-  padding: 1rem 0;
-  border-top: 1px solid #e5ebe6;
-  border-bottom: 1px solid #e5ebe6;
-  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid #e5ebe6;
+  border-radius: 8px;
+  background: #f4f8f5;
+  margin: 0 0 0.85rem;
   font-size: calc(0.76rem * var(--student-type-scale, 1));
 }
 .tala-discovery-card dt {
@@ -744,7 +747,13 @@
 }
 @container tala-calendar (max-width:650px) {
   .tala-course-filters .tala-course-search {
-    flex: 1 1 180px;
+    flex: 1 1 100%;
+  }
+  .tala-course-filters .tala-course-format {
+    flex: 1 1 9rem;
+  }
+  .tala-discovery-card h3 button {
+    min-height: 44px;
   }
   .tala-course-filters .tala-course-filter-toggle {
     display: flex;

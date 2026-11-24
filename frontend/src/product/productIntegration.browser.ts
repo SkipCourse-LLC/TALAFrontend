@@ -1,6 +1,7 @@
 import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import type { CalendarClass } from "../api/calendarContract";
 import AxeBuilder from "@axe-core/playwright";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -274,6 +275,137 @@ async function register(
     account,
   );
 }
+test("students can filter Open Classes and return to today on a phone", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const now = new Date();
+  const starts = new Date(now.getTime() + 10 * 60_000);
+  const base = {
+    description: "Practice for the school showcase.",
+    category: "live_sessions",
+    startsAt: starts.toISOString(),
+    endsAt: new Date(starts.getTime() + 60 * 60_000).toISOString(),
+    teacher: "Test instructor",
+    grades: "All grades",
+    capacity: 8,
+    seatsAvailable: 2,
+    allDay: false,
+    location: "",
+    enrolled: false,
+    source: "local_catalog",
+    published: true,
+  } as const;
+  const courses: CalendarClass[] = [
+    {
+      ...base,
+      id: "robotics-test",
+      title: "Robotics workshop",
+      topic: "Technology",
+      modalities: ["online"],
+    },
+    {
+      ...base,
+      id: "drawing-test",
+      title: "Drawing studio",
+      topic: "Art",
+      modalities: ["in_person"],
+      seatsAvailable: 0,
+    },
+    {
+      ...base,
+      id: "music-test",
+      title: "Music lab",
+      topic: "Art",
+      modalities: ["in_person"],
+      enrolled: true,
+      enrollmentMode: "in_person",
+      enrollmentStatus: "pending_approval",
+      enrollmentVersion: 1,
+    },
+  ];
+  await page.route("**/api/classes", (route) =>
+    route.fulfill({
+      json: {
+        source: "local_catalog",
+        timeZone: "America/Phoenix",
+        classes: courses,
+        updatedAt: now.toISOString(),
+      },
+    }),
+  );
+  await register(page);
+  await page.goto("/#/dashboard?view=classes");
+  const openClasses = page.getByRole("region", { name: "Find your next discovery." });
+  await expect(openClasses.getByRole("heading", { name: "Find your next discovery." })).toBeVisible();
+  const robotics = openClasses.getByRole("article", {
+    name: "Robotics workshop",
+  });
+  const drawing = openClasses.getByRole("article", { name: "Drawing studio" });
+  const music = openClasses.getByRole("article", { name: "Music lab" });
+  await expect(robotics.getByText("2 seats left")).toBeVisible();
+  await expect(drawing.getByText("Full · waiting list available", { exact: true })).toBeVisible();
+  await expect(music.getByText("Awaiting parent")).toBeVisible();
+
+  const search = openClasses.getByRole("searchbox", { name: "Search classes" });
+  const format = openClasses.getByLabel("Format", { exact: true });
+  await search.fill("robotics");
+  await expect(robotics).toBeVisible();
+  await expect(drawing).toHaveCount(0);
+  await format.selectOption("in_person");
+  await expect(
+    openClasses.getByText("No classes match yet."),
+  ).toBeVisible();
+  await openClasses
+    .getByRole("button", { name: "Clear filters" })
+    .first()
+    .click();
+  await expect(search).toBeFocused();
+  await expect(format).toHaveValue("");
+  await openClasses.getByRole("button", { name: "More filters", exact: true }).click();
+  await openClasses.getByLabel("Topic", { exact: true }).selectOption("Art");
+  await expect(openClasses.getByRole("button", { name: "More filters (1 active)" })).toBeVisible();
+  await expect(robotics).toHaveCount(0);
+  await expect(drawing).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+
+  await openClasses.getByRole("button", { name: "My calendar" }).click();
+  const calendar = page.getByRole("region", { name: "Learning calendar" });
+  const views = calendar.getByRole("group", { name: "Calendar view" });
+  const week = views.getByRole("button", { name: "Week" });
+  const month = views.getByRole("button", { name: "Month" });
+  const day = views.getByRole("button", { name: "Day" });
+  await week.click();
+  await expect(week).toHaveAttribute("aria-pressed", "true");
+  await day.click();
+  await expect(day).toHaveAttribute("aria-pressed", "true");
+  const agenda = views.getByRole("button", { name: "Agenda" });
+  await agenda.click();
+  await expect(agenda).toHaveAttribute("aria-pressed", "true");
+  await month.click();
+  await expect(month).toHaveAttribute("aria-pressed", "true");
+  await calendar
+    .getByRole("button", { name: "Next month", exact: true })
+    .click();
+  await expect(
+    calendar.locator('button[aria-current="date"][aria-pressed="true"]'),
+  ).toHaveCount(0);
+  await calendar.getByRole("button", { name: "Today", exact: true }).click();
+  await expect(
+    calendar.locator('button[aria-current="date"][aria-pressed="true"]'),
+  ).toBeVisible();
+  expect((await day.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+});
+
 async function submitInterestWithLostResponse(page: Page) {
   await page.goto("/#/register");
   await page.getByLabel("Parent or guardian name").fill("Synthetic interest parent");

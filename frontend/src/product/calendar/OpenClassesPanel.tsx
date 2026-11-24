@@ -304,43 +304,47 @@ export function OpenClassesPanel({
                 key={course.id}
                 className="tala-discovery-card"
                 data-category={course.category}
+                aria-labelledby={`${goalPicker}-class-${course.id}`}
               >
                 <div className="tala-discovery-card-top">
                   <span>{course.topic || categoryLabels[course.category]}</span>
                   <span
                     className="tala-class-status"
                     data-status={course.enrollmentStatus}
+                    data-capacity={
+                      !course.enrolled && course.published !== false
+                        ? course.seatsAvailable === 0
+                          ? "full"
+                          : course.seatsAvailable !== null &&
+                              course.seatsAvailable <= 3
+                            ? "low"
+                            : undefined
+                        : undefined
+                    }
                   >
                     {course.published === false
                       ? "Withdrawn"
                       : course.enrolled
                         ? classStatus(course)
                         : course.seatsAvailable === 0
-                          ? "Waiting list available"
-                          : `${course.seatsAvailable ?? "Open"} seats`}
+                          ? course.source === "test_catalog"
+                            ? "Full"
+                            : "Full · waiting list available"
+                          : course.seatsAvailable === null
+                            ? "Open for requests"
+                            : `${course.seatsAvailable} ${course.seatsAvailable === 1 ? "seat" : "seats"} left`}
                   </span>
                 </div>
-                <h3>
+                <h3 id={`${goalPicker}-class-${course.id}`}>
                   <button type="button" onClick={() => setDetailId(course.id)}>
                     {course.title}
                   </button>
                 </h3>
-                <p className="tala-discovery-description">
-                  {course.description}
-                </p>
-                {course.enrollmentGoalId && (
-                  <p className="tala-discovery-linked-goal">
-                    <LearningGlyph name="goal" />
-                    {goals.find((goal) => goal.id === course.enrollmentGoalId)
-                      ?.title ?? "Connected to a learning goal"}
-                  </p>
-                )}
-                <p className="tala-discovery-teacher">
-                  <LearningGlyph name="book" /> {course.teacher}
-                </p>
                 <dl>
                   <div>
-                    <dt>When</dt>
+                    <dt>
+                      When <span className="tala-cal-sr">(Arizona time)</span>
+                    </dt>
                     <dd>
                       {calendarDayLabel(phoenixDateKey(course.startsAt), {
                         weekday: "short",
@@ -363,6 +367,19 @@ export function OpenClassesPanel({
                     </dd>
                   </div>
                 </dl>
+                <p className="tala-discovery-description">
+                  {course.description}
+                </p>
+                {course.enrollmentGoalId && (
+                  <p className="tala-discovery-linked-goal">
+                    <LearningGlyph name="goal" />
+                    {goals.find((goal) => goal.id === course.enrollmentGoalId)
+                      ?.title ?? "Connected to a learning goal"}
+                  </p>
+                )}
+                <p className="tala-discovery-teacher">
+                  <LearningGlyph name="book" /> {course.teacher}
+                </p>
                 {course.source === "local_catalog" && (
                   <ClassSaveButton
                     course={course}

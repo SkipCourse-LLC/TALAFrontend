@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { CalendarClass } from "../../api/calendarContract";
 import { modeLabel } from "./classPresentation";
 
@@ -56,12 +56,10 @@ export function CourseFilters({
 }) {
   const id = useId();
   const [expanded, setExpanded] = useState(false);
-  const extraCount = [
-    value.teacher,
-    value.topic,
-    value.grades,
-    value.mode,
-  ].filter(Boolean).length;
+  const searchInput = useRef<HTMLInputElement>(null);
+  const extraCount = [value.teacher, value.topic, value.grades].filter(
+    Boolean,
+  ).length;
   const options = (key: "teacher" | "topic" | "grades") =>
     [
       ...new Set(
@@ -79,12 +77,29 @@ export function CourseFilters({
         <input
           id={`${id}-search`}
           type="search"
+          ref={searchInput}
           placeholder="Find a class, topic or teacher"
           value={value.search}
           onChange={(event) =>
             onChange({ ...value, search: event.target.value })
           }
         />
+      </label>
+      <label className="tala-course-format" htmlFor={`${id}-mode`}>
+        <span id={`${id}-mode-label`}>Format</span>
+        <select
+          id={`${id}-mode`}
+          aria-labelledby={`${id}-mode-label`}
+          value={value.mode}
+          onChange={(event) => onChange({ ...value, mode: event.target.value })}
+        >
+          <option value="">All formats</option>
+          {["online", "in_person"].map((mode) => (
+            <option key={mode} value={mode}>
+              {modeLabel(mode)}
+            </option>
+          ))}
+        </select>
       </label>
       <button
         type="button"
@@ -93,7 +108,7 @@ export function CourseFilters({
         aria-controls={`${id}-more`}
         onClick={() => setExpanded((value) => !value)}
       >
-        Filters{extraCount ? ` (${extraCount})` : ""}{" "}
+        More filters{extraCount ? ` (${extraCount} active)` : ""}{" "}
         <span aria-hidden="true">⌄</span>
       </button>
       <div
@@ -109,9 +124,10 @@ export function CourseFilters({
           ] as const
         ).map(([key, label]) => (
           <label key={key} htmlFor={`${id}-${key}`}>
-            <span>{label}</span>
+            <span id={`${id}-${key}-label`}>{label}</span>
             <select
               id={`${id}-${key}`}
+              aria-labelledby={`${id}-${key}-label`}
               value={value[key]}
               onChange={(event) =>
                 onChange({ ...value, [key]: event.target.value })
@@ -130,29 +146,15 @@ export function CourseFilters({
             </select>
           </label>
         ))}
-        <label htmlFor={`${id}-mode`}>
-          <span>Attendance</span>
-          <select
-            id={`${id}-mode`}
-            value={value.mode}
-            onChange={(event) =>
-              onChange({ ...value, mode: event.target.value })
-            }
-          >
-            <option value="">All formats</option>
-            {["online", "in_person"].map((mode) => (
-              <option key={mode} value={mode}>
-                {modeLabel(mode)}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
       {active && (
         <button
           type="button"
           className="tala-course-reset"
-          onClick={() => onChange(emptyCourseFilters)}
+          onClick={() => {
+            onChange(emptyCourseFilters);
+            searchInput.current?.focus();
+          }}
         >
           Clear filters
         </button>

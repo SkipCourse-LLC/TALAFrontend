@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { Link } from "react-router-dom";
 import { ProgramCards } from "./ProgramCards";
 import { StartBanner } from "./StartBanner";
@@ -43,16 +44,13 @@ export function HomePage() {
           <p>
             Finding an educational home for a child with complex medical needs
             or severe developmental disabilities should never mean choosing
-            between clinical safety and meaningful learning. TALA delivers both
-            through individualized instruction, continuous nursing support, and
-            a sensory-controlled learning environment built specifically for
-            exceptional learners.
+            between clinical safety and meaningful learning.{" "}
+            {schoolConfig.brand.shortName} delivers both through individualized
+            instruction, continuous nursing support, and a sensory-controlled
+            learning environment built specifically for exceptional learners.
           </p>
           <div className="button-row">
-            <a
-              className="button"
-              href="https://calendar.app.google/YapTB4MQLus16DATA"
-            >
+            <a className="button" href={schoolConfig.admissions.interviewUrl}>
               Schedule a Family Interview
             </a>
             <Link className="button button-outline" to="/programs">
@@ -70,7 +68,7 @@ export function HomePage() {
         </figure>
       </section>
       <section className="section container">
-        <h2>What Sets TALA Apart</h2>
+        <h2>What Sets {schoolConfig.brand.shortName} Apart</h2>
         <div className="content-grid">
           {distinctions.map(([title, description]) => (
             <article key={title}>
@@ -93,10 +91,10 @@ export function HomePage() {
         <div>
           <h2>A school where care and learning belong together</h2>
           <p>
-            Tucson Adaptive Learning Academy is an accredited K-12 educational
-            program combining individualized instruction with dedicated
-            pediatric clinical care for medically fragile students and learners
-            with severe developmental disabilities.
+            {schoolConfig.brand.name} is an accredited K-12 educational program
+            combining individualized instruction with dedicated pediatric
+            clinical care for medically fragile students and learners with
+            severe developmental disabilities.
           </p>
           <Link className="text-link" to="/about">
             Our philosophy

@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import { Link } from "react-router-dom";
 import { StartBanner } from "./StartBanner";
 
@@ -29,9 +30,9 @@ export function AboutPage() {
       <section className="page-intro container">
         <h1>Education grounded in health, dignity, and possibility</h1>
         <p className="lead">
-          Tucson Adaptive Learning Academy is an accredited K-12 educational
-          program where individualized instruction and pediatric clinical care
-          come together.
+          {schoolConfig.brand.name} is an accredited K-12 educational program
+          where individualized instruction and pediatric clinical care come
+          together.
         </p>
         <p>
           We serve medically fragile students, learners with severe

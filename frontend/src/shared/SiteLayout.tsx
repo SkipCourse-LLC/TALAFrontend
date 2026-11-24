@@ -1,3 +1,4 @@
+import { schoolConfig } from "../config/schoolConfig";
 import type { ReactNode } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { demoEnabled } from "./services/demoConfig";
@@ -30,14 +31,15 @@ export function SiteLayout({
         {backend === "api" ? (
           "Local workspace"
         ) : backend === "firebase-emulator" ? (
-          "TALA · Local Firebase integration · Synthetic test accounts and files only. No live meetings or charges."
+          `${schoolConfig.brand.shortName} · Local Firebase integration · Synthetic test accounts and files only. No live meetings or charges.`
         ) : backend === "firebase-test" ? (
-          "TALA · Approved Firebase test cloud · Synthetic accounts and files only. No real meetings or charges."
+          `${schoolConfig.brand.shortName} · Approved Firebase test cloud · Synthetic accounts and files only. No real meetings or charges.`
         ) : backend === "firebase" ? (
-          "TALA · Firebase authentication · Scheduling, evidence and payments await team approval."
+          `${schoolConfig.brand.shortName} · Firebase authentication · Scheduling, evidence and payments await team approval.`
         ) : (
           <>
-            TALA product preview <span aria-hidden="true">·</span>{" "}
+            {schoolConfig.brand.shortName} product preview{" "}
+            <span aria-hidden="true">·</span>{" "}
             {demoEnabled
               ? "Explore with sample data. No real accounts or charges."
               : "Live account services are not connected."}
@@ -70,7 +72,7 @@ export function SiteLayout({
               <Link to="/contact">Contact</Link>
             </nav>
             <small>
-              Tucson Adaptive Learning Academy · Accredited K-12 education and
+              {schoolConfig.brand.name} · Accredited K-12 education and
               pediatric clinical care.
             </small>
           </div>
@@ -80,12 +82,12 @@ export function SiteLayout({
               <div>
                 <Brand />
                 <p>
-                  Tucson Adaptive Learning Academy: accredited K-12 education
-                  and pediatric clinical care.
+                  {schoolConfig.brand.name}: accredited K-12 education and
+                  pediatric clinical care.
                 </p>
               </div>
               <nav aria-label="Footer">
-                <Link to="/about">About TALA</Link>
+                <Link to="/about">About {schoolConfig.brand.shortName}</Link>
                 <Link to="/programs">Explore programs</Link>
                 <Link to="/admissions">Admissions</Link>
                 <Link to="/tuition">Tuition and funding</Link>
@@ -105,8 +107,8 @@ export function SiteLayout({
             <div className="container footer-bottom">
               <span>
                 {backend
-                  ? "TALA-Hub · Backend integration"
-                  : "TALA-Hub · Frontend product preview"}
+                  ? `${schoolConfig.brand.shortName}-Hub · Backend integration`
+                  : `${schoolConfig.brand.shortName}-Hub · Frontend product preview`}
               </span>
               <span>Education designed around each learner.</span>
             </div>
