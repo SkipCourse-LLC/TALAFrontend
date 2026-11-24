@@ -73,12 +73,15 @@ export function OpenClassRow({ course, now, goals, readOnly, onOpen }: Props) {
           </button>
         </h3>
         <ul className="tala-class-row-meta" aria-label="Class details">
-          <li>
-            {calendarDayLabel(phoenixDateKey(course.startsAt), {
-              weekday: "short",
-              month: "short",
-            })}{" "}
-            · {calendarTimeRange(course.startsAt, course.endsAt)}
+          <li className="tala-class-row-time">
+            <LearningGlyph name="calendar" />
+            <span>
+              {calendarDayLabel(phoenixDateKey(course.startsAt), {
+                weekday: "short",
+                month: "short",
+              })}{" "}
+              · {calendarTimeRange(course.startsAt, course.endsAt)}
+            </span>
           </li>
           {course.teacher && <li>{teacherName(course.teacher)}</li>}
           <li>{course.grades}</li>
@@ -138,7 +141,7 @@ export function OpenClassRow({ course, now, goals, readOnly, onOpen }: Props) {
                   className="tala-class-format-button"
                   data-mode={mode}
                   data-waitlist={full}
-                  aria-label={`${signUpLabel(mode, full)} for ${course.title}`}
+                  aria-label={`${signUpLabel(mode, full)}${full && modes.length > 1 ? ` (${formatLabel(mode)})` : ""} for ${course.title}`}
                   // Every sign-up opens the class first, with its fee, format
                   // and learning goal, before anything is sent.
                   onClick={() => onOpen(mode)}

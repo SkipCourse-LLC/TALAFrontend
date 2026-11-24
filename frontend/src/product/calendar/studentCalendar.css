@@ -1025,31 +1025,36 @@
   .tala-cal-layout {
     gap: 0.9rem;
   }
-  /* Phones: larger touch targets, and the view switcher spans the row. */
+  /* Keep date controls and all available views reachable at phone widths. */
   .tala-cal-toolbar {
     padding: 0.65rem 0.75rem;
+    gap: 0.65rem;
+  }
+  .tala-cal-period {
+    width: 100%;
   }
   .tala-cal-period h3 {
     flex-basis: 100%;
-    margin-left: 0;
+    margin: 0.2rem 0 0;
     font-size: calc(1.05rem * var(--student-type-scale, 1));
+    white-space: normal;
   }
   .tala-cal-arrows button,
   .tala-cal-today,
-  .tala-calendar .tala-cal-date-jump input {
-    height: 40px;
-    min-height: 40px;
+  .tala-calendar .tala-jump-trigger {
+    min-height: 44px;
   }
   .tala-cal-arrows button {
-    width: 40px;
+    width: 44px;
   }
-  .tala-cal-views {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  :root .tala-calendar .tala-cal-toolbar .tala-cal-views {
+    display: flex;
     width: 100%;
   }
-  .tala-cal-views button {
-    height: 36px;
+  :root .tala-calendar .tala-cal-toolbar .tala-cal-views > button {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 44px;
     padding-inline: 0.25rem;
   }
   .tala-cal-weekdays span {

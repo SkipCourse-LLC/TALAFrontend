@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import type { LearningGoal } from "../../api/types";
 import type { CalendarClass, ClassMode } from "../../api/calendarContract";
 import { Icon } from "../../shared/Icon";
@@ -76,6 +76,8 @@ export function OpenClassesPanel({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [filters, setFilters] = useState(emptyCourseFilters);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const filterId = useId();
   // Signing up from a row opens the class with that format already chosen.
   const [detailMode, setDetailMode] = useState<ClassMode>();
   const [detailId, setDetailId] = useState<string | null>(
@@ -131,8 +133,15 @@ export function OpenClassesPanel({
     [
       ...new Set(open.map(pick).filter((value): value is string => !!value)),
     ].sort((a, b) => a.localeCompare(b));
+  const extraFilterCount = [
+    from,
+    to,
+    filters.teacher,
+    filters.grades,
+    filters.topic,
+  ].filter(Boolean).length;
   const filtered = Boolean(
-    day || from || to || filters.teacher || filters.grades || filters.topic,
+    day || filters.search.trim() || filters.mode || extraFilterCount,
   );
   const title =
     range === "Month"
@@ -151,6 +160,7 @@ export function OpenClassesPanel({
     setFrom("");
     setTo("");
     setFilters(emptyCourseFilters);
+    searchInput.current?.focus();
   }
 
   return (
@@ -258,6 +268,16 @@ export function OpenClassesPanel({
                   <Icon name="chevron-right" />
                 </button>
               </div>
+              <button
+                type="button"
+                className="tala-cal-today"
+                onClick={() => {
+                  setAnchor(today);
+                  setDay(null);
+                }}
+              >
+                Today
+              </button>
               {/* After the controls, so the arrows stay put as the title
                   changes width. */}
               <h3 aria-live="polite" aria-atomic="true">
@@ -318,103 +338,153 @@ export function OpenClassesPanel({
               })}
             </div>
           )}
-          <div className="tala-classes-filters">
-            <label>
-              <span>From</span>
-              <select
-                value={from}
-                onChange={(event) => setFrom(event.target.value)}
-              >
-                <option value="">Any time</option>
-                {HOURS.map((hour) => (
-                  <option key={hour} value={hour}>
-                    {hourLabel(hour)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>To</span>
-              <select
-                value={to}
-                onChange={(event) => setTo(event.target.value)}
-              >
-                <option value="">Any time</option>
-                {HOURS.map((hour) => (
-                  <option key={hour} value={hour}>
-                    {hourLabel(hour)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Teacher</span>
-              <select
-                value={filters.teacher}
-                onChange={(event) =>
-                  setFilters({ ...filters, teacher: event.target.value })
-                }
-              >
-                <option value="">Any teacher</option>
-                {choices((course) => course.teacher).map((value) => (
-                  <option key={value} value={value}>
-                    {teacherName(value)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Grade</span>
-              <select
-                value={filters.grades}
-                onChange={(event) =>
-                  setFilters({ ...filters, grades: event.target.value })
-                }
-              >
-                <option value="">All grades</option>
-                {choices((course) => course.grades).map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Topic</span>
-              <select
-                value={filters.topic}
-                onChange={(event) =>
-                  setFilters({ ...filters, topic: event.target.value })
-                }
-              >
-                <option value="">All topics</option>
-                {choices((course) => course.topic).map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {filtered && (
-              <button
-                type="button"
-                className="tala-classes-clear"
-                onClick={clearFilters}
-              >
-                Clear filters
-              </button>
-            )}
+          <div className="tala-classes-discovery-controls">
+            <div className="tala-classes-search-row">
+              <label className="tala-classes-search">
+                <span>Search classes</span>
+                <span className="tala-classes-search-field">
+                  <Icon name="search" />
+                  <input
+                    type="search"
+                    ref={searchInput}
+                    placeholder="Title, topic or teacher"
+                    value={filters.search}
+                    onChange={(event) =>
+                      setFilters({ ...filters, search: event.target.value })
+                    }
+                  />
+                </span>
+              </label>
+              <label className="tala-classes-mode">
+                <span id={`${filterId}-format`}>Format</span>
+                <select
+                  aria-labelledby={`${filterId}-format`}
+                  value={filters.mode}
+                  onChange={(event) =>
+                    setFilters({ ...filters, mode: event.target.value })
+                  }
+                >
+                  <option value="">Any format</option>
+                  <option value="online">Online</option>
+                  <option value="in_person">In person</option>
+                </select>
+              </label>
+            </div>
+            <div className="tala-classes-filter-bar">
+              <details className="tala-classes-more-filters">
+                <summary>
+                  More filters
+                  {extraFilterCount > 0 && (
+                    <span> ({extraFilterCount} active)</span>
+                  )}
+                </summary>
+                <div className="tala-classes-filters">
+                  <label>
+                    <span id={`${filterId}-from`}>From</span>
+                    <select
+                      aria-labelledby={`${filterId}-from`}
+                      value={from}
+                      onChange={(event) => setFrom(event.target.value)}
+                    >
+                      <option value="">Any time</option>
+                      {HOURS.map((hour) => (
+                        <option key={hour} value={hour}>
+                          {hourLabel(hour)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span id={`${filterId}-to`}>To</span>
+                    <select
+                      aria-labelledby={`${filterId}-to`}
+                      value={to}
+                      onChange={(event) => setTo(event.target.value)}
+                    >
+                      <option value="">Any time</option>
+                      {HOURS.map((hour) => (
+                        <option key={hour} value={hour}>
+                          {hourLabel(hour)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span id={`${filterId}-teacher`}>Teacher</span>
+                    <select
+                      aria-labelledby={`${filterId}-teacher`}
+                      value={filters.teacher}
+                      onChange={(event) =>
+                        setFilters({ ...filters, teacher: event.target.value })
+                      }
+                    >
+                      <option value="">Any teacher</option>
+                      {choices((course) => course.teacher).map((value) => (
+                        <option key={value} value={value}>
+                          {teacherName(value)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span id={`${filterId}-grade`}>Grade</span>
+                    <select
+                      aria-labelledby={`${filterId}-grade`}
+                      value={filters.grades}
+                      onChange={(event) =>
+                        setFilters({ ...filters, grades: event.target.value })
+                      }
+                    >
+                      <option value="">All grades</option>
+                      {choices((course) => course.grades).map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span id={`${filterId}-topic`}>Topic</span>
+                    <select
+                      aria-labelledby={`${filterId}-topic`}
+                      value={filters.topic}
+                      onChange={(event) =>
+                        setFilters({ ...filters, topic: event.target.value })
+                      }
+                    >
+                      <option value="">All topics</option>
+                      {choices((course) => course.topic).map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </details>
+              {filtered && (
+                <button
+                  type="button"
+                  className="tala-classes-clear"
+                  onClick={clearFilters}
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="tala-classes-results-bar">
+            <p
+              className="tala-classes-results"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {actions.loading
+                ? "Updating classes…"
+                : `${shown.length} ${shown.length === 1 ? "class" : "classes"}`}
+            </p>
             <span className="tala-classes-zone">Arizona time</span>
           </div>
-          <p
-            className="tala-classes-results"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {actions.loading
-              ? "Updating classes…"
-              : `${shown.length} ${shown.length === 1 ? "class" : "classes"}`}
-          </p>
           {actions.notice && (
             <p className="tala-cal-notice">{actions.notice}</p>
           )}
