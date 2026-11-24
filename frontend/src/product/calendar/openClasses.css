@@ -914,6 +914,19 @@
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
+.tala-class-row-meta .tala-class-row-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #eaf2ef;
+  color: #194b40;
+  font-weight: 600;
+}
+.tala-class-row-time svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
 .tala-class-row-meta li[data-category] {
   background: color-mix(in srgb, var(--event-color, #3f7888) 11%, #fff);
 }
@@ -1073,6 +1086,10 @@
     align-items: center;
     gap: 0.45rem;
   }
+  .tala-class-format + .tala-class-format {
+    padding-top: 0.65rem;
+    border-top: 1px solid #e5ebe8;
+  }
   .tala-class-format > :is(button, .tala-class-format-note) {
     flex: 1 0 100%;
     min-height: 44px;
@@ -1182,52 +1199,79 @@
   cursor: default;
   opacity: 0.55;
 }
-.tala-classes-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
+.tala-classes-discovery-controls {
+  padding: 0.85rem 1rem 0.65rem;
   border-bottom: 1px solid #dce4e0;
 }
+.tala-classes-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(9.5rem, 0.36fr);
+  gap: 0.65rem;
+}
+.tala-classes-search-row label,
 .tala-classes-filters label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  height: 36px;
-  padding: 0 0.2rem 0 0.7rem;
-  border: 1px solid #d9e3df;
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  min-width: 0;
+  color: #3d5450;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  font-weight: 600;
+}
+.tala-classes-search-field {
+  position: relative;
+}
+.tala-classes-search-field .icon {
+  position: absolute;
+  inset-inline-start: 0.75rem;
+  inset-block-start: 50%;
+  width: 17px;
+  height: 17px;
+  color: #5b6e64;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.tala-classes-discovery-controls :is(select, input[type="search"]) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #b8c7be;
   border-radius: 8px;
   background: #fff;
-  color: #5b6e64;
-  font-size: calc(0.78rem * var(--student-type-scale, 1));
-}
-.tala-classes-filters label:focus-within {
-  border-color: #194b40;
-  box-shadow: 0 0 0 2px #194b4033;
-}
-.tala-classes-filters select {
-  max-width: 12rem;
-  height: 34px;
-  padding: 0 0.2rem;
-  border: 0;
-  background: transparent;
   color: #203932;
   font: inherit;
-  font-size: calc(0.82rem * var(--student-type-scale, 1));
+  font-weight: 400;
+}
+.tala-classes-search-field input[type="search"] {
+  padding-inline-start: 2.25rem;
+}
+.tala-classes-filter-bar {
+  position: relative;
+  margin-top: 0.45rem;
+}
+.tala-classes-more-filters summary {
+  width: fit-content;
+  max-width: calc(100% - 7rem);
+  min-height: 44px;
+  padding-block: 0.65rem;
+  color: #194b40;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  font-weight: 600;
   cursor: pointer;
 }
-.tala-classes-filters select:focus {
-  outline: none;
-}
-.tala-classes-zone {
-  margin-left: auto;
-  color: #5b6e64;
-  font-size: calc(0.78rem * var(--student-type-scale, 1));
+.tala-classes-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.25rem), 1fr));
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #f4f7f5;
 }
 .tala-classes-clear {
-  height: 36px;
-  padding: 0 0.8rem;
+  min-height: 44px;
+  padding: 0.35rem 0.65rem;
   border: 1px solid #c7d3cf;
   border-radius: 8px;
   background: #fff;
@@ -1236,13 +1280,30 @@
   font-size: calc(0.8rem * var(--student-type-scale, 1));
   cursor: pointer;
 }
+.tala-classes-filter-bar > .tala-classes-clear {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+}
 .tala-classes-clear:hover {
   background: #eef4f1;
+}
+.tala-classes-results-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  padding: 0.75rem 1rem 0;
 }
 .tala-classes-board .tala-classes-results {
   min-height: 0;
   margin: 0;
-  padding: 0.85rem 1rem 0;
+  color: #203932;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  font-weight: 600;
+}
+.tala-classes-zone {
   color: #5b6e64;
   font-size: calc(0.78rem * var(--student-type-scale, 1));
 }
@@ -1274,15 +1335,27 @@
     background: #194b40;
     font-size: 0;
   }
-  .tala-classes-filters label {
-    flex: 1 1 calc(50% - 0.5rem);
-    height: 44px;
+  :root[data-portal] .tala-calendar .tala-classes-switch {
+    width: 100%;
+    display: flex;
   }
-  .tala-classes-filters select {
-    flex: 1;
-    max-width: none;
+  :root[data-portal] .tala-calendar .tala-classes-switch > button {
+    flex: 1 1 0;
+    min-height: 44px;
+    height: auto;
   }
-  .tala-classes-zone {
-    margin-left: 0;
+  .tala-classes-discovery-controls,
+  .tala-classes-results-bar,
+  .tala-classes-list {
+    padding-inline: 0.75rem;
+  }
+  .tala-classes-search-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tala-class-row h3 button {
+    min-height: 44px;
+  }
+  .tala-classes .tala-class-format-button {
+    white-space: normal;
   }
 }

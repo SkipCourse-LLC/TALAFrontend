@@ -657,6 +657,16 @@ export function StudentCalendarPanel(props: StudentCalendarPanelProps) {
                   <Icon name="chevron-right" />
                 </button>
               </div>
+              <button
+                type="button"
+                className="tala-cal-today"
+                onClick={() => {
+                  chooseDay(today);
+                  setDayEventId(null);
+                }}
+              >
+                Today
+              </button>
               {/* Month view browses with the arrows; Week and Day views get a
                   picker for a whole week or a single day. */}
               {view !== "Month" && (
