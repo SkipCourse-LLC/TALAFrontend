@@ -1,3 +1,4 @@
+import { schoolConfig } from "../../config/schoolConfig";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -220,7 +221,9 @@ function InterestForm({
             </small>
           </div>
           <button className="button" type="submit">
-            {pending ? "Saving…" : "Continue to meet Tina"}
+            {pending
+              ? "Saving…"
+              : `Continue to meet ${schoolConfig.admissions.interviewer}`}
           </button>
         </fieldset>
       </form>
@@ -426,7 +429,11 @@ function ApplicationPortal({
       )}
       <div className="admission-portal-grid">
         <section className="admission-card">
-          <h2>{booked ? "Local test meeting" : "Meet Tina"}</h2>
+          <h2>
+            {booked
+              ? "Local test meeting"
+              : `Meet ${schoolConfig.admissions.interviewer}`}
+          </h2>
           {booked ? (
             <>
               <p className="admission-meeting-date">
@@ -492,22 +499,25 @@ function ApplicationPortal({
               ) : (
                 <p className="admission-empty">
                   No local test interview times are open. Use the Google
-                  Calendar button above to see Tina’s available appointments.
+                  Calendar button above to see{" "}
+                  {schoolConfig.admissions.interviewer}’s available
+                  appointments.
                 </p>
               )}
             </>
           ) : (
             <p className="admission-muted">
               {app.status === "declined"
-                ? "Tina has completed the review. Contact the admissions team for next steps."
-                : "Tina is reviewing your application."}
+                ? `${schoolConfig.admissions.interviewer} has completed the review. Contact the admissions team for next steps.`
+                : `${schoolConfig.admissions.interviewer} is reviewing your application.`}
             </p>
           )}
           {app.status === "approved" && (
             <div className="admission-next">
               <h3>You’re approved.</h3>
               <p>
-                Use the enrollment invitation from Tina to create your parent
+                Use the enrollment invitation from{" "}
+                {schoolConfig.admissions.interviewer} to create your parent
                 account. This status alone does not create an account.
               </p>
             </div>
@@ -621,7 +631,7 @@ function ApplicationPortal({
         <summary>Using a shared device?</summary>
         <p>
           Close private access before leaving. Your application stays saved, but
-          you will need TALA’s help to reopen it.
+          you will need {schoolConfig.brand.shortName}’s help to reopen it.
         </p>
         <button
           className="button button-outline"
@@ -671,12 +681,16 @@ export function AdmissionStartPage() {
         <p className="admission-local">
           Local test · Fictional family details only
         </p>
-        <h1>Start your TALA registration</h1>
+        <h1>Start your {schoolConfig.brand.shortName} registration</h1>
         <p>First, a conversation. Then, the right next step.</p>
       </header>
       <InterviewBooking />
       <ol className="admission-steps" aria-label="Registration steps">
-        {["Your interest", "Meet Tina", "Enrollment"].map((label, index) => (
+        {[
+          "Your interest",
+          `Meet ${schoolConfig.admissions.interviewer}`,
+          "Enrollment",
+        ].map((label, index) => (
           <li
             key={label}
             aria-current={step === index ? "step" : undefined}

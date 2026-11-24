@@ -1040,12 +1040,17 @@
   }
   .tala-cal-period {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: 0.2rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.35rem;
   }
   .tala-cal-period h3 {
-    font-size: calc(0.9375rem * var(--student-type-scale, 1));
-    overflow-wrap: normal;
+    grid-column: 1 / -1;
+    font-size: calc(1.05rem * var(--student-type-scale, 1));
+    overflow-wrap: anywhere;
+  }
+  .tala-cal-date-jump input {
+    width: 100%;
+    min-width: 0;
   }
   .tala-cal-views button {
     padding-inline: 0.25rem;
