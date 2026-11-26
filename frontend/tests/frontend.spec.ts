@@ -57,6 +57,18 @@ async function expectNoOverflow(page: Page) {
   ).toBeTruthy();
 }
 
+test("homepage interview link points to Tina’s meeting schedule", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.getByRole("link", {
+      name: "Schedule a Family Interview",
+      exact: true,
+    }),
+  ).toHaveAttribute("href", "https://calendar.app.google/YapTB4MQLus16DATA");
+});
+
 test("public navigation, filters, refresh, history and not-found route", async ({
   page,
 }) => {
@@ -147,6 +159,9 @@ test("parent-first registration, review, recoverable failure and student login",
       externalRequests.push(request.url());
   });
   await page.goto("/");
+  // "Start registration" sits in the header; on phones it is inside the menu.
+  const menu = page.getByRole("button", { name: "Menu", exact: true });
+  if (await menu.isVisible()) await menu.click();
   await page
     .getByRole("link", { name: "Start registration", exact: true })
     .click();
@@ -854,6 +869,7 @@ test("private funding, waiting list and registered parent retain the correct stu
   await expect(
     page.getByRole("button", { name: "Reading together added" }),
   ).toBeDisabled();
+  // A catalog filter must never hide a joined class in the personal calendar.
   await page.getByLabel("Class format").selectOption("In-Person");
   await page.getByRole("link", { name: "View personal calendar" }).click();
   await expect(page.locator(".schedule-list")).toContainText(
@@ -865,3 +881,6 @@ test("private funding, waiting list and registered parent retain the correct stu
   });
   await page.getByRole("button", { name: "Sign out" }).click();
 });
+
+// Authentication tests handle ephemeral enrollment secrets; do not record traces.
+test.use({ trace: "off", screenshot: "off" });

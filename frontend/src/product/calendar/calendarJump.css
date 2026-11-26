@@ -1,0 +1,170 @@
+/* The calendar's date picker: a button that opens a small month grid drawn
+   like the calendar. Week mode makes each week one row with dividers. */
+.tala-jump {
+  position: relative;
+}
+.tala-calendar .tala-jump-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 32px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--cal-line, #dce4e0);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--cal-ink, #203932);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.tala-jump-trigger .icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--cal-muted, #5b6e64);
+}
+.tala-jump-trigger:hover {
+  background: var(--cal-soft, #f4f7f5);
+}
+.tala-jump-popup {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 17rem;
+  padding: 0.75rem;
+  border: 1px solid var(--cal-line, #dce4e0);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px #163e2b24;
+}
+.tala-jump-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.tala-jump-head strong {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.tala-calendar .tala-jump-head button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--cal-ink, #203932);
+}
+.tala-jump-head button:hover {
+  background: var(--cal-soft, #f4f7f5);
+}
+.tala-jump-head .icon {
+  width: 16px;
+  height: 16px;
+}
+.tala-jump-weekdays,
+.tala-jump-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.tala-jump-weekdays span {
+  padding: 0.25rem 0;
+  color: var(--cal-muted, #5b6e64);
+  font-size: 0.7rem;
+  text-align: center;
+}
+.tala-jump-rows {
+  display: grid;
+}
+/* Week mode: each row is one button, separated by a divider. */
+.tala-calendar .tala-jump-popup[data-mode="week"] .tala-jump-week {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid #e6ece9;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.tala-jump-popup[data-mode="week"] .tala-jump-week:last-child {
+  border-bottom: 1px solid #e6ece9;
+}
+.tala-jump-popup[data-mode="week"] .tala-jump-week:hover {
+  background: #eef4f1;
+}
+.tala-jump-popup[data-mode="week"] .tala-jump-week[aria-pressed="true"] {
+  border-radius: 8px;
+  border-color: transparent;
+  background: var(--cal-green, #194b40);
+  color: #fff;
+}
+.tala-jump-popup[data-mode="week"]
+  .tala-jump-week[aria-pressed="true"]
+  + .tala-jump-week {
+  border-top-color: transparent;
+}
+.tala-jump-day {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  font-size: 0.8rem;
+}
+.tala-jump-day[data-outside="true"] {
+  color: #9aa7a1;
+}
+.tala-jump-popup[data-mode="week"]
+  .tala-jump-week[aria-pressed="true"]
+  .tala-jump-day[data-outside="true"] {
+  color: #cfe0d9;
+}
+.tala-jump-day[data-today="true"] {
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Day mode: each day is a round button. */
+.tala-calendar .tala-jump-popup[data-mode="day"] button.tala-jump-day {
+  width: 34px;
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--cal-ink, #203932);
+}
+.tala-calendar
+  .tala-jump-popup[data-mode="day"]
+  button.tala-jump-day[data-outside="true"] {
+  color: #9aa7a1;
+}
+.tala-jump-popup[data-mode="day"] button.tala-jump-day:hover {
+  background: #eef4f1;
+}
+.tala-calendar
+  .tala-jump-popup[data-mode="day"]
+  button.tala-jump-day[aria-pressed="true"] {
+  background: var(--cal-green, #194b40);
+  color: #fff;
+}
+.tala-calendar .tala-jump-today {
+  width: 100%;
+  height: 34px;
+  margin-top: 0.6rem;
+  border: 1px solid var(--cal-line, #dce4e0);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--cal-green, #194b40);
+  font-size: 0.8125rem;
+}
+.tala-jump-today:hover {
+  background: var(--cal-soft, #f4f7f5);
+}
+.tala-jump :is(button):focus-visible {
+  outline: 3px solid #194b40;
+  outline-offset: 2px;
+}

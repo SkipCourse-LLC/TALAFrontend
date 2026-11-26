@@ -36,7 +36,7 @@ export function SiteHeader({
           event.target.closest("a")
         ) {
           setOpen(false);
-          // Same-page links don't remount the header, so restore focus here.
+          // A current-page link does not remount the header or run route focus.
           toggle.current?.focus();
         }
       }}
@@ -67,10 +67,11 @@ export function SiteHeader({
           <NavLink to="/" end>
             Home
           </NavLink>
-          <NavLink to="/learn-more">Learn More</NavLink>
+          <NavLink to="/learn-more">About</NavLink>
           <NavLink to="/programs">Programs</NavLink>
-          <NavLink to="/register">Enrollment</NavLink>
-          <NavLink to="/events">Community Events</NavLink>
+          <NavLink to="/admissions">Admissions</NavLink>
+          <NavLink to="/tuition">Tuition</NavLink>
+          <NavLink to="/faq">FAQs</NavLink>
           <NavLink to="/contact">Contact</NavLink>
           
           {/* UPDATED NAV ACTIONS */}
@@ -80,7 +81,7 @@ export function SiteHeader({
               to={session ? "/dashboard" : "/login"}
               style={{ textDecoration: "none", color: "var(--color-ink)", fontWeight: 500 }}
             >
-              {session ? "My dashboard" : "Community Login"}
+              {session ? "Workspace" : "Sign in"}
             </NavLink>
             
             {/* NEW REGISTRATION BUTTON */}

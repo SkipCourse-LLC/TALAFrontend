@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiUser } from "../api";
 import { safeTalaApiError, talaApi } from "../api";
 
-/** Cross-tab notifications carry no account data. */
+/** Same-origin notifications contain no UID, cookie, password or profile data. */
 export function useSessionPrivacy({
   user,
   ready,
@@ -26,7 +26,11 @@ export function useSessionPrivacy({
   const mounted = useRef(false);
   const concealed = useRef(false);
   const queued = useRef(false);
-  const runAgain = useRef<() => void>(() => {});
+  // Whether any check queued behind the current one needs to hide records.
+  // Quiet checks (tab focus, tab visible) queue a quiet re-run, so returning
+  // to the tab never flashes "Checking session…" over the workspace.
+  const queuedHide = useRef(false);
+  const runAgain = useRef<(hide?: boolean) => void>(() => {});
   const focus = useRef<HTMLElement | null>(null);
   useEffect(() => {
     latest.current = { user, ready, onRestored };
@@ -46,7 +50,10 @@ export function useSessionPrivacy({
       if (!mounted.current || !latest.current.ready) return;
       if (hide) conceal();
       if (request.current) {
-        if (forceAfterCurrent) queued.current = true;
+        if (forceAfterCurrent) {
+          queued.current = true;
+          if (hide) queuedHide.current = true;
+        }
         return;
       }
       const controller = new AbortController();
@@ -86,20 +93,28 @@ export function useSessionPrivacy({
           expectedIntent !== intent.current
         )
           return;
-        // A newer cookie change supersedes this check; stay hidden until it finishes.
+        // A later cookie-change signal supersedes this in-flight snapshot.
+        // Keep private content hidden until the queued fresh check completes.
         if (queued.current) return;
         if (signature !== familySignature.current) {
           familySignature.current = signature;
           setAccessEpoch((value) => value + 1);
         }
         latest.current.onRestored(saved);
+        const restoredIntent = intent.current;
         setError("");
         concealed.current = false;
         setBlocked(false);
         const previous = focus.current;
         focus.current = null;
         requestAnimationFrame(() => {
-          if (!mounted.current) return;
+          if (
+            !mounted.current ||
+            generation.current !== version ||
+            intent.current !== restoredIntent ||
+            concealed.current
+          )
+            return;
           if (
             saved?.uid === expectedUid &&
             previous?.isConnected &&
@@ -122,6 +137,7 @@ export function useSessionPrivacy({
           return;
         if (queued.current) return;
         setError(safeTalaApiError(failure).message);
+        // A network failure cannot authorize showing a previous account's cache.
         if (latest.current.user) {
           concealed.current = true;
           setBlocked(true);
@@ -132,26 +148,30 @@ export function useSessionPrivacy({
           setChecking(false);
         if (queued.current && mounted.current) {
           queued.current = false;
-          queueMicrotask(() => runAgain.current());
+          const hideNext = queuedHide.current;
+          queuedHide.current = false;
+          queueMicrotask(() => runAgain.current(hideNext));
         }
       }
     },
     [conceal, intent],
   );
   useEffect(() => {
-    runAgain.current = () => {
-      void check(true);
+    runAgain.current = (hide = true) => {
+      void check(hide);
     };
   }, [check]);
   const invalidate = useCallback(() => {
     generation.current++;
     queued.current = false;
+    queuedHide.current = false;
     request.current?.abort();
     request.current = null;
     focus.current = null;
   }, []);
   const changedHere = useCallback(() => {
-    // A late mutation response can't cancel a privacy check started after another tab changed the cookie.
+    // A successful mutation may have been sent before a different tab changed
+    // the cookie. Its delayed body cannot cancel an ongoing privacy check.
     const verify = concealed.current || request.current !== null;
     invalidate();
     setChecking(false);
@@ -165,12 +185,16 @@ export function useSessionPrivacy({
   }, [invalidate]);
   useEffect(() => {
     mounted.current = true;
+    // Coming back to the tab re-checks the session quietly. Records stay on
+    // screen unless the check finds a different account or no session; hiding
+    // and redrawing the whole workspace on every tab switch read as a reload.
+    // Sign-outs and account changes in other tabs still conceal at once
+    // through the session channel below.
     const focused = () => {
-      if (document.visibilityState === "visible") void check(true, true);
+      if (document.visibilityState === "visible") void check(false, true);
     };
     const visibility = () => {
-      if (document.visibilityState === "hidden") conceal();
-      else focused();
+      if (document.visibilityState === "visible") focused();
     };
     const pageshow = (event: PageTransitionEvent) => {
       if (event.persisted) void check(true, true);
@@ -191,6 +215,7 @@ export function useSessionPrivacy({
     window.addEventListener("focus", focused);
     window.addEventListener("pageshow", pageshow);
     document.addEventListener("visibilitychange", visibility);
+    // Expiry is also checked in a visible, idle tab without clearing its forms.
     const timer = window.setInterval(() => {
       if (latest.current.user && document.visibilityState === "visible")
         void check(false);
@@ -216,14 +241,19 @@ export function useSessionPrivacy({
       cancelled = true;
     };
   }, [ready, user?.uid, user?.role, check]);
+  const retry = useCallback(() => {
+    // AUTH_REQUIRED can also fence an obsolete response after a same-account
+    // cookie rotation. Hide records now; only a fresh authoritative session
+    // read may decide whether that identity and its in-memory work survive.
+    // If another check predates this signal, queue a newer read behind it.
+    void check(true, true);
+  }, [check]);
   return {
     blocked,
     checking,
     error,
     accessEpoch,
     changedHere,
-    retry: () => {
-      void check(true);
-    },
+    retry,
   };
 }

@@ -1,7 +1,8 @@
-import { demoEnabled, demoToolsEnabled } from "../shared/services/demoConfig";
 import { Secret, TOTP } from "otpauth";
 import QRCode from "qrcode";
 
+// SCRUM-46/47 contracts. The host supplies identity and handles the verified
+// callback; this module does not import login, registration or shared code.
 export interface TwoFactorSignup {
   parentName: string;
   parentEmail: string;
@@ -26,6 +27,7 @@ export class TwoFactorError extends Error {
 export interface TwoFactorChallenge {
   method: TwoFactorMethod;
   id: string;
+  /** Server-authoritative expiration when a future adapter supplies it. */
   expiresAt?: number;
 }
 
@@ -35,7 +37,13 @@ export interface AuthenticatorSetup extends TwoFactorChallenge {
   qrDataUrl: string;
 }
 
-/** Keep adapter instances stable while mounted. Real adapters must validate on the server and never log codes or keys. */
+/**
+ * Keep adapter instances stable while mounted. A real adapter must validate
+ * identity and codes on its server, honor cancellation where possible, return
+ * typed errors, and never log or persist codes/keys. No live endpoint is assumed.
+ * Cancellation is best-effort: the UI also rejects stale responses.
+ * Recovery is deliberately not an API contract until the backend approves it.
+ */
 export interface TwoFactorService {
   readonly environment?: "demo" | "live";
   readonly available?: boolean;
@@ -93,7 +101,7 @@ function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** Local mock: random keys, nothing sent or stored. */
+/** Local mock only: random ephemeral keys, no delivery, account or storage. */
 export function createMockTwoFactorService({
   enabled = true,
   allowFailureSimulation = false,
@@ -107,6 +115,7 @@ export function createMockTwoFactorService({
 
   function requireAvailable() {
     if (!enabled) throw new TwoFactorError("unavailable");
+    // Expired entries must not retain enrollment secrets indefinitely.
     for (const [id, challenge] of activeChallenges) {
       if (challenge.expiresAt <= now()) activeChallenges.delete(id);
     }
@@ -206,7 +215,8 @@ export function createMockTwoFactorService({
           null
         : code === demoVerificationCode;
       if (!valid) {
-        // An expired and an unrecognized code look the same; the UI explains both.
+        // A recognized older token has expired. An unrecognized value cannot
+        // be reliably distinguished from an old code; the UI explains both.
         const older = active.totp?.validate({
           token: code,
           timestamp: now(),
@@ -223,8 +233,3 @@ export function createMockTwoFactorService({
     },
   };
 }
-
-export const twoFactorService = createMockTwoFactorService({
-  enabled: demoEnabled,
-  allowFailureSimulation: demoToolsEnabled,
-});

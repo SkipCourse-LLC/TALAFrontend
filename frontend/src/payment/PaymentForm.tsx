@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { demoToolsEnabled } from "../shared/services/demoConfig";
-import { paymentService } from "./paymentAdapter";
+import { demoToolsEnabled } from "./paymentRuntime";
+import { paymentService } from "./paymentService";
 import {
   paymentDraftError,
   paymentErrorMessage,
@@ -92,6 +92,7 @@ function PaymentFormContent({
     const validation = paymentDraftError(draft, service.environment);
     setError(validation);
     if (validation) {
+      // Field focus gives context, while the alert announces the same validation.
       requestAnimationFrame(() =>
         form.current
           ?.querySelector<HTMLElement>(

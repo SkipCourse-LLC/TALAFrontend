@@ -1,4 +1,4 @@
-// Frontend view models, not a backend schema.
+// Frontend view models only. These are NOT a confirmed SkipCourse API schema.
 export type CommunityRole = "Student" | "Parent" | "Alumni" | "Staff";
 export interface DemoSession {
   role?: CommunityRole;

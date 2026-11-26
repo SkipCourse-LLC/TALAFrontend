@@ -45,7 +45,8 @@ test("returning to a cached operator panel still aborts stale pagination when it
     )
       staleAborted = true;
   });
-  // Every API call is intercepted, so this never touches a real backend.
+  // Every API is synthetic and intercepted; this regression never reaches an
+  // existing local backend, its accounts, files or database.
   await page.route(
     (url) => url.pathname.startsWith("/api/"),
     async (route) => {
@@ -120,11 +121,17 @@ test("returning to a cached operator panel still aborts stale pagination when it
     await expect(
       page.getByRole("heading", { name: "Awaiting first page" }),
     ).toBeVisible();
-    await page.getByRole("tab", { name: "Meetings", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Operations workspace" })
+      .getByRole("button", { name: "Meetings", exact: true })
+      .click();
     await expect(
       page.getByRole("heading", { name: "Meetings and availability" }),
     ).toBeVisible();
-    await page.getByRole("tab", { name: /^Review evidence/ }).click();
+    await page
+      .getByRole("navigation", { name: "Operations workspace" })
+      .getByRole("button", { name: /^Review evidence/ })
+      .click();
     await page
       .getByRole("button", { name: "Load more evidence", exact: true })
       .click();

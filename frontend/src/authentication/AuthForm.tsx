@@ -114,7 +114,8 @@ export function AuthForm({
           onChange={(event) => {
             const next = { ...values, [field.name]: event.target.value };
             setValues(next);
-            // Validate on submit, then live while correcting; not on blur, so the button doesn't move mid-click.
+            // Validate on submit, then update existing errors while correcting.
+            // Avoid moving the submit button during a pointer-triggered blur.
             const checked = validateAuth(next);
             setErrors((current) =>
               Object.fromEntries(

@@ -1,0 +1,334 @@
+.learning-plan .learning-plan-primary {
+  background: #214c3b;
+  color: #fff;
+  border-color: #173f2e;
+  border-bottom-width: 4px;
+  border-radius: 13px;
+  font-weight: 650;
+}
+.learning-plan .learning-plan-primary:not(:disabled):hover {
+  background: #2a604a;
+}
+.learning-plan .learning-plan-primary:not(:disabled):active {
+  transform: translateY(2px);
+  border-bottom-width: 2px;
+}
+.learning-plan .learning-plan-row {
+  padding: 24px;
+  margin-block: 16px;
+  border: 1px solid #dce5df;
+  border-bottom-width: 3px;
+  border-radius: 20px;
+  background: #fff;
+}
+.learning-plan .learning-plan-row[data-completed="true"] {
+  border-color: #c7d9bf;
+  background: #f5f8f1;
+}
+.learning-plan .learning-plan-mark {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  border-color: #b8cbb0;
+  border-width: 2px;
+}
+.learning-plan .learning-plan-row[data-completed="true"] .learning-plan-mark {
+  color: #fff;
+  background: #315f47;
+}
+.learning-plan .learning-plan-row .learning-plan-goal h3 {
+  font-size: calc(1.0625rem * var(--student-type-scale, 1));
+}
+.learning-plan .learning-plan-field label,
+.learning-plan .learning-plan-organization label,
+.learning-plan .learning-plan-step-check,
+.learning-plan .learning-plan-read-step,
+.learning-plan .learning-plan-step-draft-completed {
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.learning-plan .learning-plan-field :is(input, textarea) {
+  font-size: calc(1rem * var(--student-type-scale, 1));
+}
+.learning-plan .learning-plan-search-control > input,
+.learning-plan .learning-plan-sort-control > select,
+.learning-plan .learning-plan-notes {
+  font-size: calc(0.9375rem * var(--student-type-scale, 1));
+}
+.learning-plan .learning-plan-field-hint,
+.learning-plan .learning-plan-field-error,
+.learning-plan .learning-plan-meta,
+.learning-plan .learning-plan-step-summary,
+.learning-plan .learning-plan-results,
+.learning-plan .learning-plan-step-editor > p,
+.learning-plan .learning-plan-step-add > span {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.learning-plan .learning-plan-announcement {
+  overflow-wrap: anywhere;
+}
+.learning-plan .learning-plan-step-check > input:checked + span {
+  color: #64745e;
+  text-decoration: line-through;
+  text-decoration-color: #9db18f;
+}
+.learning-plan .learning-plan-goal-meter {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  height: 8px;
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #e1e9dc;
+  accent-color: #729756;
+  margin: 12px 0;
+}
+.learning-plan .learning-plan-goal-meter::-webkit-progress-bar {
+  background: #e1e9dc;
+}
+.learning-plan .learning-plan-goal-meter::-webkit-progress-value {
+  background: #729756;
+  border-radius: 8px;
+}
+.learning-plan .learning-plan-goal-meter::-moz-progress-bar {
+  background: #729756;
+  border-radius: 8px;
+}
+.learning-plan .learning-plan-step-check {
+  padding-block: 10px;
+}
+.learning-plan .learning-plan-step-check input {
+  accent-color: #315f47;
+}
+.learning-plan .learning-plan-editor {
+  border-color: #d0deca;
+  background: #f5f8f1;
+  border-radius: 20px;
+}
+.learning-plan .learning-plan-empty {
+  padding: 28px 24px;
+  margin-top: 16px;
+  border: 1px dashed #c7d9bf;
+  border-radius: 20px;
+  background: #f5f8f1;
+}
+.learning-plan .learning-plan-starters > p {
+  margin: 12px 0 16px;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.learning-plan .learning-plan-starters > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.learning-plan .learning-plan-starters button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 16px;
+  min-height: 48px;
+  border: 1px solid #c7d9bf;
+  border-bottom-width: 3px;
+  border-radius: 12px;
+  background: #fff;
+  color: #214c3b;
+  font: inherit;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  text-align: left;
+  cursor: pointer;
+}
+.learning-plan .learning-plan-starters button:not(:disabled):hover {
+  background: #eaf2e1;
+}
+.learning-plan .learning-plan-starters button > span {
+  font-size: calc(1.25rem * var(--student-type-scale, 1));
+  line-height: 1;
+}
+.learning-plan .learning-plan-editor-details[hidden],
+.learning-plan .learning-plan-editor-actions[hidden] {
+  display: none;
+}
+.learning-plan .learning-plan-details-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  text-decoration: none;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.learning-plan .learning-plan-details-trigger > span {
+  font-size: calc(1.25rem * var(--student-type-scale, 1));
+}
+.learning-plan .learning-plan-step-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+.learning-plan .learning-plan-step-ideas > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #c5d6cc;
+  border-radius: 12px;
+  color: #245343;
+  background: #f0f5ef;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  text-align: left;
+}
+.learning-plan .learning-plan-step-ideas > button:hover {
+  background: #e6eee3;
+}
+.learning-plan .learning-plan-saved-steps li[data-next="true"] {
+  margin: 8px -12px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: #edf4e8;
+}
+.learning-plan .learning-plan-step-check > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+}
+.learning-plan .learning-plan-step-check .learning-plan-next-label {
+  color: #426332;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  font-weight: 650;
+  text-decoration: none;
+}
+.learning-plan .learning-plan-steps-done {
+  color: #315c3b;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  margin: 12px 0 0;
+}
+.learning-plan .learning-plan-completion-check {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  box-sizing: border-box;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid #d6dcbf;
+  background: #f6f7ed;
+}
+.learning-plan .learning-plan-completion-check h4 {
+  margin: 0 0 6px;
+  font-size: calc(0.9375rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+}
+.learning-plan .learning-plan-completion-check p {
+  margin: 0;
+  color: #59634d;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  max-width: 52ch;
+}
+.learning-plan .learning-plan-completion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.learning-plan .learning-plan-completion-actions > button {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.learning-plan .learning-plan-saved-action {
+  margin-bottom: 8px;
+}
+.learning-plan .learning-plan-discard {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #d6dcbf;
+}
+.learning-plan .learning-plan-discard h4 {
+  margin: 0 0 14px;
+  color: #394d32;
+  font-size: calc(0.9375rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+}
+.learning-plan .learning-plan-discard p {
+  margin: 0 0 16px;
+  color: #59634d;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.65;
+  max-width: 58ch;
+}
+.learning-plan .learning-plan-step-position {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.learning-plan .learning-plan-step-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 8px;
+}
+.learning-plan .learning-plan-step-caption > label {
+  margin: 0;
+}
+.learning-plan .learning-plan-step-draft-completed {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 8px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.learning-plan .learning-plan-step-position > select {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 28px 10px 12px;
+  border: 1px solid var(--student-control-line, #788d80);
+  border-radius: 10px;
+  background: #fff;
+  color: #3d5b33;
+  font: inherit;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.learning-plan .learning-plan-step-position > select:focus-visible {
+  outline: 3px solid #174139;
+  outline-offset: 4px;
+}
+.learning-plan .learning-plan-step-position > select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+@media (max-width: 540px) {
+  .learning-plan .learning-plan-row {
+    padding: 18px 16px;
+    gap: 12px;
+  }
+  .learning-plan .learning-plan-starters button {
+    width: 100%;
+  }
+}
+@media (max-width: 440px) {
+  .learning-plan .learning-plan-completion-check {
+    padding: 16px;
+  }
+  .learning-plan .learning-plan-completion-actions {
+    width: 100%;
+  }
+  .learning-plan .learning-plan-completion-actions > button {
+    flex: 1 1 auto;
+  }
+  .learning-plan .learning-plan-step-ideas > button {
+    flex: 1 1 100%;
+  }
+}
+.learning-plan-search input::-webkit-search-cancel-button {
+  appearance: none;
+}

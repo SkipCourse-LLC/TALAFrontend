@@ -1,20 +1,20 @@
-.preview-banner {
-  padding: 9px 20px;
-  background: #eef2ef;
-  text-align: center;
-  color: #43544c;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-}
-.preview-banner span {
-  margin-inline: 8px;
-}
+/* The public site and workspaces share one calm, compact frame. */
 .site-header {
   background: var(--color-surface);
-  border-bottom: var(--border-panel);
+  border-bottom: 1px solid var(--home-line);
+  font-family: var(--font-public);
+}
+/* The public header and footer use the client's teal palette. */
+.site-header .brand,
+.site-footer .brand {
+  color: var(--home-teal);
+}
+.site-header .brand-dot,
+.site-footer .brand-dot {
+  color: var(--home-eyebrow);
 }
 .nav-row {
-  min-height: 76px;
+  min-height: 92px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -57,31 +57,53 @@
   text-decoration: none;
   white-space: nowrap;
 }
+.primary-nav > a:not(.nav-hub-link) {
+  color: var(--home-body);
+}
 .primary-nav a.active:not(.nav-hub-link) {
-  color: var(--color-accent);
+  color: var(--home-teal);
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 8px;
 }
 .primary-nav a:hover {
-  color: var(--color-accent);
+  color: var(--home-teal);
 }
 .nav-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
+  gap: 10px;
 }
+/* Client mockup: an outlined "Community Login" beside a filled "Start registration". */
 .nav-hub-link {
-  padding: 8px 16px;
-  color: var(--color-accent);
-  background: var(--color-green);
-  border: 1px solid transparent;
-  border-radius: 10px;
+  padding: 8px 18px;
+  color: var(--home-teal);
+  background: var(--color-surface);
+  border: 1px solid var(--home-teal);
+  border-radius: 6px;
   font-weight: 600;
 }
 .nav-hub-link:hover,
 .nav-hub-link.active {
-  background: #e1ebe5;
+  background: #eaf2f4;
+}
+.nav-actions > .nav-cta {
+  gap: 8px;
+  padding: 8px 18px;
+  color: var(--color-surface);
+  background: var(--home-teal);
+  border: 1px solid var(--home-teal);
+  border-radius: 6px;
+  font-weight: 600;
+}
+.nav-actions > .nav-cta:hover {
+  background: var(--home-teal-dark);
+  border-color: var(--home-teal-dark);
+}
+.nav-cta .icon {
+  width: 16px;
+  height: 16px;
 }
 .menu-toggle {
   display: none;
@@ -90,9 +112,11 @@
   min-height: 60vh;
 }
 .site-footer {
-  border-top: var(--border-panel);
+  border-top: 1px solid var(--home-line);
   padding-top: 40px;
   background: white;
+  color: var(--home-body);
+  font-family: var(--font-public);
 }
 .footer-top {
   display: grid;
@@ -103,6 +127,14 @@
 .footer-top p {
   font-size: 0.875rem;
   margin: 14px 0 0;
+}
+.footer-brand-name {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.6875rem;
+}
+.footer-top nav a {
+  color: var(--home-teal);
 }
 .footer-top nav {
   display: flex;
@@ -125,20 +157,46 @@
 }
 .footer-note p {
   font-weight: 600;
-  color: var(--color-ink);
+  color: var(--home-ink);
   margin: 0 0 8px;
 }
 .footer-note small {
   display: block;
   font-size: 0.8125rem;
 }
+/* Public footer (API mode): brand, links and the one-line description in
+   the redesign's three columns. */
+.public-footer {
+  align-items: start;
+  padding-block: 12px;
+}
+/* The six links sit in one centred row between the brand and the
+   description, wrapping on narrow screens. */
+.public-footer {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+}
+.public-footer nav {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 22px;
+}
+.public-footer > small {
+  justify-self: end;
+  max-width: 36ch;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
 .footer-bottom {
-  border-top: var(--border-panel);
+  border-top: 1px solid var(--home-line);
   padding-block: 20px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 20px;
-  color: var(--color-muted);
+  gap: 8px 20px;
+  color: var(--home-body);
   font-size: 0.75rem;
 }
 @media (max-width: 1100px) {
@@ -212,56 +270,20 @@
     text-align: center;
   }
 }
-@media (min-width: 961px) {
-  .nav-row {
-    gap: 48px;
-  }
-  .primary-nav {
-    gap: 32px;
-    font-size: 0.9375rem;
-    font-weight: 500;
-  }
-  .primary-nav > a {
-    color: var(--color-muted);
-  }
-  .primary-nav > a:hover,
-  .primary-nav > a.active {
-    color: var(--color-accent);
-  }
-  .nav-actions > .nav-hub-link {
-    min-height: 40px;
-    padding: 0 16px;
-    background: var(--color-surface);
-    border-color: var(--color-line);
-    transition:
-      background-color 150ms ease,
-      border-color 150ms ease;
-  }
-  .nav-actions > .nav-hub-link:hover,
-  .nav-actions > .nav-hub-link.active {
-    background: var(--color-green);
-    border-color: var(--color-accent);
-  }
-}
-@media (min-width: 961px) and (max-width: 1100px) {
-  .nav-row {
-    gap: 32px;
-  }
-  .primary-nav {
-    gap: 20px;
-    font-size: 0.875rem;
-  }
-}
 @media (max-width: 600px) {
-  .preview-banner {
-    font-size: 0.75rem;
-    padding: 8px 16px;
-  }
   .footer-top {
     grid-template-columns: 1fr 1fr;
     gap: 24px 16px;
   }
-  .footer-note {
+  .public-footer {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .public-footer nav {
+    justify-content: flex-start;
+  }
+  .footer-note,
+  .public-footer > small {
     grid-column: 1 / -1;
     justify-self: start;
     max-width: 45ch;

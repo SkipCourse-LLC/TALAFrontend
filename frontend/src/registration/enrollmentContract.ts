@@ -1,4 +1,3 @@
-import { demoEnabled } from "../shared/services/demoConfig";
 import { demoDelay } from "../shared/services/demoDelay";
 
 export const enrollmentSteps = [
@@ -36,6 +35,7 @@ export interface EnrollmentDraft {
   funding: string;
   fundingAcknowledged: boolean;
 }
+// Frontend context only. No credential, document or payment instrument is retained.
 export interface EnrollmentReceipt {
   parentName: string;
   parentEmail: string;
@@ -146,7 +146,8 @@ export function createMockEnrollmentService(
     async submit(draft, simulateError, signal) {
       signal?.throwIfAborted();
       if (options.enabled === false) throw new EnrollmentError("UNAVAILABLE");
-      // Copy allowlisted fields before awaiting so caller changes can't leak into the receipt.
+      // Capture allowlisted fields before waiting; later caller mutations and
+      // unknown extra properties cannot enter the completed receipt.
       const snapshot: EnrollmentDraft = {
         parentName: draft.parentName,
         parentEmail: draft.parentEmail,
@@ -184,7 +185,3 @@ export function createMockEnrollmentService(
     },
   };
 }
-
-export const enrollmentService = createMockEnrollmentService({
-  enabled: demoEnabled,
-});

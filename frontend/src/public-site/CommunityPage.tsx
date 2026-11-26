@@ -1,91 +1,55 @@
 import { Link } from "react-router-dom";
-import { Icon } from "../shared/Icon";
+import { StartBanner } from "./StartBanner";
 
 export function CommunityPage({ kind }: { kind: "events" | "contact" }) {
   const events = kind === "events";
   return (
     <div className="public-page public-community">
       <section className="page-intro container">
-        <p className="eyebrow">TALA community</p>
         <h1>{events ? "Community events" : "Contact TALA"}</h1>
         <p className="lead">
           {events
-            ? "A place to connect, share and learn. See what’s taking shape."
-            : "Explore the next step for your family."}
+            ? "Connect with the Tucson Adaptive Learning Academy community."
+            : "We welcome conversations about your learner, their needs, and your family's educational goals."}
         </p>
       </section>
       <section className="container public-community-content">
         <div className="public-empty-state">
-          <span className="public-feature-symbol">
-            <Icon name={events ? "people" : "voice"} />
-          </span>
-          <h2>
-            {events
-              ? "No confirmed events yet"
-              : "Contact details are being confirmed"}
-          </h2>
+          {events ? (
+            <>
+              <h2>No events announced yet</h2>
+              <p>
+                Explore our programs or schedule a family interview to learn
+                more about TALA.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2>Talk with our team</h2>
+              <p>
+                Schedule a free one-hour family interview to discuss our Tucson
+                campus, nationwide Virtual Academy, admissions, and funding.
+              </p>
+              <a
+                className="button"
+                href="https://calendar.app.google/YapTB4MQLus16DATA"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Schedule a Free One-Hour Family Interview
+              </a>
+            </>
+          )}
           <p>
-            {events
-              ? "Dates, locations and registration information will appear here after TALA confirms them."
-              : "Official email, phone and campus details are not ready for publication. This preview does not send inquiries."}
+            <Link className="text-link" to="/programs">
+              Explore Programs
+            </Link>
           </p>
-          <Link
-            className="button button-outline"
-            to={events ? "/learn-more" : "/programs"}
-          >
-            {events ? "Learn more about TALA" : "Explore programs"}
-          </Link>
-        </div>
-        {events && (
-          <div className="community-upcoming">
-            <h2>Ideas for future gatherings</h2>
-            <div>
-              <article>
-                <Icon name="voice" />
-                <div>
-                  <h3>Lecture series</h3>
-                  <p>
-                    Speakers, topics and dates will be shared once confirmed.
-                  </p>
-                </div>
-              </article>
-              <article>
-                <Icon name="book" />
-                <div>
-                  <h3>Visiting professors</h3>
-                  <p>
-                    Meet future guests when participants and programs are
-                    announced.
-                  </p>
-                </div>
-              </article>
-            </div>
-          </div>
-        )}
-        <div className="community-next-step">
-          <div>
-            <h2>Keep exploring.</h2>
-            <p>
-              Get to know the proposed learning approach or preview
-              registration.
-            </p>
-          </div>
-          <div className="button-row">
-            <Link className="button" to="/register">
-              Explore registration demo
-            </Link>
-            <Link
-              className="text-link"
-              to={events ? "/programs" : "/learn-more"}
-            >
-              {events
-                ? "Explore learning opportunities"
-                : "Learn more about TALA"}
-              <Icon name="arrow" />
-            </Link>
-          </div>
         </div>
       </section>
+      {/* Contact already leads with the interview button, so only the
+          events page repeats it in the band. */}
+      {events && <StartBanner />}
     </div>
   );
 }

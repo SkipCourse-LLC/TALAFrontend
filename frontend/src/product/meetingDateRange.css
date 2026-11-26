@@ -1,0 +1,112 @@
+.student-workspace .meeting-date-range {
+  margin-block: 24px;
+}
+.student-workspace .meeting-date-range fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.student-workspace .meeting-date-range legend {
+  padding: 0;
+  color: var(--student-ink, #1d1d1f);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  font-weight: 600;
+}
+.student-workspace .meeting-date-range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 240px));
+  gap: 16px 20px;
+  margin-block: 14px 16px;
+}
+.student-workspace .meeting-date-range .form-field {
+  min-width: 0;
+  margin: 0;
+}
+.student-workspace .meeting-date-range label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--student-ink, #1d1d1f);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.student-workspace .meeting-date-range input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid #83938b;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--student-ink, #1d1d1f);
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.student-workspace .meeting-date-range input[aria-invalid="true"] {
+  border-color: #a3342d;
+}
+.student-workspace .meeting-date-range :is(input, button):focus-visible {
+  outline: 3px solid var(--student-accent, #174139);
+  outline-offset: 4px;
+}
+.student-workspace .meeting-date-range-error {
+  margin: 8px 0 0;
+  color: #912b25;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.student-workspace .meeting-date-range-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+}
+.student-workspace .meeting-date-range-apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 16px;
+  border: 1px solid #8b9c94;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--student-accent, #174139);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-weight: 600;
+  cursor: pointer;
+}
+.student-workspace .meeting-date-range button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.student-workspace .meeting-date-range-applied {
+  margin: 16px 0 0;
+  max-width: 72ch;
+  color: #45594f;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.student-workspace .meeting-date-range-applied strong {
+  display: block;
+  color: var(--student-accent, #174139);
+  font-weight: 600;
+}
+@media (hover: hover) {
+  .student-workspace .meeting-date-range-apply:not(:disabled):hover {
+    background: var(--student-tint, #edf2ef);
+    border-color: var(--student-accent, #174139);
+  }
+}
+@media (max-width: 540px) {
+  .student-workspace .meeting-date-range-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

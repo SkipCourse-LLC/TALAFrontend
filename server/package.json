@@ -1,15 +1,15 @@
+
 {
   "name": "tala-independent-server",
   "private": true,
   "version": "0.1.0",
-  "description": "Local TALA API server backed by SQLite.",
+  "description": "Local TALA HTTP server with private persistent SQLite data and no Firebase dependency.",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "start": "node index.cjs",
-    "check": "node --check application.cjs && node --check services.cjs && node --check database.cjs && node --check security.cjs && node --check operator.cjs && node --check accountServices.cjs && node --check backup.cjs && node --check listServices.cjs && node --check runtimeIdentity.cjs && node --check contactRequests.cjs",
-    "test": "node --test test/*.test.mjs"
+    "check": "node --check application.cjs && node --check integrations.cjs && node --check providerHttp.cjs && node --check googleAuth.cjs && node --check googleMeetAdapter.cjs && node --check gmailAdapter.cjs && node --check contactRequests.cjs && node --check services.cjs && node --check database.cjs && node --check security.cjs && node --check operator.cjs && node --check accountServices.cjs && node --check backup.cjs && node --check learningGoals.cjs && node --check listServices.cjs && node --check runtimeIdentity.cjs && node --check workspaceUpdates.cjs && node --check meetingPreparation.cjs && node --check reflectionDrafts.cjs && node --check calendar.cjs && node --check admissions.cjs && node --check payments.cjs && node --check testCheckout.cjs",
+    "test": "node --test --test-timeout=120000 test/*.test.mjs"
   },
   "dependencies": {
     "dotenv": "^18.0.9",

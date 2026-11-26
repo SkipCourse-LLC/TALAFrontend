@@ -1,6 +1,59 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-/** Cookie jar for HTTP tests. */
+const require = createRequire(import.meta.url);
+const security = require("../security.cjs");
+const ROLES = new Set(["student", "parent", "alumni", "operator"]);
+
+/**
+ * Self-service sign-up is closed: /api/auth/register always answers
+ * ENROLLMENT_INVITATION_REQUIRED. Tests create fictional example.test accounts
+ * server-side, with the server's own validators and password hashing, the way
+ * staff provisioning does. Sign-in still goes through the real HTTP route.
+ */
+export async function provisionAccount(app, { name, email, password, accountType = "student" }) {
+  const role = accountType === "staff" ? "operator" : accountType;
+  if (!ROLES.has(role)) throw new Error(`Unknown synthetic account type: ${accountType}`);
+  const address = security.email(email);
+  if (!/@(?:[a-z0-9-]+\.)*example\.test$/.test(address)) throw new Error("Synthetic accounts must use an example.test address.");
+  const encoded = await security.hashPassword(security.password(password));
+  const uid = randomUUID();
+  app.db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)")
+    .run(uid, address, security.text(name, "name", 80), encoded, role, Date.now());
+  return { uid, email: address, role };
+}
+
+/** Provision an account, then sign it in on this client. Returns the login response (200). */
+export async function signUpForTest(app, client, account) {
+  await provisionAccount(app, account);
+  return client.request("/api/auth/login", { method: "POST", json: { email: account.email, password: account.password } });
+}
+
+/**
+ * Windows only lets administrators or Developer Mode create symlinks. Symlink
+ * escape tests still run on Linux/macOS and in CI; locally they skip only the
+ * symlink step when the operating system refuses to create one.
+ */
+export const symlinksAvailable = (() => {
+  const probe = fs.mkdtempSync(path.join(os.tmpdir(), "tala-symlink-probe-"));
+  try {
+    fs.writeFileSync(path.join(probe, "target"), "");
+    fs.symlinkSync(path.join(probe, "target"), path.join(probe, "link"));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.rmSync(probe, { recursive: true, force: true });
+  }
+})();
+/** POSIX permission bits do not exist on Windows; Node reports 0o666 there. */
+export const posixModes = process.platform !== "win32";
+
+/** A cookie jar for isolated HTTP tests; authentication values are never logged. */
 export class SyntheticHttpClient {
   constructor(baseUrl, origin = "http://127.0.0.1:5173") {
     const url = new URL(baseUrl);
@@ -94,56 +147,4 @@ export function assertNoPrivateLocation(value) {
     false,
     "Public DTOs must not expose private locations or authentication storage",
   );
-}
-
-/** Start an isolated application on an ephemeral loopback port. */
-export async function startIsolatedApplication(
-  createApplication,
-  { prefix = "tala-http-test-", origin = "http://127.0.0.1:5173" } = {},
-) {
-  const { mkdtemp, rm } = await import("node:fs/promises");
-  const { tmpdir } = await import("node:os");
-  const { join } = await import("node:path");
-  const dataDir = await mkdtemp(join(tmpdir(), prefix));
-  const application = createApplication({ dataDir, allowedOrigins: [origin] });
-  await new Promise((resolve, reject) => {
-    application.server.once("error", reject);
-    application.server.listen(0, "127.0.0.1", resolve);
-  });
-  return {
-    application,
-    dataDir,
-    url: `http://127.0.0.1:${application.server.address().port}`,
-    async close() {
-      try {
-        await application.close();
-      } finally {
-        await rm(dataDir, { recursive: true, force: true });
-      }
-    },
-  };
-}
-
-/** Register a synthetic account; optionally promote it to operator. */
-export async function registerSyntheticAccount(
-  context,
-  accountType = "student",
-  { operator = false } = {},
-) {
-  const client = new SyntheticHttpClient(context.url);
-  await client.bootstrap();
-  const suffix = crypto.randomUUID();
-  const account = {
-    name: `Synthetic ${accountType}`,
-    email: `${suffix}@example.test`,
-    password: `Synthetic-only-${suffix}`,
-    accountType,
-  };
-  const response = await client.request("/api/auth/register", {
-    method: "POST",
-    json: account,
-  });
-  assert.equal(response.status, 201, "Synthetic registration should succeed");
-  if (operator) context.application.operator.promote(account.email);
-  return { client, account, user: response.json.session };
 }

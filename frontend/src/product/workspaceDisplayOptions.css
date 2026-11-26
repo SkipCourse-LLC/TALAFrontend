@@ -1,0 +1,51 @@
+.workspace-display-options {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 24px 0 4px;
+  padding: 18px 0 0;
+  border: 0;
+  border-top: 1px solid #dce5df;
+}
+.workspace-display-options legend {
+  padding: 0 8px 0 0;
+  color: #315f47;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  font-weight: 600;
+}
+.workspace-display-options > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.workspace-display-options label {
+  color: #596b62;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.server-dashboard .workspace-display-options select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 10px;
+  border: 1px solid var(--student-control-line, #788d80);
+  border-radius: 10px;
+  background: #fff;
+  color: #214c3b;
+  font: inherit;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.workspace-display-options > p {
+  margin: 0;
+  color: #596b62;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.workspace-display-options select:focus-visible {
+  outline: 3px solid #315f47;
+  outline-offset: 3px;
+}
+@media (max-width: 840px) {
+  .server-dashboard .workspace-display-options select {
+    font-size: calc(1rem * var(--student-type-scale, 1));
+  }
+}

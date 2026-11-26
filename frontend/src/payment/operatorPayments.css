@@ -1,0 +1,90 @@
+.operator-payments {
+  min-width: 0;
+}
+.operator-payments p {
+  line-height: 1.65;
+  color: #53685e;
+}
+.operator-payments-notice {
+  border-left: 3px solid #315b48;
+  padding: 0.8rem 1rem;
+  background: #eff5f0;
+}
+.operator-payments-issue {
+  display: grid;
+  gap: 1rem;
+  max-width: 720px;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  margin-block: 1.5rem 2rem;
+  border: 1px solid #d5e0d9;
+  border-radius: 14px;
+  background: #fff;
+}
+.operator-payments-issue h3,
+.operator-payments-issue p {
+  margin: 0;
+}
+.operator-payments-issue label {
+  display: grid;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.operator-payments-issue :is(input, select) {
+  min-width: 0;
+  width: 100%;
+  min-height: 46px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #a6bcae;
+  border-radius: 7px;
+  background: #fff;
+  color: #243e33;
+  font: inherit;
+}
+.operator-payments-issue button {
+  justify-self: start;
+}
+.operator-payments-ledger article {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid #d5e0d9;
+  overflow-wrap: anywhere;
+}
+.operator-payments-ledger h4 {
+  margin: 0.6rem 0 0.4rem;
+  font-size: 1.05rem;
+}
+.operator-payments-ledger p {
+  margin: 0.3rem 0;
+}
+.operator-payments-ledger small {
+  color: #53685e;
+}
+.operator-payments-status {
+  display: inline-flex;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  background: #eef1ef;
+  color: #465b50;
+  font-size: 0.75rem;
+}
+.operator-payments-status[data-status="paid"] {
+  background: #e1f1e5;
+  color: #265139;
+}
+.operator-payments-status[data-status="awaiting_verification"],
+.operator-payments-status[data-status="esa_pending"] {
+  background: #faf0d9;
+  color: #74500b;
+}
+@media (max-width: 640px) {
+  .operator-payments-ledger article {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  .operator-payments-issue button {
+    width: 100%;
+  }
+}

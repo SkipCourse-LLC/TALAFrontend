@@ -1,359 +1,1059 @@
 "use strict";
+
 const { runtimeRevision, dataScope, assertCurrentRevision } = require("./runtimeIdentity.cjs");
+
 const http = require("node:http");
+
 const path = require("node:path");
+
 const { randomUUID } = require("node:crypto");
-const { openDatabase, transaction } = require("./database.cjs");
+
+const { openDatabase, transaction, SCHEMA_VERSION } = require("./database.cjs");
+
 const { createServices, userDTO, MAX_FILE_BYTES } = require("./services.cjs");
+
+const { createAdmissions } = require("./admissions.cjs");
+
+const { createPayments } = require("./payments.cjs");
+
+const { createTestCheckout } = require("./testCheckout.cjs");
+
 const { createAccountServices } = require("./accountServices.cjs");
+
+const { createIntegrations } = require("./integrations.cjs");
+
 const { ApiError, fail, object, text, email, password, hash, token, hashPassword, verifyPassword, constantEqual } = require("./security.cjs");
+
 assertCurrentRevision();
+
 const { getEnrollmentConfirmationEmail } = require('./emailTemplates.cjs');
+
 const { createMeetLink } = require('./googleMeet.cjs');
 
+
+
 function createApplication(options = {}) {
+
   if (Number(process.versions.node.split(".")[0]) < 24) throw new Error("Node.js 24 or newer is required.");
+
   if (process.env.NODE_ENV === "production") throw new Error("Production hosting requires a reviewed HTTPS, mail, backup and data-protection configuration. This launcher is local-only.");
+
+  const localStudentPreview = options.localStudentPreview === undefined ? process.env.TALA_LOCAL_STUDENT_PREVIEW === "1" : options.localStudentPreview;
+
+  if (typeof localStudentPreview !== "boolean") throw new Error("Choose an explicit boolean for local student preview mode.");
+
   const downloadTtl = options.downloadTtlMs === undefined ? 30_000 : options.downloadTtlMs;
+
   if (!Number.isSafeInteger(downloadTtl) || downloadTtl < 100 || downloadTtl > 30_000) throw new Error("Private download deadlines must be 100 to 30000 milliseconds.");
+
   process.umask(0o077);
+
   const dataDir = path.resolve(options.dataDir || path.join(__dirname, ".runtime"));
+
   const instanceScope = dataScope(dataDir);
-  const allowedOrigins = new Set(options.allowedOrigins || ["http://127.0.0.1:5173", "http://127.0.0.1:5176", "http://localhost:5173", "http://localhost:5176", "http://127.0.0.1:8787"]);
+
+  const allowedOrigins = new Set(options.allowedOrigins || ["http\://127.0.0.1:5173", "http\://127.0.0.1:5176", "http\://localhost:5173", "http\://localhost:5176", "http\://127.0.0.1:8787"]);
+
   if (!allowedOrigins.size || [...allowedOrigins].some((origin) => { try { return new URL(origin).origin !== origin; } catch { return true; } })) throw new Error("Configure explicit application origins, never a wildcard.");
+
   const db = openDatabase(dataDir);
-  const { services, operator, lists, contactRequests } = createServices(db, dataDir);
+
+  const { services, operator, lists, goals, updates, preparations, reflectionDrafts, calendar, contactRequests, admissionsContext } = createServices(db, dataDir, { localStudentPreview });
+
+  // integrationEnv lets tests point Google modes at a local fake; the server itself reads process.env.
+
+  const integrations = createIntegrations(options.integrations, { publicOpenTimes: () => services.publicOpenTimes() }, options.integrationEnv ?? process.env);
+
   const sessionTtl = options.sessionTtlMs || 12 * 3600000;
+
   const cookieName = "tala_session";
+
   function currentSession(req) {
+
     const cookies = Object.fromEntries((req.headers.cookie || "").split(";").map((part) => part.trim().split("=")).filter((parts) => parts.length === 2));
+
     const value = cookies[cookieName];
+
     if (!value || !/^[A-Za-z0-9_-]{43}$/.test(value)) return null;
+
     const session = db.prepare("SELECT * FROM sessions WHERE token_hash=? AND expires_at>?").get(hash(value), Date.now());
+
     if (!session) return null;
+
     const user = session.uid ? db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(session.uid) : null;
+
     if (session.uid && !user) { db.prepare("DELETE FROM sessions WHERE token_hash=?").run(session.token_hash); return null; }
+
     return { ...session, user };
+
   }
+
   function rotate(req, res, user) {
+
     const opaque = token(), csrfToken = token(), ttl = user ? sessionTtl : 3600000;
+
     let responseUser;
+
     transaction(db, () => {
+
+      // Acquiring SQLite's writer lock can wait for another local process.
+
+      // Values read before that wait cannot authorize the replacement session.
+
       if (req.method !== "GET") {
+
         mutation(req);
+
         if (req.headers["x-tala-user"] !== undefined) actorFor(req);
+
       }
+
       const previous = currentSession(req), now = Date.now();
+
+      // Registration creates the account under the same writer fence as the
+
+      // session. A session-write failure must not reserve an unusable email.
+
       responseUser = typeof user === "function" ? user() : user;
+
       if (responseUser) {
+
         const fresh = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(responseUser.uid);
+
         if (!fresh || fresh.password_hash !== responseUser.password_hash) fail(401, "INVALID_CREDENTIALS", "The account credentials changed. Sign in again.");
+
         responseUser = fresh;
+
       }
+
       if (previous) db.prepare("DELETE FROM sessions WHERE token_hash=?").run(previous.token_hash);
+
       db.prepare("DELETE FROM sessions WHERE expires_at<=?").run(now);
+
       db.prepare("INSERT INTO sessions VALUES(?,?,?,?,?)").run(hash(opaque), responseUser?.uid || null, csrfToken, now + ttl, now);
+
     });
+
     setSessionCookie(res, opaque, ttl);
+
     return { session: responseUser ? userDTO(responseUser) : null, csrfToken };
+
   }
+
   function setSessionCookie(res, opaque, ttl) {
+
     res.setHeader("Set-Cookie", `${cookieName}=${opaque}; Path=/api; Max-Age=${Math.floor(ttl / 1000)}; HttpOnly; SameSite=Strict`);
+
   }
+
   function rate(req, group, max = 40, client = req.socket.remoteAddress || "unknown") {
+
     const key = hash(`${group}\0${client}`), now = Date.now(), window = 15 * 60000;
+
     transaction(db, () => {
+
       const previous = db.prepare("SELECT * FROM rate_limits WHERE key=?").get(key);
+
       if (!previous || previous.window_start <= now - window) db.prepare("INSERT INTO rate_limits VALUES(?,?,1) ON CONFLICT(key) DO UPDATE SET window_start=excluded.window_start,hits=1").run(key, now);
+
       else {
+
         if (previous.hits >= max) fail(429, "RATE_LIMITED", "Too many requests. Try again later.");
+
         db.prepare("UPDATE rate_limits SET hits=hits+1 WHERE key=?").run(key);
+
       }
+
     });
+
   }
+
   function actorFor(req) {
+
     const session = currentSession(req);
+
     if (!session?.user) fail(401, "AUTH_REQUIRED", "Sign in before continuing.");
+
     const expectedUid = req.headers["x-tala-user"];
+
     if (expectedUid !== undefined && expectedUid !== session.user.uid) fail(401, "AUTH_REQUIRED", "Your signed-in account changed. Refresh before continuing.");
+
     Object.defineProperty(session.user, "sessionTokenHash", { value: session.token_hash, enumerable: false });
+
     return session.user;
+
   }
+
   function mutation(req) {
+
     const session = currentSession(req);
+
     if (!session || !constantEqual(req.headers["x-csrf-token"], session.csrf_token)) fail(403, "CSRF_INVALID", "Your security session changed. Refresh and try again.");
+
   }
+
   const accounts = createAccountServices(db, {
+
     sessionTtl, userDTO,
+
     context(req, changing = false) {
+
       if (changing) mutation(req);
+
       const user = actorFor(req), session = currentSession(req);
+
       if (!session?.user || session.user.uid !== user.uid) fail(401, "AUTH_REQUIRED", "Your security session expired or changed. Sign in again.");
+
       return { user: session.user, session };
+
     },
+
   });
+
+  const admissions = createAdmissions(db, { ...admissionsContext, session: currentSession, mutation, integrations });
+
+  // Billing mode "mock" swaps the live HubSpot links for a TALA test checkout (fictional families only).
+
+  const testCheckout = !options.paymentProvider && integrations.describe().billing === "mock" ? createTestCheckout() : null;
+
+  const payments = createPayments(db, { guard: admissionsContext.guard, read: lists.read, config: options.paymentConfig, provider: options.paymentProvider || null, testCheckout });
+
+  operator.addInterviewTime = input => admissions.addAvailability(input);
+
+  operator.createTestOperator = async input => {
+
+    const address = email(input.email), name = input.name ? text(input.name, "operator name", 80) : "Tina · local test";
+
+    if (!/^[^@]+@(?:[a-z0-9-]+\.)*example\.test$/.test(address)) fail(400, "INVALID_INPUT", "This local provisioning command accepts only fictional example.test addresses.");
+
+    const secret = `Local-${token()}`, encoded = await hashPassword(secret);
+
+    return transaction(db, () => {
+
+      if (db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "ACCOUNT_EXISTS", "This test account already exists; no credentials were changed.");
+
+      const uid = randomUUID();
+
+      db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,'operator',?)").run(uid, address, name, encoded, Date.now());
+
+      return { uid, email: address, password: secret, role: "operator", mode: "local_test", note: "Keep this generated credential private. This account exists only in the local evaluation database." };
+
+    });
+
+  };
+
   async function perform(req, action, raw = false) {
+
     const input = await body(req, raw);
+
     mutation(req);
+
     return action(actorFor(req), input);
+
   }
+
   async function body(req, raw = false) {
+
     const limit = raw ? MAX_FILE_BYTES : 65536;
+
     if (!raw && (req.headers["content-type"] || "").split(";")[0].trim() !== "application/json") fail(415, "UNSUPPORTED_TYPE", "Send this request as JSON.");
+
     const declared = req.headers["content-length"];
+
     if (declared && (!/^[0-9]+$/.test(declared) || Number(declared) > limit)) fail(413, "TOO_LARGE", "This request is too large.");
+
     const chunks = [];
+
     let size = 0;
+
     for await (const chunk of req) {
+
       size += chunk.length;
+
       if (size > limit) fail(413, "TOO_LARGE", "This request is too large.");
+
       chunks.push(chunk);
+
     }
+
     const bytes = Buffer.concat(chunks);
+
     if (raw) return bytes;
+
     try { return JSON.parse(bytes.toString("utf8")); } catch { fail(400, "INVALID_INPUT", "Send a valid JSON object."); }
+
   }
+
   function json(res, value, status = 200) {
+
     res.statusCode = status;
+
     res.setHeader("Content-Type", "application/json; charset=utf-8");
+
     res.end(JSON.stringify(value));
+
   }
+
   let downloads = 0;
+
   let uploads = 0;
+
   const server = http.createServer({ maxHeaderSize: 16384, requestTimeout: 30000, headersTimeout: 10000 }, async (req, res) => {
+
     res.setHeader("Cache-Control", "no-store");
+
     res.setHeader("X-Content-Type-Options", "nosniff");
+
     res.setHeader("Referrer-Policy", "no-referrer");
+
     res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+
     res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+
     try {
+
       if (!/^(127\.0\.0\.1|localhost)(:[0-9]+)?$/.test(req.headers.host || "")) fail(403, "ORIGIN_DENIED", "This local server does not accept this host.");
+
       const origin = req.headers.origin;
+
       const changing = !["GET", "HEAD"].includes(req.method);
+
       if ((origin && !allowedOrigins.has(origin)) || (changing && !origin)) fail(403, "ORIGIN_DENIED", "This application origin is not authorized.");
-      const url = new URL(req.url, "http://127.0.0.1");
+
+      const url = new URL(req.url, "http\://127.0.0.1");
+
       const route = url.pathname;
+
       if (!route.startsWith("/api/")) fail(404, "NOT_FOUND", "This endpoint is unavailable.");
+
+      if ((route === "/api/auth/local-student-preview" || route === "/api/auth/local-parent-preview") && !localStudentPreview) fail(404, "NOT_FOUND", "This local preview entry is unavailable.");
+
       if (changing) mutation(req);
-      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 5, schemaVersion: 3, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: "unavailable", zoom: "unavailable", ai: "unavailable", payment: "unavailable" });
+
+      if (req.method === "GET" && route === "/api/health") return json(res, { application: "tala-independent-server", version: 1, contractVersion: 14, schemaVersion: SCHEMA_VERSION, runtimeRevision, instanceScope, status: "ok", authentication: "local-server", emailDelivery: integrations.describe().email === "disabled" ? "unavailable" : integrations.describe().email, zoom: "unavailable", ai: "unavailable", integrations: integrations.describe(), payment: testCheckout ? "test_checkout" : "hubspot_checkout", paymentVerification: payments.integration().verification, calendar: "local_catalog", localStudentPreview });
+
       if (req.method === "GET" && route === "/api/session") {
+
+        // A cross-site top-level navigation omits SameSite=Strict cookies but
+
+        // can still accept Set-Cookie. Do not overwrite a signed-in browser
+
+        // with an anonymous session when it follows an external link here.
+
         if (req.headers["sec-fetch-site"] === "cross-site") fail(403, "ORIGIN_DENIED", "This application origin is not authorized.");
+
         const existing = currentSession(req);
+
         if (existing) return json(res, { session: existing.user ? userDTO(existing.user) : null, csrfToken: existing.csrf_token });
+
         rate(req, "session", 200);
+
         return json(res, rotate(req, res, null));
+
       }
-      if (req.method === "POST" && route === "/api/auth/register") {
-        rate(req, "authentication");
-        const input = object(await body(req), ["name", "email", "password", "accountType"]);
-        const name = text(input.name, "display name", 80), address = email(input.email), secret = password(input.password);
-        if (!["student", "parent"].includes(input.accountType)) fail(400, "INVALID_INPUT", "Choose a student or parent account.");
-        if (db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "ACCOUNT_EXISTS", "An account with this email already exists. Sign in instead.");
-        if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before creating another account.");
-        const encoded = await hashPassword(secret);
-        return json(res, rotate(req, res, () => {
-          if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before creating another account.");
-          if (db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "ACCOUNT_EXISTS", "An account with this email already exists. Sign in instead.");
-          const uid = randomUUID();
-          db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)").run(uid, address, name, encoded, input.accountType, Date.now());
-          return db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
-        }), 201);
-      }
-      if (req.method === "POST" && route === "/api/auth/login") {
-        rate(req, "authentication");
-        const input = object(await body(req), ["email", "password"]), address = email(input.email), secret = password(input.password, false);
-        const user = db.prepare("SELECT * FROM users WHERE email=? COLLATE NOCASE").get(address);
-        if (!await verifyPassword(secret, user?.password_hash) || !user || user.disabled) fail(401, "INVALID_CREDENTIALS", "The email or password is incorrect.");
-        mutation(req);
-        const current = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(user.uid);
-        if (!current || current.password_hash !== user.password_hash) fail(401, "INVALID_CREDENTIALS", "The email or password is incorrect.");
-        return json(res, rotate(req, res, current));
-      }
-      if (req.method === "POST" && route === "/api/auth/logout") {
-        if (req.headers["x-tala-user"] !== undefined) actorFor(req);
+
+      if (req.method === "POST" && route === "/api/auth/local-student-preview") {
+
+        // This deliberately public fictional identity exists only in an
+
+        // explicitly enabled loopback presentation environment. It grants no
+
+        // school admission, family link or staff access, and never selects an
+
+        // existing person's account by their supplied email.
+
+        let previewOrigin;
+
+        try { previewOrigin = new URL(origin); } catch { fail(403, "ORIGIN_DENIED", "Student preview is available on this computer only."); }
+
+        if (previewOrigin.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(previewOrigin.hostname)
+
+          || !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress)) fail(403, "ORIGIN_DENIED", "Student preview is available on this computer only.");
+
+        rate(req, "local-student-preview", 30);
+
         object(await body(req), []);
+
         mutation(req);
-        if (req.headers["x-tala-user"] !== undefined) actorFor(req);
-        return json(res, rotate(req, res, null));
+
+        if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the student preview.");
+
+        const uid = "tala_local_preview_student_v1", address = "student-preview\@local.example.test";
+
+        const old = db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
+
+        // A fresh unpredictable password verifier prevents normal password
+
+        // login using a source-code default. The secret is never returned.
+
+        const encoded = old ? null : await hashPassword(token());
+
+        return json(res, rotate(req, res, () => {
+
+          if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the student preview.");
+
+          let row = db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
+
+          if (row) {
+
+            if (row.email !== address || row.role !== "student" || row.disabled) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+
+          } else {
+
+            if (!encoded || db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(address)) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+
+            db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,'student',?)").run(uid, address, "Alex Rivera", encoded, Date.now());
+
+            row = db.prepare("SELECT * FROM users WHERE uid=?").get(uid);
+
+          }
+
+          return row;
+
+        }));
+
       }
-      if (req.method === "GET" && route === "/api/public/open-times") {
-        rate(req, "public-open-times", 300);
-        if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "The public calendar does not accept filters.");
-        return json(res, services.publicOpenTimes());
+
+      if (req.method === "POST" && route === "/api/auth/local-parent-preview") {
+
+        // The family side of the same presentation: a fixed fictional parent,
+
+        // linked read-only to the fictional preview student. Same limits as
+
+        // the student preview: explicitly enabled, loopback only, never an
+
+        // existing person's account.
+
+        let previewOrigin;
+
+        try { previewOrigin = new URL(origin); } catch { fail(403, "ORIGIN_DENIED", "Family preview is available on this computer only."); }
+
+        if (previewOrigin.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(previewOrigin.hostname)
+
+          || !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress)) fail(403, "ORIGIN_DENIED", "Family preview is available on this computer only.");
+
+        rate(req, "local-student-preview", 30);
+
+        object(await body(req), []);
+
+        mutation(req);
+
+        if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the family preview.");
+
+        const people = [
+
+          { uid: "tala_local_preview_student_v1", address: "student-preview\@local.example.test", name: "Alex Rivera", role: "student" },
+
+          { uid: "tala_local_preview_parent_v1", address: "parent-preview\@local.example.test", name: "Jordan Rivera", role: "parent" },
+
+        ];
+
+        const secrets = new Map();
+
+        for (const person of people)
+
+          if (!db.prepare("SELECT uid FROM users WHERE uid=?").get(person.uid)) secrets.set(person.uid, await hashPassword(token()));
+
+        return json(res, rotate(req, res, () => {
+
+          if (currentSession(req)?.user) fail(409, "ACTIVE_SESSION", "Sign out before entering the family preview.");
+
+          for (const person of people) {
+
+            const row = db.prepare("SELECT * FROM users WHERE uid=?").get(person.uid);
+
+            if (row) {
+
+              if (row.email !== person.address || row.role !== person.role || row.disabled) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+
+            } else {
+
+              if (!secrets.has(person.uid) || db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(person.address)) fail(409, "CONFLICT", "The dedicated preview identity is unavailable. No account was changed.");
+
+              db.prepare("INSERT INTO users(uid,email,name,password_hash,role,created_at) VALUES(?,?,?,?,?,?)").run(person.uid, person.address, person.name, secrets.get(person.uid), person.role, Date.now());
+
+            }
+
+          }
+
+          db.prepare("INSERT INTO family_links(id,student_uid,parent_uid,consent_reference,recorded_at,status) VALUES(?,?,?,?,?,'active') ON CONFLICT(student_uid,parent_uid) DO UPDATE SET status='active'")
+
+            .run(randomUUID(), people[0].uid, people[1].uid, "Local preview: fictional family", Date.now());
+
+          return db.prepare("SELECT * FROM users WHERE uid=?").get(people[1].uid);
+
+        }));
+
       }
-      
-      if (req.method === "POST" && route === "/api/contact-requests") {
-        const input = contactRequests.validate(await body(req));
-        rate(req, "contact-request", 10);
-        rate(req, "contact-request-all", 200, "all-clients");
-        
-        const receipt = contactRequests.submit(input);
-        const parentDetails = input.details;
-        
-        const parentAddress = parentDetails.notes 
-          ? parentDetails.notes.replace("Parent Registration & Enrollment Meeting. Address: ", "")
-          : "Address not provided";
 
-        // CALL THE GOOGLE MEET FUNCTION 
-        const startTime = new Date("2026-11-03T10:00:00").toISOString();
-        const endTime = new Date("2026-11-03T10:30:00").toISOString();
-        
-        console.log("Requesting Meet link from Google...");
-        const realMeetLink = await createMeetLink(
-          startTime, 
-          endTime, 
-          parentDetails.email, 
-          parentDetails.parentName
-        );
+      if (req.method === "POST" && route === "/api/auth/register") {
 
-        const finalLink = realMeetLink || "https://meet.google.com/fallback-link";
+        rate(req, "authentication");
 
-        // GENERATE THE EMAIL HTML
-        const emailHtml = getEnrollmentConfirmationEmail({
-          parentName: parentDetails.parentName,
-          parentEmail: parentDetails.email,
-          parentPhone: parentDetails.phone,
-          parentAddress: parentAddress,
-          meetingDate: "Tuesday, November 3, 2026", 
-          meetingTime: "10:00 AM - 10:30 AM",      
-          meetingLink: finalLink 
+        fail(403, "ENROLLMENT_INVITATION_REQUIRED", "Start an interest application. An approved enrollment invitation is required to create a TALA account.");
+
+      }
+
+      if (req.method === "POST" && route === "/api/auth/enroll") {
+
+        rate(req, "authentication");
+
+        const input = object(await body(req), ["token", "name", "password"]);
+
+        const secret = password(input.password);
+
+        text(input.name, "parent name", 80);
+
+        admissions.inspect({ token: input.token });
+
+        if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before accepting an enrollment invitation.");
+
+        const encoded = await hashPassword(secret);
+
+        const result = rotate(req, res, () => {
+
+          if (currentSession(req)?.user) fail(409, "CONFLICT", "Sign out before accepting an enrollment invitation.");
+
+          return admissions.enroll(input, encoded);
+
         });
 
-        // SEND THE EMAIL VIA GOOGLE APPS SCRIPT 
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx7j_vAK_eOSOCqdmXP2JmscYMvwjCYF2eZM6uFt0FOKbq7lcCZ5asU9GCrmpE4F4E/exec";
+        admissions.clearCookie(res);
+
+        return json(res, result, 201);
+
+      }
+
+      if (req.method === "GET" && route === "/api/admissions/current") {
+
+        return json(res, await admissions.current(req));
+
+      }
+
+      if (req.method === "POST" && route === "/api/admissions/applications") {
+
+        rate(req, "admissions-submit", 12);
+
+        return json(res, admissions.submit(req, res, await body(req)), 201);
+
+      }
+
+      if (req.method === "POST" && route === "/api/admissions/interview") {
+
+        rate(req, "admissions-write", 100);
+
+        return json(res, await admissions.book(req, await body(req)));
+
+      }
+
+      if (req.method === "POST" && route === "/api/admissions/document-preference") return json(res, admissions.preference(req, await body(req)));
+
+      if (req.method === "POST" && route === "/api/admissions/documents/intents") {
+
+        rate(req, "admissions-upload", 60);
+
+        return json(res, admissions.intent(req, await body(req)), 201);
+
+      }
+
+      if (req.method === "PUT" && /^\/api\/admissions\/documents\/[^/]+\/content$/.test(route)) {
+
+        rate(req, "admissions-upload", 60);
+
+        if (uploads >= 4) fail(429, "RATE_LIMITED", "Too many uploads. Try again shortly.");
+
+        uploads++;
+
+        try { const bytes = await body(req, true); return json(res, admissions.upload(req, route.split("/")[4], (req.headers["content-type"] || "").split(";")[0].trim(), bytes)); }
+
+        finally { uploads--; }
+
+      }
+
+      if (req.method === "GET" && /^\/api\/admissions\/documents\/[^/]+\/content$/.test(route)) {
+
+        rate(req, "admissions-download", 100);
+
+        if (downloads >= 4) fail(429, "RATE_LIMITED", "Too many file downloads. Try again shortly.");
+
+        const signed = currentSession(req)?.user;
+
+        if (req.headers["x-tala-user"] !== undefined) actorFor(req);
+
+        downloads++;
+
+        const deadline = setTimeout(() => res.destroy(), downloadTtl); deadline.unref();
+
+        let released = false;
+
+        const release = () => { if (!released) { released = true; clearTimeout(deadline); downloads--; } };
+
+        res.once("finish", release); res.once("close", release);
 
         try {
-          const emailResponse = await fetch(GOOGLE_SCRIPT_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" }, 
-            body: JSON.stringify({
-              email: parentDetails.email,
-              name: parentDetails.parentName,
-              phone: parentDetails.phone,
-              address: parentAddress,
-              meetingDate: "Tuesday, November 3, 2026", 
-              meetingTime: "10:00 AM - 10:30 AM",       
-              meetingLink: finalLink
-            })
-          });
 
-          const result = await emailResponse.json();
-          if (result.status === "success") {
-            console.log(`Real email successfully sent to ${parentDetails.email} via Apps Script!`);
-          } else {
-            console.error("Apps Script Error:", result.message);
-          }
-        } catch (error) {
-          console.error("Failed to connect to Apps Script:", error.message);
-        }
+          const file = admissions.download(req, signed ? actorFor(req) : null, route.split("/")[4]);
 
-        console.log("\n");
-        console.log(`EMAIL SENT TO: ${parentDetails.email}`);
-        console.log(`MEET LINK: ${finalLink}`);
-        console.log("\n");
+          res.setHeader("Content-Type", file.contentType); res.setHeader("Content-Length", file.bytes.length);
 
-        return json(res, receipt, 201);
+          res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`); res.setHeader("X-Content-SHA256", file.sha256);
+
+          return res.end(file.bytes);
+
+        } catch (error) { release(); throw error; }
+
       }
+
+      if (req.method === "POST" && route === "/api/admissions/invitation/inspect") {
+
+        rate(req, "admissions-invitation", 60);
+
+        const input = await body(req); mutation(req);
+
+        return json(res, admissions.inspect(input));
+
+      }
+
+      if (req.method === "POST" && route === "/api/admissions/access/end") {
+
+        object(await body(req), []); return json(res, admissions.end(req, res));
+
+      }
+
+      if (req.method === "POST" && route === "/api/auth/login") {
+
+        rate(req, "authentication");
+
+        const input = object(await body(req), ["email", "password"]), address = email(input.email), secret = password(input.password, false);
+
+        const user = db.prepare("SELECT * FROM users WHERE email=? COLLATE NOCASE").get(address);
+
+        if (!await verifyPassword(secret, user?.password_hash) || !user || user.disabled) fail(401, "INVALID_CREDENTIALS", "The email or password is incorrect.");
+
+        mutation(req);
+
+        const current = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(user.uid);
+
+        if (!current || current.password_hash !== user.password_hash) fail(401, "INVALID_CREDENTIALS", "The email or password is incorrect.");
+
+        return json(res, rotate(req, res, current));
+
+      }
+
+      if (req.method === "POST" && route === "/api/auth/logout") {
+
+        if (req.headers["x-tala-user"] !== undefined) actorFor(req);
+
+        object(await body(req), []);
+
+        mutation(req);
+
+        if (req.headers["x-tala-user"] !== undefined) actorFor(req);
+
+        return json(res, rotate(req, res, null));
+
+      }
+
+      if (req.method === "GET" && route === "/api/public/open-times") {
+
+        rate(req, "public-open-times", 300);
+
+        if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "The public calendar does not accept filters.");
+
+        return json(res, services.publicOpenTimes());
+
+      }
+
+      if (req.method === "GET" && route === "/api/public/sessions") {
+
+        rate(req, "public-sessions", 300);
+
+        if ([...url.searchParams.keys()].length) fail(400, "INVALID_INPUT", "Upcoming sessions do not accept filters.");
+
+        const listed = await integrations.availability.listSessions();
+
+        return json(res, { source: listed.source, timeZone: listed.timeZone, sessions: listed.sessions.slice(0, 50) });
+
+      }
+
+      if (req.method === "POST" && route === "/api/contact-requests") {
+
+        const input = contactRequests.validate(await body(req));
+
+        rate(req, "contact-request", 10);
+
+        rate(req, "contact-request-all", 200, "all-clients");
+
+        const saved = contactRequests.submit(input);
+
+        await contactRequests.acknowledge(saved.id, input.details, integrations.email);
+
+        return json(res, saved, 201);
+
+      }
+
+
 
       const actor = actorFor(req);
+
       let match;
+
+      if (req.method === "GET" && route === "/api/admissions/parent") return json(res, admissions.parent(actor));
+
+      if (req.method === "GET" && route === "/api/operator/admissions") return json(res, admissions.list(actor));
+
+      if (req.method === "GET" && route === "/api/operator/admissions/availability")
+        return json(res, await admissions.listGoogleAvailability(actor));
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/operator\/admissions\/availability\/([^/]+)$/)))
+        return json(res, await perform(req, (fresh, input) => admissions.updateGoogleAvailability(fresh, match[1], input)));
+      if (req.method === "DELETE" && (match = route.match(/^\/api\/operator\/admissions\/availability\/([^/]+)$/)))
+        return json(res, await perform(req, (fresh, input) => admissions.deleteGoogleAvailability(fresh, match[1])));
+      if (req.method === "POST" && route === "/api/operator/admissions/availability") return json(res, await perform(req, (fresh, input) => admissions.publish(fresh, input)), 201);
+
+      if (req.method === "GET" && (match = route.match(/^\/api\/operator\/admissions\/([^/]+)$/))) return json(res, admissions.detail(actor, match[1]));
+
+      if (req.method === "POST" && (match = route.match(/^\/api\/operator\/admissions\/([^/]+)\/review$/))) return json(res, await perform(req, (fresh, input) => admissions.review(fresh, match[1], input)));
+
+      if (req.method === "POST" && (match = route.match(/^\/api\/operator\/admissions\/([^/]+)\/invitation$/))) return json(res, await perform(req, (fresh, input) => admissions.issue(fresh, match[1], input)));
+
+
+
+      if (req.method === "POST" && (match = route.match(/^\/api\/operator\/admissions\/([^/]+)\/student-setup$/))) {
+
+        rate(req, "student-setup-authorize", 60);
+
+        return json(res, await perform(req, (fresh, input) => admissions.authorizeStudentSetup(fresh, match[1], input)));
+
+      }
+
+      if (req.method === "POST" && (match = route.match(/^\/api\/admissions\/([^/]+)\/student-account$/))) {
+
+        rate(req, "student-account-create", 20);
+
+        return json(res, await perform(req, (fresh, input) => admissions.provisionStudent(fresh, match[1], input)), 201);
+
+      }
+
+
+
       if (req.method === "GET" && route === "/api/account/sessions") {
+
         rate(req, "account-session-read", 120);
+
         return json(res, lists.read(actor, () => accounts.sessions(req)));
+
       }
+
       if (req.method === "POST" && route === "/api/account/sessions/revoke") {
+
         rate(req, "account-session-revoke", 40);
+
         return json(res, await perform(req, (_fresh, input) => accounts.revoke(req, input)));
+
       }
+
       if (req.method === "POST" && route === "/api/account/sessions/revoke-others") {
+
         rate(req, "account-session-revoke", 40);
+
         return json(res, await perform(req, (_fresh, input) => accounts.revokeOthers(req, input)));
+
       }
+
       if (req.method === "POST" && route === "/api/account/password") {
+
         rate(req, "account-password-change", 20);
+
         const completed = await perform(req, (_fresh, input) => accounts.changePassword(req, input));
+
         if (completed.cookie) setSessionCookie(res, completed.cookie.opaque, completed.cookie.ttl);
+
         return json(res, completed.response);
+
       }
+
       if (req.method === "GET" && (match = route.match(/^\/api\/account\/password-changes\/([^/]+)$/))) {
+
         rate(req, "account-session-read", 120);
+
         return json(res, lists.read(actor, () => accounts.passwordChangeReceipt(req, match[1])));
+
       }
+
+      if (req.method === "GET" && route === "/api/payments") return json(res, payments.workspace(actor, url.searchParams));
+
+      if (req.method === "POST" && route === "/api/payments/checkout") {
+
+        rate(req, "payment-checkout", 30);
+
+        return json(res, await perform(req, (fresh, input) => payments.checkout(fresh, input, url.searchParams)), 201);
+
+      }
+
+      if (req.method === "POST" && route === "/api/payments/esa") {
+
+        rate(req, "payment-esa", 20);
+
+        return json(res, await perform(req, (fresh, input) => payments.esa(fresh, input, url.searchParams)), 201);
+
+      }
+
+      if (req.method === "POST" && (match = route.match(/^\/api\/payments\/([^/]+)\/verify$/))) {
+
+        rate(req, "payment-verify", 60);
+
+        return json(res, await perform(req, (fresh, input) => payments.verify(fresh, match[1], input, url.searchParams)));
+
+      }
+
+      if (req.method === "POST" && (match = route.match(/^\/api\/payments\/([^/]+)\/test-checkout$/))) {
+
+        rate(req, "payment-test-checkout", 30);
+
+        return json(res, await perform(req, (fresh, input) => payments.completeTest(fresh, match[1], input, url.searchParams)));
+
+      }
+
+      if (req.method === "GET" && route === "/api/operator/payments") return json(res, payments.operations(actor, url.searchParams));
+
+      if (req.method === "POST" && route === "/api/operator/payments/items") {
+
+        rate(req, "payment-issue", 60);
+
+        return json(res, await perform(req, (fresh, input) => payments.issue(fresh, input, url.searchParams)), 201);
+
+      }
+
       if (req.method === "GET" && route === "/api/workspace") return json(res, services.workspace(actor, url.searchParams.get("studentUid")));
+
+      if (req.method === "GET" && route === "/api/classes") return json(res, lists.read(actor, () => calendar.catalog(actor, url.searchParams)));
+
+      if (req.method === "POST" && route === "/api/classes/saved") {
+
+        rate(req, "class-save", 120);
+
+        return json(res, await perform(req, (fresh, input) => calendar.save(fresh, input, url.searchParams)));
+
+      }
+
+      if (req.method === "GET" && route === "/api/classes/enrollments") return json(res, lists.read(actor, () => calendar.enrollments(actor, url.searchParams)));
+
+      if (req.method === "POST" && route === "/api/classes") return json(res, await perform(req, (fresh, input) => calendar.create(fresh, input, url.searchParams)), 201);
+
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/classes\/([^/]+)$/))) return json(res, await perform(req, (fresh, input) => calendar.update(fresh, match[1], input, url.searchParams)));
+
+      if (req.method === "GET" && (match = route.match(/^\/api\/classes\/([^/]+)\/roster-export$/))) return json(res, lists.read(actor, () => calendar.rosterExport(actor, match[1], url.searchParams)));
+
+      if (req.method === "POST" && route === "/api/classes/withdraw") return json(res, await perform(req, (fresh, input) => calendar.withdraw(fresh, input, url.searchParams)));
+
+      if (req.method === "POST" && route === "/api/classes/approval") return json(res, await perform(req, (fresh, input) => calendar.approval(fresh, input, url.searchParams)));
+
+      if (req.method === "GET" && route === "/api/calendar") return json(res, lists.read(actor, () => calendar.get(actor, url.searchParams)));
+
+      if (req.method === "POST" && route === "/api/calendar/enrollments") {
+
+        rate(req, "calendar-enrollment", 120);
+
+        return json(res, await perform(req, (fresh, input) => calendar.enroll(fresh, input, url.searchParams)));
+
+      }
+
+      if (req.method === "POST" && route === "/api/calendar/enrollments/preferences") {
+
+        rate(req, "class-request-preferences", 100);
+
+        return json(res, await perform(req, (fresh, input) => calendar.preferences(fresh, input, url.searchParams)));
+
+      }
+
+      if (req.method === "POST" && route === "/api/calendar/enrollments/cancel") {
+
+        rate(req, "calendar-enrollment", 120);
+
+        return json(res, await perform(req, (fresh, input) => calendar.cancel(fresh, input, url.searchParams)));
+
+      }
+
       if (req.method === "GET" && route === "/api/evidence") return json(res, lists.evidence(actor, url.searchParams));
+
       if (req.method === "GET" && route === "/api/appointments") return json(res, lists.appointments(actor, url.searchParams));
+
       if (req.method === "GET" && (match = route.match(/^\/api\/appointments\/([^/]+)$/))) return json(res, lists.appointment(actor, match[1]));
+
       if (req.method === "GET" && route === "/api/available-times") return json(res, lists.availableTimes(actor, url.searchParams));
+
       if (req.method === "GET" && route === "/api/operations/evidence") return json(res, lists.operatorEvidence(actor, url.searchParams));
+
       if (req.method === "GET" && route === "/api/operations/appointments") return json(res, lists.operatorAppointments(actor, url.searchParams));
+
       if (req.method === "GET" && route === "/api/operations/contact-requests") return json(res, contactRequests.list(actor, url.searchParams));
+
       if (req.method === "POST" && (match = route.match(/^\/api\/operations\/contact-requests\/([^/]+)\/status$/))) return json(res, await perform(req, (fresh, input) => contactRequests.setStatus(fresh, match[1], input)));
+
       if (req.method === "GET" && route === "/api/operations/learning") return json(res, lists.operatorLearning(actor, url.searchParams));
+
       if (req.method === "PATCH" && route === "/api/profile") return json(res, await perform(req, (fresh, input) => services.updateProfile(fresh, input)));
+
       if (req.method === "GET" && route === "/api/availability") return json(res, lists.availability(actor, url.searchParams));
+
       if (req.method === "POST" && route === "/api/availability") return json(res, await perform(req, (fresh, input) => services.availability(fresh, input)), 201);
+
       if (req.method === "POST" && route === "/api/appointments") return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input)), 201);
+
       if (req.method === "PATCH" && (match = route.match(/^\/api\/availability\/([^/]+)$/))) return json(res, await perform(req, (fresh, input) => services.updateAvailability(fresh, match[1], input)));
+
       if (req.method === "POST" && (match = route.match(/^\/api\/availability\/([^/]+)\/withdraw$/))) return json(res, await perform(req, (fresh, input) => services.withdrawAvailability(fresh, match[1], input)));
+
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/reschedule$/))) return json(res, await perform(req, (fresh, input) => services.reserve(fresh, input, match[1])));
+
       if (req.method === "POST" && (match = route.match(/^\/api\/appointments\/([^/]+)\/cancel$/))) return json(res, await perform(req, (fresh, input) => services.cancelBooking(fresh, match[1], input)));
+
       if (req.method === "POST" && route === "/api/evidence/uploads/cleanup") return json(res, await perform(req, (fresh, input) => { object(input, []); return services.cleanupExpired(fresh); }));
+
       if (req.method === "GET" && route === "/api/evidence/uploads") return json(res, lists.read(actor, () => services.pendingUploads(actor)));
+
       if (req.method === "POST" && route === "/api/evidence/uploads") return json(res, await perform(req, (fresh, input) => services.createUpload(fresh, input)), 201);
+
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)$/))) return json(res, lists.read(actor, () => services.uploadStatus(actor, match[1])));
+
       if (req.method === "PUT" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)\/content$/))) {
+
         if (actor.role === "parent") fail(403, "FORBIDDEN", "Parent access is read-only until delegated permissions are approved.");
+
         rate(req, "file-upload", 200);
+
         if (uploads >= 4) fail(429, "RATE_LIMITED", "Too many file uploads. Try again shortly.");
+
         uploads += 1;
+
         try {
+
           return json(res, await perform(req, (fresh, input) => services.writeUpload(fresh, match[1], (req.headers["content-type"] || "").split(";")[0].trim(), input), true));
+
         } finally { uploads -= 1; }
+
       }
+
       if (req.method === "POST" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)\/submit$/))) return json(res, await perform(req, (fresh, input) => services.submit(fresh, match[1], input)));
+
       if (req.method === "POST" && (match = route.match(/^\/api\/evidence\/uploads\/([^/]+)\/cancel$/))) { return json(res, await perform(req, (fresh, input) => { object(input, []); return services.cancelUpload(fresh, match[1]); })); }
+
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)\/content$/))) {
+
         if (downloads >= 4) fail(429, "RATE_LIMITED", "Too many file downloads. Try again shortly.");
+
         downloads += 1;
+
+        // requestTimeout bounds incoming requests, not a client that stops
+
+        // reading a response. An absolute deadline also defeats slow drips.
+
         const deadline = setTimeout(() => res.destroy(), downloadTtl);
+
         deadline.unref();
+
         let released = false;
+
         const release = () => { if (!released) { released = true; clearTimeout(deadline); downloads -= 1; } };
+
         res.once("finish", release); res.once("close", release);
+
         try {
+
           const file = lists.read(actor, () => services.download(actor, match[1]));
+
           res.setHeader("Content-Type", file.contentType);
+
           res.setHeader("Content-Length", file.bytes.length);
+
           res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`);
+
           res.setHeader("X-Content-SHA256", file.sha256);
+
           res.end(file.bytes);
+
         } catch (error) { release(); throw error; }
+
         return;
+
       }
+
       if (req.method === "GET" && (match = route.match(/^\/api\/evidence\/([^/]+)$/))) return json(res, lists.read(actor, () => services.evidence(actor, match[1])));
+
       if (req.method === "GET" && route === "/api/learning") return json(res, lists.learning(actor, url.searchParams));
+
+      if (req.method === "GET" && route === "/api/reflection-draft") return json(res, lists.read(actor, () => reflectionDrafts.get(actor, url.searchParams)));
+
+      if (req.method === "POST" && route === "/api/reflection-draft") return json(res, await perform(req, (fresh, input) => reflectionDrafts.save(fresh, input, url.searchParams)));
+
+      if (req.method === "POST" && route === "/api/reflection-draft/clear") return json(res, await perform(req, (fresh, input) => reflectionDrafts.clear(fresh, input, url.searchParams)));
+
+      if (req.method === "GET" && (match = route.match(/^\/api\/appointments\/([^/]+)\/preparation$/))) return json(res, lists.read(actor, () => preparations.get(actor, match[1], url.searchParams)));
+
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/appointments\/([^/]+)\/preparation$/))) return json(res, await perform(req, (fresh, input) => preparations.save(fresh, match[1], input)));
+
+      if (req.method === "GET" && route === "/api/learning-goals") return json(res, lists.read(actor, () => goals.list(actor, url.searchParams)));
+
+      if (req.method === "POST" && route === "/api/learning-goals") return json(res, await perform(req, (fresh, input) => goals.create(fresh, input)), 201);
+
+      if (req.method === "PATCH" && (match = route.match(/^\/api\/learning-goals\/([^/]+)$/))) return json(res, await perform(req, (fresh, input) => goals.update(fresh, match[1], input)));
+
+      if (req.method === "GET" && (match = route.match(/^\/api\/learning-goals\/([^/]+)\/evidence$/))) return json(res, lists.read(actor, () => goals.evidence(actor, match[1], url.searchParams)));
+
+      if (req.method === "POST" && (match = route.match(/^\/api\/learning-goals\/([^/]+)\/evidence$/))) return json(res, await perform(req, (fresh, input) => goals.linkEvidence(fresh, match[1], input)));
+
+      if (req.method === "GET" && route === "/api/updates") return json(res, lists.read(actor, () => updates.list(actor, url.searchParams)));
+
+      if (req.method === "POST" && route === "/api/updates/read-all") return json(res, await perform(req, (fresh, input) => updates.readAll(fresh, input)));
+
+      if (req.method === "POST" && (match = route.match(/^\/api\/updates\/([^/]+)\/read$/))) return json(res, await perform(req, (fresh, input) => updates.markRead(fresh, match[1], input)));
+
       if (req.method === "GET" && (match = route.match(/^\/api\/learning\/([^/]+)$/))) return json(res, lists.learningRecord(actor, match[1]));
+
       if (req.method === "POST" && route === "/api/outcomes") return json(res, await perform(req, (fresh, input) => services.publish(fresh, input)), 201);
+
       if (req.method === "POST" && (match = route.match(/^\/api\/outcomes\/([^/]+)\/acknowledge$/))) return json(res, await perform(req, (fresh, input) => services.acknowledge(fresh, match[1], input)));
+
       if (req.method === "GET" && route === "/api/family") return json(res, lists.read(actor, () => services.family(actor)));
+
       if (req.method === "GET" && route === "/api/operations") return json(res, lists.read(actor, () => services.operations(actor)));
+
       if (req.method === "POST" && (match = route.match(/^\/api\/evidence\/([^/]+)\/review$/))) return json(res, await perform(req, (fresh, input) => services.review(fresh, match[1], input)));
+
       fail(404, "NOT_FOUND", "This endpoint is unavailable.");
+
     } catch (error) {
+
       if (res.headersSent) { res.end(); return; }
+
       const known = error instanceof ApiError;
+
       json(res, { error: { code: known ? error.code : "INTERNAL_ERROR", message: known ? error.message : "The server could not complete this request. Try again." } }, known ? error.status : 500);
+
     }
+
   });
+
   server.keepAliveTimeout = 5000;
+
   let closed = false;
+
   async function close() {
+
     if (closed) return;
+
     closed = true;
+
     if (server.listening) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+
     db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+
     db.close();
+
   }
-  return { server, db, operator, close };
+
+  return { server, db, operator, integrations, close };
+
 }
+
 module.exports = { createApplication };

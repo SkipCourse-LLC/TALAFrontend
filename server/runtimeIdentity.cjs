@@ -3,8 +3,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { createHash } = require("node:crypto");
 
-// Capture once so a running process never reports source it didn't load.
-const files = ["accountServices.cjs", "application.cjs", "contactRequests.cjs", "contract.json", "database.cjs", "index.cjs", "listServices.cjs", "runtimeIdentity.cjs", "security.cjs", "services.cjs"];
+// Capture the loaded version once. Re-reading changed source on each health
+// request would make an old process claim to run code it never loaded.
+const files = ["accountServices.cjs", "admissions.cjs", "application.cjs", "calendar.cjs", "contactRequests.cjs", "contract.json", "database.cjs", "gmailAdapter.cjs", "googleAuth.cjs", "googleMeetAdapter.cjs", "index.cjs", "integrations.cjs", "learningGoals.cjs", "listServices.cjs", "meetingPreparation.cjs", "payments.cjs", "providerHttp.cjs", "reflectionDrafts.cjs", "runtimeIdentity.cjs", "security.cjs", "services.cjs", "testCheckout.cjs", "workspaceUpdates.cjs"];
 function currentRevision() {
   const digest = createHash("sha256").update("tala-runtime-source-v1\0");
   for (const filename of files) digest.update(filename).update("\0").update(fs.readFileSync(path.join(__dirname, filename))).update("\0");
@@ -15,8 +16,10 @@ function assertCurrentRevision() {
   if (currentRevision() !== runtimeRevision) throw new Error("TALA server source changed while startup modules were loading. Start the server again after editing finishes.");
 }
 
-// A mismatch check, not a credential; hashed so the path isn't disclosed.
+// This is a local-instance mismatch check, not an authentication credential.
+// Return a digest rather than disclosing the user's absolute private path.
 function dataScope(dataDir) {
   return createHash("sha256").update("tala-data-directory-v1\0").update(path.resolve(dataDir)).digest("hex");
 }
-module.exports = { runtimeRevision, dataScope, assertCurrentRevision };
+// Tests stub exactly this list, so a new server module cannot be left out of either.
+module.exports = { runtimeRevision, dataScope, assertCurrentRevision, identityFiles: Object.freeze([...files]) };

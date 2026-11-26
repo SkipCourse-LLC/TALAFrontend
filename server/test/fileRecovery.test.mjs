@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient } from "./support.mjs";
+import { SyntheticHttpClient, signUpForTest, symlinksAvailable } from "./support.mjs";
 
 test("an identical explicit PUT can recover a pending upload after a partial disk write", { timeout: 30_000 }, async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "tala-file-recovery-test-"));
@@ -16,8 +16,8 @@ test("an identical explicit PUT can recover a pending upload after a partial dis
   try {
     await new Promise((resolve, reject) => { app.server.once("error", reject); app.server.listen(0, "127.0.0.1", resolve); });
     const client = new SyntheticHttpClient(`http://127.0.0.1:${app.server.address().port}`, origin); await client.bootstrap();
-    const registered = await client.request("/api/auth/register", { method: "POST", json: { name: "Synthetic interrupted upload", email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType: "student" } });
-    assert.equal(registered.status, 201);
+    const registered = await signUpForTest(app, client, { name: "Synthetic interrupted upload", email: `${randomUUID()}@example.test`, password: `Synthetic-only-${randomUUID()}`, accountType: "student" });
+    assert.equal(registered.status, 200);
     const now = Date.now(), slot = app.operator.addAvailability({ startsAt: new Date(now + 3_600_000).toISOString(), endsAt: new Date(now + 5_400_000).toISOString() });
     const booking = await client.request("/api/appointments", { method: "POST", json: { slotId: slot.id, requestId: randomUUID() } });
     assert.equal(booking.status, 201);
@@ -51,7 +51,8 @@ test("an identical explicit PUT can recover a pending upload after a partial dis
     const legacy = await client.request("/api/evidence/uploads", { method: "POST", json: { appointmentId: booking.json.id, title: "Synthetic legacy partial", contentType: "text/plain", size: bytes.length, sha256, requestId: randomUUID() } });
     assert.equal(legacy.status, 201);
     const legacyId = legacy.json.uploadId, staging = join(dataDir, "uploads", `${legacyId}.bin`), scratch = join(dataDir, "uploads", `${legacyId}.part`);
-    // Simulate leftovers from interrupted writers.
+    // Simulate files left by abrupt old/new writers, not a modified committed
+    // Evidence record. Only this pending upload belongs to the synthetic user.
     fs.writeFileSync(staging, bytes.subarray(0, 7), { mode: 0o600 });
     fs.writeFileSync(scratch, bytes.subarray(0, 11), { mode: 0o600 });
     const wrong = Buffer.from(bytes); wrong[0] ^= 1;
@@ -82,6 +83,7 @@ test("an identical explicit PUT can recover a pending upload after a partial dis
     assert.equal((await client.request(`/api/evidence/${uploadId}/content`)).bytes.equals(bytes), true, "Repairing another draft must preserve existing submitted bytes");
     const unsafe = await client.request("/api/evidence/uploads", { method: "POST", json: { appointmentId: booking.json.id, title: "Synthetic unsafe scratch guard", contentType: "text/plain", size: bytes.length, sha256, requestId: randomUUID() } });
     assert.equal(unsafe.status, 201);
+    if (!symlinksAvailable) return;
     fs.symlinkSync(join(dataDir, "evidence", `${uploadId}.bin`), join(dataDir, "uploads", `${unsafe.json.uploadId}.part`));
     assert.equal((await client.request(`/api/evidence/uploads/${unsafe.json.uploadId}/content`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: bytes })).status, 409, "A recovery retry must never follow a substituted scratch symlink");
     assert.equal((await client.request(`/api/evidence/uploads/${unsafe.json.uploadId}/cancel`, { method: "POST", json: {} })).status, 200);

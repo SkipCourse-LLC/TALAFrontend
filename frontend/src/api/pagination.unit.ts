@@ -57,6 +57,24 @@ test("history pages retain opaque cursors and exact server filters without local
   expect(calls).toHaveLength(2);
 });
 
+test("booking history sends exact date bounds and cursors to the authorized server page", async () => {
+  const from = "2026-11-01T00:00:00-07:00";
+  const to = "2026-11-02T00:00:00-08:00";
+  const query = { status: "ended" as const, from, to, cursor: opaqueCursor };
+  const api = createTalaApi({
+    fetcher: async (path, init) => {
+      if (path === "/api/session") return Response.json(session);
+      expect(new Headers(init?.headers).get("X-TALA-User")).toBe("learner-id");
+      const url = new URL(String(path), "http://localhost");
+      expect(url.pathname).toBe("/api/appointments");
+      expect(Object.fromEntries(url.searchParams)).toEqual(query);
+      return Response.json({ items: [booking], nextCursor: null });
+    },
+  });
+  expect((await api.getAppointmentsPage(query)).items).toHaveLength(1);
+  expect(query).toEqual({ status: "ended", from, to, cursor: opaqueCursor });
+});
+
 test("old booking detail rejects a substituted ID or another student's record", async () => {
   let mode = 0;
   const api = createTalaApi({

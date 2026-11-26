@@ -218,23 +218,24 @@ export function OpenTimesPage() {
   };
 
   if (load.state === "loading") return <div style={{ padding: "3rem", textAlign: "center" }}>Loading…</div>;
-  if (load.state === "error") {
+  if (load.state === "error")
     return (
-      <div style={{ padding: "3rem", textAlign: "center", color: "#991b1b" }}>
-        <h2>Open times could not be loaded.</h2>
-        <p>{load.message}</p>
-        <button 
+      <div style={{ padding: "3rem", textAlign: "center" }}>
+        <p role="alert" style={{ color: "#991b1b", marginBottom: "1rem" }}>
+          Open times could not be loaded. {load.message}
+        </p>
+        <button
+          type="button"
+          className="button"
           onClick={() => {
-            setLoad({ state: "loading" }); // Show loading state
-            setAttempt((value) => value + 1); // Trigger the useEffect
-          }} 
-          style={{ marginTop: "1rem", padding: "0.5rem 1rem", backgroundColor: "#1a3c34", color: "white", borderRadius: "6px", border: "none", cursor: "pointer" }}
+            setLoad({ state: "loading" });
+            setAttempt((value) => value + 1);
+          }}
         >
           Try again
         </button>
       </div>
     );
-  }
 
   const displayDate = selectedDateStr ? new Date(selectedDateStr + "T12:00:00").toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : "";
   const displayMethod = meetingMethod === "zoom" ? "Zoom Video" : meetingMethod === "phone" ? "Phone Call" : "No preference";
@@ -253,7 +254,7 @@ export function OpenTimesPage() {
                 </div>
               )}
               <h1 style={{ fontSize: "2.5rem", fontWeight: 500, color: "#111827", marginBottom: "0.5rem", fontFamily: "Georgia, serif" }}>
-                {activeSlots.length > 0 ? "Open meeting times" : "Nothing open just yet."}
+                {activeSlots.length > 0 ? "Open meeting times" : "No open times right now"}
               </h1>
               <p style={{ color: "#6b7280", fontSize: "1.125rem" }}>
                 {activeSlots.length > 0 ? "These are the times TALA has open for a first conversation." : `No slots available in ${formatMonthYear(viewedMonth)}.`}

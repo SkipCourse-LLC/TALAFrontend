@@ -21,11 +21,16 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
   {
+    // Node launcher scripts are CommonJS: require() is the module system here.
+    files: ["**/*.cjs"],
+    languageOptions: { sourceType: "commonjs", globals: { ...globals.node } },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
+  {
     files: ["src/**/*.{ts,tsx}"],
     plugins: { "react-hooks": reactHooks, "react-refresh": reactRefresh },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "no-empty": ["error", { allowEmptyCatch: true }],
       "react-refresh/only-export-components": [
         "error",
         { allowConstantExport: true },

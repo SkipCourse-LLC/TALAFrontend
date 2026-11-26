@@ -1,0 +1,295 @@
+.student-class-history {
+  margin-top: 2rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid #d4e0d6;
+  border-radius: 15px;
+  background: #fff;
+  color: #2a4535;
+  min-width: 0;
+}
+.student-class-history-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.student-class-history h2 {
+  font-size: calc(1.4rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  margin: 0 0 0.4rem;
+  letter-spacing: -0.025em;
+}
+.student-class-history p {
+  color: #607364;
+  font-size: calc(0.85rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+  margin: 0.3rem 0;
+}
+.student-class-history button {
+  min-height: 44px;
+  border: 1px solid #bacdbe;
+  border-radius: 7px;
+  background: #fff;
+  color: #365d40;
+  padding: 0.6rem 0.8rem;
+  font: inherit;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  cursor: pointer;
+}
+.student-class-history button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+.student-class-history button:hover:not(:disabled) {
+  background: #edf4e9;
+}
+.student-class-history :is(button, input, select):focus-visible {
+  outline: 3px solid #315f48;
+  outline-offset: 3px;
+}
+.student-history-refresh {
+  flex: 0 0 auto;
+}
+.student-history-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 190px);
+  gap: 0.8rem;
+  margin: 1.2rem 0 0.9rem;
+}
+.student-history-tools label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  color: #526c59;
+  min-width: 0;
+}
+.student-history-tools input,
+.student-history-tools select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #bfcec2;
+  border-radius: 7px;
+  background: #fff;
+  color: #2d4936;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+}
+.student-history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.student-history-filters button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.student-history-filters button[aria-pressed="true"] {
+  background: #e8f1e5;
+  border-color: #739b79;
+  color: #284f32;
+}
+.student-history-filters button > span {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  padding: 0.1rem 0.2rem;
+  border-radius: 4px;
+  background: #f0f4ed;
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+}
+.student-class-history .student-history-results {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-block: 1rem 0.4rem;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.student-history-results > span {
+  color: #6b7d70;
+}
+.student-history-list {
+  display: grid;
+}
+.student-history-request {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.3rem;
+  padding: 1.15rem 0;
+  border-bottom: 1px solid #e0e8df;
+  min-width: 0;
+}
+.student-history-request-main {
+  min-width: 0;
+}
+.student-history-labels {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.student-history-status {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  border-radius: 5px;
+  background: #eef2eb;
+  color: #536c58;
+}
+.student-history-status[data-status="pending_approval"],
+.student-history-status[data-status="pending_payment"] {
+  background: #faf0d8;
+  color: #73551e;
+}
+.student-history-status[data-status="confirmed"] {
+  background: #e5f1e7;
+  color: #34603d;
+}
+.student-history-status[data-status="waitlisted"] {
+  background: #eaf0f7;
+  color: #4c617a;
+}
+.student-history-status[data-status="cancelled"],
+.student-history-status[data-status="declined"] {
+  background: #f4ece6;
+  color: #7b5744;
+}
+.student-history-ended {
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  color: #697c6b;
+}
+.student-history-request h3 {
+  font-size: calc(1.05rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  margin: 0.6rem 0 0.3rem;
+  overflow-wrap: anywhere;
+}
+.student-history-request .student-history-description {
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  max-width: 65ch;
+}
+.student-history-request dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1.7rem;
+  margin: 0.9rem 0 0;
+}
+.student-history-request dl > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.student-history-request dt {
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  color: #6d8070;
+}
+.student-history-request dd {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  font-size: calc(0.8rem * var(--student-type-scale, 1));
+  line-height: 1.5;
+  color: #38583e;
+}
+.student-history-request dd > span {
+  color: #667d6b;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.student-history-request-actions {
+  display: grid;
+  gap: 0.6rem;
+  flex: 0 0 135px;
+}
+.student-history-request-actions > span {
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  color: #718371;
+  line-height: 1.6;
+}
+.student-history-request-actions .student-history-evidence {
+  background: #315f48;
+  border-color: #315f48;
+  color: #fff;
+}
+.student-history-request-actions .student-history-evidence:hover {
+  background: #224f37;
+}
+.student-history-error {
+  padding: 0.9rem;
+  margin-block: 0.7rem;
+  border-left: 3px solid #ae6348;
+  background: #fff2ec;
+}
+.student-history-error p {
+  color: #875037;
+}
+.student-history-error button {
+  margin-top: 0.5rem;
+  color: #814a35;
+  border-color: #c99e8c;
+}
+.student-history-empty {
+  padding: 1.3rem;
+  margin-top: 0.7rem;
+  border: 1px dashed #d0ddcf;
+  border-radius: 9px;
+  background: #f7faf4;
+}
+.student-history-empty h3 {
+  margin: 0 0 0.4rem;
+  font-size: calc(1rem * var(--student-type-scale, 1));
+  font-weight: 550;
+}
+.student-history-empty button {
+  margin-top: 0.8rem;
+}
+.student-history-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 1rem;
+}
+.student-history-more > span {
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  color: #667c68;
+}
+.student-class-history .student-history-footnote {
+  font-size: calc(0.7rem * var(--student-type-scale, 1));
+  margin: 1rem 0 0;
+  max-width: 78ch;
+}
+@media (max-width: 600px) {
+  .student-class-history-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .student-history-refresh {
+    align-self: start;
+  }
+  .student-history-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .student-history-request {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .student-history-request-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    flex: initial;
+    gap: 0.55rem;
+  }
+  .student-history-request-actions > span {
+    flex: 1 1 100%;
+  }
+  .student-history-request dl {
+    gap: 0.65rem 1.1rem;
+  }
+}

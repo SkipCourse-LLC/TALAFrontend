@@ -6,10 +6,17 @@ import { CommunityPage } from "./public-site/CommunityPage";
 import { HomePage } from "./public-site/HomePage";
 import { AboutPage } from "./public-site/AboutPage";
 import { ProgramsPage } from "./public-site/ProgramsPage";
+import {
+  AdmissionsPage,
+  TuitionPage,
+  FaqPage,
+} from "./public-site/InformationPages";
 import { RegisterPage } from "./registration/RegisterPage";
 import { ApprovalPage } from "./payment/ApprovalPage";
 import { PaymentPage } from "./payment/PaymentPage";
-import { resetPaymentDemo } from "./payment/paymentAdapter";
+import { resetPaymentDemo } from "./payment/paymentService";
+import { TwoFactorPage } from "./authentication/TwoFactorPage";
+import type { EnrollmentReceipt } from "./registration/enrollmentContract";
 import { LoginPage } from "./authentication/LoginPage";
 import { NotFoundPage } from "./public-site/NotFoundPage";
 import { readDemoSession, saveDemoSession } from "./authentication/authService";
@@ -20,10 +27,22 @@ const StudentDashboard = lazy(() =>
     default: module.StudentDashboard,
   })),
 );
-
 export function DemoApplication() {
   const [session, setSession] = useState(readDemoSession);
+  const [signup, setSignup] = useState<EnrollmentReceipt | null>(null);
+  const [verified, setVerified] = useState(false);
+
   const navigate = useNavigate();
+
+  function beginVerification(receipt: EnrollmentReceipt) {
+    setSignup(receipt);
+    setVerified(false);
+    navigate("/two-factor");
+  }
+
+  function handleVerified() {
+    setVerified(true);
+  }
 
   function login(next: DemoSession) {
     resetPaymentDemo();
@@ -35,6 +54,8 @@ export function DemoApplication() {
     resetPaymentDemo();
     saveDemoSession(null);
     setSession(null);
+    setSignup(null);
+    setVerified(false);
     navigate("/login", { replace: true });
   }
 
@@ -48,11 +69,24 @@ export function DemoApplication() {
           <Route path="events" element={<CommunityPage kind="events" />} />
           <Route path="contact" element={<CommunityPage kind="contact" />} />
           <Route path="programs" element={<ProgramsPage />} />
-          
-          {/* Render the new self-contained RegisterPage */}
-          <Route path="register" element={<RegisterPage />} />
-          
-          {/* Skip the fake 2FA and go straight to login */}
+          <Route path="admissions" element={<AdmissionsPage />} />
+          <Route path="tuition" element={<TuitionPage />} />
+          <Route path="faq" element={<FaqPage />} />
+          <Route
+            path="register"
+            element={<RegisterPage onComplete={beginVerification} />}
+          />
+          <Route
+            path="two-factor"
+            element={
+              <TwoFactorPage
+                receipt={signup}
+                verified={verified}
+                onVerified={handleVerified}
+                onCancel={logout}
+              />
+            }
+          />
           <Route
             path="login"
             element={<LoginPage onLogin={login} />}

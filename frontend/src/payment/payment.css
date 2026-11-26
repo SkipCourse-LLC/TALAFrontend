@@ -1,11 +1,12 @@
+/* SCRUM-48/49 only. Every rule is scoped to the owned payment root. */
 .payment-page {
-  --pay-ink: var(--color-ink);
-  --pay-accent: var(--color-accent);
-  --pay-muted: var(--color-muted);
-  --pay-paper: var(--color-paper);
-  --pay-sage: var(--color-green);
-  --pay-line: var(--color-line);
-  --pay-focus: var(--color-accent);
+  --pay-ink: #1d1d1f;
+  --pay-accent: #174139;
+  --pay-muted: #626268;
+  --pay-paper: #f5f5f7;
+  --pay-sage: #edf2ef;
+  --pay-line: #d2d2d7;
+  --pay-focus: #174139;
   width: min(1100px, calc(100% - 80px));
   margin: 0 auto;
   padding: 44px 0 64px;
@@ -233,7 +234,7 @@
   min-height: 56px;
   height: 56px;
   padding: 8px 12px;
-  border: 1px solid var(--color-control-line);
+  border: 1px solid #86868b;
   border-radius: 12px;
   background: white;
   font-size: 0.95rem;
@@ -296,7 +297,7 @@
 .payment-page .payment-button-secondary {
   background: white;
   color: var(--pay-accent);
-  border-color: var(--color-control-line);
+  border-color: #86868b;
 }
 .payment-page .payment-button-secondary:hover:not(:disabled) {
   background: var(--pay-sage);
@@ -473,6 +474,14 @@
     padding: 20px;
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .payment-page,
+  .payment-page * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
 @media (forced-colors: active) {
   .payment-page
     :is(
@@ -553,16 +562,16 @@
   }
 }
 
-/* Checkout */
+/* Apple-inspired checkout is scoped to SCRUM-48; approval keeps its styles. */
 .payment-page-checkout {
-  --pay-ink: var(--color-ink);
+  --pay-ink: #1d1d1f;
   --pay-muted: #6e6e73;
-  --pay-paper: var(--color-paper);
-  --pay-sage: var(--color-green);
-  --pay-line: var(--color-line);
-  --pay-focus: var(--color-accent);
-  --pay-accent: var(--color-accent);
-  --pay-control: var(--color-control-line);
+  --pay-paper: #f5f5f7;
+  --pay-sage: #edf2ef;
+  --pay-line: #d2d2d7;
+  --pay-focus: #174139;
+  --pay-accent: #174139;
+  --pay-control: #86868b;
   width: 100%;
   margin: 0;
   padding: 48px max(24px, calc((100% - 1120px) / 2)) 64px;
@@ -977,7 +986,7 @@
   width: 52px;
   height: 52px;
   margin-bottom: 24px;
-  background: var(--color-green);
+  background: #edf2ef;
   color: var(--pay-accent);
 }
 .payment-page-checkout .payment-success h2 {
@@ -1013,9 +1022,9 @@
   width: 100%;
   margin-top: 24px;
   min-height: 52px;
-  border-color: var(--color-ink);
+  border-color: #1d1d1f;
   border-radius: 6px;
-  background: var(--color-ink);
+  background: #1d1d1f;
   color: white;
 }
 .payment-page-checkout .payment-method-use-card:hover:not(:disabled) {
@@ -1166,6 +1175,7 @@
   font-family: Arial, sans-serif;
   line-height: 1.1;
 }
+/* These wordmarks form an illustrative image; surrounding text scales in rem. */
 .payment-page-checkout .payment-method-brand-visa {
   color: #1a1f71;
   font-size: 14px;
@@ -1326,6 +1336,16 @@
   font-size: 0.6875rem;
   font-weight: 400;
 }
+.payment-page-checkout .payment-method-notice {
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--pay-paper);
+}
+.payment-page-checkout .payment-method-notice p {
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
 .payment-page-checkout .payment-method-footer {
   position: sticky;
   bottom: 0;
@@ -1337,9 +1357,9 @@
 .payment-page-checkout .payment-method-save {
   width: 100%;
   min-height: 52px;
-  border-color: var(--color-ink);
+  border-color: #1d1d1f;
   border-radius: 4px;
-  background: var(--color-ink);
+  background: #1d1d1f;
   color: white;
 }
 .payment-page-checkout .payment-method-save:hover:not(:disabled),
@@ -1354,9 +1374,9 @@
   text-align: center;
 }
 .payment-page-checkout .payment-submit {
-  border-color: var(--color-ink);
+  border-color: #1d1d1f;
   border-radius: 6px;
-  background: var(--color-ink);
+  background: #1d1d1f;
   color: white;
 }
 @media (max-width: 640px) {
@@ -1507,7 +1527,8 @@
       .payment-method-option,
       .payment-method-saved,
       .payment-method-static-field dd > strong:not(.payment-sr-only),
-      .payment-method-expiry > span
+      .payment-method-expiry > span,
+      .payment-method-notice
     ) {
     border: 1px solid CanvasText;
   }

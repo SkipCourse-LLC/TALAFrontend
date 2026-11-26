@@ -1,8 +1,8 @@
 .pending-uploads {
   --pending-line: #d9deda;
-  --pending-ink: var(--color-ink);
-  --pending-muted: var(--color-muted);
-  --pending-accent: var(--color-accent);
+  --pending-ink: #1d1d1f;
+  --pending-muted: #626268;
+  --pending-accent: var(--color-accent, #174139);
   border-top: 1px solid var(--pending-line);
   padding-top: 28px;
   margin-top: 32px;
@@ -15,21 +15,38 @@
   gap: 18px;
 }
 .pending-uploads-heading h3 {
-  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: calc(1.2rem * var(--student-type-scale, 1));
   letter-spacing: -0.02em;
   line-height: 1.35;
   margin: 0 0 10px;
 }
+.pending-uploads-count {
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  padding-inline: 6px;
+  border-radius: 8px;
+  background: #e9f2ed;
+  color: #174139;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  font-weight: 650;
+  letter-spacing: 0;
+}
 .pending-uploads-heading p {
   color: var(--pending-muted);
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
   line-height: 1.6;
   max-width: 58ch;
   margin: 0;
 }
 .pending-uploads-text-button {
   font: inherit;
-  font-size: 0.86rem;
+  font-size: calc(0.86rem * var(--student-type-scale, 1));
   font-weight: 600;
   color: var(--pending-accent);
   background: none;
@@ -50,8 +67,11 @@
   margin: 24px 0 0;
 }
 .pending-uploads-list > li {
-  border-top: 1px solid var(--pending-line);
-  padding-block: 22px;
+  border: 1px solid var(--pending-line);
+  border-radius: 16px;
+  padding: 20px;
+  background: #fff;
+  margin-top: 14px;
 }
 .pending-uploads-document {
   display: flex;
@@ -63,7 +83,7 @@
   min-width: 0;
 }
 .pending-uploads-document h4 {
-  font-size: 1rem;
+  font-size: calc(1rem * var(--student-type-scale, 1));
   font-weight: 650;
   line-height: 1.45;
   margin: 0 0 6px;
@@ -71,7 +91,7 @@
 }
 .pending-uploads-document p {
   color: var(--pending-muted);
-  font-size: 0.84rem;
+  font-size: calc(0.84rem * var(--student-type-scale, 1));
   line-height: 1.55;
   margin: 0;
 }
@@ -80,10 +100,10 @@
   flex-shrink: 0;
   padding: 5px 9px;
   border-radius: 7px;
-  background: var(--color-green);
+  background: #edf2ef;
   color: #315b48;
   font-weight: 600;
-  font-size: 0.76rem;
+  font-size: calc(0.76rem * var(--student-type-scale, 1));
 }
 .pending-uploads-badge[data-status="expired"] {
   background: #e9e9ed;
@@ -91,7 +111,7 @@
 }
 .pending-uploads-help {
   color: var(--pending-muted);
-  font-size: 0.84rem;
+  font-size: calc(0.84rem * var(--student-type-scale, 1));
   line-height: 1.6;
   margin: 10px 0 0;
 }
@@ -101,7 +121,7 @@
 .pending-uploads-file > label {
   display: block;
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: calc(0.88rem * var(--student-type-scale, 1));
   line-height: 1.5;
   margin-bottom: 10px;
 }
@@ -117,12 +137,12 @@
   padding: 10px;
   color: var(--pending-ink);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: calc(0.88rem * var(--student-type-scale, 1));
 }
 .pending-uploads-file input::file-selector-button {
   border: 0;
   border-radius: 6px;
-  background: var(--color-green);
+  background: #edf2ef;
   color: var(--pending-accent);
   padding: 9px 12px;
   margin-right: 12px;
@@ -147,7 +167,7 @@
   border-radius: 10px;
   padding: 14px 16px;
   line-height: 1.6;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
   margin-top: 18px;
 }
 .pending-uploads-error > p {
@@ -159,7 +179,7 @@
   padding: 14px 16px;
   margin-block: 20px 0;
   border-radius: 10px;
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
@@ -168,7 +188,7 @@
 }
 .pending-uploads-empty {
   color: var(--pending-muted);
-  font-size: 0.9rem;
+  font-size: calc(0.9rem * var(--student-type-scale, 1));
   line-height: 1.6;
   margin: 22px 0 0;
 }
@@ -176,24 +196,35 @@
 .pending-uploads-recovery {
   margin-top: 20px;
   padding: 18px;
-  background: var(--color-paper);
+  background: #f5f5f7;
   border-radius: 10px;
 }
 .pending-uploads-confirmation h4 {
   margin: 0 0 8px;
-  font-size: 0.95rem;
+  font-size: calc(0.95rem * var(--student-type-scale, 1));
 }
 .pending-uploads-confirmation p,
 .pending-uploads-recovery p {
   color: var(--pending-muted);
-  font-size: 0.88rem;
+  font-size: calc(0.88rem * var(--student-type-scale, 1));
   line-height: 1.65;
   margin: 0;
 }
 .pending-uploads-recovery > .button {
   margin-top: 14px;
 }
+.pending-uploads-recovery {
+  background: #fbf7e9;
+  border: 1px solid #e5dbbd;
+}
+.pending-uploads-recovery p {
+  color: #6c542a;
+}
 .pending-uploads :is(button, input):focus-visible {
+  outline: 3px solid var(--pending-accent);
+  outline-offset: 4px;
+}
+.pending-uploads .pending-uploads-notice:focus-visible {
   outline: 3px solid var(--pending-accent);
   outline-offset: 4px;
 }
@@ -215,4 +246,25 @@
     flex-direction: column;
     align-items: stretch;
   }
+  .pending-uploads-list > li {
+    padding: 16px;
+  }
+  .pending-uploads-document {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pending-uploads * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+.pending-uploads-list > li:first-child {
+  margin-top: 0;
+}
+.pending-uploads .pending-uploads-empty {
+  margin-block: 8px 0;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
 }

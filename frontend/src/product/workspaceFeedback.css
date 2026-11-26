@@ -1,0 +1,68 @@
+.workspace-feedback {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin: 4px 0 20px;
+  border: 1px solid #c9dbc0;
+  border-radius: 14px;
+  color: #315f47;
+  background: #f0f6e9;
+}
+.workspace-feedback-symbol {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 50%;
+  background: #dcebcf;
+}
+.workspace-feedback-symbol > .learning-glyph {
+  width: 16px;
+  height: 16px;
+}
+.workspace-feedback p {
+  flex: 1;
+  min-width: 0;
+  max-width: 75ch;
+  margin: 0;
+  color: #315f47;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.workspace-feedback > button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  padding: 8px;
+  margin-block: -8px;
+  border: 0;
+  border-radius: 10px;
+  color: #315f47;
+  background: transparent;
+  cursor: pointer;
+}
+.workspace-feedback > button:hover {
+  background: #e2edda;
+}
+.workspace-feedback > button .learning-glyph {
+  width: 16px;
+  height: 16px;
+}
+.workspace-feedback > button:focus-visible {
+  outline: 3px solid #315f47;
+  outline-offset: 3px;
+}
+@media (max-width: 420px) {
+  .workspace-feedback {
+    gap: 8px;
+    padding: 12px;
+  }
+  .workspace-feedback-symbol {
+    display: none;
+  }
+}

@@ -1,19 +1,31 @@
-import { Link } from "react-router-dom";
-export function StartBanner() {
+/**
+ * The interview call to action. "band" is the full-width banner used on the
+ * information pages; "panel" is the home page's teal side panel. Both show
+ * the same text and link.
+ */
+export function StartBanner({
+  variant = "band",
+}: {
+  variant?: "band" | "panel";
+}) {
+  const panel = variant === "panel";
   return (
-    <section className="start-banner container">
+    <section className={panel ? "home-community" : "start-banner container"}>
       <div>
-        <p className="eyebrow">Try the student experience</p>
-        <h2>Your learning, in one place.</h2>
+        <h2>Let's talk about your learner.</h2>
         <p>
-          Explore sample learning paths, progress and projects at your own pace.
+          Meet with our team to explore whether TALA is right for your family.
         </p>
       </div>
       <div>
-        <Link to="/login" className="button button-light">
-          Explore the demo hub
-        </Link>
-        <p className="small">Sample data. No enrollment required.</p>
+        <a
+          href="https://calendar.app.google/YapTB4MQLus16DATA"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={panel ? "home-button" : "button button-light"}
+        >
+          Schedule a Free One-Hour Family Interview
+        </a>
       </div>
     </section>
   );

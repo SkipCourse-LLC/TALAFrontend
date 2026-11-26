@@ -1,148 +1,68 @@
 import { Link } from "react-router-dom";
-import { Icon } from "../shared/Icon";
 import { StartBanner } from "./StartBanner";
 
+const principles = [
+  [
+    "Health First",
+    "Learning cannot happen when students are unsafe, overwhelmed, or unsupported medically. Clinical safety and medically informed instruction make learning accessible.",
+  ],
+  [
+    "Dignity Always",
+    "Every learner deserves respect, belonging, and support that honors their individual needs and voice.",
+  ],
+  [
+    "Mastery Over Compliance",
+    "We measure progress through demonstrated ability and meaningful growth, rather than expecting every student to learn or show understanding in the same way.",
+  ],
+  [
+    "Family Partnership",
+    "Families know their children best. We listen and work together to shape each learner's path.",
+  ],
+  [
+    "Continuity of Learning",
+    "Instruction should continue through medical challenges, including flare-ups, recovery, and hospital stays, rather than stopping when students need support most.",
+  ],
+];
 export function AboutPage() {
   return (
     <div className="public-page public-about">
       <section className="page-intro container">
-        <p className="eyebrow">About TALA</p>
-        <h1>A place for different ways to learn.</h1>
+        <h1>Education grounded in health, dignity, and possibility</h1>
         <p className="lead">
-          Tucson Adaptive Learning Academy is planning a flexible learning
-          environment for medically fragile and neurodivergent students. Start
-          with the learner. Make room for possibility.
+          Tucson Adaptive Learning Academy is an accredited K-12 educational
+          program where individualized instruction and pediatric clinical care
+          come together.
         </p>
-        <p className="content-note">
-          A school in planning. Final programs and opening details are still
-          being confirmed.
+        <p>
+          We serve medically fragile students, learners with severe
+          developmental disabilities and profound learning needs, wheelchair
+          users, and students who need clinical support to participate in
+          meaningful education.
         </p>
       </section>
-      <section className="container about-mission">
-        <span className="public-feature-symbol">
-          <Icon name="leaf" />
-        </span>
-        <div>
-          <h2>Our mission</h2>
-          <p>
-            The proposed approach puts each learner’s health, dignity and
-            potential at the center. Mastery, meaningful projects and individual
-            support are part of the vision for TALA.
-          </p>
-          <p className="small">
-            The final school mission will be published after review.
-          </p>
+      <section className="container section philosophy">
+        <h2>Our philosophy</h2>
+        <div className="principle-list">
+          {principles.map(([title, text]) => (
+            <article key={title} className="principle">
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </article>
+          ))}
         </div>
       </section>
-      <section
-        className="container about-principles"
-        aria-label="Proposed learning principles"
-      >
-        <article>
-          <Icon name="user" />
-          <h2>The learner comes first.</h2>
-          <p>
-            Explore a model built around individual learning needs and room to
-            grow.
-          </p>
-        </article>
-        <article>
-          <Icon name="book" />
-          <h2>Learning has many forms.</h2>
-          <p>
-            Discover the proposed blend of focused support, projects and shared
-            experiences.
-          </p>
-        </article>
-        <article>
-          <Icon name="people" />
-          <h2>Families are part of the path.</h2>
-          <p>Begin with a parent profile and review the next steps together.</p>
-        </article>
-      </section>
-      <section className="container information-sections about-details">
-        <article>
-          <div>
-            <p className="eyebrow">Getting started</p>
-            <h2>Registration</h2>
-          </div>
-          <div>
-            <p>
-              Preview a clear path from a parent account to student information,
-              enrollment preferences and a final review. Your demo entries stay
-              in this browser flow; no application is submitted.
-            </p>
-            <div className="button-row">
-              <Link className="button" to="/register">
-                Start registration demo
-              </Link>
-              <Link className="text-link" to="/register?intent=waiting-list">
-                Waiting list demo
-              </Link>
-            </div>
-          </div>
-        </article>
-        <article>
-          <div>
-            <p className="eyebrow">Learning with TALA</p>
-            <h2>How our schedule works</h2>
-          </div>
-          <div>
-            <p>
-              The proposed model combines in-person and online learning using
-              two-hour blocks across the day. Final schedules and availability
-              will be confirmed by TALA.
-            </p>
-            <p>
-              Explore sample class availability and a personal calendar in the
-              student hub.
-            </p>
-            <Link className="text-link" to="/programs">
-              Meet the learning opportunities <Icon name="arrow" />
-            </Link>
-          </div>
-        </article>
-        <article>
-          <div>
-            <p className="eyebrow">Planning ahead</p>
-            <h2>Private funding</h2>
-          </div>
-          <div>
-            <p>
-              Enrollment uses private, self-funded payment. Fees and payment
-              instructions need confirmation from TALA. No payment is made in
-              this demo.
-            </p>
-            <Link className="text-link" to="/register">
-              Review the registration steps <Icon name="arrow" />
-            </Link>
-          </div>
-        </article>
-      </section>
-      <section className="container school-details">
+      <section className="container home-about">
         <div>
-          <h2>More to come.</h2>
+          <h2>A partnership with families</h2>
           <p>
-            School and community details will be shared once they are confirmed.
+            Our adaptive learning academy brings education and care together so
+            each student can pursue meaningful goals in an environment built
+            around their needs.
           </p>
+          <Link className="text-link" to="/programs">
+            Explore Programs
+          </Link>
         </div>
-        <ul>
-          <li>
-            <span>Opening plans &amp; campus</span>
-            <span>Being confirmed</span>
-          </li>
-          <li>
-            <span>Founders &amp; school team</span>
-            <span>Being confirmed</span>
-          </li>
-          <li>
-            <span>Lectures &amp; visiting professors</span>
-            <span>Being confirmed</span>
-          </li>
-        </ul>
-        <Link className="text-link" to="/events">
-          Community events <Icon name="arrow" />
-        </Link>
       </section>
       <StartBanner />
     </div>

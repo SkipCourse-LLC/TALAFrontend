@@ -33,6 +33,34 @@
   align-items: center;
   gap: 12px;
 }
+.quiet-site-footer {
+  padding-block: 28px;
+  background: var(--color-surface);
+}
+.quiet-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px 36px;
+  flex-wrap: wrap;
+}
+.quiet-footer-row nav {
+  display: flex;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+}
+.quiet-footer-row nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+.quiet-footer-row > small {
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
 .product-actions > :is(button, a) {
   min-height: 48px;
 }

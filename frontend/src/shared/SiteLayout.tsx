@@ -1,14 +1,19 @@
+import type { ReactNode } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { demoEnabled } from "./services/demoConfig";
 import { Brand } from "./Brand";
 import { SiteHeader } from "./SiteHeader";
 
+const workspaceRoutes = ["/dashboard", "/payment", "/two-factor"];
+
 export function SiteLayout({
   session,
   backend,
+  workspaceHeader,
 }: {
+  workspaceHeader?: ReactNode;
   session: { name: string; email: string } | null;
-  backend?: "api";
+  backend?: "api" | "firebase-emulator" | "firebase-test" | "firebase";
 }) {
   const location = useLocation();
   return (
@@ -23,54 +28,104 @@ export function SiteLayout({
       >
         Skip to content
       </a>
-      <div className="preview-banner">
-        {backend === "api" ? (
-          "TALA · Independent local server · Records are saved to your server."
-        ) : (
-          <>
-            TALA product preview <span aria-hidden="true">·</span>{" "}
-            {demoEnabled
-              ? "Explore with sample data. No real accounts or charges."
-              : "Live account services are not connected."}
-          </>
-        )}
-      </div>
-      <SiteHeader key={location.pathname} session={session} />
+      {/* The public site (API mode) shows no environment banner. Demo and
+          Firebase test modes keep theirs so sample data is never mistaken
+          for live records. */}
+      {backend !== "api" && (
+        <div className="preview-banner">
+          {backend === "firebase-emulator" ? (
+            "TALA · Local Firebase integration · Synthetic test accounts and files only. No live meetings or charges."
+          ) : backend === "firebase-test" ? (
+            "TALA · Approved Firebase test cloud · Synthetic accounts and files only. No real meetings or charges."
+          ) : backend === "firebase" ? (
+            "TALA · Firebase authentication · Scheduling, evidence and payments await team approval."
+          ) : (
+            <>
+              TALA product preview <span aria-hidden="true">·</span>{" "}
+              {demoEnabled
+                ? "Explore with sample data. No real accounts or charges."
+                : "Live account services are not connected."}
+            </>
+          )}
+        </div>
+      )}
+      {workspaceHeader &&
+      // Signed-in pages (including account security) keep the portal header.
+      workspaceRoutes.includes(location.pathname) ? (
+        workspaceHeader
+      ) : (
+        <SiteHeader key={location.pathname} session={session} />
+      )}
       <main id="main-content" tabIndex={-1}>
         <Outlet />
       </main>
-      <footer className="site-footer">
-        <div className="container footer-top">
-          <div>
+      <footer
+        className={
+          backend === "api" ? "site-footer quiet-site-footer" : "site-footer"
+        }
+      >
+        {backend === "api" ? (
+          // Public pages use the redesign's footer grid; signed-in workspace
+          // pages keep the one-line row. Both show the same links and text.
+          <div
+            className={
+              workspaceRoutes.includes(location.pathname)
+                ? "container quiet-footer-row"
+                : "container footer-top public-footer"
+            }
+          >
             <Brand />
-            <p>
-              Room to learn.
-              <br />
-              Space to become yourself.
-            </p>
-          </div>
-          <nav aria-label="Footer">
-            <Link to="/about">About TALA</Link>
-            <Link to="/programs">Explore programs</Link>
-            <Link to={session ? "/dashboard" : "/login"}>Student hub</Link>
-          </nav>
-          <div className="footer-note">
-            <p>Your learning. Your next step.</p>
+            <nav aria-label="Footer">
+              <Link to="/about">About</Link>
+              <Link to="/programs">Programs</Link>
+              <Link to="/admissions">Admissions</Link>
+              <Link to="/tuition">Tuition</Link>
+              <Link to="/faq">FAQs</Link>
+              <Link to="/contact">Contact</Link>
+            </nav>
             <small>
-              {backend === "api"
-                ? "Accounts, bookings and documents use the TALA server. Email delivery, live meeting links and payments require connected providers."
-                : "This frontend preview brings enrollment and learning together. School decisions, billing and live services are not connected."}
+              Tucson Adaptive Learning Academy · Accredited K-12 education and
+              pediatric clinical care.
             </small>
           </div>
-        </div>
-        <div className="container footer-bottom">
-          <span>
-            {backend === "api"
-              ? "TALA-Hub · Independent server"
-              : "TALA-Hub · Frontend product preview"}
-          </span>
-          <span>Built for different ways to learn.</span>
-        </div>
+        ) : (
+          <>
+            <div className="container footer-top">
+              <div>
+                <Brand />
+                <p>
+                  Tucson Adaptive Learning Academy: accredited K-12 education
+                  and pediatric clinical care.
+                </p>
+              </div>
+              <nav aria-label="Footer">
+                <Link to="/about">About TALA</Link>
+                <Link to="/programs">Explore programs</Link>
+                <Link to="/admissions">Admissions</Link>
+                <Link to="/tuition">Tuition and funding</Link>
+                <Link to="/faq">FAQs</Link>
+                <Link to="/contact">Contact</Link>
+                <Link to={session ? "/dashboard" : "/login"}>Student hub</Link>
+              </nav>
+              <div className="footer-note">
+                <p>Health, dignity, and meaningful learning.</p>
+                <small>
+                  {backend
+                    ? "Authentication uses Firebase. Meeting, evidence and payment services require an approved environment and team integration."
+                    : "This frontend preview brings enrollment and learning together. School decisions, billing and live services are not connected."}
+                </small>
+              </div>
+            </div>
+            <div className="container footer-bottom">
+              <span>
+                {backend
+                  ? "TALA-Hub · Backend integration"
+                  : "TALA-Hub · Frontend product preview"}
+              </span>
+              <span>Education designed around each learner.</span>
+            </div>
+          </>
+        )}
       </footer>
     </>
   );

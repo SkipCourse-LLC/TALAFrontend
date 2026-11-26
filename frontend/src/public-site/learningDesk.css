@@ -1,0 +1,103 @@
+/* The hero's animated learning journal (LearningDeskArt): slow, small,
+   decorative motion. */
+.learning-desk {
+  display: block;
+  overflow: visible;
+}
+
+/* Idle motion */
+.desk-float {
+  animation: desk-float 7s ease-in-out infinite;
+}
+@keyframes desk-float {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.desk-wave {
+  animation: desk-drift 11s ease-in-out infinite;
+}
+@keyframes desk-drift {
+  50% {
+    transform: translateX(-8px);
+  }
+}
+.desk-rays {
+  transform-box: view-box;
+  transform-origin: 480px 108px;
+  animation: desk-turn 40s linear infinite;
+}
+@keyframes desk-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.desk-sun-disc {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: desk-glow 5s ease-in-out infinite;
+}
+@keyframes desk-glow {
+  50% {
+    transform: scale(1.05);
+  }
+}
+.desk-small-sun {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: desk-glow 6s ease-in-out 1s infinite;
+}
+.desk-sway {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: desk-sway 5s ease-in-out infinite;
+}
+@keyframes desk-sway {
+  0%,
+  100% {
+    transform: rotate(-2.5deg);
+  }
+  50% {
+    transform: rotate(2.5deg);
+  }
+}
+.desk-pencil {
+  animation: desk-bob 4.5s ease-in-out infinite;
+}
+@keyframes desk-bob {
+  50% {
+    transform: translate(-3px, 5px);
+  }
+}
+.desk-arrow {
+  animation: desk-nudge 3s ease-in-out infinite;
+}
+@keyframes desk-nudge {
+  50% {
+    transform: translateX(6px);
+  }
+}
+
+/* The underline under "I follow my curiosity?" draws itself once. */
+.desk-underline {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: desk-draw 1.4s 0.5s ease-out forwards;
+}
+@keyframes desk-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Visitors who prefer less motion see the picture still. */
+@media (prefers-reduced-motion: reduce) {
+  .learning-desk *,
+  .learning-desk {
+    animation: none !important;
+    transition: none !important;
+  }
+  .desk-underline {
+    stroke-dashoffset: 0;
+  }
+}

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID, createHash } from "node:crypto";
 import { createApplication } from "../application.cjs";
-import { SyntheticHttpClient } from "./support.mjs";
+import { SyntheticHttpClient, signUpForTest, symlinksAvailable } from "./support.mjs";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "tala-storage-test-"));
@@ -15,8 +15,8 @@ async function fixture() {
   async function register(role = "student") {
     const client = new SyntheticHttpClient(url); await client.bootstrap();
     const suffix = randomUUID();
-    const response = await client.request("/api/auth/register", { method: "POST", json: { name: `Synthetic ${role}`, email: `${suffix}@example.test`, password: `Synthetic-only-${suffix}`, accountType: role } });
-    assert.equal(response.status, 201);
+    const response = await signUpForTest(app, client, { name: `Synthetic ${role}`, email: `${suffix}@example.test`, password: `Synthetic-only-${suffix}`, accountType: role });
+    assert.equal(response.status, 200);
     return { client, uid: response.json.session.uid };
   }
   const student = await register();
@@ -34,13 +34,14 @@ async function fixture() {
   async function put(id) { return student.client.request(`/api/evidence/uploads/${id}/content`, { method: "PUT", headers: { "Content-Type": "text/plain" }, body: bytes }); }
   async function submit(id, requestId = randomUUID()) { return student.client.request(`/api/evidence/uploads/${id}/submit`, { method: "POST", json: { requestId } }); }
   function seedStoredRecords(count, size) {
-    // Fake stored metadata to test quotas without writing hundreds of MiB.
+    // Simulate previously stored metadata to exercise quota checks at the HTTP
+    // boundary without generating hundreds of MiB of unrelated private files.
     const now = Date.now();
     app.db.exec("BEGIN IMMEDIATE");
     try {
       for (let i = 0; i < count; i++) {
         const id = randomUUID();
-        app.db.prepare("INSERT INTO uploads VALUES(?,?,?,?,?,?,?,'submitted',?,?)").run(id, student.uid, bookingId, "Synthetic quota fixture", "text/plain", size, sha256, now, now + 100000);
+        app.db.prepare("INSERT INTO uploads(id,owner_uid,appointment_id,title,content_type,size,sha256,status,created_at,expires_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?)").run(id, student.uid, bookingId, "Synthetic quota fixture", "text/plain", size, sha256, now, now + 100000);
         app.db.prepare("INSERT INTO evidence(id,owner_uid,appointment_id,title,content_type,size,sha256,submitted_at) VALUES(?,?,?,?,?,?,?,?)").run(id, student.uid, bookingId, "Synthetic quota fixture", "text/plain", size, sha256, now);
       }
       app.db.exec("COMMIT");
@@ -59,11 +60,15 @@ test("private upload retries and downloads reject symlinks, and parents cannot r
     assert.equal(savedUploads.json.uploads[0].status, "pending");
     const outside = join(f.root, "outside-synthetic.txt"); await writeFile(outside, f.bytes);
     const staging = join(f.root, `uploads/${id}.bin`);
-    await symlink(outside, staging);
-    let response = await f.put(id);
-    assert.equal(response.status, 409); assert.equal(response.json.error.code, "INTEGRITY_ERROR");
-    assert.deepEqual(await readFile(outside), f.bytes);
-    await rm(staging); assert.equal((await f.put(id)).status, 200);
+    let response;
+    if (symlinksAvailable) {
+      await symlink(outside, staging);
+      response = await f.put(id);
+      assert.equal(response.status, 409); assert.equal(response.json.error.code, "INTEGRITY_ERROR");
+      assert.deepEqual(await readFile(outside), f.bytes);
+      await rm(staging);
+    }
+    assert.equal((await f.put(id)).status, 200);
     savedUploads = await f.student.client.request("/api/evidence/uploads");
     assert.equal(savedUploads.json.uploads[0].status, "uploaded");
     const parent = await f.register("parent");
@@ -74,10 +79,12 @@ test("private upload retries and downloads reject symlinks, and parents cannot r
     assert.equal((await f.submit(id)).status, 200);
     assert.deepEqual((await f.student.client.request("/api/evidence/uploads")).json.uploads, []);
     const privateFile = join(f.root, `evidence/${id}.bin`);
-    await rm(privateFile); await symlink(outside, privateFile);
-    response = await f.student.client.request(`/api/evidence/${id}/content`);
-    assert.equal(response.status, 409); assert.equal(response.json.error.code, "INTEGRITY_ERROR");
-    await rm(privateFile); await writeFile(privateFile, f.bytes, { mode: 0o600 });
+    if (symlinksAvailable) {
+      await rm(privateFile); await symlink(outside, privateFile);
+      response = await f.student.client.request(`/api/evidence/${id}/content`);
+      assert.equal(response.status, 409); assert.equal(response.json.error.code, "INTEGRITY_ERROR");
+      await rm(privateFile); await writeFile(privateFile, f.bytes, { mode: 0o600 });
+    }
     assert.deepEqual((await parent.client.request(`/api/evidence/${id}/content`)).bytes, f.bytes, "A submitted permitted record remains readable by its linked parent");
   } finally { await f.close(); }
 });

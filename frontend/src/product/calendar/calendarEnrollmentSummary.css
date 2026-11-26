@@ -1,0 +1,208 @@
+/* Classes & requests: a short list of upcoming requests. Each row is a date
+   block, the title with one meta line, and the request status. */
+.calendar-enrollment-summary {
+  min-width: 0;
+  margin: 0 0 24px;
+  padding: clamp(20px, 3vw, 28px);
+  border: 1px solid #dce5df;
+  border-radius: 22px;
+  background: #fff;
+  color: #19352b;
+}
+.calendar-enrollment-summary > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+.calendar-enrollment-summary h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 1.25em;
+  letter-spacing: -0.035em;
+}
+.calendar-enrollment-summary-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 12px;
+  background: #eef4ee;
+  color: #315b45;
+  font-size: 0.6em;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.calendar-enrollment-summary-links {
+  display: flex;
+  align-items: center;
+  gap: 4px 20px;
+}
+.calendar-enrollment-summary button {
+  display: inline-flex;
+  min-height: 40px;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #214c3b;
+  font: inherit;
+  font-size: 0.875em;
+  font-weight: 600;
+  cursor: pointer;
+}
+.calendar-enrollment-summary button:hover {
+  color: #0d3022;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.calendar-enrollment-summary button:focus-visible {
+  outline: 3px solid #214c3b;
+  outline-offset: 3px;
+}
+.calendar-enrollment-summary .learning-glyph {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+}
+.calendar-enrollment-summary p {
+  margin: 12px 0 0;
+  font-size: 0.875em;
+  line-height: 1.6;
+  color: #596b62;
+}
+.calendar-enrollment-summary ul {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.calendar-enrollment-summary li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid #e5ebe7;
+}
+.calendar-enrollment-summary li:first-child {
+  border-top: 0;
+}
+/* The day's date, stacked: month above the day number. */
+.calendar-enrollment-summary-date {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  width: 44px;
+  height: 46px;
+  flex: 0 0 auto;
+  border: 1px solid #e1e9e4;
+  border-radius: 10px;
+  color: #19352b;
+  line-height: 1.1;
+}
+.calendar-enrollment-summary-date > span {
+  color: #5d7066;
+  font-size: 0.6875em;
+}
+.calendar-enrollment-summary-date > strong {
+  font-size: 1.0625em;
+  font-weight: 600;
+}
+.calendar-enrollment-summary li > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.calendar-enrollment-summary li > div > strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9375em;
+  font-weight: 600;
+}
+.calendar-enrollment-summary-meta {
+  color: #596b62;
+  font-size: 0.8125em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.calendar-enrollment-summary-status {
+  margin-left: auto;
+  padding: 4px 9px;
+  border-radius: 6px;
+  color: #315b45;
+  background: #edf5ef;
+  font-size: 0.75em;
+  line-height: 1.4;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.calendar-enrollment-summary-status[data-status="pending_approval"],
+.calendar-enrollment-summary-status[data-status="pending_payment"] {
+  color: #765018;
+  background: #fff3d9;
+}
+.calendar-enrollment-summary-status[data-status="waitlisted"] {
+  color: #5b5378;
+  background: #f1edf8;
+}
+/* One line after a finished class, inviting evidence. */
+.calendar-enrollment-summary-evidence {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid #e5ebe7;
+}
+.calendar-enrollment-summary-evidence p {
+  margin: 0;
+}
+.calendar-enrollment-summary-empty {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 20px;
+}
+.calendar-enrollment-summary-empty p {
+  margin: 0;
+}
+.calendar-enrollment-summary p.calendar-enrollment-summary-note {
+  margin-top: 8px;
+  font-size: 0.75em;
+}
+.calendar-enrollment-summary[data-compact="true"] {
+  margin-top: 24px;
+}
+@media (max-width: 480px) {
+  .calendar-enrollment-summary li {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 8px 14px;
+  }
+  .calendar-enrollment-summary-status {
+    grid-column: 2;
+    margin-left: 0;
+    justify-self: start;
+  }
+}
+@media (forced-colors: active) {
+  .calendar-enrollment-summary,
+  .calendar-enrollment-summary-date {
+    border-color: CanvasText;
+  }
+  .calendar-enrollment-summary button:focus-visible {
+    outline-color: Highlight;
+  }
+}

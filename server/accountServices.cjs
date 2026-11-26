@@ -6,7 +6,9 @@ const { fail, object, password, requestId, hash, token, verifyPassword, hashPass
 const iso = (value) => new Date(value).toISOString();
 const PASSWORD_OPERATION = "account-password-change";
 
-// Handles can't authenticate: they differ from cookies, and password changes revoke them all.
+// A public handle cannot authenticate as a cookie: its prefix/length is
+// deliberately different, and neither the cookie nor its stored hash leaves
+// the server. Password rotation also invalidates all prior handles.
 function sessionHandle(user, session) {
   return `session_${createHmac("sha256", user.password_hash).update("tala-session-handle\0").update(session.token_hash).digest("base64url")}`;
 }
@@ -37,7 +39,8 @@ function createAccountServices(db, { context, sessionTtl, userDTO }) {
   function passwordReplay(req, current, previous, newSecret) {
     const stored = JSON.parse(previous.result_json);
     if (!constantEqual(stored.replacementSessionId, sessionHandle(current.user, current.session))) fail(409, "CONFLICT", "This password change belongs to a different security session. Refresh and sign in if needed.");
-    // Don't store a fast password hash for fingerprinting; it would be a cheap offline verifier.
+    // Do not persist a fast hash/HMAC of either password just to fingerprint
+    // requests: it would add a cheap offline password verifier to the DB.
     return verifyPassword(newSecret, current.user.password_hash).then((matches) => {
       const fresh = sameContext(req, current);
       if (!matches) fail(409, "CONFLICT", "This request identifier already completed a different password change.");
@@ -106,6 +109,8 @@ function createAccountServices(db, { context, sessionTtl, userDTO }) {
       return transaction(db, () => {
         const current = sameContext(req, initial);
         const now = Date.now();
+        // Another request cannot change this account between the final checks
+        // and commit: all security state is updated in this write transaction.
         if (receiptFor(current.user.uid, input.requestId)) fail(409, "CONFLICT", "This password change already completed. Refresh its completion status.");
         const count = db.prepare("SELECT count(*) AS n FROM sessions WHERE uid=? AND token_hash!=? AND expires_at>?").get(current.user.uid, current.session.token_hash, now).n;
         const changed = db.prepare("UPDATE users SET password_hash=? WHERE uid=? AND password_hash=? AND disabled=0").run(encoded, current.user.uid, initial.user.password_hash);

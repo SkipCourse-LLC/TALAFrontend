@@ -1,0 +1,139 @@
+.student-workspace .meeting-booking-layout.meeting-operations-layout {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 760px;
+}
+.student-workspace .meeting-operations-layout .meeting-current {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.student-workspace .meeting-primary-actions {
+  margin-top: 24px;
+}
+.student-workspace .meeting-secondary-actions {
+  gap: 4px 20px;
+  margin-top: 12px;
+}
+.student-workspace .meeting-quick-times {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.student-workspace .meeting-quick-times legend {
+  margin-bottom: 12px;
+  padding: 0;
+  font-weight: 600;
+}
+.student-workspace .meeting-quick-time {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: #f5f5f7;
+  color: var(--student-ink, #1d1d1f);
+  cursor: pointer;
+}
+.student-workspace .meeting-quick-time[data-selected="true"] {
+  border-color: var(--student-accent, #174139);
+  background: var(--student-tint, #edf2ef);
+  box-shadow: inset 0 0 0 1px var(--student-accent, #174139);
+}
+.student-workspace .meeting-quick-time input[type="radio"] {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--student-accent, #174139);
+}
+.student-workspace .meeting-quick-time > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.student-workspace .meeting-quick-time strong {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.student-workspace .meeting-quick-time > span > span {
+  color: var(--student-muted, #626268);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.student-workspace .meeting-quick-times:disabled .meeting-quick-time {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.student-workspace .meeting-quick-time:focus-within {
+  outline: 3px solid var(--student-accent, #174139);
+  outline-offset: 3px;
+}
+.student-workspace .meeting-all-times {
+  margin-top: 12px;
+}
+.student-workspace .meeting-all-times > summary {
+  width: fit-content;
+  min-height: 44px;
+  padding-block: 10px;
+  color: var(--student-accent, #174139);
+  cursor: pointer;
+}
+.student-workspace .meeting-all-times > summary:focus-visible {
+  outline: 3px solid var(--student-accent, #174139);
+  outline-offset: 3px;
+}
+.student-workspace .meeting-all-times .form-field {
+  margin-block: 8px 16px;
+}
+.student-workspace #meeting-preparation,
+.student-workspace #available-meetings-heading {
+  scroll-margin-top: 24px;
+}
+@media (max-width: 540px) {
+  .student-workspace .meeting-primary-actions {
+    align-items: stretch;
+  }
+  .student-workspace .meeting-primary-actions .button {
+    flex: 1 1 100%;
+  }
+  .student-workspace .meeting-quick-time {
+    padding: 12px;
+  }
+}
+
+.student-workspace .meeting-selected-time {
+  margin-block: 8px 12px;
+  color: var(--student-accent, #174139);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.student-workspace .meeting-panel {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.student-workspace .meeting-panel .meeting-panel-heading h2 {
+  margin-bottom: 0;
+}
+.student-workspace .meeting-panel .meeting-current-time {
+  margin-block: 12px;
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+}
+.student-workspace .meeting-panel .meeting-history-heading h3 {
+  margin: 0;
+}
+.student-workspace .meeting-panel .meeting-secondary-actions {
+  font-size: 0.875rem;
+}
+.student-workspace .meeting-panel .meeting-help {
+  max-width: 58ch;
+  line-height: 1.5;
+}

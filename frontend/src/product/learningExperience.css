@@ -1,0 +1,344 @@
+/* Student learning surfaces share a calm palette and tactile, explicit actions. */
+.student-workspace.server-dashboard {
+  --student-ink: #19352b;
+  --student-muted: #596b62;
+  --student-accent: #214c3b;
+  --student-line: #dce5df;
+  --student-control-line: #788d80;
+  --student-tint: #eff5e9;
+}
+.server-dashboard .server-dashboard-sidebar {
+  border-color: #dce5df;
+  border-radius: 22px;
+  padding: 20px 12px 16px;
+  min-height: 660px;
+}
+.server-dashboard .server-dashboard-brand {
+  color: #19352b;
+  font-size: calc(1.125rem * var(--student-type-scale, 1));
+}
+.server-dashboard .server-dashboard-sidebar nav {
+  gap: 8px;
+}
+.server-dashboard .server-dashboard-sidebar nav button {
+  min-height: 54px;
+  border: 1px solid transparent;
+  color: #596b62;
+  font-weight: 550;
+}
+.server-dashboard .server-dashboard-nav-symbol {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #f2f5f1;
+  flex-shrink: 0;
+}
+.server-dashboard .server-dashboard-sidebar nav button[aria-current="page"] {
+  border-color: #c7d9bf;
+  box-shadow: 0 3px 0 #dbe5d4;
+  background: #ecf4e5;
+  color: #214c3b;
+}
+.server-dashboard
+  .server-dashboard-sidebar
+  nav
+  button[aria-current="page"]
+  .server-dashboard-nav-symbol {
+  background: #dcebcf;
+}
+.server-dashboard .server-dashboard-main .product-heading {
+  margin-bottom: 0;
+}
+.server-dashboard .server-dashboard-main .product-heading h1 {
+  font-size: clamp(1.8rem, 3vw, 2.75rem);
+  font-weight: 650;
+  color: #19352b;
+  letter-spacing: -0.055em;
+  overflow-wrap: anywhere;
+}
+.server-dashboard .product-heading > div {
+  min-width: 0;
+  max-width: 100%;
+}
+.server-dashboard .server-dashboard-main .student-workspace-toolbar {
+  padding-bottom: 20px;
+}
+.server-dashboard .student-workspace-toolbar > .button-secondary {
+  min-height: 44px;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  border-color: #c6d4ca;
+  padding: 7px 12px;
+  border-radius: 10px;
+}
+.server-dashboard
+  .server-dashboard-sidebar
+  :is(button, summary, a):focus-visible {
+  outline: 3px solid #315f47;
+  outline-offset: 3px;
+}
+.server-dashboard .student-focused-content .product-card {
+  border-color: #dce5df;
+  border-radius: 22px;
+}
+.server-dashboard .student-focused-content :is(h2, h3) {
+  color: #19352b;
+}
+.server-dashboard .student-focused-content :is(h2, h3)[tabindex="-1"] {
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 4px;
+}
+.server-dashboard .student-focused-content h2 {
+  font-size: clamp(1.4rem, 2.5vw, 1.8rem);
+  letter-spacing: -0.04em;
+}
+.server-dashboard
+  .student-focused-content
+  :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-radius: 12px;
+  border-color: var(--student-control-line);
+}
+.server-dashboard .student-focused-content :is(input, textarea)::placeholder {
+  color: #69776e;
+  opacity: 1;
+}
+.server-dashboard .student-focused-content .button:not(.button-secondary) {
+  background: #214c3b;
+  color: #fff;
+  border-color: #173f2e;
+  border-bottom: 4px solid #102e21;
+  border-radius: 12px;
+  font-weight: 650;
+}
+.server-dashboard
+  .student-focused-content
+  .button:not(.button-secondary):hover:not(:disabled) {
+  background: #2a604a;
+}
+.server-dashboard
+  .student-focused-content
+  .button:not(.button-secondary):active {
+  transform: translateY(2px);
+  border-bottom-width: 2px;
+}
+.server-dashboard
+  .student-focused-content
+  :is(button, input, textarea, select):focus-visible {
+  outline: 3px solid #315f47;
+  outline-offset: 3px;
+}
+.server-dashboard .student-focused-content :is(button, fieldset):disabled {
+  cursor: not-allowed;
+}
+.server-dashboard .product-status {
+  border: 1px solid #c5daba;
+  border-radius: 14px;
+  background: #edf5e7;
+  color: #214c3b;
+}
+.server-dashboard .learning-records-empty {
+  padding: 32px 20px;
+  border: 1px dashed #c7d9bf;
+  border-radius: 16px;
+  background: #f5f8f3;
+  text-align: center;
+}
+@media (max-width: 840px) {
+  .server-dashboard
+    .student-focused-content
+    :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+    font-size: calc(1rem * var(--student-type-scale, 1));
+  }
+  .server-dashboard .server-dashboard-sidebar {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding: 12px;
+    margin-bottom: 24px;
+  }
+  .server-dashboard .server-dashboard-brand {
+    padding: 0;
+    gap: 8px;
+    font-size: calc(0.9375rem * var(--student-type-scale, 1));
+  }
+  .server-dashboard .server-dashboard-brand .icon {
+    width: 22px;
+    height: 22px;
+  }
+  .server-dashboard .server-dashboard-mobile-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .server-dashboard .server-dashboard-account {
+    grid-column: 1 / -1;
+    padding: 0;
+    margin: 0;
+  }
+  .server-dashboard
+    .server-dashboard-sidebar[data-account-role="student"]
+    .server-dashboard-mobile-nav {
+    grid-column: 1;
+  }
+  .server-dashboard
+    .server-dashboard-sidebar[data-account-role="student"]
+    .server-dashboard-account {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+  }
+  .server-dashboard
+    .server-dashboard-sidebar[data-account-role="student"]:has(
+      .student-account[open]
+    )
+    .server-dashboard-mobile-nav {
+    grid-column: 1 / -1;
+  }
+  .server-dashboard
+    .server-dashboard-sidebar[data-account-role="student"]:has(
+      .student-account[open]
+    )
+    .server-dashboard-account {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  .server-dashboard .server-dashboard-identity {
+    display: none;
+  }
+  .server-dashboard .server-dashboard-account-actions {
+    grid-column: 2;
+    grid-row: 1;
+    padding: 0;
+    gap: 10px;
+  }
+  .server-dashboard .server-dashboard-account-actions :is(a, button) {
+    font-size: calc(0.75rem * var(--student-type-scale, 1));
+  }
+  .server-dashboard .server-dashboard-account-actions .icon {
+    display: none;
+  }
+  .server-dashboard .server-dashboard-main .product-heading h1 {
+    font-size: calc(2rem * var(--student-type-scale, 1));
+  }
+  .server-dashboard .server-dashboard-main .student-workspace-label {
+    display: none;
+  }
+  .server-dashboard .server-dashboard-main .student-workspace-toolbar {
+    padding-bottom: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .student-workspace.server-dashboard *,
+  .student-workspace.server-dashboard *::before,
+  .student-workspace.server-dashboard *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media (prefers-contrast: more) {
+  .student-workspace.server-dashboard {
+    --student-control-line: #4d6454;
+  }
+}
+@media (forced-colors: active) {
+  .student-workspace
+    :is(
+      .server-dashboard-desktop-nav > button[aria-current="page"],
+      .server-dashboard-mobile-links > button[aria-current="page"],
+      .server-dashboard-mobile-quick > button[aria-current="page"],
+      .learning-plan-filter[aria-pressed="true"],
+      .meeting-day[aria-pressed="true"],
+      .meeting-quick-time[data-selected="true"],
+      .evidence-entry-options > label[data-selected="true"]
+    ) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .student-workspace
+    .learning-journey-stages
+    > li[data-current="true"]
+    .learning-journey-node {
+    border-color: Highlight;
+  }
+  .student-workspace .today-quick-actions > button[aria-disabled="true"] {
+    color: GrayText;
+    border-color: GrayText;
+    opacity: 1;
+  }
+}
+.server-dashboard .student-evidence-booking-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #f1f6eb;
+}
+.server-dashboard .student-evidence-booking-hint p {
+  margin: 0;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.server-dashboard .student-evidence-meeting-action {
+  min-height: 44px;
+  border: 0;
+  padding: 8px 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #214c3b;
+  font: inherit;
+  font-weight: 600;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.student-workspace .student-family-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  padding: 12px 16px;
+  border: 1px solid #dce5df;
+  border-radius: 12px;
+  background: #f4f7f1;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.student-family-context strong {
+  color: #214c3b;
+  overflow-wrap: anywhere;
+}
+.student-family-empty {
+  padding: clamp(28px, 6vw, 56px);
+  margin-top: 28px;
+  border: 1px solid #dce5df;
+  border-radius: 24px;
+  background: #fff;
+  text-align: center;
+}
+.student-family-empty-symbol {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 20px;
+  color: #315f47;
+  background: #edf3e5;
+  border-radius: 18px;
+}
+.student-workspace .student-family-empty h2 {
+  margin: 0 0 10px;
+  font-size: calc(1.5rem * var(--student-type-scale, 1));
+  letter-spacing: -0.035em;
+}
+.student-family-empty p {
+  color: #596b62;
+  max-width: 38ch;
+  margin: 0 auto;
+  line-height: 1.7;
+}

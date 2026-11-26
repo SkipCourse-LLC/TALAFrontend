@@ -474,3 +474,6 @@ test("SCRUM-46: leaving registration during submission cancels its redirect", as
     page.getByRole("heading", { name: "Start with registration" }),
   ).toBeVisible();
 });
+
+// Authentication tests handle ephemeral enrollment secrets; do not record traces.
+test.use({ trace: "off", screenshot: "off" });

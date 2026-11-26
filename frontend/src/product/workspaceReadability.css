@@ -1,0 +1,88 @@
+/* Keep the normal layout unchanged; preferences apply within this workspace. */
+.student-workspace {
+  --student-type-scale: 1;
+}
+.student-workspace[data-text-size="larger"] {
+  --student-type-scale: 1.15;
+}
+.student-workspace .server-dashboard-desktop-nav > button,
+.student-workspace .server-dashboard-mobile-links > button {
+  font-size: calc(0.9375rem * var(--student-type-scale, 1));
+}
+.student-workspace .server-dashboard-identity strong {
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.student-workspace .server-dashboard-identity > div {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.student-workspace .product-family :is(p, label, select) {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.student-workspace
+  .server-dashboard-sidebar
+  .student-account
+  :is(p, label, input, button) {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.student-workspace .server-dashboard-sidebar .workspace-display-options select {
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.student-workspace[data-spacing="comfortable"] .student-focused-content {
+  gap: 32px;
+}
+.student-workspace[data-spacing="comfortable"]
+  :is(
+    .product-fields,
+    .learning-plan-editor-details,
+    .learning-plan-edit-step-list > li,
+    .student-progress-grid
+  ) {
+  gap: 28px;
+}
+.student-workspace[data-spacing="comfortable"]
+  :is(
+    .learning-plan-editor-actions,
+    .learning-plan-step-add,
+    .learning-plan-step-ideas,
+    .learning-plan-completion-actions,
+    .learning-records-review-action,
+    .goal-evidence-picker-actions
+  ) {
+  gap: 16px 24px;
+}
+.student-workspace[data-spacing="comfortable"]
+  :is(
+    .learning-plan-notes,
+    .learning-plan-field textarea,
+    .learning-plan-step-check,
+    .learning-plan-read-step,
+    .learning-records-summary,
+    .goal-evidence-help,
+    .goal-evidence-empty,
+    .student-progress-help,
+    .student-progress-details > p
+  ) {
+  line-height: 1.85;
+}
+.student-workspace[data-spacing="comfortable"] .learning-records-outcomes > li {
+  margin-top: 24px;
+}
+@media (max-width: 840px) {
+  .student-workspace .today-preference-field > select,
+  .student-workspace
+    .server-dashboard-sidebar
+    .workspace-display-options
+    select,
+  .student-workspace .server-dashboard-sidebar .student-account input {
+    font-size: calc(1rem * var(--student-type-scale, 1));
+  }
+  .student-workspace .product-family select {
+    font-size: calc(1rem * var(--student-type-scale, 1));
+  }
+  .student-workspace
+    .server-dashboard-sidebar
+    .server-dashboard-mobile-quick
+    button {
+    font-size: calc(0.6875rem * var(--student-type-scale, 1));
+  }
+}

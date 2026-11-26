@@ -11,6 +11,7 @@
 @import "../../registration/registration.css";
 @import "../../payment/payment.css";
 
+/* Keep all motion optional, including future component transitions. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -24,6 +25,7 @@
 @media (forced-colors: active) {
   .button,
   .nav-hub-link,
+  .nav-actions > .nav-cta,
   .menu-toggle {
     background: ButtonFace;
     color: ButtonText;

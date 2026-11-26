@@ -3,6 +3,13 @@ import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { talaApi, safeTalaApiError } from "../api";
 import type { ApiUser } from "../api";
+import { hasTextControls, isWellFormedText } from "./unicodeText";
+import { LearningGlyph } from "./LearningGlyph";
+import { Icon } from "../shared/Icon";
+import "./accessOperations.css";
+
+type AccessField = "name" | "email" | "password";
+type AccessErrors = Partial<Record<AccessField, string>>;
 
 export function ServerAccessPage({
   register = false,
@@ -14,12 +21,21 @@ export function ServerAccessPage({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [accountType, setAccountType] = useState<"student" | "parent">(
     "student",
   );
   const [pending, setPending] = useState(false);
+  const [previewAvailable, setPreviewAvailable] = useState(false);
+  const [openingPreview, setOpeningPreview] = useState<
+    "student" | "parent" | null
+  >(null);
+  const [restoring, setRestoring] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<AccessErrors>({});
+  const [capsLock, setCapsLock] = useState(false);
   const [error, setError] = useState("");
+  const [recoveryAvailable, setRecoveryAvailable] = useState(false);
+  const [recoveryUncertain, setRecoveryUncertain] = useState(false);
   const busy = useRef(false);
   const active = useRef(false);
   const controller = useRef<AbortController | null>(null);
@@ -35,16 +51,103 @@ export function ServerAccessPage({
   useEffect(() => {
     if (error) alert.current?.focus();
   }, [error]);
+  useEffect(() => {
+    if (register) return;
+    const request = new AbortController();
+    void talaApi
+      .localStudentPreviewAvailable(request.signal)
+      .then((available) => {
+        if (!request.signal.aborted) setPreviewAvailable(available);
+      })
+      .catch(() => {
+        // An unavailable or unconfigured service must not advertise demo access.
+      });
+    return () => request.abort();
+  }, [register]);
+  /** Opens the local showcase as the demo student or the demo parent. */
+  async function openPreview(kind: "student" | "parent") {
+    if (busy.current || !previewAvailable) return;
+    busy.current = true;
+    setPending(true);
+    setOpeningPreview(kind);
+    setError("");
+    setFieldErrors({});
+    setRecoveryAvailable(false);
+    const request = new AbortController();
+    controller.current = request;
+    try {
+      const user =
+        kind === "parent"
+          ? await talaApi.enterLocalParentPreview(request.signal)
+          : await talaApi.enterLocalStudentPreview(request.signal);
+      if (!active.current || request.signal.aborted) return;
+      setPassword("");
+      onAuthenticated(user);
+      navigate(kind === "parent" ? "/dashboard" : "/dashboard?view=calendar", {
+        replace: true,
+      });
+    } catch (failure) {
+      if (active.current && !request.signal.aborted) {
+        const problem = safeTalaApiError(failure);
+        setError(problem.message);
+        setRecoveryAvailable(true);
+        setRecoveryUncertain(true);
+      }
+    } finally {
+      busy.current = false;
+      if (active.current) {
+        setPending(false);
+        setOpeningPreview(null);
+        setPassword("");
+        setPasswordVisible(false);
+      }
+    }
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy.current) return;
-    if (register && password !== confirmation) {
-      setError("Passwords must match.");
+    const errors: AccessErrors = {};
+    if (
+      register &&
+      (!name.trim() ||
+        name.trim().length > 80 ||
+        !isWellFormedText(name) ||
+        hasTextControls(name))
+    )
+      errors.name = "Enter a name of 80 characters or fewer.";
+    const address = email.trim();
+    if (
+      !address ||
+      address.length > 254 ||
+      !isWellFormedText(address) ||
+      hasTextControls(address) ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)
+    )
+      errors.email = "Enter a complete email address.";
+    if (
+      !password ||
+      password.length > 128 ||
+      (register && (password.length < 8 || !isWellFormedText(password)))
+    )
+      errors.password = register
+        ? "Use 8–128 characters."
+        : "Enter your password.";
+    setFieldErrors(errors);
+    setError("");
+    const first = (["name", "email", "password"] as const).find(
+      (field) => errors[field],
+    );
+    if (first) {
+      requestAnimationFrame(() => {
+        if (active.current)
+          document.getElementById(`product-access-${first}`)?.focus();
+      });
       return;
     }
     busy.current = true;
     setPending(true);
     setError("");
+    setRecoveryAvailable(false);
     const request = new AbortController();
     controller.current = request;
     try {
@@ -57,20 +160,34 @@ export function ServerAccessPage({
             { email: email.trim(), password },
             request.signal,
           );
-      if (!active.current) return;
+      if (!active.current || request.signal.aborted) return;
       setPassword("");
-      setConfirmation("");
+      setPasswordVisible(false);
       onAuthenticated(user);
       navigate("/dashboard", { replace: true });
     } catch (failure) {
-      if (active.current && !request.signal.aborted)
-        setError(safeTalaApiError(failure).message);
+      if (active.current && !request.signal.aborted) {
+        const problem = safeTalaApiError(failure);
+        setError(problem.message);
+        setRecoveryAvailable(true);
+        setRecoveryUncertain(
+          [
+            "NETWORK",
+            "UNAVAILABLE",
+            "INVALID_RESPONSE",
+            "INTERNAL_ERROR",
+            "ACTIVE_SESSION",
+            "CSRF_REQUIRED",
+            "CSRF_INVALID",
+          ].includes(problem.code),
+        );
+      }
     } finally {
       busy.current = false;
       if (active.current) {
         setPending(false);
         setPassword("");
-        setConfirmation("");
+        setPasswordVisible(false);
       }
     }
   }
@@ -78,6 +195,7 @@ export function ServerAccessPage({
     if (busy.current) return;
     busy.current = true;
     setPending(true);
+    setRestoring(true);
     setError("");
     const request = new AbortController();
     controller.current = request;
@@ -89,7 +207,7 @@ export function ServerAccessPage({
         navigate("/dashboard", { replace: true });
       } else
         setError(
-          "No active session was found. Sign in or create your account.",
+          "No active session was found. Sign in or start your registration.",
         );
     } catch (failure) {
       if (active.current && !request.signal.aborted)
@@ -98,99 +216,243 @@ export function ServerAccessPage({
       busy.current = false;
       if (active.current) {
         setPending(false);
+        setRestoring(false);
         setPassword("");
-        setConfirmation("");
+        setPasswordVisible(false);
       }
     }
   }
   return (
-    <section className="auth-layout auth-layout-centered container">
+    <section className="auth-layout container product-access">
       <div className="auth-panel">
-        <h1>{register ? "Create your TALA account" : "Welcome back."}</h1>
-        <p>
+        <h1>{register ? "Create account" : "Welcome back."}</h1>
+        <p className="product-access-intro">
           {register
-            ? "Your account and profile are saved to the independent TALA server."
-            : "Sign in to read your saved bookings, documents and progress."}
+            ? "A space for your next step."
+            : "Your learning is waiting."}
         </p>
-        <form onSubmit={submit} aria-busy={pending}>
+        {!register && previewAvailable && (
+          <section
+            className="product-access-preview"
+            aria-label="Local demo accounts"
+          >
+            <div className="product-access-demo-choices">
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={pending}
+                onClick={() => void openPreview("student")}
+              >
+                {openingPreview === "student"
+                  ? "Opening…"
+                  : "Open student demo"}
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={pending}
+                onClick={() => void openPreview("parent")}
+              >
+                {openingPreview === "parent" ? "Opening…" : "Open parent demo"}
+              </button>
+            </div>
+            <p>No email or password. Local test accounts.</p>
+            <span className="product-access-divider">
+              Or sign in to your account
+            </span>
+          </section>
+        )}
+        <form onSubmit={submit} aria-busy={pending} noValidate>
           <fieldset className="product-fields" disabled={pending}>
             <legend className="sr-only">
               {register ? "Registration details" : "Sign-in details"}
             </legend>
             {register && (
               <>
-                <label className="form-field">
-                  Name
+                <div className="form-field">
+                  <label htmlFor="product-access-name">Name</label>
                   <input
+                    id="product-access-name"
                     required
+                    name="name"
+                    dir="auto"
                     maxLength={80}
                     autoComplete="name"
                     value={name}
-                    onChange={(event) => setName(event.target.value)}
-                  />
-                </label>
-                <div className="form-field">
-                  <label htmlFor="account-type">Account type</label>
-                  <select
-                    id="account-type"
-                    value={accountType}
-                    onChange={(event) =>
-                      setAccountType(event.target.value as "student" | "parent")
+                    onChange={(event) => {
+                      setName(event.target.value);
+                      setFieldErrors((saved) => ({
+                        ...saved,
+                        name: undefined,
+                      }));
+                    }}
+                    aria-invalid={Boolean(fieldErrors.name)}
+                    aria-describedby={
+                      fieldErrors.name ? "product-access-name-error" : undefined
                     }
-                  >
-                    <option value="student">Student</option>
-                    <option value="parent">Parent or guardian</option>
-                  </select>
+                  />
+                  {fieldErrors.name && (
+                    <span
+                      className="product-access-field-error"
+                      id="product-access-name-error"
+                    >
+                      {fieldErrors.name}
+                    </span>
+                  )}
                 </div>
+                <fieldset className="product-access-role">
+                  <legend>Account type</legend>
+                  <div className="product-access-role-options">
+                    <label>
+                      <input
+                        type="radio"
+                        name="accountType"
+                        value="student"
+                        checked={accountType === "student"}
+                        onChange={() => setAccountType("student")}
+                      />
+                      <span>
+                        <LearningGlyph name="goal" />
+                        <strong>Student</strong>
+                      </span>
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="accountType"
+                        value="parent"
+                        checked={accountType === "parent"}
+                        onChange={() => setAccountType("parent")}
+                      />
+                      <span>
+                        <LearningGlyph name="feedback" />
+                        <strong>Parent or guardian</strong>
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
+                <small>
+                  {accountType === "parent"
+                    ? "Student access requires an approved link and consent."
+                    : "Account type does not grant staff access."}
+                </small>
               </>
             )}
-            <label className="form-field">
-              Email
+            <div className="form-field">
+              <label htmlFor="product-access-email">Email</label>
               <input
+                id="product-access-email"
                 type="email"
+                name="email"
                 required
                 maxLength={254}
                 autoComplete="username"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                aria-describedby="product-email-help"
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setFieldErrors((saved) => ({ ...saved, email: undefined }));
+                }}
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={`product-email-help${fieldErrors.email ? " product-access-email-error" : ""}`}
+                inputMode="email"
+                autoCapitalize="none"
+                spellCheck={false}
               />
-            </label>
+              {fieldErrors.email && (
+                <span
+                  className="product-access-field-error"
+                  id="product-access-email-error"
+                >
+                  {fieldErrors.email}
+                </span>
+              )}
+            </div>
             <small id="product-email-help">
-              For local development, use invented details. No email message is
-              sent or marked verified.
+              Local only. Use invented details. Email is not sent or verified.
             </small>
-            <label className="form-field">
-              Password
-              <input
-                type="password"
-                required
-                minLength={register ? 12 : undefined}
-                maxLength={128}
-                autoComplete={register ? "new-password" : "current-password"}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-            {register && (
-              <>
-                <small>Use at least 12 characters and a unique password.</small>
-                <label className="form-field">
-                  Confirm password
-                  <input
-                    type="password"
-                    required
-                    maxLength={128}
-                    autoComplete="new-password"
-                    value={confirmation}
-                    onChange={(event) => setConfirmation(event.target.value)}
-                  />
-                </label>
-              </>
-            )}
+            <div className="form-field">
+              <label htmlFor="product-access-password">Password</label>
+              <div className="product-access-password">
+                <input
+                  id="product-access-password"
+                  name="password"
+                  type={passwordVisible ? "text" : "password"}
+                  required
+                  minLength={register ? 8 : undefined}
+                  maxLength={128}
+                  autoComplete={register ? "new-password" : "current-password"}
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setFieldErrors((saved) => ({
+                      ...saved,
+                      password: undefined,
+                    }));
+                  }}
+                  onKeyUp={(event) =>
+                    setCapsLock(event.getModifierState("CapsLock"))
+                  }
+                  onKeyDown={(event) =>
+                    setCapsLock(event.getModifierState("CapsLock"))
+                  }
+                  onBlur={() => setCapsLock(false)}
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby={
+                    [
+                      register && !fieldErrors.password
+                        ? "product-password-help"
+                        : "",
+                      fieldErrors.password
+                        ? "product-access-password-error"
+                        : "",
+                      capsLock ? "product-password-caps" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ") || undefined
+                  }
+                />
+                <button
+                  type="button"
+                  aria-controls="product-access-password"
+                  aria-pressed={passwordVisible}
+                  aria-label={
+                    passwordVisible ? "Hide password" : "Show password"
+                  }
+                  onClick={() => setPasswordVisible((visible) => !visible)}
+                >
+                  <Icon name={passwordVisible ? "eye-off" : "eye"} />
+                </button>
+              </div>
+              {fieldErrors.password && (
+                <span
+                  className="product-access-field-error"
+                  id="product-access-password-error"
+                >
+                  {fieldErrors.password}
+                </span>
+              )}
+              {capsLock && (
+                <small
+                  className="product-access-caps"
+                  id="product-password-caps"
+                  role="status"
+                >
+                  Caps Lock is on.
+                </small>
+              )}
+              {register && !fieldErrors.password && (
+                <small id="product-password-help">8–128 characters.</small>
+              )}
+            </div>
             <button className="button button-primary button-full" type="submit">
               {pending
-                ? "Please wait…"
+                ? restoring
+                  ? "Checking session…"
+                  : register
+                    ? "Creating account…"
+                    : "Signing in…"
                 : register
                   ? "Create account"
                   : "Sign in"}
@@ -202,31 +464,54 @@ export function ServerAccessPage({
             {error}
           </p>
         )}
-        <p>
-          If a connection problem interrupted sign-in or registration, check the
-          server before retrying.
-        </p>
-        <button
-          type="button"
-          className="button button-secondary"
-          disabled={pending}
-          onClick={() => void recoverSession()}
-        >
-          Check saved session
-        </button>
-        <p>
+        {recoveryAvailable && (
+          <div className="product-access-recovery">
+            <p>
+              {recoveryUncertain
+                ? "Connection interrupted? Check your saved session before retrying."
+                : "Already signed in? Check this browser’s saved session."}
+            </p>
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={pending}
+              onClick={() => void recoverSession()}
+            >
+              {restoring ? "Checking session…" : "Check saved session"}
+            </button>
+          </div>
+        )}
+        <p className="product-access-switch">
+          <span>{register ? "Already have an account?" : "New to TALA?"}</span>{" "}
           {register ? (
-            <Link to="/login">Already registered? Sign in</Link>
+            <Link to="/login">Sign in</Link>
           ) : (
-            <Link to="/register">Create an account</Link>
+            // New families start with a call; registration follows it.
+            <a
+              href="https://calendar.app.google/YapTB4MQLus16DATA"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Schedule a Call
+            </a>
           )}
         </p>
         {!register && (
           <p className="small">
-            Email recovery is unavailable until a mail provider is configured.
-            Contact the authorized local operator if you lose access.
+            Email recovery is unavailable. Contact your authorized operator.
           </p>
         )}
+        <details className="quiet-account-about">
+          <summary>About</summary>
+          <p>
+            Your account is saved on this TALA server. The server checks your
+            password; this browser uses a private session cookie.
+          </p>
+          <p>
+            Account type grants no staff permissions. A parent needs an approved
+            student link and recorded consent to read student records.
+          </p>
+        </details>
       </div>
     </section>
   );

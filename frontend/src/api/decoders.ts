@@ -2,20 +2,20 @@ import { TalaApiError } from "./errors";
 import type {
   AccountSessions,
   Appointment,
+  AppointmentPreparation,
   Availability,
-  ContactMethod,
-  ContactRequest,
-  ContactRequestReceipt,
-  ContactRequestStatus,
-  ContactWindow,
   CursorPage,
   Evidence,
   EvidenceContentType,
   FamilyLinks,
   LearningRecord,
   LearningRecords,
+  LearningGoal,
+  LearningGoals,
+  LearningGoalEvidence,
+  WorkspaceUpdate,
+  WorkspaceUpdatesPage,
   ManagedSlot,
-  OpenTimes,
   Operations,
   OperatorAppointment,
   OperatorEvidence,
@@ -29,8 +29,16 @@ import type {
   UploadIntent,
   UploadStatus,
   User,
-  Weekday,
   Workspace,
+  ContactMethod,
+  ContactRequest,
+  ContactRequestReceipt,
+  ContactRequestStatus,
+  ContactWindow,
+  OpenTimes,
+  SessionTime,
+  SessionTimes,
+  Weekday,
 } from "./types";
 
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -66,6 +74,170 @@ export function count(raw: unknown, max = Number.MAX_SAFE_INTEGER): number {
     throw new TalaApiError("INVALID_RESPONSE");
   return raw;
 }
+/** Calendar dates deliberately have no timezone or midnight conversion. */
+function goalDate(raw: unknown): string | null {
+  if (raw === null) return null;
+  const value = text(raw, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
+    throw new TalaApiError("INVALID_RESPONSE");
+  const [year, month, day] = value.split("-").map(Number);
+  const leap = year! % 4 === 0 && (year! % 100 !== 0 || year! % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (!year || !month || month > 12 || !day || day > days[month - 1]!)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return value;
+}
+export function learningGoal(raw: unknown): LearningGoal {
+  const value = object(raw);
+  const version = count(value.version);
+  const createdAt = instant(value.createdAt);
+  const updatedAt = instant(value.updatedAt);
+  const completedAt =
+    value.completedAt === null ? null : instant(value.completedAt);
+  const steps = array(value.steps, 8).map((rawStep) => {
+    const step = object(rawStep);
+    if (typeof step.completed !== "boolean")
+      throw new TalaApiError("INVALID_RESPONSE");
+    return {
+      id: id(step.id),
+      title: text(step.title, 120),
+      completed: step.completed,
+    };
+  });
+  if (
+    !["active", "completed"].includes(String(value.status)) ||
+    !version ||
+    new Set(steps.map((step) => step.id)).size !== steps.length ||
+    (value.status === "completed") !== Boolean(completedAt) ||
+    Date.parse(updatedAt) < Date.parse(createdAt) ||
+    (completedAt &&
+      (Date.parse(completedAt) < Date.parse(createdAt) ||
+        Date.parse(completedAt) > Date.parse(updatedAt)))
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    id: id(value.id),
+    ownerUid: id(value.ownerUid),
+    title: text(value.title, 120),
+    notes: text(value.notes, 600, true),
+    dueDate: goalDate(value.dueDate),
+    status: value.status as LearningGoal["status"],
+    version,
+    createdAt,
+    updatedAt,
+    completedAt,
+    steps,
+    linkedEvidenceCount: count(value.linkedEvidenceCount, 20),
+  };
+}
+export function learningGoals(raw: unknown): LearningGoals {
+  const value = object(raw);
+  const goals = array(value.goals, 100).map(learningGoal);
+  if (
+    value.limit !== 100 ||
+    new Set(goals.map((goal) => goal.id)).size !== goals.length
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { goals, limit: 100 };
+}
+export function learningGoalEvidence(raw: unknown): LearningGoalEvidence {
+  const value = object(raw);
+  const rows = array(value.evidence, 20).map((raw) => evidence(raw));
+  const ownerUid = id(value.ownerUid);
+  if (
+    value.limit !== 20 ||
+    new Set(rows.map((row) => row.id)).size !== rows.length ||
+    rows.some((row) => row.ownerUid !== ownerUid)
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { goalId: id(value.goalId), ownerUid, evidence: rows, limit: 20 };
+}
+export function workspaceUpdateId(raw: unknown) {
+  const value = text(raw, 71);
+  if (!/^update_[a-f0-9]{64}$/.test(value))
+    throw new TalaApiError("INVALID_RESPONSE");
+  return value;
+}
+export function workspaceUpdate(raw: unknown): WorkspaceUpdate {
+  const value = object(raw),
+    target = object(value.target);
+  const targetViews = {
+    appointment: "meetings",
+    learning: "learning",
+    review: "evidence",
+    class: "classes",
+  } as const;
+  if (
+    typeof value.type !== "string" ||
+    !Object.hasOwn(targetViews, value.type) ||
+    target.view !== targetViews[value.type as keyof typeof targetViews] ||
+    typeof value.read !== "boolean"
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    id: workspaceUpdateId(value.id),
+    type: value.type as WorkspaceUpdate["type"],
+    title: text(value.title, 160),
+    summary: text(value.summary, 600, true),
+    occurredAt: instant(value.occurredAt),
+    read: value.read,
+    target: {
+      view: target.view as WorkspaceUpdate["target"]["view"],
+      resourceId: id(target.resourceId),
+    },
+  };
+}
+export function workspaceUpdatesPage(raw: unknown): WorkspaceUpdatesPage {
+  const value = object(raw),
+    items = array(value.items, 25).map(workspaceUpdate);
+  const nextCursor =
+    value.nextCursor === null ? null : text(value.nextCursor, 2048);
+  if (
+    (items.length === 0 && nextCursor !== null) ||
+    count(value.unreadCount) < items.filter((item) => !item.read).length ||
+    new Set(items.map((item) => item.id)).size !== items.length ||
+    (nextCursor !== null &&
+      !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(nextCursor))
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    ownerUid: id(value.ownerUid),
+    items,
+    nextCursor,
+    unreadCount: count(value.unreadCount),
+  };
+}
+export function workspaceUpdateRead(raw: unknown): { id: string; read: true } {
+  const value = object(raw);
+  if (value.read !== true) throw new TalaApiError("INVALID_RESPONSE");
+  return { id: workspaceUpdateId(value.id), read: true };
+}
+export function workspaceUpdatesReadAll(raw: unknown): { markedCount: number } {
+  const value = object(raw);
+  return { markedCount: count(value.markedCount) };
+}
+export function appointmentPreparation(raw: unknown): AppointmentPreparation {
+  const value = object(raw),
+    version = count(value.version);
+  const updatedAt = value.updatedAt === null ? null : instant(value.updatedAt);
+  const note = text(value.note, 1000, true);
+  const goalId = value.goalId === null ? null : id(value.goalId);
+  if (
+    typeof value.ready !== "boolean" ||
+    (version === 0) !== (updatedAt === null) ||
+    (version === 0 && (note !== "" || goalId !== null || value.ready !== false))
+  )
+    throw new TalaApiError("INVALID_RESPONSE");
+  return {
+    appointmentId: id(value.appointmentId),
+    ownerUid: id(value.ownerUid),
+    note,
+    goalId,
+    ready: value.ready,
+    version,
+    updatedAt,
+  };
+}
 export function array(raw: unknown, max = 500): unknown[] {
   if (!Array.isArray(raw) || raw.length > max)
     throw new TalaApiError("INVALID_RESPONSE");
@@ -84,7 +256,7 @@ export function hash(raw: unknown): string {
 export function user(raw: unknown): User {
   const value = object(raw);
   if (
-    !["student", "parent", "operator"].includes(String(value.role)) ||
+    !["student", "parent", "alumni", "operator"].includes(String(value.role)) ||
     typeof value.emailVerified !== "boolean"
   )
     throw new TalaApiError("INVALID_RESPONSE");
@@ -259,6 +431,15 @@ export function appointment(raw: unknown, expectedOwner?: string): Appointment {
       : { learningRecordId: id(value.learningRecordId) }),
   };
 }
+function evidenceContext(value: Record<string, unknown>) {
+  const classId = value.classId === undefined ? undefined : id(value.classId);
+  if (classId) {
+    if (value.appointmentId !== "") throw new TalaApiError("INVALID_RESPONSE");
+    return { appointmentId: "", classId };
+  }
+  return { appointmentId: id(value.appointmentId) };
+}
+
 export function evidence(raw: unknown, expectedOwner?: string): Evidence {
   const value = object(raw);
   const ownerUid = id(value.ownerUid);
@@ -293,7 +474,7 @@ export function evidence(raw: unknown, expectedOwner?: string): Evidence {
   return {
     id: evidenceId,
     ownerUid,
-    appointmentId: id(value.appointmentId),
+    ...evidenceContext(value),
     title: text(value.title, 120),
     contentType: contentType(value.contentType),
     size,
@@ -383,7 +564,7 @@ export function pendingUploads(raw: unknown): PendingUploads {
     return {
       uploadId: id(saved.uploadId),
       title: text(saved.title, 120),
-      appointmentId: id(saved.appointmentId),
+      ...evidenceContext(saved),
       contentType: contentType(saved.contentType),
       size,
       sha256: hash(saved.sha256),
@@ -572,6 +753,38 @@ export function operations(raw: unknown): Operations {
       };
     }),
   };
+}
+export function sessionTimes(raw: unknown): SessionTimes {
+  const value = object(raw);
+  if (value.source !== "local" && value.source !== "mock")
+    throw new TalaApiError("INVALID_RESPONSE");
+  const sessions = array(value.sessions, 50).map((item) => {
+    const session = object(item);
+    const startsAt = instant(session.startsAt),
+      endsAt = instant(session.endsAt);
+    const capacity = count(session.capacity),
+      remaining = count(session.remaining);
+    if (
+      Date.parse(endsAt) <= Date.parse(startsAt) ||
+      capacity < 1 ||
+      capacity > 100 ||
+      remaining > capacity ||
+      (session.sessionType !== "one_on_one" && session.sessionType !== "pod")
+    )
+      throw new TalaApiError("INVALID_RESPONSE");
+    return {
+      id: id(session.id),
+      sessionType: session.sessionType as SessionTime["sessionType"],
+      label: text(session.label, 80),
+      startsAt,
+      endsAt,
+      capacity,
+      remaining,
+    };
+  });
+  if (new Set(sessions.map((session) => session.id)).size !== sessions.length)
+    throw new TalaApiError("INVALID_RESPONSE");
+  return { source: value.source, timeZone: text(value.timeZone, 64), sessions };
 }
 export function openTimes(raw: unknown): OpenTimes {
   const value = object(raw);

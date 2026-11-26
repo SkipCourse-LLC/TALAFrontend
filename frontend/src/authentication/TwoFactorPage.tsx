@@ -8,7 +8,7 @@ import {
   demoVerificationCode,
   TwoFactorError,
   twoFactorService,
-} from "./twoFactorAdapter";
+} from "./twoFactorService";
 import type {
   AuthenticatorSetup,
   TwoFactorChallenge,
@@ -16,7 +16,7 @@ import type {
   TwoFactorMethod,
   TwoFactorService,
   TwoFactorSignup,
-} from "./twoFactorAdapter";
+} from "./twoFactorService";
 import "./twoFactor.css";
 
 interface TwoFactorPageProps {
@@ -32,7 +32,7 @@ interface FlowError {
   message: string;
 }
 
-// Never render API messages; they may contain secrets.
+// API messages are never rendered: they may contain credentials or internals.
 function safeError(failure: unknown, verifying: boolean): FlowError {
   const code = failure instanceof TwoFactorError ? failure.code : "unavailable";
   switch (code) {
@@ -64,13 +64,16 @@ function safeError(failure: unknown, verifying: boolean): FlowError {
   }
 }
 
+// Adapter cancellation is best-effort and must not block local secret cleanup.
 function cancelChallenge(
   service: TwoFactorService,
   challenge: TwoFactorChallenge,
 ) {
   try {
     service.cancel(challenge);
-  } catch {}
+  } catch {
+    // The request signal and UI generation still prevent stale completion.
+  }
 }
 
 export function TwoFactorPage({
@@ -78,7 +81,8 @@ export function TwoFactorPage({
   ...props
 }: TwoFactorPageProps) {
   const [boundary, setBoundary] = useState({ service, version: 0 });
-  // A new adapter remounts the flow, dropping its secrets and requests.
+  // Changing an injected adapter invalidates all its transient UI and requests.
+  // A conditional render adjustment remounts the flow before effects can run.
   if (boundary.service !== service)
     setBoundary({ service, version: boundary.version + 1 });
   const identity = props.receipt
@@ -130,7 +134,8 @@ function TwoFactorFlow({
     error?.code === "input" ||
     error?.code === "invalid_code" ||
     error?.code === "expired_code";
-  // Clear secrets before showing completion, even if the host completed it.
+  // A host can mark verification complete without using our submit handler.
+  // Clear transient secret/code state before committing the completion UI.
   if (isComplete && (prepared !== null || code !== "")) {
     setPrepared(null);
     setCode("");
@@ -166,7 +171,8 @@ function TwoFactorFlow({
     };
   }, [email, isComplete, method, available, attempt, service]);
 
-  // Invalidate during commit so adapters that ignore AbortSignal can't finish a replaced flow.
+  // Invalidate requests during commit, before passive cleanup: even adapters
+  // that ignore AbortSignal cannot authenticate a flow after it is replaced.
   useLayoutEffect(
     () => () => {
       request.current?.abort();
@@ -325,6 +331,7 @@ function TwoFactorFlow({
         setError(nextError);
       }
     } finally {
+      // An old response must never unlock or clear a newer request.
       if (request.current === controller) {
         request.current = null;
         if (!controller.signal.aborted) setPending(false);

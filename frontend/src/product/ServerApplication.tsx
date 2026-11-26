@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 import type { ReactNode } from "react";
 import { SiteLayout } from "../shared/SiteLayout";
@@ -7,6 +14,11 @@ import { RouteFocus } from "../shared/RouteFocus";
 import { HomePage } from "../public-site/HomePage";
 import { AboutPage } from "../public-site/AboutPage";
 import { ProgramsPage } from "../public-site/ProgramsPage";
+import {
+  AdmissionsPage,
+  TuitionPage,
+  FaqPage,
+} from "../public-site/InformationPages";
 import { CommunityPage } from "../public-site/CommunityPage";
 import { NotFoundPage } from "../public-site/NotFoundPage";
 import { ContactRequestPage } from "../onboarding/ContactRequestPage";
@@ -14,30 +26,58 @@ import { OpenTimesPage } from "../onboarding/OpenTimesPage";
 import { talaApi, safeTalaApiError } from "../api";
 import type { ApiUser } from "../api";
 import { ServerAccessPage } from "./ServerAccessPage";
+import { AdmissionStartPage } from "./admissions/AdmissionStartPage";
+import { EnrollmentPage } from "./admissions/EnrollmentPage";
+import { WorkspaceHeader } from "./WorkspaceHeader";
+import { PaymentPage } from "../payment/PaymentPage";
+import { TestCheckoutPage } from "../payment/TestCheckoutPage";
 import { ServerWorkspace } from "./ServerWorkspace";
 import { OperatorWorkspace } from "./OperatorWorkspace";
+import { AlumniWorkspace } from "./AlumniWorkspace";
 import { AccountSecurityPage } from "./AccountSecurityPage";
+import { ApplicationConnectionNotice } from "./ApplicationConnectionNotice";
 import { useSessionPrivacy } from "./useSessionPrivacy";
 import { WorkspaceVisibility } from "./workspaceVisibility";
+import { readWorkspaceView, workspaceViews } from "./workspaceViews";
+import type { WorkspaceView } from "./workspaceViews";
+import { portalSection } from "./workspaceSections";
 import "./product.css";
-import { RegisterPage } from "../registration/RegisterPage";
+import "./quietAccount.css";
 
-function IndependentRouteFocus() {
-  const { pathname } = useLocation();
+// Firebase is only downloaded when an administrator opens /admin.
+const AdminPage = lazy(() =>
+  import("../admin/AdminPage").then((module) => ({
+    default: module.AdminPage,
+  })),
+);
+
+function IndependentRouteFocus({ role }: { role?: ApiUser["role"] }) {
+  const { pathname, search } = useLocation();
   useEffect(() => {
     if (pathname !== "/dashboard" && pathname !== "/two-factor") return;
+    const view = readWorkspaceView(new URLSearchParams(search).get("view"));
     document.title =
       pathname === "/two-factor"
         ? "Account security | TALA"
-        : "Your workspace | TALA";
+        : role === "operator" || role === "alumni"
+          ? "Your workspace | TALA"
+          : role === "student" || role === "parent"
+            ? `${portalPageTitle(role, view)} | TALA`
+            : `${workspaceViews.find((item) => item.id === view)!.label} | TALA`;
+  }, [pathname, search, role]);
+  useEffect(() => {
+    if (pathname !== "/dashboard" && pathname !== "/two-factor") return;
     window.scrollTo({ top: 0, behavior: "instant" });
     document.getElementById("main-content")?.focus({ preventScroll: true });
   }, [pathname]);
+  // Workspace panels manage their own focus. Public routes retain the existing
+  // shared behavior without changing the other application's navigation.
   return pathname === "/dashboard" || pathname === "/two-factor" ? null : (
     <RouteFocus />
   );
 }
 
+/** Keep in-memory forms/files through internal links, scoped to this identity. */
 function WorkspaceKeeper({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const visible = pathname === "/dashboard";
@@ -72,7 +112,12 @@ export function ServerApplication() {
   const loggingOut = useRef(false);
   const restored = useCallback((next: ApiUser | null) => {
     intent.current++;
-    setUser(next);
+    // An unchanged session keeps the same object so nothing re-renders.
+    setUser((current) =>
+      current && next && JSON.stringify(current) === JSON.stringify(next)
+        ? current
+        : next,
+    );
   }, []);
   const privacy = useSessionPrivacy({
     user,
@@ -80,7 +125,7 @@ export function ServerApplication() {
     intent,
     onRestored: restored,
   });
-  const { changedHere } = privacy;
+  const { changedHere, retry: revalidateSession } = privacy;
   useEffect(() => {
     active.current = true;
     return () => {
@@ -122,7 +167,9 @@ export function ServerApplication() {
     [changedHere],
   );
   const profileSaved = useCallback((next: ApiUser) => {
-    // Profile responses may update the name only, never restore a session or role.
+    // A profile response is not a new authentication event. A delayed response
+    // may update this identity's name, but never restore a hidden session or
+    // replace trusted role/email fields with a previous request's snapshot.
     setUser((current) =>
       current?.uid === next.uid ? { ...current, name: next.name } : current,
     );
@@ -138,40 +185,40 @@ export function ServerApplication() {
         setError("");
         changedHere();
       }
+    } catch (failure) {
+      // The server may have ended the cookie session before its reply was
+      // lost. Conceal cached records until a fresh read confirms the outcome.
+      if (active.current) revalidateSession();
+      throw failure;
     } finally {
       loggingOut.current = false;
     }
   }
   const expired = useCallback(() => {
-    intent.current++;
-    setUser(null);
-    setAttempt((value) => value + 1);
-    changedHere();
-  }, [changedHere]);
+    // A rejected old response is not proof that the current cookie expired.
+    // Preserve drafts/Files until the privacy layer checks the actual session;
+    // it keeps all private content hidden while that decision is uncertain.
+    revalidateSession();
+  }, [revalidateSession]);
   if (loading)
     return (
       <div className="container state-panel" role="status">
-        Restoring your secure session…
+        Restoring session…
       </div>
     );
-  // Without the API, public pages still render; only account pages show this.
+  // Public pages and /admin do not need the API; only account pages show this.
   const unavailable = error ? (
-    <section className="container state-panel" role="alert">
-      <h1>Accounts are not available yet</h1>
-      <p>{error}</p>
-      <button
-        className="button"
-        type="button"
-        onClick={() => {
-          setLoading(true);
-          setError("");
-          setAttempt((value) => value + 1);
-        }}
-      >
-        Retry connection
-      </button>
-    </section>
+    <ApplicationConnectionNotice
+      error={error}
+      onRetry={() => {
+        setLoading(true);
+        setError("");
+        setAttempt((value) => value + 1);
+      }}
+    />
   ) : null;
+  // Role-aware sign-in: the role in the server session, never the sign-in
+  // form, decides which dashboard /dashboard shows.
   const workspace = user ? (
     user.role === "operator" ? (
       <OperatorWorkspace
@@ -179,6 +226,12 @@ export function ServerApplication() {
         user={user}
         onLogout={logout}
         onExpired={expired}
+      />
+    ) : user.role === "alumni" ? (
+      <AlumniWorkspace
+        key={`${user.uid}:${user.role}:${privacy.accessEpoch}`}
+        user={user}
+        onLogout={logout}
       />
     ) : (
       <ServerWorkspace
@@ -199,16 +252,14 @@ export function ServerApplication() {
           role={privacy.error ? "alert" : "status"}
         >
           <h1>
-            {!privacy.checking
-              ? "Confirm your session to continue"
-              : "Checking your secure session…"}
+            {!privacy.checking ? "Confirm your session" : "Checking session…"}
           </h1>
           {!privacy.checking && (
             <>
               {privacy.error && <p>{privacy.error}</p>}
               <p>
-                Your records stay hidden until your current account is
-                confirmed. Unsent workspace drafts stay in this tab.
+                Records stay hidden until confirmed. Your drafts stay in this
+                tab.
               </p>
               <button
                 className="button"
@@ -227,7 +278,22 @@ export function ServerApplication() {
         style={{ display: privacy.blocked ? "none" : undefined }}
       >
         <Routes>
-          <Route element={<SiteLayout session={user} backend="api" />}>
+          <Route
+            element={
+              <SiteLayout
+                session={user}
+                backend="api"
+                workspaceHeader={
+                  user ? (
+                    <WorkspaceHeader
+                      key={`${user.uid}:${privacy.accessEpoch}`}
+                      user={user}
+                    />
+                  ) : undefined
+                }
+              />
+            }
+          >
             <Route
               element={
                 <WorkspaceKeeper>
@@ -268,8 +334,19 @@ export function ServerApplication() {
                   user ? (
                     <Navigate to="/dashboard" replace />
                   ) : (
-                    (unavailable ?? <RegisterPage />)
+                    (unavailable ?? <AdmissionStartPage />)
                   )
+                }
+              />
+              <Route path="application" element={<AdmissionStartPage />} />
+              <Route
+                path="enroll"
+                element={
+                  <EnrollmentPage
+                    currentUser={user}
+                    onAuthenticated={authenticated}
+                    onLogout={logout}
+                  />
                 }
               />
               <Route
@@ -280,10 +357,31 @@ export function ServerApplication() {
                     : (unavailable ?? <Navigate to="/login" replace />)
                 }
               />
+              <Route
+                path="admin"
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="container state-panel" role="status">
+                        Loading admin…
+                      </div>
+                    }
+                  >
+                    <AdminPage />
+                  </Suspense>
+                }
+              />
               <Route path="about" element={<AboutPage />} />
               <Route path="learn-more" element={<AboutPage />} />
               <Route path="programs" element={<ProgramsPage />} />
-              <Route path="contact" element={<ContactRequestPage />} />
+              <Route path="admissions" element={<AdmissionsPage />} />
+              <Route path="tuition" element={<TuitionPage />} />
+              <Route path="faq" element={<FaqPage />} />
+              <Route
+                path="contact"
+                element={<CommunityPage kind="contact" />}
+              />
+              <Route path="contact-request" element={<ContactRequestPage />} />
               <Route path="schedule" element={<OpenTimesPage />} />
               <Route path="events" element={<CommunityPage kind="events" />} />
               <Route
@@ -306,20 +404,30 @@ export function ServerApplication() {
               <Route
                 path="payment"
                 element={
-                  <section className="container state-panel">
-                    <h1>Payment service not connected</h1>
-                    <p>
-                      No payment provider or approved fee schedule is
-                      configured. No card details are collected and no payment
-                      can be made.
-                    </p>
-                    <Link
-                      className="button"
-                      to={user ? "/dashboard" : "/login"}
-                    >
-                      Back to your workspace
-                    </Link>
-                  </section>
+                  user?.role === "parent" ? (
+                    <PaymentPage
+                      key={`${user.uid}:${privacy.accessEpoch}`}
+                      user={user}
+                      onExpired={expired}
+                    />
+                  ) : (
+                    // Family payments belong to parents; other roles go home.
+                    <Navigate to={user ? "/dashboard" : "/login"} replace />
+                  )
+                }
+              />
+              <Route
+                path="payment/test-checkout/:paymentId"
+                element={
+                  user?.role === "parent" ? (
+                    <TestCheckoutPage
+                      key={`${user.uid}:${privacy.accessEpoch}`}
+                      user={user}
+                      onExpired={expired}
+                    />
+                  ) : (
+                    <Navigate to={user ? "/dashboard" : "/login"} replace />
+                  )
                 }
               />
               <Route
@@ -330,8 +438,15 @@ export function ServerApplication() {
             </Route>
           </Route>
         </Routes>
-        <IndependentRouteFocus />
+        <IndependentRouteFocus role={user?.role} />
       </div>
     </>
   );
+}
+
+/** The page's menu name, with its tab: "My Work · Plan", "Learning · Progress". */
+function portalPageTitle(role: string, view: WorkspaceView) {
+  const place = portalSection(role, view);
+  const tab = place.tabs?.find((item) => item.view === view);
+  return tab ? `${place.label} · ${tab.label}` : place.label;
 }

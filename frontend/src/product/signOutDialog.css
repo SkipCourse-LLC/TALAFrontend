@@ -1,0 +1,41 @@
+.student-signout-dialog {
+  width: min(520px, calc(100% - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  border: 1px solid #d2d8d4;
+  border-radius: 24px;
+  padding: clamp(24px, 4vw, 36px);
+  color: #1d1d1f;
+  background: #fff;
+}
+.student-signout-dialog::backdrop {
+  background: rgb(22 39 33 / 45%);
+}
+.student-signout-dialog h2 {
+  font-size: 1.6rem;
+  line-height: 1.25;
+  letter-spacing: -0.035em;
+  margin-bottom: 20px;
+}
+.student-signout-dialog > p {
+  color: #626268;
+  line-height: 1.7;
+  max-width: 55ch;
+  margin-bottom: 28px;
+}
+.student-signout-dialog .button {
+  min-height: 44px;
+  white-space: normal;
+}
+.student-signout-dialog > .product-error {
+  color: #852921;
+}
+@media (max-width: 480px) {
+  .student-signout-dialog .product-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .student-signout-dialog .button {
+    width: 100%;
+  }
+}

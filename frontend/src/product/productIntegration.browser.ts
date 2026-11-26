@@ -1,3 +1,4 @@
+import { chooseMeetingTime } from "./meetingBrowserHelpers";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -30,6 +31,12 @@ interface TestApplication {
   endBooking(email: string): Promise<{ appointmentId: string }>;
   dropUnsubmittedFile(uploadId: string): Promise<void>;
   disableStudent(email: string): Promise<void>;
+  provisionAccount(input: {
+    name: string;
+    email: string;
+    password: string;
+    role: "student" | "parent";
+  }): Promise<unknown>;
   close(): Promise<void>;
 }
 let application: TestApplication;
@@ -142,6 +149,7 @@ async function startIsolatedApplication(
     disableStudent: async (email) => {
       await call("disableStudent", email);
     },
+    provisionAccount: (input) => call("provisionAccount", input),
     findUid: async (email) => {
       const value = await call("findUid", email);
       if (typeof value !== "string")
@@ -204,29 +212,24 @@ async function register(
     email: `${suffix}@example.test`,
     password: `Synthetic-only-${suffix}`,
   };
-  await page.goto("/#/register");
-  await page.getByLabel("Name", { exact: true }).fill(account.name);
-  await page
-    .getByRole("combobox", { name: /^Account type/ })
-    .selectOption(role);
+  // Self sign-up is closed: the fixture provisions the synthetic account with
+  // the server's own validators, then the browser signs in through /#/login.
+  await application.provisionAccount({ ...account, role });
+  await page.goto("/#/login");
   await page.getByLabel("Email", { exact: true }).fill(account.email);
   await page.getByLabel("Password", { exact: true }).fill(account.password);
-  await page
-    .getByLabel("Confirm password", { exact: true })
-    .fill(account.password);
   if (loseSavedResponse)
-    await page.route("**/api/auth/register", async (route) => {
-      // Lose the response after the server committed; recovery must not register twice.
+    await page.route("**/api/auth/login", async (route) => {
+      // Complete the real server sign-in/cookie rotation, then lose its browser
+      // response. Recovery must inspect the saved session, not sign in twice.
       const saved = await route.fetch();
       expect(saved.ok()).toBe(true);
       await route.abort("connectionfailed");
     });
-  await page
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   if (loseSavedResponse) {
     await expect(page.getByRole("alert")).toContainText("could not be reached");
-    await page.unroute("**/api/auth/register");
+    await page.unroute("**/api/auth/login");
     await page
       .getByRole("button", { name: "Check saved session", exact: true })
       .click();
@@ -274,11 +277,8 @@ async function book(page: Page) {
   await page
     .getByRole("button", { name: "Refresh records", exact: true })
     .click();
-  const select = page.getByLabel("Available meeting time", { exact: true });
-  await expect(select).toBeEnabled();
-  const id = await select.locator("option").nth(1).getAttribute("value");
+  const id = await chooseMeetingTime(page);
   expect(Boolean(id)).toBe(true);
-  await select.selectOption(id!);
   await page.getByRole("button", { name: "Book meeting", exact: true }).click();
   await expect(
     page
@@ -425,9 +425,8 @@ test("student registration, booking changes, private file persistence and mobile
   ).toBeVisible();
   await publishTimes();
   await book(page);
-  const select = page.getByLabel("Available meeting time", { exact: true });
   const originalTime = await page.locator(".meeting-current-time").innerText();
-  await select.selectOption({ index: 1 });
+  await chooseMeetingTime(page);
   await page
     .getByRole("button", { name: "Change booking", exact: true })
     .click();
@@ -473,7 +472,8 @@ test("student registration, booking changes, private file persistence and mobile
   await submitEvidence(page, false);
   await chooseView(page, "progress");
   const progress = page
-    .locator(".product-stats > div")
+    .getByRole("region", { name: "Saved learning work", exact: true })
+    .locator("dl > div")
     .filter({ hasText: "Evidence submitted" })
     .locator("dd");
   await expect(progress).toHaveText("1");
@@ -512,11 +512,13 @@ test("student registration, booking changes, private file persistence and mobile
   ).toBeVisible();
   expect(new URL(page.url()).hash).toContain("view=evidence");
   await capture(page, "tala-evidence-desktop-qa.png");
+  // /#/register is the admissions application now; a signed-in user is sent
+  // straight back to their own dashboard instead.
   await page.goto("/#/register");
   await expect(page).toHaveURL(/#\/dashboard(?:\?|$)/);
   await expect(
-    page.getByRole("button", { name: "Create account", exact: true }),
-  ).toHaveCount(0);
+    page.getByRole("heading", { name: `Hello, ${account.name}.`, exact: true }),
+  ).toBeVisible();
   const cookie = (await context.cookies()).find(
     (entry) => entry.name === "tala_session",
   );
@@ -765,9 +767,17 @@ test("operator review, availability controls and learning summaries lead to a pr
   await signOut(page);
   await application.operator.promote(operator.email);
   await login(page, operator, true);
-  const reviewTab = page.getByRole("tab", { name: /^Review evidence/ });
-  const meetingsTab = page.getByRole("tab", { name: "Meetings", exact: true });
-  const learningTab = page.getByRole("tab", {
+  const operatorMenu = page.getByRole("navigation", {
+    name: "Operations workspace",
+  });
+  const reviewTab = operatorMenu.getByRole("button", {
+    name: /^Review evidence/,
+  });
+  const meetingsTab = operatorMenu.getByRole("button", {
+    name: "Meetings",
+    exact: true,
+  });
+  const learningTab = operatorMenu.getByRole("button", {
     name: "Learning summaries",
     exact: true,
   });
@@ -778,7 +788,7 @@ test("operator review, availability controls and learning summaries lead to a pr
     .getByRole("textbox", { name: "Review note", exact: true })
     .fill(staffNote);
   await meetingsTab.click();
-  await expect(meetingsTab).toHaveAttribute("aria-selected", "true");
+  await expect(meetingsTab).toHaveAttribute("aria-current", "page");
   await expect(
     page.getByRole("textbox", { name: "Review note", exact: true }),
   ).not.toBeVisible();
@@ -962,25 +972,25 @@ test("operator review, availability controls and learning summaries lead to a pr
     revisedBytes,
   );
   await chooseView(page, "progress");
-  const stats = page.locator("#progress .product-stats");
+  const stats = page.getByRole("region", {
+    name: "Saved learning work",
+    exact: true,
+  });
   await expect(
     stats
-      .locator("div")
+      .locator("dl > div")
       .filter({ hasText: "Evidence submitted" })
       .locator("dd"),
   ).toHaveText("2");
   await expect(
     stats
-      .locator("div")
+      .locator("dl > div")
       .filter({ hasText: "Revisions submitted" })
       .locator("dd"),
   ).toHaveText("1");
   await expect(
-    stats
-      .locator("div")
-      .filter({ hasText: "Summaries acknowledged" })
-      .locator("dd"),
-  ).toHaveText("1");
+    page.getByText("1 learning note marked as reviewed.", { exact: true }),
+  ).toBeVisible();
   await chooseView(page, "evidence");
   await page
     .getByRole("button", {
@@ -1315,7 +1325,8 @@ test("unfinished Evidence survives refresh and recovers submitted or missing-fil
   await chooseView(page, "progress");
   await expect(
     page
-      .locator(".product-stats > div")
+      .getByRole("region", { name: "Saved learning work", exact: true })
+      .locator("dl > div")
       .filter({ hasText: "Evidence submitted" })
       .locator("dd"),
   ).toHaveText("2");
@@ -1681,7 +1692,8 @@ test("session privacy revalidates after a delayed password body instead of reusi
       .getByRole("button", { name: "Change password", exact: true })
       .click();
     await passwordReady;
-    // Rotate the cookie in tab two while tab one's GET is held.
+    // Adopt the server's newly rotated cookie in the second tab, then hold the
+    // first tab's current GET before ending that same shared session.
     await other.reload();
     await expect(
       other.getByRole("heading", {

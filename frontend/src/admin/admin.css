@@ -1,0 +1,163 @@
+.admin-page,
+.admin-signin {
+  padding-block: 48px 64px;
+}
+.admin-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.admin-row h2,
+.admin-subhead {
+  margin: 0;
+}
+.admin-subhead {
+  margin-top: var(--space-5);
+}
+.admin-heading h1 {
+  margin: 0;
+  font-size: var(--text-title);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+.admin-eyebrow {
+  margin: 0 0 12px;
+  color: var(--color-accent);
+  font-weight: 650;
+}
+.admin-hint {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+.admin-error,
+.admin-status,
+.admin-empty {
+  padding: 12px 16px;
+  border-radius: var(--radius-control);
+}
+.admin-error {
+  background: #f5eeee;
+  color: #9d2923;
+}
+.admin-status {
+  background: var(--color-green);
+  color: var(--color-accent);
+}
+.admin-empty {
+  background: var(--color-paper);
+  color: var(--color-muted);
+}
+.admin-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.admin-list button,
+.admin-published {
+  display: block;
+  width: 100%;
+  padding: 20px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--color-surface);
+  border: var(--border-panel);
+  border-radius: var(--radius-card);
+}
+.admin-list button {
+  cursor: pointer;
+}
+.admin-list button:hover {
+  border-color: var(--color-accent);
+}
+.admin-list span {
+  margin-left: 12px;
+  color: var(--color-muted);
+  text-transform: capitalize;
+}
+.admin-list small {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-muted);
+}
+.admin-form {
+  display: grid;
+  gap: var(--space-3);
+}
+.admin-grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.admin-wide {
+  grid-column: 1 / -1;
+}
+.admin-field label {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.admin-field input:not([type="file"]),
+.admin-field select,
+.admin-field textarea {
+  width: 100%;
+  padding: 12px 16px;
+  font: inherit;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  border: 1px solid var(--color-control-line);
+  border-radius: var(--radius-control);
+}
+.admin-field input:focus-visible,
+.admin-field select:focus-visible,
+.admin-field textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: var(--shadow-focus);
+}
+.admin-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  font-size: var(--text-small);
+}
+.admin-files img {
+  display: block;
+  width: 100%;
+  height: 112px;
+  object-fit: cover;
+  border-radius: var(--radius-control);
+}
+.admin-files a {
+  display: flex;
+  height: 112px;
+  align-items: center;
+  justify-content: center;
+  border: var(--border-panel);
+  border-radius: var(--radius-control);
+  color: var(--color-accent);
+}
+.admin-files p {
+  margin: 4px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-link-button {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: #9d2923;
+  text-decoration: underline;
+  font: inherit;
+  cursor: pointer;
+}

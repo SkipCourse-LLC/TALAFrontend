@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { safeTalaApiError, TalaApiError } from "../api";
 
 export type StudentPage<T> = { items: T[]; nextCursor: string | null };
 type SavedPage<T> = StudentPage<T> & { key: string; loaded: boolean };
+type PageFailure = { key: string; message: string; more: boolean };
 
+/** A failed page never discards already loaded rows or advances its cursor. */
 export function useStudentPage<T extends { id: string }>({
   pageKey,
   revision,
@@ -23,16 +31,25 @@ export function useStudentPage<T extends { id: string }>({
   const [saved, setSaved] = useState<SavedPage<T>>();
   const [loading, setLoading] = useState(false);
   const [moreLoading, setMoreLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [failedMore, setFailedMore] = useState(false);
+  const [failure, setFailure] = useState<PageFailure>();
   const [attempt, setAttempt] = useState(0);
   const generation = useRef(0);
   const nextRequest = useRef<AbortController | null>(null);
   const firstRequest = useRef<AbortController | null>(null);
   const savedRef = useRef(saved);
-  useEffect(() => {
+  useLayoutEffect(() => {
     savedRef.current = saved;
   }, [saved]);
+  useLayoutEffect(() => {
+    const requestGeneration = generation;
+    // Retiring a query/identity fences its callbacks before passive cleanup.
+    // Its late failure must not expire or hide a newer workspace.
+    return () => {
+      requestGeneration.current++;
+      firstRequest.current?.abort();
+      nextRequest.current?.abort();
+    };
+  }, [pageKey, revision, enabled, load, onFailure, attempt]);
   useEffect(() => {
     const version = ++generation.current;
     const request = new AbortController();
@@ -40,28 +57,27 @@ export function useStudentPage<T extends { id: string }>({
     nextRequest.current = null;
     if (!enabled) return () => request.abort();
     firstRequest.current = request;
-    // Update state only after the request so old filter rows never show under a new filter.
+    // State is changed only in the async continuation; this also prevents a
+    // previous filter's rows appearing under a newly selected filter.
     const start = window.setTimeout(() => {
       if (!request.signal.aborted) {
         setLoading(true);
         setMoreLoading(false);
-        setError("");
+        setFailure(undefined);
       }
     }, 0);
     void load(undefined, request.signal)
       .then((page) => {
         if (request.signal.aborted || version !== generation.current) return;
         setSaved({ ...page, key: pageKey, loaded: true });
-        setError("");
-        setFailedMore(false);
+        setFailure(undefined);
       })
       .catch((failure: unknown) => {
         if (request.signal.aborted || version !== generation.current) return;
         const problem = safeTalaApiError(failure);
         if (["AUTH_REQUIRED", "FORBIDDEN"].includes(problem.code))
           setSaved(undefined);
-        setError(problem.message);
-        setFailedMore(false);
+        setFailure({ key: pageKey, message: problem.message, more: false });
         onFailure(failure);
       })
       .finally(() => {
@@ -94,7 +110,7 @@ export function useStudentPage<T extends { id: string }>({
     nextRequest.current = request;
     const version = generation.current;
     setMoreLoading(true);
-    setError("");
+    setFailure(undefined);
     try {
       const page = await load(previous.nextCursor, request.signal);
       if (request.signal.aborted || version !== generation.current) return;
@@ -108,14 +124,12 @@ export function useStudentPage<T extends { id: string }>({
         key: pageKey,
         loaded: true,
       });
-      setFailedMore(false);
     } catch (failure) {
       if (request.signal.aborted || version !== generation.current) return;
       const problem = safeTalaApiError(failure);
       if (["AUTH_REQUIRED", "FORBIDDEN"].includes(problem.code))
         setSaved(undefined);
-      setError(problem.message);
-      setFailedMore(true);
+      setFailure({ key: pageKey, message: problem.message, more: true });
       onFailure(failure);
     } finally {
       if (nextRequest.current === request) nextRequest.current = null;
@@ -124,15 +138,22 @@ export function useStudentPage<T extends { id: string }>({
     }
   }, [enabled, loading, moreLoading, pageKey, load, onFailure]);
   const current = enabled && saved?.key === pageKey ? saved : undefined;
+  const currentFailure =
+    enabled && failure?.key === pageKey ? failure : undefined;
+  const error = currentFailure?.message ?? "";
+  const failedMore = Boolean(currentFailure?.more);
+  const retry = useCallback(() => {
+    if (failedMore) void loadMore();
+    else setAttempt((value) => value + 1);
+  }, [failedMore, loadMore]);
   return {
     items: current?.items ?? [],
     loaded: Boolean(current?.loaded),
     nextCursor: current?.nextCursor ?? null,
     loading: enabled && (loading || (!current && !error)),
-    moreLoading,
+    moreLoading: enabled && moreLoading,
     error,
     loadMore,
-    retry: () =>
-      failedMore ? void loadMore() : setAttempt((value) => value + 1),
+    retry,
   };
 }

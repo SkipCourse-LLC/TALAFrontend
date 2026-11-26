@@ -6,7 +6,7 @@ import { authErrorMessage, authService } from "./authService";
 import type { AuthValues } from "./formValidation";
 import { demoEnabled } from "../shared/services/demoConfig";
 import { sampleSession } from "../shared/services/demoData";
-import type { EnrollmentReceipt } from "../registration/enrollmentContract";
+import type { EnrollmentReceipt } from "../registration/enrollmentService";
 import type {
   CommunityRole,
   DemoSession,
@@ -67,7 +67,8 @@ function LoginPageContent({
     request.current = controller;
     setPendingSource(source);
     setQuickError("");
-    // Capture these before awaiting so later UI changes can't alter the result.
+    // Capture identity and destination before awaiting; later UI changes cannot
+    // turn the same response into a different role or family.
     const chosenRole = role;
     const chosenParentView = parentView;
     const destination = state?.fromPayment

@@ -1,13 +1,16 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { meetingRange } from "./meetingHelpers";
+import { meetingScheduleLabel } from "./meetingPresentation";
 import type { MeetingChange } from "./meetingHelpers";
 
 export function MeetingActionDialog({
   change,
   timeZone,
   busy,
+  refreshing = false,
   current,
   draftBlocked,
+  uploadsKnown = true,
+  preparationBlocked = false,
   error,
   onClose,
   onConfirm,
@@ -16,8 +19,11 @@ export function MeetingActionDialog({
   change: MeetingChange;
   timeZone: string;
   busy: boolean;
+  refreshing?: boolean;
   current: boolean;
   draftBlocked: boolean;
+  uploadsKnown?: boolean;
+  preparationBlocked?: boolean;
   error: string;
   onClose: () => void;
   onConfirm: () => void;
@@ -25,6 +31,16 @@ export function MeetingActionDialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const alert = useRef<HTMLParagraphElement>(null);
+  const refreshButton = useRef<HTMLButtonElement>(null);
+  const keepButton = useRef<HTMLButtonElement>(null);
+  const requestedRefresh = useRef(false);
+  const actionLabel = busy
+    ? refreshing
+      ? "Refreshing…"
+      : "Saving…"
+    : change.kind === "cancel"
+      ? "Confirm cancellation"
+      : "Confirm change";
   useLayoutEffect(() => {
     const element = dialog.current;
     const opener =
@@ -47,13 +63,25 @@ export function MeetingActionDialog({
     };
   }, []);
   useEffect(() => {
-    if (error) alert.current?.focus();
-  }, [error]);
+    if (error || !current) alert.current?.focus();
+  }, [error, current]);
+  useEffect(() => {
+    if (!requestedRefresh.current || busy || refreshing) return;
+    requestedRefresh.current = false;
+    if (!current) alert.current?.focus({ preventScroll: true });
+    else
+      (refreshButton.current ?? keepButton.current)?.focus({
+        preventScroll: true,
+      });
+  }, [busy, refreshing, current]);
   return (
     <dialog
       ref={dialog}
       className="meeting-confirmation"
       aria-labelledby="meeting-confirm-heading"
+      aria-describedby="meeting-confirm-description"
+      aria-busy={busy}
+      data-intent={change.kind}
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) onClose();
@@ -64,53 +92,44 @@ export function MeetingActionDialog({
           ? "Cancel this booking?"
           : "Change this booking?"}
       </h2>
-      <p>
+      <p id="meeting-confirm-description">
         {change.kind === "cancel"
-          ? "Your reserved time will become available to other students. Your saved learning records and files will be kept."
-          : "Your current booking stays reserved until the server confirms the replacement. If the new time is unavailable, your original booking is kept."}
+          ? "Releases this time. Saved records and files stay."
+          : "Your current time stays until the change is confirmed."}
       </p>
       <dl className="meeting-confirm-times">
         <div>
-          <dt>Current booking</dt>
-          <dd>
-            {meetingRange(
-              change.booking.startsAt,
-              change.booking.endsAt,
-              timeZone,
-            )}
-          </dd>
+          <dt>Current</dt>
+          <dd>{meetingScheduleLabel(change.booking, timeZone)}</dd>
         </div>
         {change.kind === "reschedule" && (
           <div>
             <dt>Replacement time</dt>
-            <dd>
-              {meetingRange(
-                change.replacement.startsAt,
-                change.replacement.endsAt,
-                timeZone,
-              )}
-            </dd>
+            <dd>{meetingScheduleLabel(change.replacement, timeZone)}</dd>
           </div>
         )}
       </dl>
       <p className="meeting-help">
-        Times shown in {timeZone}. If you saved a personal calendar copy, update
-        it after this change.
+        {timeZone}. Update any downloaded calendar copy.
       </p>
       {!current && (
-        <p className="product-error" role="alert">
-          The saved booking or replacement time has changed. Close this
-          confirmation and review your latest records before continuing.
+        <p className="product-error" role="alert" ref={alert} tabIndex={-1}>
+          Booking or time needs review. Refresh or close.
         </p>
       )}
-      {draftBlocked && (
+      {draftBlocked && current && (
         <p className="meeting-draft-warning" role="alert">
-          An Evidence file for this booking is still being prepared. Finish or
-          explicitly clear or cancel that upload draft before changing this
-          booking. Your file is kept while you switch sections.
+          {uploadsKnown
+            ? "Finish or cancel your Evidence upload first. Your file is kept."
+            : "Check upload status in Evidence before changing this booking."}
         </p>
       )}
-      {error && (
+      {preparationBlocked && current && (
+        <p className="meeting-draft-warning" role="alert">
+          Save or discard preparation notes first.
+        </p>
+      )}
+      {error && current && (
         <p className="product-error" role="alert" ref={alert} tabIndex={-1}>
           {error}
         </p>
@@ -119,31 +138,35 @@ export function MeetingActionDialog({
         <button
           type="button"
           className="button button-secondary"
+          ref={keepButton}
           disabled={busy}
           onClick={onClose}
+          aria-label={current ? "Keep booking" : "Close confirmation"}
         >
-          Keep booking
+          {current ? "Keep" : "Close"}
         </button>
         <button
           type="button"
           className="button"
-          disabled={busy || !current || draftBlocked}
+          disabled={busy || !current || draftBlocked || preparationBlocked}
           onClick={onConfirm}
+          aria-label={actionLabel}
         >
-          {busy
-            ? "Saving…"
-            : change.kind === "cancel"
-              ? "Confirm cancellation"
-              : "Confirm change"}
+          {actionLabel}
         </button>
-        {error && (
+        {(error || !current) && (
           <button
             type="button"
             className="meeting-text-action"
+            ref={refreshButton}
             disabled={busy}
-            onClick={onRefresh}
+            onClick={() => {
+              requestedRefresh.current = true;
+              onRefresh();
+            }}
+            aria-label={refreshing ? "Refreshing…" : "Refresh booking details"}
           >
-            Refresh booking details
+            {refreshing ? "Refreshing…" : "Refresh"}
           </button>
         )}
       </div>

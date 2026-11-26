@@ -1,9 +1,14 @@
 export const workspaceViews = [
   { id: "overview", label: "Overview", heading: "overview-heading" },
+  { id: "classes", label: "Open classes", heading: "classes-heading" },
+  { id: "calendar", label: "Calendar", heading: "calendar-heading" },
+  { id: "updates", label: "Updates", heading: "updates-heading" },
+  { id: "plan", label: "Learning plan", heading: "plan-heading" },
   { id: "meetings", label: "Meetings", heading: "meetings-heading" },
   { id: "learning", label: "Learning records", heading: "records-heading" },
   { id: "evidence", label: "Evidence", heading: "evidence-heading" },
   { id: "progress", label: "Progress", heading: "progress-heading" },
+  { id: "resources", label: "Resources", heading: "resources-heading" },
 ] as const;
 
 export type WorkspaceView = (typeof workspaceViews)[number]["id"];

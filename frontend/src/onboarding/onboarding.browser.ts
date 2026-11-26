@@ -78,7 +78,7 @@ test("T3-51 T3-52 a parent completes the Contact me steps and sees success only 
       });
     },
   });
-  await page.goto("/#/contact");
+  await page.goto("/#/contact-request");
   await expect(
     page.getByRole("heading", { name: "Ask TALA to contact you" }),
   ).toBeVisible();
@@ -128,7 +128,7 @@ test("T3-53 a failed send keeps the answers, shows no success, and retries with 
       });
     },
   });
-  await page.goto("/#/contact");
+  await page.goto("/#/contact-request");
   await fillContactRequest(page);
   await page.getByRole("button", { name: "Send request" }).click();
   await expect(page.getByRole("alert")).toContainText(

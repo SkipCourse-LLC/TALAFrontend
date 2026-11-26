@@ -1,0 +1,173 @@
+.evidence-history {
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+}
+.evidence-history .evidence-history-document {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 6px 0 24px;
+  min-width: 0;
+}
+.evidence-history-document > div {
+  min-width: 0;
+}
+.evidence-history-document-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 48px;
+  height: 56px;
+  border: 1px solid #c6d4ca;
+  border-radius: 14px;
+  background: #eff5f0;
+  color: #174139;
+}
+.evidence-history-document-icon svg,
+.evidence-history-loading svg {
+  width: 25px;
+  height: 25px;
+}
+.evidence-history-document h3 {
+  margin: 0;
+  font-size: calc(1.2rem * var(--student-type-scale, 1));
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.evidence-history .evidence-history-document p {
+  margin: 6px 0 0;
+  color: #59695e;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.6;
+}
+.evidence-history-facts {
+  display: grid;
+  grid-template-columns: 1.3fr 0.7fr 1fr;
+  gap: 18px;
+  margin: 0 0 24px;
+  padding: 18px 0;
+  border-block: 1px solid #d7e0d9;
+}
+.evidence-history-facts > div {
+  min-width: 0;
+}
+.evidence-history-facts dt {
+  margin-bottom: 8px;
+  color: #59695e;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  font-weight: 500;
+}
+.evidence-history-facts dd {
+  margin: 0;
+  color: #253f35;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.evidence-history-review {
+  display: inline-block;
+  border: 1px solid #d5dfd6;
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  color: #3a5848;
+  background: #f0f5f1;
+}
+.evidence-history-review[data-status="needs_revision"] {
+  border-color: #e0d6b9;
+  background: #fbf7e9;
+  color: #785821;
+}
+.evidence-history-review[data-status="reviewed"] {
+  border-color: #bcd4c4;
+  background: #e5f1e9;
+  color: #22563f;
+}
+.evidence-history .student-review-note {
+  border: 1px solid #d5dfd6;
+  border-radius: 14px;
+  background: #f5f8f5;
+  padding: 18px 20px;
+}
+.evidence-history .student-review-note strong {
+  color: #253f35;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.evidence-history .student-review-note p {
+  color: #405448;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+  line-height: 1.7;
+  margin: 10px 0 0;
+}
+.evidence-history .student-review-note time {
+  display: block;
+  margin-top: 12px;
+  color: #59695e;
+  font-size: calc(0.75rem * var(--student-type-scale, 1));
+}
+.evidence-history .evidence-history-versions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 18px;
+  margin-top: 24px;
+  border-top: 1px solid #d7e0d9;
+}
+.evidence-history-versions > span {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  font-weight: 600;
+  color: #59695e;
+}
+.evidence-history-versions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.evidence-history .evidence-history-versions .button {
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+}
+.evidence-history .evidence-history-status {
+  font-size: calc(0.8125rem * var(--student-type-scale, 1));
+  color: #34584b;
+  line-height: 1.6;
+  margin: 14px 0 0;
+}
+.evidence-history .evidence-history-status:empty {
+  display: none;
+}
+.evidence-history-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 100px;
+  color: #59695e;
+}
+.evidence-history-loading p {
+  font-size: calc(0.875rem * var(--student-type-scale, 1));
+}
+.evidence-history :is(h3, button, [role="alert"]):focus-visible {
+  outline: 3px solid #174139;
+  outline-offset: 4px;
+}
+@media (max-width: 520px) {
+  .evidence-history-facts {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .evidence-history-facts > div {
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 12px;
+  }
+  .evidence-history-facts dt {
+    margin: 0;
+  }
+}

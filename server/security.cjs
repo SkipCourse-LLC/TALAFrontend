@@ -15,12 +15,16 @@ function object(value, keys) {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some((key) => !keys.includes(key))) fail(400, "INVALID_INPUT", "The request contains unsupported fields.");
   return value;
 }
+// JSON can represent lone UTF-16 surrogates that have no valid UTF-8 form.
+// Reject those text values before SQLite bindings can silently replace
+// them; preserve all well-formed emoji, combining marks and ordinary text.
+const wellFormedText = (value) => typeof value === "string" && value.isWellFormed();
 function text(value, label, max = 100) {
-  if (typeof value !== "string" || !value.trim() || value.trim().length > max || /[\x00-\x1f\x7f]/.test(value)) fail(400, "INVALID_INPUT", `Enter a valid ${label}.`);
+  if (!wellFormedText(value) || !value.trim() || value.trim().length > max || /[\x00-\x1f\x7f]/.test(value)) fail(400, "INVALID_INPUT", `Enter a valid ${label}.`);
   return value.trim();
 }
 function paragraph(value, label, max = 1000) {
-  if (typeof value !== "string") fail(400, "INVALID_INPUT", `Enter a valid ${label}.`);
+  if (!wellFormedText(value)) fail(400, "INVALID_INPUT", `Enter a valid ${label}.`);
   const normalized = value.replace(/\r\n/g, "\n");
   if (!normalized.trim() || normalized.trim().length > max || /[\x00-\x08\x0b-\x1f\x7f]/.test(normalized)) fail(400, "INVALID_INPUT", `Enter a valid ${label}.`);
   return normalized.trim();
@@ -36,11 +40,17 @@ function requestId(value) {
 }
 function email(value) {
   const normalized = text(value, "email address", 254).toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) fail(400, "INVALID_INPUT", "Enter a valid email address.");
+  // A plain mailbox only: dot-atom local part and a hostname domain. This
+  // rejects query strings, commas and angle brackets that could turn the
+  // address into extra recipients or a crafted mailto: link.
+  if (!/^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(normalized))
+    fail(400, "INVALID_INPUT", "Enter a valid email address.");
   return normalized;
 }
 function password(value, register = true) {
-  if (typeof value !== "string" || value.length > 128 || value.length < (register ? 12 : 1)) fail(400, "INVALID_INPUT", "Use a password containing 12 to 128 characters.");
+  // Keep existing credentials readable while preventing new UTF-8 replacement
+  // aliases when a new password reaches the password hashing implementation.
+  if (typeof value !== "string" || (register && !wellFormedText(value)) || value.length > 128 || value.length < (register ? 8 : 1)) fail(400, "INVALID_INPUT", "Use a password containing 8 to 128 characters.");
   return value;
 }
 async function expensive(fn) {
@@ -72,4 +82,4 @@ function constantEqual(first, second) {
   const left = Buffer.from(first), right = Buffer.from(second);
   return left.length === right.length && timingSafeEqual(left, right);
 }
-module.exports = { ApiError, fail, object, text, paragraph, identifier, requestId, email, password, hash, token, hashPassword, verifyPassword, constantEqual };
+module.exports = { ApiError, fail, object, text, paragraph, wellFormedText, identifier, requestId, email, password, hash, token, hashPassword, verifyPassword, constantEqual };

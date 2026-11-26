@@ -1,23 +1,78 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
-import { validatePublicEnvironment } from "./src/shared/publicEnvironment.ts";
-
-const BACKEND_MODES = ["api", "demo"];
+import {
+  resolveFirebaseConfiguration,
+  validatePublicEnvironment,
+} from "./src/backend/firebaseConfiguration.ts";
 
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, process.cwd(), "VITE_");
   validatePublicEnvironment(environment);
-  const backend = environment.VITE_BACKEND_MODE;
-  if (backend && !BACKEND_MODES.includes(backend))
-    throw new Error(`VITE_BACKEND_MODE must be "api" or "demo".`);
-  const apiProxy = {
-    "/api": { target: "http://127.0.0.1:8787", changeOrigin: false },
-  };
+  if (mode === "firebase-test") {
+    if (environment.VITE_BACKEND_MODE !== "firebase-test")
+      throw new Error(
+        "Configure the approved Firebase test environment before starting this mode.",
+      );
+    resolveFirebaseConfiguration(environment, "localhost");
+  } else if (
+    environment.VITE_BACKEND_MODE &&
+    !["demo", "api"].includes(environment.VITE_BACKEND_MODE)
+  ) {
+    resolveFirebaseConfiguration(environment, "localhost");
+  }
+  const localApiPort = process.env.TALA_LOCAL_API_PORT || "8787";
+  if (!/^\d{4,5}$/.test(localApiPort) || Number(localApiPort) > 65535)
+    throw new Error("Choose a valid local API port.");
+  // The public site build (npm run build:hosting in the deploy workflow) sets
+  // no VITE_* values. Compile the production API mode in, with demo mode and
+  // demo tools off, so demo pages and sample data are left out of the bundle.
+  // Builds that choose a mode explicitly (tests, demo, Firebase) are unchanged.
+  const publicSiteDefaults =
+    mode === "production" && !environment.VITE_BACKEND_MODE
+      ? {
+          "import.meta.env.VITE_BACKEND_MODE": JSON.stringify("api"),
+          "import.meta.env.VITE_DEMO_MODE": JSON.stringify("false"),
+          "import.meta.env.VITE_DEMO_TOOLS": JSON.stringify("false"),
+        }
+      : undefined;
   return {
     plugins: [react()],
+    define: publicSiteDefaults,
     // Relative assets + HashRouter work under both root and project subpaths.
     base: "./",
-    server: { proxy: apiProxy },
-    preview: { proxy: apiProxy },
+    // Dev and preview servers stay on this machine: the API trusts loopback
+    // requests, so they must never be reachable from the network.
+    server: {
+      host: "127.0.0.1",
+      proxy: {
+        "/api": {
+          target: `http://127.0.0.1:${localApiPort}`,
+          changeOrigin: false,
+        },
+      },
+    },
+    preview: {
+      host: "127.0.0.1",
+      proxy: {
+        "/api": {
+          target: `http://127.0.0.1:${localApiPort}`,
+          changeOrigin: false,
+        },
+      },
+    },
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: "firebase-firestore",
+                test: /node_modules\/@firebase\/firestore/,
+              },
+            ],
+          },
+        },
+      },
+    },
   };
 });

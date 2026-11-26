@@ -1,0 +1,37 @@
+.today-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  min-width: 0;
+}
+.today-quick-actions > button {
+  min-height: 44px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.today-quick-actions > button:is(:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.learning-overview
+  .today-quick-actions
+  > .today-primary-action[aria-disabled="true"]:is(:hover, :active) {
+  background: var(--today-green, #214c3b);
+  transform: none;
+  border-bottom-width: 4px;
+}
+.learning-overview .today-quick-feedback {
+  max-width: 52ch;
+  margin: 14px 0 0;
+  color: #47653b;
+  font-size: 0.8125em;
+  line-height: var(--today-line, 1.65);
+  overflow-wrap: anywhere;
+}
+.learning-overview .today-quick-feedback:empty {
+  margin: 0;
+}
+.learning-overview .today-quick-error {
+  color: #873e29;
+}

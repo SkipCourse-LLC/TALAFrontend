@@ -1,3 +1,4 @@
+/** Accept common OTP formatting without changing invalid text into a code. */
 export function normalizeVerificationCode(value: string): string {
   return value
     .replace(/[０-９]/g, (digit) =>

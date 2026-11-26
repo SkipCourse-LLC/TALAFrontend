@@ -13,15 +13,10 @@ export function ProgramsPage() {
   return (
     <div className="public-page public-programs">
       <section className="page-intro container">
-        <p className="eyebrow">Programs &amp; learning experiences</p>
-        <h1>Find a way to learn.</h1>
+        <h1>Specialized Education, In Person and Nationwide</h1>
         <p className="lead">
-          From focused support to discoveries beyond the classroom. Explore
-          early ideas for learning with TALA.
-        </p>
-        <p className="content-note">
-          Concept previews. Program details, eligibility and schedules are still
-          being confirmed.
+          Explore medically informed education on our Tucson campus and flexible
+          online special needs education nationwide.
         </p>
       </section>
       <section
@@ -68,7 +63,7 @@ export function ProgramsPage() {
             </button>
           ))}
         </div>
-        <p className="results-count" role="status">
+        <p className="results-count sr-only" role="status">
           Showing {shown.length}{" "}
           {shown.length === 1
             ? "learning opportunity"
@@ -77,16 +72,13 @@ export function ProgramsPage() {
         <div className="program-details">
           {shown.map((p) => (
             <article className="program-detail" key={p.id}>
-              <div className={`program-visual ${p.color}`} aria-hidden="true">
-                <Icon name={p.icon} />
-              </div>
               <div className="program-detail-copy">
                 <p className="eyebrow">{p.category}</p>
                 <h2>{p.title}</h2>
                 <p className="lead">{p.description}</p>
                 <p>{p.detail}</p>
-                <Link className="text-link" to="/register">
-                  Start registration demo <Icon name="arrow" />
+                <Link className="text-link" to="/admissions">
+                  Admissions <Icon name="link-arrow" />
                 </Link>
               </div>
             </article>

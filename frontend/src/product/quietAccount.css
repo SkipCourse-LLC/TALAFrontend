@@ -1,0 +1,108 @@
+.product-access.auth-layout {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 560px;
+  padding-block: clamp(28px, 5vw, 64px);
+}
+
+.product-access .auth-panel {
+  max-width: none;
+  border-color: #e1e3e6;
+  box-shadow: none;
+}
+
+.product-access .product-fields {
+  gap: 18px;
+}
+
+.product-access .product-fields > small {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.quiet-account-about {
+  margin-top: 24px;
+  border-top: 1px solid #e1e3e6;
+}
+
+.quiet-account-about > summary {
+  min-height: 44px;
+  padding-block: 12px;
+  color: var(--color-accent);
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.quiet-account-about p {
+  max-width: 64ch;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--color-muted);
+}
+
+.quiet-account-about > summary:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+.account-security .account-security-heading {
+  margin-bottom: 24px;
+}
+
+.account-security .account-security-identity {
+  margin-bottom: 12px;
+}
+
+.account-security .quiet-account-unavailable {
+  margin-block: 0 28px;
+}
+
+.account-security .account-security-sessions-section {
+  border: 0;
+  border-top: 1px solid #d9deda;
+  border-radius: 0;
+  padding: 24px 0;
+  background: transparent;
+}
+
+.account-security .account-security-fields {
+  gap: 18px;
+}
+
+.operator-workspace .operator-heading {
+  margin-bottom: 28px;
+}
+
+.operator-workspace .operator-section-heading {
+  margin-bottom: 20px;
+}
+
+.operator-workspace .operator-editor-empty,
+.operator-workspace .operator-empty {
+  line-height: 1.5;
+}
+
+.operator-workspace .operator-editor-empty > p,
+.operator-workspace .operator-empty > p {
+  margin: 0;
+}
+
+.operator-workspace .operator-footer {
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.operator-workspace .operator-footer > p {
+  margin-block: 6px;
+}
+
+@media (max-width: 480px) {
+  .product-access .auth-panel {
+    padding: 24px 20px;
+  }
+
+  .account-security .quiet-account-unavailable {
+    max-width: 34ch;
+  }
+}

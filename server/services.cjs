@@ -3,20 +3,25 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { TextDecoder } = require("node:util");
-const { transaction } = require("./database.cjs");
+const { transaction, syncDirectory } = require("./database.cjs");
 const { createListServices } = require("./listServices.cjs");
+const { createLearningGoalServices } = require("./learningGoals.cjs");
+const { createWorkspaceUpdates } = require("./workspaceUpdates.cjs");
+const { createMeetingPreparationServices } = require("./meetingPreparation.cjs");
+const { createReflectionDraftServices } = require("./reflectionDrafts.cjs");
+const { createCalendarServices } = require("./calendar.cjs");
 const { createContactRequestServices } = require("./contactRequests.cjs");
 const { fail, object, text, paragraph, identifier, requestId, hash } = require("./security.cjs");
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const OWNER_STORAGE_BYTES = 100 * 1024 * 1024;
 const INSTANCE_STORAGE_BYTES = 2 * 1024 * 1024 * 1024;
-// Tucson does not observe daylight saving time, so this zone has one offset.
 const SCHOOL_TIME_ZONE = "America/Phoenix";
 const PUBLIC_CALENDAR_DAYS = 90;
 const iso = (value) => new Date(value).toISOString();
 const userDTO = (row) => ({ uid: row.uid, name: row.name, email: row.email, role: row.role, emailVerified: row.email_verified === 1 });
-function createServices(db, dataDir) {
-  // Recheck under the write lock, since another process may have changed the session.
+function createServices(db, dataDir, options = {}) {
+  // Recheck under the write fence, after waiting for another local process.
+  // The non-enumerable session reference is added only by actorFor(req).
   function currentWriter(actor) {
     const current = db.prepare("SELECT * FROM users WHERE uid=? AND disabled=0").get(actor.uid);
     const session = typeof actor.sessionTokenHash === "string" && db.prepare("SELECT uid FROM sessions WHERE token_hash=? AND expires_at>?").get(actor.sessionTokenHash, Date.now());
@@ -43,10 +48,6 @@ function createServices(db, dataDir) {
       return bytes;
     } finally { if (descriptor !== undefined) fs.closeSync(descriptor); }
   }
-  function syncDirectory(directory) {
-    const descriptor = fs.openSync(directory, "r");
-    try { fs.fsyncSync(descriptor); } finally { fs.closeSync(descriptor); }
-  }
   function stagingArtifact(filename) {
     const stat = fs.lstatSync(filename);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size > MAX_FILE_BYTES) fail(409, "INTEGRITY_ERROR", "The unfinished private file changed and needs review.");
@@ -61,11 +62,13 @@ function createServices(db, dataDir) {
       previous = stagingArtifact(file);
       try { storedFile(file, row); syncDirectory(directory); return; }
       catch (error) {
-        // Only a checksum-bound retry may replace leftovers from an interrupted write.
+        // Only an explicit checksum-bound retry of an uncommitted pending
+        // upload may replace a remnant from an interrupted older writer.
         if (row.status !== "pending" || error.code !== "INTEGRITY_ERROR") throw error;
       }
     } else if (fs.existsSync(promoted)) {
-      // A failed submit may have renamed the bytes already; keep them for the retry.
+      // A prior submit can have renamed the private bytes before its SQLite
+      // transaction failed. Preserve that exact verified artifact for retry.
       storedFile(promoted, row); syncDirectory(path.dirname(promoted)); return;
     }
     let descriptor, created;
@@ -89,7 +92,8 @@ function createServices(db, dataDir) {
       syncDirectory(directory);
     } finally {
       if (descriptor !== undefined) fs.closeSync(descriptor);
-      // Scratch file for this PUT; cleanup handles crash leftovers.
+      // This is only the bounded scratch file for this explicit PUT. A crash
+      // can leave it behind; the next PUT/cancel/expired cleanup handles it.
       if (created && fs.existsSync(partial) && sameArtifact(created, fs.lstatSync(partial))) fs.rmSync(partial, { force: true });
     }
   }
@@ -106,7 +110,7 @@ function createServices(db, dataDir) {
   function evidenceDTO(row) {
     const revision = db.prepare("SELECT * FROM evidence_revisions WHERE evidence_id=?").get(row.id);
     const successor = db.prepare("SELECT evidence_id FROM evidence_revisions WHERE predecessor_id=?").get(row.id);
-    return { id: row.id, ownerUid: row.owner_uid, appointmentId: row.appointment_id, title: row.title, contentType: row.content_type, size: row.size, sha256: row.sha256, status: "submitted", reviewStatus: row.review_status, submittedAt: iso(row.submitted_at),
+    return { id: row.id, ownerUid: row.owner_uid, appointmentId: row.appointment_id || "", ...(row.class_id ? { classId: row.class_id } : {}), title: row.title, contentType: row.content_type, size: row.size, sha256: row.sha256, status: "submitted", reviewStatus: row.review_status, submittedAt: iso(row.submitted_at),
       reviewVersion: row.reviewed_at || 0, revisionNumber: revision?.revision_number || 1, rootEvidenceId: revision?.root_id || row.id,
       ...(revision ? { revisesEvidenceId: revision.predecessor_id } : {}), ...(successor ? { supersededByEvidenceId: successor.evidence_id } : {}),
       ...(row.review_note ? { reviewNote: row.review_note } : {}), ...(row.reviewed_at ? { reviewedAt: iso(row.reviewed_at) } : {}) };
@@ -114,7 +118,7 @@ function createServices(db, dataDir) {
   const slotDTO = (row) => ({ id: row.id, startsAt: iso(row.starts_at), endsAt: iso(row.ends_at), label: row.label, isAvailable: true });
   function managedSlotDTO(row) {
     const withdrawn = db.prepare("SELECT status FROM availability_state WHERE slot_id=?").get(row.id)?.status !== "published";
-    const reserved = Boolean(db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(row.id));
+    const reserved = Boolean(db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(row.id) || db.prepare("SELECT a.id FROM admissions_appointments a JOIN slots s ON s.id=a.slot_id WHERE a.status='reserved' AND s.starts_at<? AND s.ends_at>?").get(row.ends_at, row.starts_at));
     const status = withdrawn ? "withdrawn" : reserved ? "reserved" : "available";
     return { ...slotDTO(row), isAvailable: status === "available" && row.starts_at > Date.now(), status, canWithdraw: status === "available" && row.starts_at > Date.now() };
   }
@@ -137,6 +141,18 @@ function createServices(db, dataDir) {
     if (!row) fail(404, "NOT_FOUND", "This booking is unavailable.");
     authorize(actor, row.owner_uid);
     return row;
+  }
+  function evidenceContext(actor, appointmentId, classId, ownerUid = actor.uid) {
+    if (Boolean(appointmentId) === Boolean(classId)) fail(400, "INVALID_INPUT", "Choose one saved meeting or confirmed class for this Evidence.");
+    if (classId) {
+      if (appointmentId !== undefined && appointmentId !== null && appointmentId !== "") fail(400, "INVALID_INPUT", "Class Evidence cannot also name a meeting.");
+      if (actor.role !== "student" || actor.uid !== ownerUid) fail(403, "FORBIDDEN", "Only the student can submit their own class Evidence.");
+      const course = db.prepare("SELECT c.*,e.status AS enrollment_status FROM class_catalog c JOIN calendar_enrollments e ON e.class_id=c.id AND e.owner_uid=? WHERE c.id=?").get(ownerUid, identifier(classId));
+      if (!course || course.enrollment_status !== "confirmed") fail(403, "FORBIDDEN", "Class Evidence requires your own confirmed enrollment.");
+      if (course.starts_at > Date.now()) fail(409, "CONFLICT", "Class Evidence opens when the session starts.");
+      return { id: null, class_id: course.id, owner_uid: ownerUid };
+    }
+    return { ...ownedAppointment(actor, appointmentId), class_id: null };
   }
   function upload(actor, id) {
     const row = db.prepare("SELECT * FROM uploads WHERE id=?").get(identifier(id));
@@ -176,23 +192,22 @@ function createServices(db, dataDir) {
     const [, year, month, day, hour, minute, second, , offsetHour, offsetMinute] = parts;
     const leap = Number(year) % 4 === 0 && (Number(year) % 100 !== 0 || Number(year) % 400 === 0);
     const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    // Date.parse silently rolls Feb 29 and 24:00 into other dates; reject them.
+    // Date.parse normalizes February 29 in a non-leap year and 24:00 into
+    // another date. Reject those inputs instead of silently moving a meeting.
     if (Number(month) < 1 || Number(month) > 12 || Number(day) < 1 || Number(day) > days[Number(month) - 1] || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59 || Number(offsetHour || 0) > 23 || Number(offsetMinute || 0) > 59) return NaN;
     return Date.parse(value);
   }
-  function meetingRange(input) {
+  function addAvailability(input, actorUid = null) {
     const starts = zonedTimestamp(input.startsAt), ends = zonedTimestamp(input.endsAt);
     if (!Number.isFinite(starts) || !Number.isFinite(ends) || starts <= Date.now() || ends - starts < 15 * 60000 || ends - starts > 4 * 3600000) fail(400, "INVALID_INPUT", "Publish a valid future calendar date with an explicit timezone, lasting 15 minutes to 4 hours.");
-    return { starts, ends };
-  }
-  function addAvailability(input, actorUid = null) {
-    const { starts, ends } = meetingRange(input);
     const label = input.label ? text(input.label, "meeting label", 100) : "Advising meeting";
     if (db.prepare("SELECT s.id FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at<? AND s.ends_at>?").get(ends, starts)) fail(409, "CONFLICT", "This availability overlaps a published meeting time.");
+    if (db.prepare("SELECT a.id FROM admissions_appointments a JOIN slots s ON s.id=a.slot_id WHERE a.status='reserved' AND s.starts_at<? AND s.ends_at>?").get(ends, starts) || db.prepare("SELECT a.id FROM appointments a JOIN slots s ON s.id=a.slot_id WHERE a.status='reserved' AND s.starts_at<? AND s.ends_at>?").get(ends, starts)) fail(409, "CONFLICT", "This time overlaps a reserved meeting or interview.");
     const previous = db.prepare("SELECT * FROM slots WHERE starts_at=? AND ends_at=?").get(starts, ends);
     if (previous) {
-      if (db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(previous.id)) fail(409, "CONFLICT", "This meeting time already has a booking.");
-      // Reactivate the existing slot so past appointments keep pointing at it.
+      if (db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved' UNION ALL SELECT id FROM admissions_appointments WHERE slot_id=? AND status='reserved'").get(previous.id, previous.id)) fail(409, "CONFLICT", "This meeting time already has a booking.");
+      // Reactivation preserves the original ID, times and label. Cancelled
+      // appointments still point to the same historical meeting definition.
       db.prepare("UPDATE availability_state SET status='published',updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actorUid, previous.id);
       return slotDTO(previous);
     }
@@ -205,7 +220,7 @@ function createServices(db, dataDir) {
     if (actor.role !== "student" || actor.uid !== booking.owner_uid) fail(403, "FORBIDDEN", "Only the student can submit a revision of their own evidence.");
     const previous = db.prepare("SELECT * FROM evidence WHERE id=?").get(identifier(id));
     if (!previous) fail(404, "NOT_FOUND", "The evidence to revise is unavailable.");
-    if (previous.owner_uid !== actor.uid || previous.appointment_id !== booking.id) fail(403, "FORBIDDEN", "A revision must belong to your original evidence and booking.");
+    if (previous.owner_uid !== actor.uid || previous.appointment_id !== booking.id || (previous.class_id || null) !== (booking.class_id || null)) fail(403, "FORBIDDEN", "A revision must keep the original Evidence learning context.");
     if (previous.review_status !== "needs_revision" || db.prepare("SELECT evidence_id FROM evidence_revisions WHERE predecessor_id=?").get(previous.id)) fail(409, "CONFLICT", "This evidence no longer needs a new revision. Refresh its latest version.");
     if (expectedVersion !== undefined && expectedVersion !== (previous.reviewed_at || 0)) fail(409, "CONFLICT", "The review changed while you prepared this revision. Refresh and start a new upload.");
     return previous;
@@ -223,7 +238,8 @@ function createServices(db, dataDir) {
         AND NOT EXISTS(SELECT 1 FROM operations o WHERE o.uid=u.owner_uid AND o.kind='expired-cleanup' AND o.request_id=u.id)
         ORDER BY u.expires_at,u.id LIMIT ?`).all(...params);
       for (const row of rows) {
-        // The write transaction fences submit and cancel; submitted Evidence is never removed.
+        // The same SQLite write transaction fences submit/cancel across processes.
+        // A submitted evidence row is never selected or removed.
         db.prepare("UPDATE uploads SET status='failed' WHERE id=?").run(row.id);
         for (const directory of ["uploads", "evidence"]) fs.rmSync(path.join(dataDir, directory, `${row.id}.bin`), { force: true });
         fs.rmSync(path.join(dataDir, "uploads", `${row.id}.part`), { force: true });
@@ -241,7 +257,7 @@ function createServices(db, dataDir) {
       currentWriter(actor);
       authorize(actor, owner);
       expire(owner);
-      const slots = db.prepare("SELECT s.* FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at>? AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') ORDER BY s.starts_at LIMIT 50").all(Date.now()).map(slotDTO);
+      const slots = db.prepare("SELECT s.* FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at>? AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') AND NOT EXISTS(SELECT 1 FROM admissions_slots p WHERE p.slot_id=s.id) AND NOT EXISTS(SELECT 1 FROM admissions_appointments a JOIN slots occupied ON occupied.id=a.slot_id WHERE a.status='reserved' AND occupied.starts_at<s.ends_at AND occupied.ends_at>s.starts_at) ORDER BY s.starts_at LIMIT 50").all(Date.now()).map(slotDTO);
       const rows = db.prepare("SELECT a.*,s.starts_at,s.ends_at FROM appointments a JOIN slots s ON s.id=a.slot_id WHERE a.owner_uid=? ORDER BY s.starts_at DESC,a.id DESC LIMIT 100").all(owner);
       const active = db.prepare("SELECT a.*,s.starts_at,s.ends_at FROM appointments a JOIN slots s ON s.id=a.slot_id WHERE a.owner_uid=? AND a.status='reserved' ORDER BY s.starts_at,a.id LIMIT 1").all(owner);
       return { slots, appointments: rows.map(appointmentDTO), activeAppointments: active.map(appointmentDTO), evidence: db.prepare("SELECT * FROM evidence WHERE owner_uid=? ORDER BY submitted_at DESC,id DESC LIMIT 100").all(owner).map(evidenceDTO), progress: progress(owner) };
@@ -266,7 +282,7 @@ function createServices(db, dataDir) {
       operation(actor, "withdraw-availability", input.requestId, [id], () => {
         const slot = db.prepare("SELECT * FROM slots WHERE id=?").get(id);
         if (!slot) fail(404, "NOT_FOUND", "This meeting time is unavailable.");
-        if (slot.starts_at <= Date.now() || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(id)) fail(409, "CONFLICT", "Only unbooked future meeting times can be withdrawn.");
+        if (slot.starts_at <= Date.now() || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(id) || db.prepare("SELECT a.id FROM admissions_appointments a JOIN slots s ON s.id=a.slot_id WHERE a.status='reserved' AND s.starts_at<? AND s.ends_at>?").get(slot.ends_at, slot.starts_at)) fail(409, "CONFLICT", "Only unbooked future meeting times can be withdrawn.");
         db.prepare("UPDATE availability_state SET status='withdrawn',updated_at=?,updated_by=? WHERE slot_id=?").run(Date.now(), actor.uid, id);
         return { id };
       });
@@ -277,8 +293,9 @@ function createServices(db, dataDir) {
       const saved = operation(actor, "update-availability", input.requestId, [id, input.startsAt, input.endsAt, input.label || ""], () => {
         const slot = db.prepare("SELECT s.*,state.status AS state FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE s.id=?").get(id);
         if (!slot) fail(404, "NOT_FOUND", "This meeting time is unavailable.");
-        if (slot.state !== "published" || slot.starts_at <= Date.now() || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(id)) fail(409, "CONFLICT", "Only unbooked, published future meeting times can be edited.");
-        const { starts, ends } = meetingRange(input);
+        if (slot.state !== "published" || slot.starts_at <= Date.now() || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(id) || db.prepare("SELECT a.id FROM admissions_appointments a JOIN slots s ON s.id=a.slot_id WHERE a.status='reserved' AND s.starts_at<? AND s.ends_at>?").get(slot.ends_at, slot.starts_at)) fail(409, "CONFLICT", "Only unbooked, published future meeting times can be edited.");
+        const starts = zonedTimestamp(input.startsAt), ends = zonedTimestamp(input.endsAt);
+        if (!Number.isFinite(starts) || !Number.isFinite(ends) || starts <= Date.now() || ends - starts < 15 * 60000 || ends - starts > 4 * 3600000) fail(400, "INVALID_INPUT", "Publish a valid future calendar date with an explicit timezone, lasting 15 minutes to 4 hours.");
         const label = input.label ? text(input.label, "meeting label", 100) : slot.label;
         if (starts === slot.starts_at && ends === slot.ends_at) {
           db.prepare("UPDATE slots SET label=? WHERE id=?").run(label, id);
@@ -293,7 +310,8 @@ function createServices(db, dataDir) {
     },
     publicOpenTimes() {
       const now = Date.now();
-      const rows = db.prepare("SELECT s.id,s.starts_at,s.ends_at FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at>? AND s.starts_at<=? AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') ORDER BY s.starts_at,s.id LIMIT 101").all(now, now + PUBLIC_CALENDAR_DAYS * 86400000);
+      // Also hide times that overlap a reserved admissions interview: those slots share this table.
+      const rows = db.prepare("SELECT s.id,s.starts_at,s.ends_at FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at>? AND s.starts_at<=? AND NOT EXISTS(SELECT 1 FROM appointments a WHERE a.slot_id=s.id AND a.status='reserved') AND NOT EXISTS(SELECT 1 FROM admissions_appointments a JOIN slots occupied ON occupied.id=a.slot_id WHERE a.status='reserved' AND occupied.starts_at<s.ends_at AND occupied.ends_at>s.starts_at) ORDER BY s.starts_at,s.id LIMIT 101").all(now, now + PUBLIC_CALENDAR_DAYS * 86400000);
       // Labels, booking state and staff fields stay private to the admin view.
       return { times: rows.slice(0, 100).map((row) => ({ id: row.id, startsAt: iso(row.starts_at), endsAt: iso(row.ends_at) })), hasMore: rows.length > 100, timeZone: SCHOOL_TIME_ZONE };
     },
@@ -309,7 +327,7 @@ function createServices(db, dataDir) {
         if (db.prepare("SELECT role FROM users WHERE uid=?").get(owner)?.role !== "student") fail(403, "FORBIDDEN", "Meeting reservations require an existing student account.");
         expire(owner);
         const slot = db.prepare("SELECT s.* FROM slots s JOIN availability_state state ON state.slot_id=s.id WHERE s.id=? AND state.status='published'").get(slotId);
-        if (!slot || slot.starts_at <= Date.now() || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(slotId)) fail(409, "CONFLICT", "This meeting time is no longer available.");
+        if (!slot || slot.starts_at <= Date.now() || db.prepare("SELECT slot_id FROM admissions_slots WHERE slot_id=?").get(slotId) || db.prepare("SELECT id FROM appointments WHERE slot_id=? AND status='reserved'").get(slotId) || db.prepare("SELECT a.id FROM admissions_appointments a JOIN slots s ON s.id=a.slot_id WHERE a.status='reserved' AND s.starts_at<? AND s.ends_at>?").get(slot.ends_at, slot.starts_at)) fail(409, "CONFLICT", "This meeting time is no longer available.");
         const active = db.prepare("SELECT * FROM appointments WHERE owner_uid=? AND status='reserved'").get(owner);
         if (replacesId) {
           if (active?.id !== replacesId) fail(409, "CONFLICT", "The original booking changed. Refresh before rescheduling.");
@@ -330,14 +348,15 @@ function createServices(db, dataDir) {
         expire(booking.owner_uid);
         const current = getAppointment(booking.id);
         if (current.status === "ended") fail(409, "CONFLICT", "An ended meeting cannot be cancelled.");
+        if (current.status === "cancelled") return appointmentDTO(current);
         db.prepare("UPDATE appointments SET status='cancelled',updated_at=? WHERE id=?").run(Date.now(), booking.id);
         return appointmentDTO(getAppointment(booking.id));
       });
     },
     createUpload(actor, input) {
       requireWriter(actor);
-      object(input, ["appointmentId", "title", "contentType", "size", "sha256", "requestId", "studentUid", "revisesEvidenceId"]);
-      const booking = ownedAppointment(actor, input.appointmentId);
+      object(input, ["appointmentId", "classId", "title", "contentType", "size", "sha256", "requestId", "studentUid", "revisesEvidenceId"]);
+      const booking = evidenceContext(actor, input.appointmentId, input.classId);
       if (input.studentUid && input.studentUid !== booking.owner_uid) fail(403, "FORBIDDEN", "This booking does not belong to the selected student.");
       const revisesId = input.revisesEvidenceId === undefined ? null : identifier(input.revisesEvidenceId);
       if (revisesId && (actor.role !== "student" || actor.uid !== booking.owner_uid)) fail(403, "FORBIDDEN", "Only the student can submit a revision of their own evidence.");
@@ -347,17 +366,19 @@ function createServices(db, dataDir) {
       if (typeof input.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(input.sha256)) fail(400, "INVALID_INPUT", "The file checksum is invalid.");
       cleanupExpired(booking.owner_uid, 25, actor);
       const fingerprint = [booking.owner_uid, booking.id, title, input.contentType, input.size, input.sha256];
+      if (booking.class_id) fingerprint.push(booking.class_id);
       if (revisesId) fingerprint.push(revisesId);
       const created = operation(actor, "upload-intent", input.requestId, fingerprint, () => {
         authorize(actor, booking.owner_uid);
-        if (getAppointment(booking.id).status === "cancelled") fail(409, "CONFLICT", "Choose a non-cancelled booking before submitting evidence.");
+        evidenceContext(actor, booking.id, booking.class_id, booking.owner_uid);
+        if (booking.id && getAppointment(booking.id).status === "cancelled") fail(409, "CONFLICT", "Choose a non-cancelled booking before submitting evidence.");
         const predecessor = revisesId ? revisionPredecessor(actor, revisesId, booking) : null;
         storageCapacity(booking.owner_uid, input.size, true);
         const pending = db.prepare("SELECT count(*) AS n,coalesce(sum(size),0) AS bytes FROM uploads WHERE owner_uid=? AND status IN ('pending','uploaded')").get(booking.owner_uid);
         const total = db.prepare("SELECT coalesce(sum(size),0) AS bytes FROM uploads WHERE status IN ('pending','uploaded')").get();
         if (pending.n >= 10 || pending.bytes + input.size > 50 * 1024 * 1024 || total.bytes + input.size > 500 * 1024 * 1024) fail(429, "RATE_LIMITED", "Unsubmitted upload storage is full. Cancel unused uploads or ask an operator to clean expired uploads.");
         const id = randomUUID(), now = Date.now(), expires = now + 20 * 60000;
-        db.prepare("INSERT INTO uploads VALUES(?,?,?,?,?,?,?,'pending',?,?)").run(id, booking.owner_uid, booking.id, title, input.contentType, input.size, input.sha256, now, expires);
+        db.prepare("INSERT INTO uploads(id,owner_uid,appointment_id,title,content_type,size,sha256,status,created_at,expires_at,class_id) VALUES(?,?,?,?,?,?,?,'pending',?,?,?)").run(id, booking.owner_uid, booking.id, title, input.contentType, input.size, input.sha256, now, expires, booking.class_id);
         if (predecessor) db.prepare("INSERT INTO upload_revisions VALUES(?,?,?)").run(id, predecessor.id, predecessor.reviewed_at || 0);
         return { uploadId: id, sha256: input.sha256, expiresAt: iso(expires), maxBytes: MAX_FILE_BYTES };
       });
@@ -375,7 +396,7 @@ function createServices(db, dataDir) {
     pendingUploads(actor) {
       if (actor.role === "parent") fail(403, "FORBIDDEN", "Unsubmitted upload details are private to the student and authorized operators.");
       const rows = db.prepare("SELECT u.*,r.predecessor_id FROM uploads u LEFT JOIN upload_revisions r ON r.upload_id=u.id WHERE u.owner_uid=? AND u.status IN ('pending','uploaded') AND u.expires_at>? ORDER BY u.created_at,u.id LIMIT 10").all(actor.uid, Date.now());
-      return { uploads: rows.map((row) => ({ uploadId: row.id, title: row.title, appointmentId: row.appointment_id, contentType: row.content_type, size: row.size, sha256: row.sha256, status: row.status, expiresAt: iso(row.expires_at), ...(row.predecessor_id ? { revisesEvidenceId: row.predecessor_id } : {}) })) };
+      return { uploads: rows.map((row) => ({ uploadId: row.id, title: row.title, appointmentId: row.appointment_id || "", ...(row.class_id ? { classId: row.class_id } : {}), contentType: row.content_type, size: row.size, sha256: row.sha256, status: row.status, expiresAt: iso(row.expires_at), ...(row.predecessor_id ? { revisesEvidenceId: row.predecessor_id } : {}) })) };
     },
     uploadStatus(actor, id) {
       if (actor.role === "parent") fail(403, "FORBIDDEN", "Unsubmitted upload details are private to the student and authorized operators.");
@@ -385,7 +406,9 @@ function createServices(db, dataDir) {
       if (status === "uploaded") {
         const staging = path.join(dataDir, "uploads", `${row.id}.bin`);
         const privateFile = path.join(dataDir, "evidence", `${row.id}.bin`);
-        // After a crash: re-upload a missing file via PUT; keep a committed rename for submit.
+        // A crash may leave the committed uploaded marker without a file, or
+        // leave a private rename awaiting SQLite commit. Recover the former
+        // through the same checksum-bound PUT; preserve the latter for submit.
         const existing = fs.existsSync(staging) ? staging : fs.existsSync(privateFile) ? privateFile : null;
         if (!existing) status = "pending";
         else {
@@ -400,6 +423,7 @@ function createServices(db, dataDir) {
         currentWriter(actor);
         const row = upload(actor, id);
         requireUploadWriter(actor, row);
+        if (row.class_id) evidenceContext(actor, null, row.class_id, row.owner_uid);
         if (!["pending", "uploaded"].includes(row.status)) fail(409, "CONFLICT", "This upload is closed. Start a new upload.");
         if (db.prepare("SELECT id FROM evidence WHERE id=?").get(row.id)) fail(409, "CONFLICT", "Submitted evidence cannot be replaced.");
         if (row.expires_at <= Date.now()) fail(410, "EXPIRED", "This upload expired. Start a new upload.");
@@ -423,9 +447,10 @@ function createServices(db, dataDir) {
         if (["pending", "uploaded"].includes(row.status) && row.expires_at <= Date.now()) fail(410, "EXPIRED", "This upload expired. Start a new upload.");
         if (row.status !== "uploaded") fail(409, "CONFLICT", "Finish uploading this file before submitting it.");
         storageCapacity(row.owner_uid, row.size, false);
-        if (getAppointment(row.appointment_id).status === "cancelled") fail(409, "CONFLICT", "This booking was cancelled. Choose a non-cancelled booking.");
+        const context = evidenceContext(actor, row.appointment_id, row.class_id, row.owner_uid);
+        if (row.appointment_id && context.status === "cancelled") fail(409, "CONFLICT", "This booking was cancelled. Choose a non-cancelled booking.");
         const revisionIntent = db.prepare("SELECT * FROM upload_revisions WHERE upload_id=?").get(row.id);
-        const predecessor = revisionIntent ? revisionPredecessor(actor, revisionIntent.predecessor_id, getAppointment(row.appointment_id), revisionIntent.expected_review_version) : null;
+        const predecessor = revisionIntent ? revisionPredecessor(actor, revisionIntent.predecessor_id, context, revisionIntent.expected_review_version) : null;
         const predecessorRevision = predecessor && db.prepare("SELECT * FROM evidence_revisions WHERE evidence_id=?").get(predecessor.id);
         const source = path.join(dataDir, "uploads", `${row.id}.bin`), destination = path.join(dataDir, "evidence", `${row.id}.bin`);
         const selected = fs.existsSync(source) ? source : destination;
@@ -436,11 +461,22 @@ function createServices(db, dataDir) {
           fs.renameSync(source, destination);
         }
         fs.rmSync(path.join(dataDir, "uploads", `${row.id}.part`), { force: true });
+        // Also fsync a recovered rename before committing its database row.
         syncDirectory(path.dirname(source));
         syncDirectory(path.dirname(destination));
         const now = Date.now();
-        db.prepare("INSERT INTO evidence(id,owner_uid,appointment_id,title,content_type,size,sha256,submitted_at) VALUES(?,?,?,?,?,?,?,?)").run(row.id, row.owner_uid, row.appointment_id, row.title, row.content_type, row.size, row.sha256, now);
+        db.prepare("INSERT INTO evidence(id,owner_uid,appointment_id,title,content_type,size,sha256,submitted_at,class_id) VALUES(?,?,?,?,?,?,?,?,?)").run(row.id, row.owner_uid, row.appointment_id, row.title, row.content_type, row.size, row.sha256, now, row.class_id);
         if (predecessor) db.prepare("INSERT INTO evidence_revisions VALUES(?,?,?,?)").run(row.id, predecessor.id, predecessorRevision?.root_id || predecessor.id, (predecessorRevision?.revision_number || 1) + 1);
+        // Goal context is chosen by this student when requesting the class.
+        // Keep the existing Evidence and goal-link stores as the single record.
+        if (row.class_id) {
+          const linkedGoal = db.prepare(`SELECT g.id FROM calendar_enrollments c JOIN learning_goals g ON g.id=c.goal_id AND g.owner_uid=c.owner_uid
+            WHERE c.owner_uid=? AND c.class_id=? AND c.status='confirmed'`).get(row.owner_uid, row.class_id);
+          if (linkedGoal && db.prepare("SELECT count(*) AS n FROM learning_goal_evidence WHERE goal_id=?").get(linkedGoal.id).n < 20) {
+            const link = db.prepare("INSERT OR IGNORE INTO learning_goal_evidence(goal_id,evidence_id,linked_at) VALUES(?,?,?)").run(linkedGoal.id, row.id, now);
+            if (link.changes) db.prepare("UPDATE learning_goals SET version=version+1,updated_at=MAX(updated_at+1,?) WHERE id=?").run(now, linkedGoal.id);
+          }
+        }
         db.prepare("UPDATE uploads SET status='submitted' WHERE id=?").run(row.id);
         return { evidence: evidenceDTO(db.prepare("SELECT * FROM evidence WHERE id=?").get(row.id)), progress: progress(row.owner_uid) };
       });
@@ -553,6 +589,16 @@ function createServices(db, dataDir) {
       db.prepare("UPDATE users SET role='operator' WHERE uid=?").run(row.uid);
       return userDTO(db.prepare("SELECT * FROM users WHERE uid=?").get(row.uid));
     },
+    // Roles are assigned here by an administrator, never by the sign-in form.
+    // "staff" is the display name of the existing operator role.
+    setRole(email, role) {
+      const next = role === "staff" ? "operator" : role;
+      if (!["student", "parent", "alumni", "operator"].includes(next)) fail(400, "INVALID_INPUT", "Choose student, parent, alumni or staff.");
+      const row = db.prepare("SELECT uid FROM users WHERE email=? COLLATE NOCASE").get(text(email, "existing account email", 254));
+      if (!row) fail(404, "NOT_FOUND", "No account uses this email.");
+      db.prepare("UPDATE users SET role=? WHERE uid=?").run(next, row.uid);
+      return userDTO(db.prepare("SELECT * FROM users WHERE uid=?").get(row.uid));
+    },
     addAvailability(input) { return transaction(db, () => addAvailability(input)); },
     linkFamily(input) {
       const studentUid = identifier(input.studentUid), parentUid = identifier(input.parentUid), reference = text(input.consentReference, "consent reference", 120);
@@ -566,8 +612,13 @@ function createServices(db, dataDir) {
     },
   };
   const lists = createListServices(db, { authorize, requireOperator, currentWriter, evidenceDTO, appointmentDTO, slotDTO, managedSlotDTO, recordDTO });
+  const goals = createLearningGoalServices(db, { authorize, operation, evidenceDTO });
+  const updates = createWorkspaceUpdates(db, { authorize, operation });
+  const preparations = createMeetingPreparationServices(db, { authorize, operation });
+  const reflectionDrafts = createReflectionDraftServices(db, { operation, read: lists.read });
+  const calendar = createCalendarServices(db, { operation, read: lists.read, localStudentPreview: options.localStudentPreview === true });
   const contactRequests = createContactRequestServices(db, { operation, requireOperator, lists });
-  return { services, operator, lists, contactRequests };
+  return { services, operator, lists, goals, updates, preparations, reflectionDrafts, calendar, contactRequests, admissionsContext: { guard: currentWriter, addAvailability } };
 }
 function validateContent(bytes, type) {
   if (type === "application/pdf") {

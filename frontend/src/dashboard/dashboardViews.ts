@@ -1,6 +1,7 @@
 import type { IconName } from "../shared/Icon";
 export const dashboardViews: { id: string; label: string; icon: IconName }[] = [
   { id: "overview", label: "Overview", icon: "grid" },
+  { id: "meetings", label: "Meetings", icon: "people" },
   { id: "calendar", label: "Personal calendar", icon: "grid" },
   { id: "classes", label: "My classes", icon: "book" },
   { id: "slots", label: "Available class slots", icon: "book" },

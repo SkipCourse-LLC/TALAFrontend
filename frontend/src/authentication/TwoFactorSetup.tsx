@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { AuthenticatorSetup, TwoFactorMethod } from "./twoFactorAdapter";
+import type { AuthenticatorSetup, TwoFactorMethod } from "./twoFactorService";
 
 export function TwoFactorSetup({
   prepared,
@@ -271,7 +271,8 @@ function AuthenticatorDetails({
             aria-expanded={keyVisible}
             aria-controls="two-factor-key-content"
             onClick={() => {
-              // Ignore late clipboard results so they can't reveal a hidden key.
+              // Clipboard permission can outlive this interaction. Ignore its
+              // feedback so a late failure cannot reveal a key the user hid.
               copyRequest.current += 1;
               copyingRef.current = false;
               setCopying(false);

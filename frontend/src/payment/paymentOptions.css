@@ -1,0 +1,64 @@
+.payment-options {
+  grid-column: 1 / -1;
+}
+.payment-options-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  list-style: none;
+  margin: 24px 0 16px;
+  padding: 0;
+}
+.payment-options-list > li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  background: var(--color-paper);
+}
+.payment-options-list h3 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.payment-options-list li > p {
+  margin: 0 0 20px;
+  color: var(--workspace-muted, #6e6e73);
+  font-size: 0.9rem;
+}
+.payment-options-list .button {
+  min-height: 56px;
+  margin-top: auto;
+}
+.payment-options-list .button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.payment-options-list .button:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 4px;
+}
+@media (max-width: 640px) {
+  .payment-options-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .payment-options-list > li {
+    padding: 20px;
+  }
+  .payment-options-list .button {
+    width: 100%;
+  }
+}
+@media (forced-colors: active) {
+  .payment-options-list > li {
+    border-color: CanvasText;
+  }
+  .payment-options-list .button:focus-visible {
+    outline-color: Highlight;
+  }
+}

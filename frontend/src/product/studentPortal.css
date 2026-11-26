@@ -1,0 +1,221 @@
+/* Student portal pieces from Hannah's mockup: sidebar extras, My Work tabs and Resources. */
+.student-sidebar-extras {
+  display: grid;
+  gap: 1rem;
+  margin: 0.75rem 0;
+  padding-top: 1rem;
+  border-top: 1px solid #dfe8e3;
+}
+.student-sidebar-calendars {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.student-sidebar-calendars legend {
+  margin-bottom: 0.4rem;
+  padding: 0;
+  color: #5b6b6c;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.student-sidebar-calendars label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 32px;
+  color: #243a3b;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.student-sidebar-calendars input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--home-teal, #225d70);
+}
+.student-sidebar-calendars label[data-category="clubs_activities"] input {
+  accent-color: #6b4f8a;
+}
+.student-sidebar-count {
+  color: #5b6b6c;
+  font-size: 0.72rem;
+}
+.student-sidebar-sync {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.9rem;
+  border-radius: 10px;
+  background: #eef3f6;
+  color: #225d70;
+  font-size: 0.78rem;
+}
+.student-sidebar-sync > .icon {
+  width: 18px;
+  height: 18px;
+}
+.student-sidebar-sync p {
+  margin: 0;
+  color: #3f5560;
+}
+.student-sidebar-sync button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  justify-self: start;
+  padding: 0.2rem 0;
+  border: 0;
+  background: none;
+  color: #225d70;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.student-sidebar-sync button .icon {
+  width: 14px;
+  height: 14px;
+}
+.student-sidebar-sync-status:empty {
+  display: none;
+}
+.student-sidebar-support {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0.25rem 0 0.75rem;
+}
+.student-sidebar-support .student-sidebar-help {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 36px;
+  padding: 0 0.6rem;
+  border-radius: 8px;
+  color: #375c47;
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+/* Placeholder: muted and inert until help has a destination. */
+.student-sidebar-support .student-sidebar-help:disabled {
+  border: 0;
+  background: none;
+  color: #8a9a92;
+  font: inherit;
+  cursor: default;
+}
+.student-sidebar-support .icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.student-sidebar-sync button:focus-visible,
+.student-work-tabs button:focus-visible,
+.student-resources-list :is(a, button):focus-visible {
+  outline: 3px solid #2b6146;
+  outline-offset: 3px;
+}
+.dashboard-side-menu[data-collapsed="true"] .student-sidebar-support .student-sidebar-help {
+  justify-content: center;
+  padding: 0;
+}
+.student-work-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0 0 1rem;
+  padding: 0.25rem;
+  border: 1px solid #d7e1df;
+  border-radius: 10px;
+  background: #fff;
+  width: fit-content;
+  max-width: 100%;
+}
+.student-work-tabs button {
+  min-height: 38px;
+  padding: 0.4rem 0.9rem;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: #375c47;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.student-work-tabs button[aria-current="page"] {
+  background: #e8f0ed;
+  color: #193f2f;
+  font-weight: 600;
+}
+.student-resources {
+  display: grid;
+  gap: 1rem;
+}
+.student-resources-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+@media (min-width: 841px) {
+  .student-resources-sync {
+    display: none;
+  }
+}
+.student-resources h2 {
+  margin: 0;
+}
+.student-resources-intro {
+  margin: 0;
+  color: #5b6b6c;
+}
+.student-resources-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.student-resources-list li {
+  display: flex;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid #d7e1df;
+  border-radius: 12px;
+  background: #fff;
+}
+.student-resources-list li > .icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: #225d70;
+}
+.student-resources-list :is(a, button) {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #225d70;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.student-resources-list p {
+  margin: 0.25rem 0 0;
+  color: #5b6b6c;
+  font-size: 0.85rem;
+}
+/* On small screens the menu is a compact bar: the calendar keeps its own
+   picker and the sync card lives on the Resources page. */
+@media (max-width: 840px) {
+  .student-sidebar-extras {
+    display: none;
+  }
+  .student-sidebar-support {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0;
+  }
+}
