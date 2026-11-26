@@ -14,11 +14,15 @@ export function SiteHeader({
 
   useEffect(() => {
     if (!open) return;
+
     const closeOutside = (event: Event) => {
-      if (!header.current?.contains(event.target as Node)) setOpen(false);
+      if (!header.current?.contains(event.target as Node))
+        setOpen(false);
     };
+
     document.addEventListener("pointerdown", closeOutside);
     document.addEventListener("focusin", closeOutside);
+
     return () => {
       document.removeEventListener("pointerdown", closeOutside);
       document.removeEventListener("focusin", closeOutside);
@@ -36,7 +40,6 @@ export function SiteHeader({
           event.target.closest("a")
         ) {
           setOpen(false);
-          // A current-page link does not remount the header or run route focus.
           toggle.current?.focus();
         }
       }}
@@ -49,6 +52,7 @@ export function SiteHeader({
     >
       <div className="container nav-row">
         <Brand />
+
         <button
           ref={toggle}
           className="menu-toggle"
@@ -59,6 +63,7 @@ export function SiteHeader({
           <Icon name={open ? "close" : "menu"} />
           <span>{open ? "Close menu" : "Menu"}</span>
         </button>
+
         <nav
           id="primary-navigation"
           aria-label="Main navigation"
@@ -67,26 +72,24 @@ export function SiteHeader({
           <NavLink to="/" end>
             Home
           </NavLink>
+
           <NavLink to="/learn-more">About</NavLink>
           <NavLink to="/programs">Programs</NavLink>
           <NavLink to="/admissions">Admissions</NavLink>
           <NavLink to="/tuition">Tuition</NavLink>
           <NavLink to="/faq">FAQs</NavLink>
           <NavLink to="/contact">Contact</NavLink>
-          
-          {/* UPDATED NAV ACTIONS */}
-          <div className="nav-actions" style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+
+          <div className="nav-actions">
             <NavLink
               className="nav-hub-link"
               to={session ? "/dashboard" : "/login"}
-              style={{ textDecoration: "none", color: "var(--color-ink)", fontWeight: 500 }}
             >
               {session ? "Workspace" : "Sign in"}
             </NavLink>
-            
-            {/* NEW REGISTRATION BUTTON */}
+
             <NavLink
-              to="/register"
+              to="/application"
               style={{
                 backgroundColor: "#1a3c34",
                 color: "white",
@@ -101,10 +104,9 @@ export function SiteHeader({
                 transition: "background-color 0.2s"
               }}
             >
-              Start registration <Icon name="arrow" />
+              Start Application
             </NavLink>
           </div>
-
         </nav>
       </div>
     </header>

@@ -5,28 +5,32 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const { google } = require('googleapis');
 
-// Verify credentials loaded
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_REFRESH_TOKEN) {
-  console.error("ERROR: Missing Google credentials in .env file.");
+// Verify TALA Google credentials
+if (
+  !process.env.TALA_GOOGLE_CLIENT_ID ||
+  !process.env.TALA_GOOGLE_CLIENT_SECRET ||
+  !process.env.TALA_GOOGLE_REFRESH_TOKEN
+) {
+  throw new Error("Missing TALA Google credentials in server/.env");
 } else {
-  console.log("Google API credentials loaded from .env");
+  console.log("TALA Google credentials loaded successfully.");
 }
 
 // Setup the OAuth2 client using variables from .env
 const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.TALA_GOOGLE_CLIENT_ID,
+  process.env.TALA_GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URI || "https://developers.google.com/oauthplayground"
 );
 
 // Set the Refresh Token
 oauth2Client.setCredentials({
-  refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+  refresh_token: process.env.TALA_GOOGLE_REFRESH_TOKEN,
 });
 
 const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
-// 4. The function that creates the meeting
+// The function that creates the meeting
 async function createMeetLink(startTime, endTime, parentEmail, parentName) {
   try {
     console.log(`Creating Google Meet for ${parentEmail}...`);
@@ -46,7 +50,7 @@ async function createMeetLink(startTime, endTime, parentEmail, parentName) {
     };
 
     const response = await calendar.events.insert({
-      calendarId: 'primary',
+      calendarId: process.env.TALA_GOOGLE_CALENDAR_ID || "primary",
       resource: event,
       conferenceDataVersion: 1, 
       sendUpdates: 'all',       
@@ -68,5 +72,10 @@ async function createMeetLink(startTime, endTime, parentEmail, parentName) {
     return null; 
   }
 }
+async function getBusyTimes(startsAt, endsAt) {
+  // Ask Google Calendar which periods
+  // already contain appointments.
+}
+
 
 module.exports = { createMeetLink };

@@ -1,29 +1,16 @@
 "use strict";
-
 const { runtimeRevision, dataScope, assertCurrentRevision } = require("./runtimeIdentity.cjs");
-
 const http = require("node:http");
-
 const path = require("node:path");
-
 const { randomUUID } = require("node:crypto");
-
-const { openDatabase, transaction, SCHEMA_VERSION } = require("./database.cjs");
-
+const {openDatabase,transaction,SCHEMA_VERSION} = require("./database.cjs");
 const { createServices, userDTO, MAX_FILE_BYTES } = require("./services.cjs");
-
 const { createAdmissions } = require("./admissions.cjs");
-
 const { createPayments } = require("./payments.cjs");
-
 const { createTestCheckout } = require("./testCheckout.cjs");
-
 const { createAccountServices } = require("./accountServices.cjs");
-
 const { createIntegrations } = require("./integrations.cjs");
-
 const { ApiError, fail, object, text, email, password, hash, token, hashPassword, verifyPassword, constantEqual } = require("./security.cjs");
-
 assertCurrentRevision();
 
 const { getEnrollmentConfirmationEmail } = require('./emailTemplates.cjs');

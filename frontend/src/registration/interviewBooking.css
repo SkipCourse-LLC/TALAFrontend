@@ -1,29 +1,306 @@
+
 .interview-booking {
-  max-width: 760px;
-  margin-block: 0 32px;
-  padding: clamp(20px, 4vw, 32px);
-  border: 1px solid var(--color-line);
-  border-radius: 20px;
-  background: var(--color-green);
+  width: 100%;
+  box-sizing: border-box;
 }
-.interview-booking h2 {
-  margin-top: 0;
-  font-size: clamp(1.25rem, 3vw, 1.5rem);
+
+.interview-booking * {
+  box-sizing: border-box;
 }
-.interview-booking p {
+
+.tala-booking-description {
+  color: #64748b;
   line-height: 1.6;
+  margin-bottom: 28px;
 }
-.interview-booking .button {
-  max-width: 100%;
-  min-height: 44px;
-  white-space: normal;
+
+/* Two-column layout */
+
+.tala-booking-layout {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.25fr)
+    minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+/* Calendar container */
+
+.tala-calendar {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 24px;
+}
+
+.tala-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.tala-calendar-header h4 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
   text-align: center;
+  color: #172033;
 }
-.interview-booking .small {
-  margin-bottom: 0;
+
+.tala-calendar-header button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #dce3ed;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #24324a;
+  font-size: 26px;
+  cursor: pointer;
 }
-@media (max-width: 640px) {
-  .interview-booking .button {
-    width: 100%;
+
+.tala-calendar-header button:hover:not(:disabled) {
+  background: #edf2ff;
+}
+
+.tala-calendar-header button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Seven-column monthly calendar */
+
+.tala-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tala-calendar-weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  padding: 8px 0 14px;
+}
+
+.tala-calendar-empty {
+  aspect-ratio: 1;
+}
+
+.tala-calendar-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #a0a9b8;
+  font: inherit;
+  font-size: 15px;
+}
+
+.tala-calendar-day:disabled {
+  cursor: not-allowed;
+}
+
+.tala-calendar-day.available {
+  background: #eaf0ff;
+  color: #345cc4;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tala-calendar-day.available:hover:not(:disabled) {
+  background: #dce7ff;
+  border-color: #345cc4;
+}
+
+.tala-calendar-day.today {
+  border-color: #94a3b8;
+}
+
+.tala-calendar-day.selected {
+  background: #345cc4;
+  color: #ffffff;
+  border-color: #345cc4;
+}
+
+.tala-calendar-day.selected:hover:not(:disabled) {
+  background: #294ba5;
+}
+
+/* Calendar legend */
+
+.tala-calendar-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 24px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.tala-calendar-legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tala-calendar-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-available {
+  background: #345cc4;
+}
+
+.legend-unavailable {
+  background: #cbd5e1;
+}
+
+/* Right-side appointment panel */
+
+.tala-booking-panel {
+  min-width: 0;
+  border-left: 1px solid #e2e8f0;
+  padding-left: 28px;
+}
+
+.tala-booking-panel h4 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  color: #172033;
+}
+
+.tala-booking-placeholder {
+  color: #64748b;
+  line-height: 1.7;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 12px;
+}
+
+.tala-booking-times {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 16px 0 24px;
+}
+
+.tala-booking-times button {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #345cc4;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #345cc4;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+
+.tala-booking-times button:hover:not(:disabled) {
+  background: #eaf0ff;
+}
+
+.tala-booking-times button.selected {
+  background: #345cc4;
+  border-color: #345cc4;
+  color: #ffffff;
+}
+
+.tala-booking-times button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Selected interview */
+
+.tala-booking-summary {
+  padding: 18px;
+  margin: 20px 0;
+  background: #f1f5ff;
+  border-radius: 12px;
+  color: #24324a;
+}
+
+.tala-booking-summary strong {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.tala-booking-summary p {
+  margin: 5px 0;
+}
+
+.tala-confirm-interview {
+  width: 100%;
+  margin-top: 12px;
+  min-height: 48px;
+}
+
+.tala-confirm-interview:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.interview-booking button:focus-visible {
+  outline: 2px solid #345cc4;
+  outline-offset: 3px;
+}
+
+/* Mobile responsive layout */
+
+@media (max-width: 760px) {
+  .tala-booking-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .tala-booking-panel {
+    border-left: none;
+    border-top: 1px solid #e2e8f0;
+    padding-left: 0;
+    padding-top: 24px;
+  }
+}
+
+@media (max-width: 440px) {
+  .tala-calendar {
+    padding: 12px;
+  }
+
+  .tala-calendar-grid {
+    gap: 3px;
+  }
+
+  .tala-calendar-day {
+    font-size: 13px;
+    border-radius: 7px;
+  }
+
+  .tala-calendar-weekday {
+    font-size: 10px;
+  }
+
+  .tala-calendar-header h4 {
+    font-size: 16px;
   }
 }

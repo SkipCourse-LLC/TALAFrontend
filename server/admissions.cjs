@@ -4,6 +4,8 @@
 const { randomUUID } = require("node:crypto");
 const { TextDecoder } = require("node:util");
 const { transaction } = require("./database.cjs");
+const { createAdmissionsGoogleSync } = require("./admissionsGoogleSync.cjs");
+const {meetingConfirmation,meetingPreparation} = require("./emailTemplates.cjs");
 const { fail, object, text, paragraph, identifier, requestId, email, hash, token, password, hashPassword, verifyPassword } = require("./security.cjs");
 const MAX_BYTES = 5 * 1024 * 1024, ACCESS_TTL = 7 * 86400000;
 const iso = value => new Date(value).toISOString();
@@ -11,7 +13,30 @@ const SCHOOL_TIME_ZONE = "America/Phoenix";
 const interviewTime = value => new Intl.DateTimeFormat("en-US", { timeZone: SCHOOL_TIME_ZONE, weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 const optional = (value, label, maximum) => value === undefined || value === "" ? "" : text(value, label, maximum);
 function createAdmissions(db, context) {
+  // Preserve existing applications when adding the parent phone field.
+  transaction(db, () => {
+    const columns = db.prepare("PRAGMA table_info(admissions_applications)").all();
+    if (!columns.some(column => column.name === "phone")) {
+      db.exec("ALTER TABLE admissions_applications ADD COLUMN phone TEXT NOT NULL DEFAULT ''");
+    }
+  });
   const cookieName = "tala_admissions";
+  const googleMeeting = context.integrations?.meeting;
+  const useLocalAvailability =
+  process.env.TALA_LOCAL_AVAILABILITY === "true";
+  console.log("[Admissions] Local availability mode:",
+  useLocalAvailability
+        );
+  const googleSync = googleMeeting?.getAvailabilityEvents
+    ? createAdmissionsGoogleSync(db, googleMeeting) : null;
+  async function refreshGoogle() {
+    if (!googleSync) fail(503, "INTEGRATION_UNAVAILABLE", "Google interview availability is not configured.");
+    try { await googleSync.refresh(); }
+    catch (error) {
+      if (error?.status) throw error;
+      fail(503, "INTEGRATION_UNAVAILABLE", "Could not refresh Tina's Google Calendar.");
+    }
+  }
   const cookies = req => Object.fromEntries((req.headers.cookie || "").split(";").map(part => part.trim().split("=")).filter(parts => parts.length === 2));
   function access(req, required = true) {
     const opaque = cookies(req)[cookieName];
@@ -63,7 +88,7 @@ function createAdmissions(db, context) {
   function dto(row) {
     const appointment = db.prepare(`SELECT a.*,s.starts_at,s.ends_at,m.meeting_status,m.join_url,m.email_status FROM admissions_appointments a JOIN slots s ON s.id=a.slot_id
       LEFT JOIN admissions_meetings m ON m.appointment_id=a.id WHERE a.application_id=? ORDER BY a.created_at DESC,a.id DESC LIMIT 1`).get(row.id);
-    return { id: row.id, parentName: row.parent_name, email: row.email, studentName: row.student_name, gradeBand: row.grade_band, interest: row.interest,
+    return { id: row.id, parentName: row.parent_name, email: row.email, phone: row.phone ?? "", studentName: row.student_name, gradeBand: row.grade_band, interest: row.interest,
       status: row.status, version: row.version, documentPreference: row.document_preference, studentSetup: studentSetupDTO(row.id),
       appointment: appointment ? { id: appointment.id, slotId: appointment.slot_id, startsAt: iso(appointment.starts_at), endsAt: iso(appointment.ends_at), status: appointment.status,
         meeting: appointment.meeting_status ? { status: appointment.meeting_status, joinUrl: appointment.meeting_status === "ready" && appointment.status === "reserved" ? appointment.join_url : null } : null,
@@ -74,12 +99,28 @@ function createAdmissions(db, context) {
   function slots() {
     return db.prepare(`SELECT s.* FROM slots s JOIN admissions_slots purpose ON purpose.slot_id=s.id
       JOIN availability_state state ON state.slot_id=s.id WHERE state.status='published' AND s.starts_at>?
+        AND (?=0 OR EXISTS(SELECT 1 FROM admissions_google_slots g WHERE g.slot_id=s.id))
       AND NOT EXISTS(SELECT 1 FROM appointments a JOIN slots occupied ON occupied.id=a.slot_id WHERE a.status='reserved' AND occupied.starts_at<s.ends_at AND occupied.ends_at>s.starts_at)
       AND NOT EXISTS(SELECT 1 FROM admissions_appointments a JOIN slots occupied ON occupied.id=a.slot_id WHERE a.status='reserved' AND occupied.starts_at<s.ends_at AND occupied.ends_at>s.starts_at)
-      ORDER BY s.starts_at,s.id LIMIT 100`).all(Date.now()).map(s => ({ id: s.id, startsAt: iso(s.starts_at), endsAt: iso(s.ends_at), label: s.label, isAvailable: true }));
+      ORDER BY s.starts_at,s.id LIMIT 400`).all(Date.now(), !useLocalAvailability && googleSync ? 1 : 0).map(s => ({ id: s.id, startsAt: iso(s.starts_at), endsAt: iso(s.ends_at), label: s.label, isAvailable: true }));
   }
-  function current(req) {
-    return transaction(db, () => { const cap = access(req, false); return { application: cap ? dto(applicationRow(cap.application_id)) : null, slots: cap ? slots() : [], integrations: integrationStatus(), mode: "local_test" }; });
+  async function current(req) {
+    const result = transaction(db, () => {
+      const cap = access(req, false);
+      return {
+        application: cap
+          ? dto(applicationRow(cap.application_id))
+          : null,
+        slots: cap ? slots() : [],
+        integrations: integrationStatus(),
+        mode: "local_test"
+      };
+    });
+    if (!result.application) return result;
+    return {
+      ...result,
+      slots: await excludeGoogleBusyTimes(result.slots)
+    };
   }
   function integrationStatus() {
     const modes = context.integrations?.describe() ?? {};
@@ -103,8 +144,16 @@ function createAdmissions(db, context) {
     return { replay: false, row };
   }
   function submit(req, res, input) {
-    object(input, ["parentName", "email", "studentName", "gradeBand", "interest", "requestId"]);
-    const fields = { parentName: text(input.parentName, "parent name", 80), email: email(input.email), studentName: optional(input.studentName, "student name", 80), gradeBand: optional(input.gradeBand, "grade band", 40), interest: input.interest ? paragraph(input.interest, "interest", 600) : "", requestId: requestId(input.requestId) };
+    object(input, [
+        "parentName",
+        "email",
+        "phone",
+        "studentName",
+        "gradeBand",
+        "interest",
+        "requestId"
+      ]);
+    const fields = { parentName: text(input.parentName, "parent name", 80), email: email(input.email), phone: optional(input.phone, "phone", 30), studentName: optional(input.studentName, "student name", 80), gradeBand: optional(input.gradeBand, "grade band", 40), interest: input.interest ? paragraph(input.interest, "interest", 600) : "", requestId: requestId(input.requestId) };
     if (context.session(req)?.user) fail(409, "CONFLICT", "Sign out before starting a new application.");
     const opaque = token();
     const result = transaction(db, () => {
@@ -117,7 +166,10 @@ function createAdmissions(db, context) {
         if (existing) fail(409, "APPLICATION_EXISTS", "You already have an application in this browser. Continue it first.");
         if (db.prepare("SELECT count(*) AS n FROM admissions_applications").get().n >= 5000) fail(409, "CAPACITY_REACHED", "Applications are temporarily unavailable. Contact TALA.");
         const now = Date.now(), id = randomUUID();
-        db.prepare("INSERT INTO admissions_applications VALUES(?,?,?,?,?,?,'pending_interview','undecided',1,?,?,NULL)").run(id, fields.parentName, fields.email, fields.studentName, fields.gradeBand, fields.interest, now, now);
+        db.prepare(`INSERT INTO admissions_applications
+          (id,parent_name,email,student_name,grade_band,interest,status,document_preference,version,created_at,updated_at,enrolled_parent_uid,phone)
+          VALUES(?,?,?,?,?,?,'pending_interview','undecided',1,?,?,NULL,?)`)
+          .run(id, fields.parentName, fields.email, fields.studentName, fields.gradeBand, fields.interest, now, now, fields.phone);
         db.prepare("INSERT INTO admissions_access VALUES(?,?,?,?)").run(hash(opaque), id, now + ACCESS_TTL, now);
         audit(id, "application_submitted");
         return applicationRow(id);
@@ -137,8 +189,67 @@ function createAdmissions(db, context) {
       return envelope(result.row);
     });
   }
+  async function excludeGoogleBusyTimes(availableSlots) {
+    if (useLocalAvailability) {
+        return availableSlots;
+      }
+    if (availableSlots.length === 0) return [];
+    const meeting = context.integrations?.meeting;
+    if (!meeting || typeof meeting.getBusyTimes !== "function") {
+      // Never claim times are available when Google
+      // synchronization is not configured.
+      fail(
+        503,
+        "INTEGRATION_UNAVAILABLE",
+        "Interview availability is temporarily unavailable."
+      );
+    }
+    const start = availableSlots[0].startsAt;
+    const end = availableSlots.reduce(
+      (latest, slot) =>
+        slot.endsAt > latest ? slot.endsAt : latest,
+      availableSlots[0].endsAt
+    );
+    const busyTimes = await meeting.getBusyTimes(start, end);
+    return availableSlots.filter((slot) => {
+      const slotStart = Date.parse(slot.startsAt);
+      const slotEnd = Date.parse(slot.endsAt);
+      return !busyTimes.some((busy) => {
+        const busyStart = Date.parse(busy.startsAt);
+        const busyEnd = Date.parse(busy.endsAt);
+        return slotStart < busyEnd && slotEnd > busyStart;
+      });
+    });
+  }
   async function book(req, input) {
     let booked = null, replaced = null;
+    // Check the requested interview time locally.
+    const selected = transaction(db, () => {
+      const row = applicant(req, true);
+      checkVersion(row, input.version);
+      const slotId = identifier(input.slotId);
+      const available = slots().find(
+        slot => slot.id === slotId
+      );
+      if (!available) {
+        fail(
+          409,
+          "CONFLICT",
+          "This interview time is no longer available."
+        );
+      }
+      return available;
+    });
+    // Check Tina's Google Calendar.
+    const googleAvailable =
+      await excludeGoogleBusyTimes([selected]);
+    if (googleAvailable.length === 0) {
+      fail(
+        409,
+        "CONFLICT",
+        "Tina is already booked at this time. Choose another."
+      );
+    }
     const result = change(req, input, "book", ["slotId", "requestId", "version"], row => {
       if (!["pending_interview", "interview_scheduled"].includes(row.status)) fail(409, "CONFLICT", "Interview scheduling is closed for this application.");
       const slotId = identifier(input.slotId), available = slots().find(s => s.id === slotId);
@@ -173,13 +284,72 @@ function createAdmissions(db, context) {
       } catch { meeting = { provider: services.meeting.mode, meetingId: null, joinUrl: null, status: "failed" }; }
     }
     let emailStatus = "unavailable";
+    
     if (services.email.mode !== "disabled") {
-      const link = meeting.status === "ready" ? `Join by video: ${meeting.joinUrl}` : "We will email you the video link before your interview.";
+
+      // Meeting confirmation
       try {
-        await services.email.send({ to: booked.email, subject: "Your TALA admissions interview is booked",
-          text: `Hello ${booked.parentName},\n\nYour TALA admissions interview is booked for ${interviewTime(booked.startsAt)} (Tucson time).\n\n${link}\n\nTo choose a different time, return to your application on the TALA website.\n\nTALA Admissions` });
+        const confirmation = meetingConfirmation({
+          parentName: booked.parentName,
+          startsAt: booked.startsAt,
+          endsAt: booked.endsAt,
+          meetingLink:
+            meeting.status === "ready"
+              ? meeting.joinUrl
+              : null
+        });
+
+        await services.email.send({
+          to: booked.email,
+          ...confirmation
+        });
+
         emailStatus = "sent";
-      } catch { emailStatus = "failed"; }
+
+        console.log(
+          "[TALA] Meeting confirmation email sent."
+        );
+
+      } catch (error) {
+        emailStatus = "failed";
+
+        console.error(
+          "[TALA CONFIRMATION EMAIL FAILED]",
+          {
+            name: error?.name,
+            code: error?.code,
+            status: error?.status,
+            reason: error?.reason
+          }
+        );
+      }
+
+      // Meeting preparation
+      try {
+        const preparation = meetingPreparation({
+          parentName: booked.parentName
+        });
+
+        await services.email.send({
+          to: booked.email,
+          ...preparation
+        });
+
+        console.log(
+          "[TALA] Meeting preparation email sent."
+        );
+
+      } catch (error) {
+        console.error(
+          "[TALA PREPARATION EMAIL FAILED]",
+          {
+            name: error?.name,
+            code: error?.code,
+            status: error?.status,
+            reason: error?.reason
+          }
+        );
+      }
     }
     const stillBooked = db.prepare("SELECT status FROM admissions_appointments WHERE id=?").get(booked.id)?.status === "reserved";
     let cleanup = "none";
@@ -444,23 +614,58 @@ function createAdmissions(db, context) {
     db.prepare("INSERT OR IGNORE INTO admissions_slots VALUES(?)").run(slot.id);
     return slot;
   }
-  function publish(actor, input) {
-    object(input, ["startsAt", "endsAt", "label", "requestId"]); requestId(input.requestId);
-    return transaction(db, () => {
-      operator(actor);
-      const fingerprint = hash(JSON.stringify(input));
-      const old = db.prepare("SELECT * FROM admissions_operations WHERE scope=? AND kind='interview-availability' AND request_id=?").get(actor.uid, input.requestId);
-      if (old) {
-        if (old.fingerprint !== fingerprint) fail(409, "CONFLICT", "This request identifier was already used.");
-        const slot = db.prepare("SELECT * FROM slots WHERE id=?").get(old.result_id);
-        return { id: slot.id, startsAt: iso(slot.starts_at), endsAt: iso(slot.ends_at), label: slot.label, isAvailable: slots().some(item => item.id === slot.id) };
-      }
-      const slot = addAvailability(input, actor);
-      db.prepare("INSERT INTO admissions_operations VALUES(?,'interview-availability',?,?,?,0,?)").run(actor.uid, input.requestId, fingerprint, slot.id, Date.now());
-      return slot;
-    });
+  async function publish(actor, input) {
+  operator(actor);
+  object(input, [
+    "startsAt",
+    "endsAt",
+    "label",
+    "requestId"
+  ]);
+  requestId(input.requestId);
+  // Local availability mode
+  if (useLocalAvailability) {
+    return transaction(db, () =>
+      addAvailability(input, actor)
+    );
   }
-  return { current, submit, book, preference, intent, upload, download, list, detail, review, issue, inspect, enroll, parent, authorizeStudentSetup, provisionStudent, end, publish,
+  // Google Calendar availability mode
+  if (!googleSync || !googleMeeting.createAvailabilityEvent) {
+    fail(
+      503,
+      "INTEGRATION_UNAVAILABLE",
+      "Google Calendar is not configured."
+    );
+  }
+  const created =
+    await googleMeeting.createAvailabilityEvent({
+      startsAt: input.startsAt,
+      endsAt: input.endsAt
+    });
+  await refreshGoogle();
+  return created;
+}
+  async function listGoogleAvailability(actor) {
+    operator(actor);
+    if(!googleSync)fail(503,"INTEGRATION_UNAVAILABLE","Google Calendar is not configured.");
+    const now=Date.now();
+    return {events:await googleMeeting.getAvailabilityEvents(new Date(now).toISOString(),new Date(now+30*86400000).toISOString())};
+  }
+  async function updateGoogleAvailability(actor,id,input) {
+    operator(actor);
+    if(!googleSync)fail(503,"INTEGRATION_UNAVAILABLE","Google Calendar is not configured.");
+    const result=await googleMeeting.updateAvailabilityEvent(id,input);
+    await refreshGoogle();
+    return result;
+  }
+  async function deleteGoogleAvailability(actor,id) {
+    operator(actor);
+    if(!googleSync)fail(503,"INTEGRATION_UNAVAILABLE","Google Calendar is not configured.");
+    const result=await googleMeeting.deleteAvailabilityEvent(id);
+    await refreshGoogle();
+    return result;
+  }
+  return { current, submit, book, preference, intent, upload, download, list, detail, review, issue, inspect, enroll, parent, authorizeStudentSetup, provisionStudent, end, publish, listGoogleAvailability, updateGoogleAvailability, deleteGoogleAvailability,
     addAvailability: input => transaction(db, () => addAvailability(input)), clearCookie: res => setAccess(res, "", 0) };
 }
 module.exports = { createAdmissions };

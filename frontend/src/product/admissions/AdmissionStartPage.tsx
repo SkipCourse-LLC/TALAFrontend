@@ -1,709 +1,1090 @@
+
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
+
 import {
   admissionsApi,
-  fingerprintEvidenceFile,
   newRequestId,
   safeTalaApiError,
-  validateEvidenceFile,
 } from "../../api";
+
 import type {
-  AdmissionApplication,
   AdmissionCurrent,
   AdmissionInterestInput,
-  DocumentPreference,
 } from "../../api";
-import { hasTextControls, isWellFormedText } from "../unicodeText";
+
 import { InterviewBooking } from "../../registration/InterviewBooking";
+
 import "./admissions.css";
 
-const statusLabels: Record<AdmissionApplication["status"], string> = {
-  pending_interview: "Pending interview",
-  interview_scheduled: "Interview scheduled",
-  interviewed: "Under review",
-  approved: "Approved",
-  declined: "Not approved",
-  enrolled: "Enrolled",
+const zone = "America/Phoenix";
+
+const steps = [
+  "Your interest",
+  "Meet Tina",
+  "Review & Submit",
+];
+
+type ParentInformation = {
+  parentName: string;
+  email: string;
+  phone: string;
+  interest: string;
 };
-const dateLabel = (value: string) =>
-  new Intl.DateTimeFormat(undefined, {
+
+const emptyParent: ParentInformation = {
+  parentName: "",
+  email: "",
+  phone: "",
+  interest: "",
+};
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
     year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "America/Phoenix",
-    timeZoneName: "short",
+    timeZone: zone,
   }).format(new Date(value));
-
-function InterestForm({
-  onSaved,
-}: {
-  onSaved: (current: AdmissionCurrent) => void;
-}) {
-  const [parentName, setParentName] = useState("");
-  const [email, setEmail] = useState("");
-  const [gradeBand, setGradeBand] = useState("");
-  const [interest, setInterest] = useState("");
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
-  const [uncertain, setUncertain] = useState(false);
-  const busy = useRef(false),
-    active = useRef(false);
-  const request = useRef<AbortController | null>(null);
-  const receipt = useRef<{ fingerprint: string; requestId: string } | null>(
-    null,
-  );
-  useEffect(() => {
-    active.current = true;
-    return () => {
-      active.current = false;
-      request.current?.abort();
-    };
-  }, []);
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (busy.current) return;
-    setError("");
-    if (
-      !parentName.trim() ||
-      parentName.trim().length > 80 ||
-      !isWellFormedText(parentName) ||
-      hasTextControls(parentName)
-    ) {
-      setError("Enter the parent’s name.");
-      document.getElementById("admission-parent")?.focus();
-      return;
-    }
-    if (
-      email.length > 254 ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
-      hasTextControls(email) ||
-      !isWellFormedText(email)
-    ) {
-      setError("Enter a complete contact email.");
-      document.getElementById("admission-email")?.focus();
-      return;
-    }
-    if (
-      !isWellFormedText(interest) ||
-      hasTextControls(interest.replace(/\r\n/g, "\n"), true) ||
-      interest.length > 600
-    ) {
-      setError("Use 600 characters or fewer for your note.");
-      return;
-    }
-    const fields = {
-      parentName: parentName.trim(),
-      email: email.trim(),
-      studentName: "",
-      gradeBand,
-      interest: interest.trim(),
-    };
-    const fingerprint = JSON.stringify(fields);
-    if (receipt.current?.fingerprint !== fingerprint)
-      receipt.current = { fingerprint, requestId: newRequestId() };
-    const input: AdmissionInterestInput = {
-      ...fields,
-      requestId: receipt.current!.requestId,
-    };
-    busy.current = true;
-    setPending(true);
-    setUncertain(false);
-    const controller = new AbortController();
-    request.current = controller;
-    try {
-      const saved = await admissionsApi.submitInterest(
-        input,
-        controller.signal,
-      );
-      if (active.current && !controller.signal.aborted) onSaved(saved);
-    } catch (failure) {
-      if (active.current && !controller.signal.aborted) {
-        setError(safeTalaApiError(failure).message);
-        setUncertain(true);
-      }
-    } finally {
-      busy.current = false;
-      if (active.current) setPending(false);
-    }
-  }
-  async function recover() {
-    if (busy.current) return;
-    busy.current = true;
-    setPending(true);
-    try {
-      const saved = await admissionsApi.current();
-      if (!active.current) return;
-      if (saved.application) onSaved(saved);
-      else
-        setError(
-          "No saved application was found in this browser. You can retry the form.",
-        );
-    } catch (failure) {
-      if (active.current) setError(safeTalaApiError(failure).message);
-    } finally {
-      busy.current = false;
-      if (active.current) setPending(false);
-    }
-  }
-  return (
-    <section className="admission-card">
-      <h2>Tell us a little.</h2>
-      <p className="admission-muted">No password or school account yet.</p>
-      <form
-        onSubmit={(event) => void submit(event)}
-        noValidate
-        aria-busy={pending}
-      >
-        <fieldset disabled={pending} className="admission-fields">
-          <legend className="sr-only">Initial interest form</legend>
-          <div className="form-field">
-            <label htmlFor="admission-parent">Parent or guardian name</label>
-            <input
-              id="admission-parent"
-              name="parentName"
-              autoComplete="name"
-              value={parentName}
-              onChange={(event) => setParentName(event.target.value)}
-              maxLength={80}
-              required
-            />
-          </div>
-          <div className="form-field">
-            <label htmlFor="admission-email">Contact email</label>
-            <input
-              id="admission-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder="family@example.test"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              maxLength={254}
-              required
-            />
-          </div>
-          <div className="form-field">
-            <label htmlFor="admission-grade">
-              Student grade <span className="admission-optional">Optional</span>
-            </label>
-            <select
-              id="admission-grade"
-              value={gradeBand}
-              onChange={(event) => setGradeBand(event.target.value)}
-            >
-              <option value="">Choose a grade band</option>
-              <option value="K–5">K–5</option>
-              <option value="6–8">6–8</option>
-              <option value="9–12">9–12</option>
-              <option value="Not sure">Not sure</option>
-            </select>
-          </div>
-          <div className="form-field">
-            <label htmlFor="admission-interest">
-              What are you looking for?{" "}
-              <span className="admission-optional">Optional</span>
-            </label>
-            <textarea
-              id="admission-interest"
-              value={interest}
-              onChange={(event) => setInterest(event.target.value)}
-              maxLength={600}
-              rows={3}
-              aria-describedby="admission-note-help"
-            />
-            <small id="admission-note-help">
-              Keep medical and other sensitive details out of this form.
-            </small>
-          </div>
-          <button className="button" type="submit">
-            {pending ? "Saving…" : "Continue to meet Tina"}
-          </button>
-        </fieldset>
-      </form>
-      {error && (
-        <p className="notice error" role="alert">
-          {error}
-        </p>
-      )}
-      {uncertain && (
-        <button
-          className="button button-outline"
-          disabled={pending}
-          onClick={() => void recover()}
-        >
-          Check saved application
-        </button>
-      )}
-    </section>
-  );
 }
 
-function ApplicationPortal({
-  initial,
-  onSaved,
-}: {
-  initial: AdmissionCurrent & { application: AdmissionApplication };
-  onSaved: (current: AdmissionCurrent) => void;
-}) {
-  const app = initial.application;
-  const [slotId, setSlotId] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [fictional, setFictional] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [pending, setPending] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
-  const active = useRef(false),
-    busy = useRef(false);
-  const controller = useRef<AbortController | null>(null);
-  const receipts = useRef(new Map<string, string>());
-  const inputFile = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    active.current = true;
-    return () => {
-      active.current = false;
-      controller.current?.abort();
-    };
-  }, []);
-  function requestId(key: string) {
-    let id = receipts.current.get(key);
-    if (!id) {
-      id = newRequestId();
-      receipts.current.set(key, id);
-    }
-    return id;
-  }
-  async function run(
-    action: (signal: AbortSignal) => Promise<AdmissionCurrent>,
-    confirmation: string,
-  ) {
-    if (busy.current) return;
-    busy.current = true;
-    setPending(true);
-    setError("");
-    setMessage("");
-    const request = new AbortController();
-    controller.current = request;
-    try {
-      const saved = await action(request.signal);
-      if (active.current && !request.signal.aborted) {
-        onSaved(saved);
-        setMessage(confirmation);
-      }
-    } catch (failure) {
-      if (active.current && !request.signal.aborted) {
-        const problem = safeTalaApiError(failure);
-        if (problem.code === "EXPIRED") receipts.current.clear();
-        setError(problem.message);
-      }
-    } finally {
-      busy.current = false;
-      if (active.current) setPending(false);
-    }
-  }
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 15_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const available = initial.slots.filter(
-    (slot) => slot.isAvailable && Date.parse(slot.startsAt) > now,
-  );
-  const editable = ["pending_interview", "interview_scheduled"].includes(
-    app.status,
-  );
-  const booked =
-    app.appointment?.status === "reserved" ? app.appointment : null;
-  function preference(value: DocumentPreference) {
-    return run(
-      (signal) =>
-        admissionsApi.setDocumentPreference(
-          app.id,
-          {
-            preference: value,
-            version: app.version,
-            requestId: requestId(`preference:${app.version}:${value}`),
-          },
-          signal,
-        ),
-      value === "bring"
-        ? "Document preference saved."
-        : "You can upload a test file below.",
-    );
-  }
-  function upload() {
-    if (!file || !fictional) return;
-    const chosen = file;
-    return run(async (signal) => {
-      validateEvidenceFile(chosen);
-      const sha256 = await fingerprintEvidenceFile(chosen);
-      if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
-      const intent = await admissionsApi.createDocumentIntent(
-        app.id,
-        {
-          name: chosen.name,
-          contentType: chosen.type,
-          size: chosen.size,
-          sha256,
-          requestId: requestId(`upload:${sha256}:${chosen.name}`),
-        },
-        signal,
-      );
-      const saved = await admissionsApi.uploadDocument(
-        app.id,
-        intent.uploadId,
-        chosen,
-        signal,
-      );
-      if (active.current && !signal.aborted) {
-        setFile(null);
-        setFictional(false);
-        if (inputFile.current) inputFile.current.value = "";
-      }
-      return saved;
-    }, "Test file saved privately.");
-  }
-  async function download(id: string) {
-    if (busy.current) return;
-    busy.current = true;
-    setPending(true);
-    setError("");
-    const request = new AbortController();
-    controller.current = request;
-    try {
-      const result = await admissionsApi.downloadDocument(
-        id,
-        request.signal,
-        app.id,
-      );
-      if (!active.current || request.signal.aborted) return;
-      const url = URL.createObjectURL(result.blob),
-        link = document.createElement("a");
-      link.href = url;
-      link.download = result.filename;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (failure) {
-      if (active.current && !request.signal.aborted)
-        setError(safeTalaApiError(failure).message);
-    } finally {
-      busy.current = false;
-      if (active.current) setPending(false);
-    }
-  }
-  return (
-    <div className="admission-portal" aria-busy={pending}>
-      <section className="admission-status-bar">
-        <div>
-          <span className="admission-badge">{statusLabels[app.status]}</span>
-          <p>{app.parentName}</p>
-        </div>
-        <button
-          className="button button-outline"
-          disabled={pending}
-          onClick={() =>
-            void run(
-              (signal) => admissionsApi.current(signal, app.id),
-              "Status updated.",
-            )
-          }
-        >
-          Refresh status
-        </button>
-      </section>
-      {error && (
-        <p className="notice error" role="alert">
-          {error} <span>Refresh status before retrying.</span>
-        </p>
-      )}
-      {message && (
-        <p className="admission-feedback" role="status">
-          {message}
-        </p>
-      )}
-      <div className="admission-portal-grid">
-        <section className="admission-card">
-          <h2>{booked ? "Local test meeting" : "Meet Tina"}</h2>
-          {booked ? (
-            <>
-              <p className="admission-meeting-date">
-                {dateLabel(booked.startsAt)}
-              </p>
-              <p className="admission-muted">
-                Local test reservation saved. No email was sent and no live
-                meeting link is connected.
-              </p>
-            </>
-          ) : editable ? (
-            <>
-              <p className="admission-muted">
-                These times are for local test reservations. To book your real
-                interview, use the Google Calendar button above.
-              </p>
-              {available.length ? (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (slotId)
-                      void run(
-                        (signal) =>
-                          admissionsApi.bookInterview(
-                            app.id,
-                            {
-                              slotId,
-                              version: app.version,
-                              requestId: requestId(
-                                `book:${app.version}:${slotId}`,
-                              ),
-                            },
-                            signal,
-                          ),
-                        "Test interview reserved. No email was sent.",
-                      );
-                  }}
-                >
-                  <fieldset className="admission-times" disabled={pending}>
-                    <legend className="sr-only">
-                      Available local test interview times
-                    </legend>
-                    {available.map((slot) => (
-                      <label key={slot.id} className="admission-time">
-                        <input
-                          type="radio"
-                          name="interview-time"
-                          value={slot.id}
-                          checked={slotId === slot.id}
-                          onChange={() => setSlotId(slot.id)}
-                        />
-                        <span>
-                          <strong>{dateLabel(slot.startsAt)}</strong>
-                          <small>{slot.label}</small>
-                        </span>
-                      </label>
-                    ))}
-                  </fieldset>
-                  <button className="button" disabled={pending || !slotId}>
-                    {pending ? "Saving…" : "Reserve test interview"}
-                  </button>
-                </form>
-              ) : (
-                <p className="admission-empty">
-                  No local test interview times are open. Use the Google
-                  Calendar button above to see Tina’s available appointments.
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="admission-muted">
-              {app.status === "declined"
-                ? "Tina has completed the review. Contact the admissions team for next steps."
-                : "Tina is reviewing your application."}
-            </p>
-          )}
-          {app.status === "approved" && (
-            <div className="admission-next">
-              <h3>You’re approved.</h3>
-              <p>
-                Use the enrollment invitation from Tina to create your parent
-                account. This status alone does not create an account.
-              </p>
-            </div>
-          )}
-          {app.status === "enrolled" && (
-            <Link className="button" to="/login">
-              Sign in to your parent account
-            </Link>
-          )}
-        </section>
-        <section className="admission-card">
-          <h2>Prepare your documents</h2>
-          <p className="admission-muted">
-            Optional. Bring them to the meeting or upload ahead.
-          </p>
-          {editable && (
-            <fieldset className="admission-choices" disabled={pending}>
-              <legend className="sr-only">Document preference</legend>
-              <button
-                type="button"
-                className={`admission-choice ${app.documentPreference === "bring" ? "is-selected" : ""}`}
-                aria-pressed={app.documentPreference === "bring"}
-                onClick={() => void preference("bring")}
-              >
-                Bring to meeting
-              </button>
-              <button
-                type="button"
-                className={`admission-choice ${app.documentPreference === "upload" ? "is-selected" : ""}`}
-                aria-pressed={app.documentPreference === "upload"}
-                onClick={() => void preference("upload")}
-              >
-                Upload ahead
-              </button>
-            </fieldset>
-          )}
-          {app.documentPreference === "bring" && (
-            <p className="admission-feedback">
-              Bring your documents. Uploading is not required.
-            </p>
-          )}
-          {editable && app.documentPreference === "upload" && (
-            <form
-              className="admission-upload"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void upload();
-              }}
-            >
-              <label htmlFor="admission-document">Test document</label>
-              <input
-                id="admission-document"
-                ref={inputFile}
-                type="file"
-                accept=".pdf,.txt,application/pdf,text/plain"
-                disabled={pending}
-                onChange={(event) => {
-                  setFile(event.target.files?.[0] ?? null);
-                  setError("");
-                }}
-                aria-describedby="admission-file-help"
-              />
-              <small id="admission-file-help">
-                PDF or TXT, up to 5 MiB. Private to this application and
-                authorized staff.
-              </small>
-              <label className="admission-check">
-                <input
-                  type="checkbox"
-                  checked={fictional}
-                  disabled={pending}
-                  onChange={(event) => setFictional(event.target.checked)}
-                />
-                This is a fictional test file with no real student information.
-              </label>
-              <button
-                className="button button-outline"
-                disabled={pending || !file || !fictional}
-              >
-                {pending ? "Saving…" : "Save test file"}
-              </button>
-            </form>
-          )}
-          {app.documents.length > 0 && (
-            <ul className="admission-documents">
-              {app.documents.map((item) => (
-                <li key={item.id}>
-                  <span>
-                    {item.name}
-                    <small>{Math.ceil(item.size / 1024)} KB</small>
-                  </span>
-                  <button
-                    className="text-link"
-                    disabled={pending}
-                    onClick={() => void download(item.id)}
-                  >
-                    Download<span className="sr-only"> {item.name}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-      <p className="admission-access-note">
-        Return in this browser to check your application for 7 days. This
-        private application session is not a school account or verified email
-        identity.
-      </p>
-      <details className="admission-close-access">
-        <summary>Using a shared device?</summary>
-        <p>
-          Close private access before leaving. Your application stays saved, but
-          you will need TALA’s help to reopen it.
-        </p>
-        <button
-          className="button button-outline"
-          disabled={pending}
-          onClick={() =>
-            void run(async (signal) => {
-              await admissionsApi.endAccess(app.id, signal);
-              return admissionsApi.current(signal);
-            }, "Private access closed.")
-          }
-        >
-          Close private application access
-        </button>
-      </details>
-    </div>
-  );
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: zone,
+  }).format(new Date(value));
 }
 
 export function AdmissionStartPage() {
-  const [saved, setSaved] = useState<AdmissionCurrent | null>(null);
+  const [current, setCurrent] =
+    useState<AdmissionCurrent | null>(null);
+
+  const [parent, setParent] =
+    useState<ParentInformation>(emptyParent);
+
+  const [step, setStep] = useState(0);
+  const [selectedSlotId, setSelectedSlotId] =
+    useState("");
+
+  const [confirmed, setConfirmed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+
+  const busy = useRef(false);
+
+  const interestRequest = useRef<{
+    key: string;
+    id: string;
+  } | null>(null);
+
+  const bookingRequest = useRef<{
+    key: string;
+    id: string;
+  } | null>(null);
+
+  const application = current?.application;
+
+  const appointment =
+    application?.appointment?.status === "reserved"
+      ? application.appointment
+      : null;
+
+  const selectedSlot = current?.slots.find(
+    (slot) => slot.id === selectedSlotId,
+  );
+
+  const completed = Boolean(appointment);
+
+  const editable =
+    !application ||
+    application.status === "pending_interview";
+
+  /* =========================================
+     LOAD EXISTING APPLICATION
+  ========================================= */
+
   useEffect(() => {
     const controller = new AbortController();
+
+    setLoading(true);
+    setError("");
+
     void admissionsApi
       .current(controller.signal)
-      .then((value) => {
-        if (!controller.signal.aborted) {
-          setSaved(value);
-          setError("");
+      .then((result) => {
+        if (controller.signal.aborted) return;
+
+        setCurrent(result);
+
+        if (result.application) {
+          setParent({
+            parentName: result.application.parentName,
+            email: result.application.email,
+            phone: result.application.phone ?? "",
+            interest: result.application.interest ?? "",
+          });
+
+          setStep(
+            result.application.appointment?.status ===
+              "reserved"
+              ? 3
+              : 1,
+          );
+        } else {
+          setParent(emptyParent);
+          setStep(0);
         }
+
+        setConfirmed(false);
+        setSelectedSlotId("");
       })
       .catch((failure) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
           setError(safeTalaApiError(failure).message);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       });
+
     return () => controller.abort();
   }, [attempt]);
-  const step = !saved?.application
-    ? 0
-    : ["approved", "enrolled", "declined"].includes(saved.application.status)
-      ? 2
-      : 1;
+
+  /* =========================================
+     UPDATE PARENT INFORMATION
+  ========================================= */
+
+  function updateParent(
+    field: keyof ParentInformation,
+    value: string,
+  ) {
+    setParent((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+
+    setConfirmed(false);
+    setError("");
+  }
+
+  function validateParent() {
+    if (
+      !parent.parentName.trim() ||
+      parent.parentName.trim().length > 80
+    ) {
+      return "Please enter a valid parent or guardian name.";
+    }
+
+    if (
+      parent.email.length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        parent.email.trim(),
+      )
+    ) {
+      return "Please enter a valid contact email.";
+    }
+
+    const digits = parent.phone.replace(/\D/g, "");
+
+    if (
+      !/^\+?[\d ().-]+$/.test(parent.phone.trim()) ||
+      digits.length < 10 ||
+      digits.length > 15
+    ) {
+      return "Please enter a valid phone number.";
+    }
+
+    if (parent.interest.length > 600) {
+      return "Please use 600 characters or fewer.";
+    }
+
+    return "";
+  }
+
+  /* =========================================
+     STEP 1: SAVE PARENT INFORMATION
+  ========================================= */
+
+  async function continueToInterview(
+    event: FormEvent,
+  ) {
+    event.preventDefault();
+
+    if (busy.current || !editable) return;
+
+    setError("");
+
+    const validationError = validateParent();
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    // Existing applications are already saved.
+    // Do not create a duplicate application.
+    if (application) {
+      setStep(1);
+      return;
+    }
+
+    const fields = {
+      parentName: parent.parentName.trim(),
+      email: parent.email.trim(),
+      phone: parent.phone.trim(),
+      interest: parent.interest.trim(),
+
+      // Required by the existing API contract.
+      // These fields are not displayed to parents.
+      studentName: "",
+      gradeBand: "",
+    };
+
+    const key = JSON.stringify(fields);
+
+    if (interestRequest.current?.key !== key) {
+      interestRequest.current = {
+        key,
+        id: newRequestId(),
+      };
+    }
+
+    const input: AdmissionInterestInput = {
+      ...fields,
+      requestId: interestRequest.current.id,
+    };
+
+    busy.current = true;
+    setPending(true);
+
+    try {
+      const result =
+        await admissionsApi.submitInterest(input);
+
+      if (!result.application) {
+        throw new Error(
+          "The application could not be saved.",
+        );
+      }
+
+      setCurrent(result);
+
+      setParent({
+        parentName: result.application.parentName,
+        email: result.application.email,
+        phone: result.application.phone ?? fields.phone,
+        interest: result.application.interest ?? "",
+      });
+
+      setStep(1);
+    } catch (failure) {
+      setError(safeTalaApiError(failure).message);
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  }
+
+  /* =========================================
+     STEP 2: SELECT INTERVIEW
+     NO GOOGLE MEETING CREATED YET
+  ========================================= */
+
+  async function selectInterview(slotId: string) {
+    if (busy.current || !editable) return;
+
+    const slot = current?.slots.find(
+      (item) => item.id === slotId,
+    );
+
+    if (
+      !slot ||
+      slot.isAvailable === false ||
+      Date.parse(slot.startsAt) <= Date.now()
+    ) {
+      setError(
+        "Please select an available interview time.",
+      );
+      return;
+    }
+
+    setSelectedSlotId(slotId);
+    setConfirmed(false);
+    setError("");
+
+    // Move to Review & Submit.
+    // Do not call bookInterview here.
+    setStep(2);
+  }
+
+  /* =========================================
+     STEP 3: FINAL APPLICATION SUBMISSION
+  ========================================= */
+
+  async function submitApplication(
+    event: FormEvent,
+  ) {
+    event.preventDefault();
+
+    if (
+      busy.current ||
+      !application ||
+      !editable
+    ) {
+      return;
+    }
+
+    setError("");
+
+    if (!confirmed) {
+      setError(
+        "Please confirm that all information is correct.",
+      );
+      return;
+    }
+
+    if (
+      !selectedSlot ||
+      selectedSlot.isAvailable === false ||
+      Date.parse(selectedSlot.startsAt) <= Date.now()
+    ) {
+      setError(
+        "This interview time is no longer available.",
+      );
+      return;
+    }
+
+    const key = JSON.stringify({
+      applicationId: application.id,
+      slotId: selectedSlot.id,
+      version: application.version,
+    });
+
+    if (bookingRequest.current?.key !== key) {
+      bookingRequest.current = {
+        key,
+        id: newRequestId(),
+      };
+    }
+
+    busy.current = true;
+    setPending(true);
+
+    try {
+      // The backend reserves the appointment,
+      // creates Google Meet, and attempts to send email.
+      const result =
+        await admissionsApi.bookInterview(
+          application.id,
+          {
+            slotId: selectedSlot.id,
+            version: application.version,
+            requestId: bookingRequest.current.id,
+          },
+        );
+
+      setCurrent(result);
+
+      if (
+        result.application?.appointment?.status ===
+        "reserved"
+      ) {
+        setStep(3);
+        setConfirmed(false);
+        bookingRequest.current = null;
+      } else {
+        setError(
+          "The appointment was not confirmed. Refresh status before retrying.",
+        );
+      }
+    } catch (failure) {
+      setError(
+        `${safeTalaApiError(failure).message} Refresh status before retrying.`,
+      );
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  }
+
+  /* =========================================
+     REFRESH APPLICATION STATUS
+  ========================================= */
+
+  async function refreshStatus() {
+    if (busy.current) return;
+
+    busy.current = true;
+    setPending(true);
+    setError("");
+
+    try {
+      const result = await admissionsApi.current();
+
+      setCurrent(result);
+
+      if (result.application) {
+        setParent({
+          parentName: result.application.parentName,
+          email: result.application.email,
+          phone: result.application.phone ?? "",
+          interest: result.application.interest ?? "",
+        });
+
+        if (
+          result.application.appointment?.status ===
+          "reserved"
+        ) {
+          setStep(3);
+        }
+      } else {
+        setParent(emptyParent);
+        setSelectedSlotId("");
+        setStep(0);
+      }
+
+      setConfirmed(false);
+    } catch (failure) {
+      setError(safeTalaApiError(failure).message);
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  }
+
+  async function closeAccess() {
+    if (!application || busy.current) return;
+
+    busy.current = true;
+    setPending(true);
+    setError("");
+
+    try {
+      await admissionsApi.endAccess(application.id);
+
+      const result = await admissionsApi.current();
+
+      setCurrent(result);
+      setParent(emptyParent);
+      setSelectedSlotId("");
+      setConfirmed(false);
+      interestRequest.current = null;
+      bookingRequest.current = null;
+      setStep(0);
+    } catch (failure) {
+      setError(safeTalaApiError(failure).message);
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  }
+
+  /* =========================================
+     PAGE
+  ========================================= */
+
   return (
     <section className="container admission-page">
       <header className="admission-header">
-        <h1>Start your TALA registration</h1>
-        <p>First, a conversation. Then, the right next step.</p>
+        <h1>Start your TALA Application</h1>
+
+        <p>
+          First, a conversation. Then, the right next step.
+        </p>
       </header>
-      <InterviewBooking />
-      <ol className="admission-steps" aria-label="Registration steps">
-        {["Your interest", "Meet Tina", "Enrollment"].map((label, index) => (
+
+      {/* PROGRESS INDICATOR */}
+
+      <ol
+        className="admission-steps"
+        aria-label="Application progress"
+      >
+        {steps.map((label, index) => (
           <li
             key={label}
-            aria-current={step === index ? "step" : undefined}
-            className={step >= index ? "is-current" : ""}
+            className={
+              step >= index ? "is-current" : ""
+            }
+            aria-current={
+              step === index ? "step" : undefined
+            }
           >
-            <span aria-hidden="true">{index + 1}</span>
+            <span aria-hidden="true">
+              {step > index ? "✓" : index + 1}
+            </span>
+
             {label}
           </li>
         ))}
       </ol>
-      {error ? (
+
+      {error && (
+        <div className="notice error" role="alert">
+          {error}
+
+          {application && (
+            <button
+              type="button"
+              className="button button-outline"
+              disabled={pending}
+              onClick={() => void refreshStatus()}
+            >
+              Refresh status
+            </button>
+          )}
+        </div>
+      )}
+
+      {loading ? (
         <section className="admission-card">
-          <p role="alert">{error}</p>
-          <button className="button" onClick={() => setAttempt((v) => v + 1)}>
+          <p role="status">
+            Loading your application...
+          </p>
+        </section>
+      ) : !current ? (
+        <section className="admission-card">
+          <p>Unable to load the application.</p>
+
+          <button
+            type="button"
+            className="button"
+            onClick={() =>
+              setAttempt((value) => value + 1)
+            }
+          >
             Retry
           </button>
         </section>
-      ) : !saved ? (
-        <p role="status">Checking your application…</p>
-      ) : saved.application ? (
-        <ApplicationPortal
-          key={saved.application.id}
-          initial={{ ...saved, application: saved.application }}
-          onSaved={setSaved}
-        />
+      ) : completed && appointment ? (
+
+        /* =====================================
+           SUCCESS PAGE
+        ===================================== */
+
+        <section className="admission-card application-success">
+          <div className="application-success-icon">
+            ✓
+          </div>
+
+          <h2>Application submitted!</h2>
+
+          <p>
+            Thank you, {parent.parentName}.
+            Your interview appointment is reserved.
+          </p>
+
+          <div className="application-review-box">
+            <h3>Parent information</h3>
+
+            <dl className="application-review-details">
+              <div>
+                <dt>Parent or guardian name</dt>
+                <dd>{parent.parentName}</dd>
+              </div>
+
+              <div>
+                <dt>Contact email</dt>
+                <dd>{parent.email}</dd>
+              </div>
+
+              <div>
+                <dt>Phone number</dt>
+                <dd>
+                  {parent.phone || "Not provided"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <div className="application-review-box">
+            <h3>Interview with Tina</h3>
+
+            <dl className="application-review-details">
+              <div>
+                <dt>Date</dt>
+                <dd>
+                  {formatDate(appointment.startsAt)}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Time</dt>
+                <dd>
+                  {formatTime(appointment.startsAt)}
+                  {" – "}
+                  {formatTime(appointment.endsAt)}
+                  {" MST"}
+                </dd>
+              </div>
+
+              <div>
+                <dt>Meeting platform</dt>
+                <dd>Google Meet</dd>
+              </div>
+            </dl>
+
+            {appointment.meeting?.status === "ready" &&
+            appointment.meeting.joinUrl ? (
+              <a
+                href={appointment.meeting.joinUrl}
+                className="button"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open Google Meet
+              </a>
+            ) : (
+              <p>
+                Your meeting link is not ready.
+                Please contact TALA or refresh your status.
+              </p>
+            )}
+          </div>
+
+          <div className="application-review-box">
+            <h3>Email confirmation</h3>
+
+            {appointment.confirmationEmail === "sent" ? (
+              <p className="application-email-success">
+                Confirmation email sent to {parent.email}.
+              </p>
+            ) : appointment.confirmationEmail ===
+              "failed" ? (
+              <p className="notice error">
+                Your appointment is saved, but the
+                confirmation email could not be sent.
+                Please contact TALA.
+              </p>
+            ) : (
+              <p>
+                Email confirmation is not available yet.
+              </p>
+            )}
+          </div>
+
+          <div className="application-review-actions">
+            <button
+              type="button"
+              className="button button-outline"
+              disabled={pending}
+              onClick={() => void refreshStatus()}
+            >
+              Refresh status
+            </button>
+
+            <Link className="button" to="/">
+              Return to Home
+            </Link>
+          </div>
+        </section>
+
+      ) : !editable ? (
+
+        <section className="admission-card">
+          <h2>Application status</h2>
+
+          <p>
+            {application?.status === "approved"
+              ? "Your application is approved. Please follow your enrollment invitation."
+              : application?.status === "declined"
+                ? "Please contact TALA for next steps."
+                : application?.status === "enrolled"
+                  ? "Your enrollment is complete."
+                  : "Your application is being reviewed."}
+          </p>
+
+          <button
+            type="button"
+            className="button button-outline"
+            disabled={pending}
+            onClick={() => void refreshStatus()}
+          >
+            Refresh status
+          </button>
+        </section>
+
+      ) : step === 0 ? (
+
+        /* =====================================
+           STEP 1: YOUR INTEREST
+        ===================================== */
+
+        <section className="admission-card">
+          <h2>Tell us a little.</h2>
+
+          <p className="admission-muted">
+            No password or school account yet.
+          </p>
+
+          <form
+            onSubmit={(event) =>
+              void continueToInterview(event)
+            }
+          >
+            <fieldset
+              className="admission-fields"
+              disabled={pending}
+            >
+              <legend className="sr-only">
+                Parent information
+              </legend>
+
+              <div className="form-field">
+                <label htmlFor="parentName">
+                  Parent or guardian name
+                </label>
+
+                <input
+                  id="parentName"
+                  name="parentName"
+                  autoComplete="name"
+                  value={parent.parentName}
+                  maxLength={80}
+                  required
+                  readOnly={Boolean(application)}
+                  onChange={(event) =>
+                    updateParent(
+                      "parentName",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="parentEmail">
+                  Contact email
+                </label>
+
+                <input
+                  id="parentEmail"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="family@example.test"
+                  value={parent.email}
+                  maxLength={254}
+                  required
+                  readOnly={Boolean(application)}
+                  onChange={(event) =>
+                    updateParent(
+                      "email",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="parentPhone">
+                  Parent or guardian phone number
+                </label>
+
+                <input
+                  id="parentPhone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="(520) 555-0100"
+                  value={parent.phone}
+                  maxLength={30}
+                  required
+                  readOnly={Boolean(application)}
+                  onChange={(event) =>
+                    updateParent(
+                      "phone",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="parentInterest">
+                  What are you looking for?{" "}
+                  <span className="admission-optional">
+                    Optional
+                  </span>
+                </label>
+
+                <textarea
+                  id="parentInterest"
+                  name="interest"
+                  rows={4}
+                  maxLength={600}
+                  value={parent.interest}
+                  readOnly={Boolean(application)}
+                  onChange={(event) =>
+                    updateParent(
+                      "interest",
+                      event.target.value,
+                    )
+                  }
+                />
+
+                <small>
+                  Keep medical and other sensitive details
+                  out of this form.
+                </small>
+              </div>
+
+              <button
+                type="submit"
+                className="button"
+                disabled={pending}
+              >
+                {pending
+                  ? "Saving..."
+                  : "Continue to meet Tina"}
+              </button>
+            </fieldset>
+          </form>
+        </section>
+
+      ) : step === 1 ? (
+
+        /* =====================================
+           STEP 2: MEET TINA
+        ===================================== */
+
+        <section className="admission-card admission-calendar-card">
+          <h2>Meet Tina</h2>
+
+          <InterviewBooking
+            slots={current.slots}
+            pending={pending}
+            disabled={!editable}
+            onBook={selectInterview}
+          />
+
+          <p className="admission-muted">
+            Your appointment will not be reserved until
+            you review and submit your application.
+          </p>
+
+          <button
+            type="button"
+            className="button button-outline"
+            disabled={pending}
+            onClick={() => void refreshStatus()}
+          >
+            Refresh available times
+          </button>
+        </section>
+
       ) : (
-        <InterestForm onSaved={setSaved} />
+
+        /* =====================================
+           STEP 3: REVIEW & SUBMIT
+        ===================================== */
+
+        <section className="admission-card application-review">
+          <h2>Review your application</h2>
+
+          <p className="admission-muted">
+            Please verify your information before submitting.
+          </p>
+
+          <form
+            onSubmit={(event) =>
+              void submitApplication(event)
+            }
+          >
+            <fieldset
+              className="admission-fields"
+              disabled={pending}
+            >
+              <legend className="sr-only">
+                Review and confirm
+              </legend>
+
+              {/* PARENT INFORMATION */}
+
+              <div className="application-review-box">
+                <div className="application-review-heading">
+                  <h3>Parent information</h3>
+                </div>
+
+                <dl className="application-review-details">
+                  <div>
+                    <dt>Parent or guardian name</dt>
+                    <dd>{parent.parentName}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Contact email</dt>
+                    <dd>{parent.email}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Parent or guardian phone number</dt>
+                    <dd>
+                      {parent.phone || "Not provided"}
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt>What are you looking for?</dt>
+                    <dd>
+                      {parent.interest || "Not provided"}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              {/* INTERVIEW INFORMATION */}
+
+              <div className="application-review-box">
+                <div className="application-review-heading">
+                  <h3>Interview with Tina</h3>
+
+                  <button
+                    type="button"
+                    className="application-edit-button"
+                    onClick={() => {
+                      setStep(1);
+                      setConfirmed(false);
+                    }}
+                  >
+                    Edit
+                  </button>
+                </div>
+
+                {selectedSlot ? (
+                  <dl className="application-review-details">
+                    <div>
+                      <dt>Interview date</dt>
+                      <dd>
+                        {formatDate(
+                          selectedSlot.startsAt,
+                        )}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Interview time</dt>
+                      <dd>
+                        {formatTime(
+                          selectedSlot.startsAt,
+                        )}
+                        {" – "}
+                        {formatTime(
+                          selectedSlot.endsAt,
+                        )}
+                        {" MST"}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Meeting platform</dt>
+                      <dd>Google Meet</dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p role="alert">
+                    Please select another available
+                    interview time.
+                  </p>
+                )}
+              </div>
+
+              {/* CONFIRMATION CHECKBOX */}
+
+              <label className="application-confirm-check">
+                <input
+                  type="checkbox"
+                  checked={confirmed}
+                  required
+                  onChange={(event) =>
+                    setConfirmed(event.target.checked)
+                  }
+                />
+
+                <span>
+                  I confirm that all the information
+                  provided is correct.
+                </span>
+              </label>
+
+              <p className="admission-muted">
+                Upon submission, TALA will reserve your
+                appointment and attempt to create your
+                Google Meet link and send a confirmation
+                email.
+              </p>
+
+              {/* FINAL ACTIONS */}
+
+              <div className="application-review-actions">
+                <button
+                  type="button"
+                  className="button button-outline"
+                  disabled={pending}
+                  onClick={() => {
+                    setStep(1);
+                    setConfirmed(false);
+                  }}
+                >
+                  Back
+                </button>
+
+                <button
+                  type="submit"
+                  className="button"
+                  disabled={
+                    !confirmed ||
+                    !selectedSlot ||
+                    pending
+                  }
+                >
+                  {pending
+                    ? "Submitting..."
+                    : "Submit Application"}
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </section>
       )}
+
+      {application && (
+        <div className="admission-access-note">
+          <p>
+            Return in this browser to check your application.
+            This private application session is not a school
+            account.
+          </p>
+
+          <details>
+            <summary>Using a shared device?</summary>
+
+            <p>
+              Close private access before leaving.
+              Your saved application will remain on file.
+            </p>
+
+            <button
+              type="button"
+              className="button button-outline"
+              disabled={pending}
+              onClick={() => void closeAccess()}
+            >
+              Close private application access
+            </button>
+          </details>
+        </div>
+      )}
+
       <p className="admission-signin">
-        Already enrolled? <Link to="/login">Sign in</Link>
+        Already enrolled?{" "}
+        <Link to="/login">Sign in</Link>
       </p>
     </section>
   );
