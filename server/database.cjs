@@ -4,7 +4,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 
+<<<<<<< Updated upstream
 const SCHEMA_VERSION = 3;
+=======
+const SCHEMA_VERSION = 14;
+>>>>>>> Stashed changes
 const EXTENSIONS = `
   CREATE TABLE IF NOT EXISTS availability_state (
     slot_id TEXT PRIMARY KEY REFERENCES slots(id),
@@ -80,6 +84,203 @@ const EXTENSIONS = `
   ) STRICT;
   CREATE INDEX IF NOT EXISTS contact_requests_created ON contact_requests(created_at DESC,id DESC);
   CREATE INDEX IF NOT EXISTS contact_requests_fingerprint ON contact_requests(fingerprint,created_at);
+<<<<<<< Updated upstream
+=======
+  CREATE TABLE IF NOT EXISTS learning_goals (
+    id TEXT PRIMARY KEY, owner_uid TEXT NOT NULL REFERENCES users(uid),
+    title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 120),
+    notes TEXT NOT NULL CHECK(length(notes)<=600),
+    due_date TEXT CHECK(due_date IS NULL OR (length(due_date)=10 AND due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+      AND due_date>='0001-01-01' AND due_date<='9999-12-31' AND date(due_date,'+0 days') IS NOT NULL AND due_date=date(due_date,'+0 days'))),
+    status TEXT NOT NULL CHECK(status IN ('active','completed')),
+    version INTEGER NOT NULL CHECK(version>=1),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL CHECK(updated_at>=created_at),
+    completed_at INTEGER,
+    CHECK((status='active' AND completed_at IS NULL) OR (status='completed' AND completed_at IS NOT NULL AND completed_at>=created_at AND completed_at<=updated_at))
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS learning_goals_owner ON learning_goals(owner_uid,created_at DESC,id DESC);
+  CREATE TABLE IF NOT EXISTS learning_goal_steps (
+    goal_id TEXT NOT NULL REFERENCES learning_goals(id), id TEXT NOT NULL,
+    position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 7),
+    title TEXT NOT NULL CHECK(length(title) BETWEEN 1 AND 120),
+    completed INTEGER NOT NULL CHECK(completed IN (0,1)),
+    PRIMARY KEY(goal_id,id), UNIQUE(goal_id,position)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS learning_goal_evidence (
+    goal_id TEXT NOT NULL REFERENCES learning_goals(id),
+    evidence_id TEXT NOT NULL REFERENCES evidence(id), linked_at INTEGER NOT NULL,
+    PRIMARY KEY(goal_id,evidence_id)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS workspace_update_reads (
+    owner_uid TEXT NOT NULL REFERENCES users(uid), update_id TEXT NOT NULL,
+    read_at INTEGER NOT NULL, PRIMARY KEY(owner_uid,update_id)
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS workspace_update_reads_owner ON workspace_update_reads(owner_uid,read_at);
+  CREATE INDEX IF NOT EXISTS learning_records_owner ON learning_records(owner_uid,published_at DESC,id DESC);
+  CREATE TABLE IF NOT EXISTS appointment_preparations (
+    appointment_id TEXT PRIMARY KEY REFERENCES appointments(id),
+    owner_uid TEXT NOT NULL REFERENCES users(uid),
+    note TEXT NOT NULL CHECK(length(note)<=1000), goal_id TEXT REFERENCES learning_goals(id),
+    ready INTEGER NOT NULL CHECK(ready IN (0,1)), version INTEGER NOT NULL CHECK(version>=1),
+    updated_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS appointment_preparations_owner ON appointment_preparations(owner_uid,updated_at DESC);
+  CREATE TABLE IF NOT EXISTS reflection_drafts (
+    owner_uid TEXT PRIMARY KEY REFERENCES users(uid),
+    title TEXT NOT NULL CHECK(length(title)<=120),
+    body TEXT NOT NULL CHECK(length(body)<=5000),
+    status TEXT NOT NULL CHECK(status IN ('empty','saved')),
+    version INTEGER NOT NULL CHECK(version>=1), updated_at INTEGER NOT NULL,
+    CHECK((status='empty' AND title='' AND body='') OR (status='saved' AND (length(title)>0 OR length(body)>0)))
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS calendar_enrollments (
+    owner_uid TEXT NOT NULL REFERENCES users(uid), class_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('enrolled','pending_approval','pending_payment','confirmed','waitlisted','declined','cancelled')),
+    mode TEXT CHECK(mode IS NULL OR mode IN ('online','in_person')), approved_by TEXT REFERENCES users(uid),
+    goal_id TEXT REFERENCES learning_goals(id),
+    version INTEGER NOT NULL CHECK(version>=1),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL CHECK(updated_at>=created_at),
+    PRIMARY KEY(owner_uid,class_id)
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS calendar_enrollments_class ON calendar_enrollments(class_id,status);
+  CREATE TABLE IF NOT EXISTS class_catalog (
+    id TEXT PRIMARY KEY, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL,
+    starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL CHECK(ends_at>starts_at),
+    teacher TEXT NOT NULL, topic TEXT NOT NULL, grades TEXT NOT NULL,
+    capacity INTEGER NOT NULL CHECK(capacity BETWEEN 1 AND 1000),
+    modalities_json TEXT NOT NULL, location TEXT NOT NULL,
+    price_cents INTEGER NOT NULL CHECK(price_cents BETWEEN 0 AND 1000000),
+    published INTEGER NOT NULL CHECK(published IN (0,1)), version INTEGER NOT NULL CHECK(version>=1),
+    created_by TEXT NOT NULL REFERENCES users(uid), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS class_catalog_date ON class_catalog(published,starts_at,id);
+  CREATE TABLE IF NOT EXISTS class_bookmarks (
+    owner_uid TEXT NOT NULL REFERENCES users(uid), class_id TEXT NOT NULL REFERENCES class_catalog(id),
+    created_at INTEGER NOT NULL, PRIMARY KEY(owner_uid,class_id)
+  ) STRICT;
+
+  CREATE TABLE IF NOT EXISTS admissions_applications (
+    id TEXT PRIMARY KEY, parent_name TEXT NOT NULL, email TEXT NOT NULL,
+    student_name TEXT NOT NULL, grade_band TEXT NOT NULL, interest TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending_interview','interview_scheduled','interviewed','approved','declined','enrolled')),
+    document_preference TEXT NOT NULL CHECK(document_preference IN ('undecided','bring','upload')),
+    version INTEGER NOT NULL CHECK(version>=1), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    enrolled_parent_uid TEXT REFERENCES users(uid),
+    CHECK((status='enrolled' AND enrolled_parent_uid IS NOT NULL) OR (status!='enrolled' AND enrolled_parent_uid IS NULL))
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS admissions_updated ON admissions_applications(updated_at DESC,id);
+  CREATE TABLE IF NOT EXISTS payment_items (
+    id TEXT PRIMARY KEY, business_key TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL CHECK(type IN ('quarterly_enrollment','individual_session')),
+    parent_uid TEXT NOT NULL REFERENCES users(uid), application_id TEXT REFERENCES admissions_applications(id),
+    class_id TEXT REFERENCES class_catalog(id), student_uid TEXT REFERENCES users(uid),
+    enrollment_created_at INTEGER, enrollment_version INTEGER,
+    label TEXT NOT NULL, student_name TEXT NOT NULL, billing_period TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL CHECK(amount_cents BETWEEN 1 AND 1000000), currency TEXT NOT NULL CHECK(currency='USD'),
+    checkout_link_key TEXT NOT NULL, issued_by TEXT NOT NULL REFERENCES users(uid), created_at INTEGER NOT NULL,
+    CHECK((type='quarterly_enrollment' AND application_id IS NOT NULL AND class_id IS NULL AND student_uid IS NULL AND enrollment_created_at IS NULL AND enrollment_version IS NULL)
+      OR (type='individual_session' AND application_id IS NULL AND class_id IS NOT NULL AND student_uid IS NOT NULL AND enrollment_created_at IS NOT NULL AND enrollment_version IS NOT NULL))
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS payment_items_parent ON payment_items(parent_uid,created_at DESC,id);
+  CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY, item_id TEXT NOT NULL REFERENCES payment_items(id),
+    provider TEXT NOT NULL CHECK(provider IN ('hubspot','esa')),
+    status TEXT NOT NULL CHECK(status IN ('pending','awaiting_verification','paid','failed','cancelled','refunded','esa_pending')),
+    provider_payment_id TEXT UNIQUE, amount_cents INTEGER NOT NULL CHECK(amount_cents BETWEEN 1 AND 1000000),
+    currency TEXT NOT NULL CHECK(currency='USD'), created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    verified_at INTEGER, note TEXT NOT NULL, version INTEGER NOT NULL CHECK(version>=1),
+    CHECK(updated_at>=created_at),
+    CHECK((status IN ('paid','failed','cancelled','refunded') AND provider='hubspot' AND provider_payment_id IS NOT NULL AND verified_at IS NOT NULL)
+      OR (status IN ('pending','awaiting_verification') AND provider='hubspot' AND verified_at IS NULL)
+      OR (status='esa_pending' AND provider='esa' AND provider_payment_id IS NULL AND verified_at IS NULL))
+  ) STRICT;
+  CREATE UNIQUE INDEX IF NOT EXISTS one_unresolved_payment ON payments(item_id) WHERE status IN ('pending','awaiting_verification','paid','esa_pending');
+  CREATE INDEX IF NOT EXISTS payments_item ON payments(item_id,created_at DESC,id);
+  CREATE TABLE IF NOT EXISTS payment_receipts (
+    id TEXT PRIMARY KEY, payment_id TEXT NOT NULL REFERENCES payments(id), provider_payment_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending','paid','failed','cancelled','refunded')),
+    digest TEXT NOT NULL, occurred_at INTEGER NOT NULL, received_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS payment_receipts_payment ON payment_receipts(payment_id,occurred_at DESC,id);
+  CREATE TABLE IF NOT EXISTS payment_verification_checks (
+    id TEXT PRIMARY KEY, payment_id TEXT NOT NULL REFERENCES payments(id),
+    outcome TEXT NOT NULL CHECK(outcome IN ('unconfigured','unmatched','verified','unavailable')),
+    checked_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS admissions_access (
+    token_hash TEXT PRIMARY KEY, application_id TEXT NOT NULL REFERENCES admissions_applications(id),
+    expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS admissions_slots (
+    slot_id TEXT PRIMARY KEY REFERENCES slots(id)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS admissions_google_slots (
+    slot_id TEXT PRIMARY KEY REFERENCES admissions_slots(slot_id),
+    google_event_id TEXT NOT NULL
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS admissions_google_event ON admissions_google_slots(google_event_id);
+  CREATE TABLE IF NOT EXISTS admissions_appointments (
+    id TEXT PRIMARY KEY, application_id TEXT NOT NULL REFERENCES admissions_applications(id),
+    slot_id TEXT NOT NULL REFERENCES admissions_slots(slot_id), status TEXT NOT NULL CHECK(status IN ('reserved','cancelled')),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE UNIQUE INDEX IF NOT EXISTS admissions_active_application ON admissions_appointments(application_id) WHERE status='reserved';
+  CREATE UNIQUE INDEX IF NOT EXISTS admissions_active_slot ON admissions_appointments(slot_id) WHERE status='reserved';
+  CREATE TABLE IF NOT EXISTS admissions_interviews (
+    application_id TEXT PRIMARY KEY REFERENCES admissions_applications(id),
+    outcome TEXT NOT NULL CHECK(outcome='completed'), notes TEXT NOT NULL,
+    recorded_by TEXT NOT NULL REFERENCES users(uid), recorded_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS admissions_documents (
+    id TEXT PRIMARY KEY, application_id TEXT NOT NULL REFERENCES admissions_applications(id), name TEXT NOT NULL,
+    content_type TEXT NOT NULL CHECK(content_type IN ('application/pdf','text/plain')),
+    size INTEGER NOT NULL CHECK(size BETWEEN 1 AND 5242880), sha256 TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('pending','uploaded')), content BLOB,
+    created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, uploaded_at INTEGER,
+    CHECK((state='pending' AND content IS NULL AND uploaded_at IS NULL) OR
+      (state='uploaded' AND content IS NOT NULL AND length(content)=size AND uploaded_at IS NOT NULL))
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS admissions_documents_application ON admissions_documents(application_id,created_at);
+  CREATE TABLE IF NOT EXISTS admissions_invitations (
+    id TEXT PRIMARY KEY, application_id TEXT NOT NULL REFERENCES admissions_applications(id),
+    token_hash TEXT NOT NULL UNIQUE, expires_at INTEGER NOT NULL, used_at INTEGER, revoked_at INTEGER,
+    issued_by TEXT NOT NULL REFERENCES users(uid), created_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS admissions_student_setups (
+    application_id TEXT PRIMARY KEY REFERENCES admissions_applications(id),
+    parent_uid TEXT NOT NULL REFERENCES users(uid), issued_by TEXT NOT NULL REFERENCES users(uid),
+    expires_at INTEGER NOT NULL, version INTEGER NOT NULL CHECK(version>=1),
+    authorized_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    student_uid TEXT UNIQUE REFERENCES users(uid), provisioned_at INTEGER,
+    CHECK(expires_at>authorized_at AND updated_at>=authorized_at),
+    CHECK((student_uid IS NULL AND provisioned_at IS NULL) OR (student_uid IS NOT NULL AND provisioned_at IS NOT NULL AND provisioned_at>=authorized_at))
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS admissions_audit (
+    id TEXT PRIMARY KEY, application_id TEXT NOT NULL REFERENCES admissions_applications(id),
+    action TEXT NOT NULL, actor_uid TEXT REFERENCES users(uid), created_at INTEGER NOT NULL
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS admissions_operations (
+    scope TEXT NOT NULL, kind TEXT NOT NULL, request_id TEXT NOT NULL, fingerprint TEXT NOT NULL,
+    result_id TEXT NOT NULL, result_version INTEGER NOT NULL, created_at INTEGER NOT NULL,
+    PRIMARY KEY(scope,kind,request_id)
+  ) STRICT;
+
+  CREATE TABLE IF NOT EXISTS admissions_meetings (
+    appointment_id TEXT PRIMARY KEY REFERENCES admissions_appointments(id),
+    provider TEXT NOT NULL CHECK(provider IN ('none','mock','google-meet')),
+    meeting_id TEXT, join_url TEXT,
+    meeting_status TEXT NOT NULL CHECK(meeting_status IN ('ready','pending','failed','unavailable')),
+    email_status TEXT NOT NULL CHECK(email_status IN ('sent','failed','unavailable')),
+    cleanup_status TEXT NOT NULL DEFAULT 'none' CHECK(cleanup_status IN ('none','removed','failed')),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    CHECK(meeting_status!='ready' OR join_url IS NOT NULL)
+  ) STRICT;
+  CREATE TABLE IF NOT EXISTS contact_request_notifications (
+    contact_request_id TEXT PRIMARY KEY REFERENCES contact_requests(id),
+    email_status TEXT NOT NULL CHECK(email_status IN ('sent','failed','unavailable')),
+    updated_at INTEGER NOT NULL
+  ) STRICT;
+>>>>>>> Stashed changes
 `;
 
 function backupBeforeMigration(db, dataDir, version) {

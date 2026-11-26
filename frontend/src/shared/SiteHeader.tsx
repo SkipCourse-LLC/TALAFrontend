@@ -100,7 +100,7 @@ export function SiteHeader({
                 transition: "background-color 0.2s"
               }}
             >
-              Start registration <Icon name="arrow" />
+              Start Application
             </NavLink>
           </div>
 
