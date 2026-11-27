@@ -31,7 +31,7 @@ jobs:
           VITE_PAYMENT_LINK_ENROLLMENT: "https://payments-na1.hubspot.com/payments/SMKcGdqR2?referrer=PAYMENT_LINK"
           VITE_PAYMENT_LINK_INSTRUCTION: "https://payments-na1.hubspot.com/payments/4JW4fSGwNK2p6?referrer=PAYMENT_LINK"
           # Sign-in-only Firebase mode on skip-class-slsru4 (Google sign-in;
-          # no TALA data reads or writes). The web app values are public and
+          # meAccess role check; dashboard data is not connected). Values are public and
           # live in GitHub repository variables, not in the repo.
           VITE_BACKEND_MODE: firebase
           VITE_DEMO_MODE: "false"
