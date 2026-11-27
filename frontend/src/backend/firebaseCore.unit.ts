@@ -119,6 +119,12 @@ test("live Firebase is sign-in only and never activates from a client approval f
       "https:",
     ),
   ).toThrow("Configure the Firebase Web App");
+  expect(() =>
+    resolveFirebaseConfiguration(
+      { ...signInOnly, VITE_FIREBASE_PROJECT_ID: "another-project" },
+      "localhost",
+    ),
+  ).toThrow("Configure the Firebase Web App");
   const configuration = resolveFirebaseConfiguration(
     signInOnly,
     "taladev.web.app",
@@ -128,6 +134,51 @@ test("live Firebase is sign-in only and never activates from a client approval f
   // No data namespace: the app makes no Firestore, Storage or Functions calls.
   expect(configuration.namespace).toBeUndefined();
   expect(configuration.emulator).toBeUndefined();
+});
+
+test("live auth verifies the configured Web App before initializing the SDK", async () => {
+  const config = resolveFirebaseConfiguration(
+    {
+      VITE_BACKEND_MODE: "firebase",
+      VITE_FIREBASE_PROJECT_ID: "skip-class-slsru4",
+      VITE_FIREBASE_API_KEY: "fixture",
+      VITE_FIREBASE_AUTH_DOMAIN: "skip-class-slsru4.firebaseapp.com",
+      VITE_FIREBASE_APP_ID: "1:123:web:abc",
+      VITE_FIREBASE_STORAGE_BUCKET: "skip-class-slsru4.firebasestorage.app",
+    },
+    "localhost",
+  );
+  let initialized = false;
+  const failed = prepareFirebaseInitialization(
+    config,
+    () => {
+      initialized = true;
+    },
+    async () =>
+      new Response(
+        JSON.stringify({
+          projectId: "other",
+          authorizedDomains: ["skip-class-slsru4.firebaseapp.com"],
+        }),
+      ),
+  );
+  await expect(failed.ready).rejects.toThrow("could not be verified");
+  expect(initialized).toBe(false);
+  const success = prepareFirebaseInitialization(
+    config,
+    () => {
+      initialized = true;
+    },
+    async () =>
+      new Response(
+        JSON.stringify({
+          projectId: "skip-class-slsru4",
+          authorizedDomains: ["skip-class-slsru4.firebaseapp.com"],
+        }),
+      ),
+  );
+  await success.ready;
+  expect(initialized).toBe(true);
 });
 
 const approvedTestConfiguration = {

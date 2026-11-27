@@ -31,6 +31,11 @@ const FirebaseApplication = lazy(() =>
     default: module.FirebaseApplication,
   })),
 );
+const LiveFirebaseApplication = lazy(() =>
+  import("./backend/LiveFirebaseApplication").then((module) => ({
+    default: module.LiveFirebaseApplication,
+  })),
+);
 const ServerApplication = lazy(() =>
   import("./product/ServerApplication").then((module) => ({
     default: module.ServerApplication,
@@ -71,7 +76,11 @@ export default function App() {
         </div>
       }
     >
-      <FirebaseApplication />
+      {mode === "firebase" ? (
+        <LiveFirebaseApplication />
+      ) : (
+        <FirebaseApplication />
+      )}
     </Suspense>
   );
 }

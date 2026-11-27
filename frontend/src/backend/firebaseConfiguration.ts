@@ -144,6 +144,44 @@ export async function verifyFirebaseTestProject(
   }
 }
 
+async function verifyLiveFirebaseProject(
+  configuration: FirebaseClientConfiguration,
+  fetcher: typeof fetch,
+): Promise<void> {
+  const { projectId, apiKey, appId, authDomain } = configuration.options;
+  const url = new URL("https://identitytoolkit.googleapis.com/v1/projects");
+  url.searchParams.set("key", apiKey!);
+  url.searchParams.set("firebaseAppId", appId!);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetcher(url, {
+      credentials: "omit",
+      cache: "no-store",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error();
+    const metadata: unknown = await response.json();
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata))
+      throw new Error();
+    const result = metadata as Record<string, unknown>;
+    if (
+      result.projectId !== projectId ||
+      !Array.isArray(result.authorizedDomains) ||
+      !result.authorizedDomains.includes(authDomain)
+    )
+      throw new Error();
+  } catch {
+    throw new FirebaseConfigurationError(
+      "Firebase Auth configuration could not be verified. Check the Web App configuration and connection.",
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** SDK services cannot be restored or accessed until their cloud project is verified. */
 export function prepareFirebaseInitialization<T>(
   configuration: FirebaseClientConfiguration,
@@ -164,9 +202,7 @@ export function prepareFirebaseInitialization<T>(
   } else if (configuration.mode === "firebase-test") {
     ready = verifyFirebaseTestProject(configuration, fetcher).then(run);
   } else if (configuration.mode === "firebase") {
-    // Sign-in only: Auth is used; no data service is ever called (no namespace).
-    run();
-    ready = Promise.resolve();
+    ready = verifyLiveFirebaseProject(configuration, fetcher).then(run);
   } else {
     ready = Promise.reject(
       new FirebaseConfigurationError(
@@ -368,7 +404,7 @@ export function resolveFirebaseConfiguration(
   // Sign-in-only cloud mode (the taladev site, approved by the project owner
   // for skip-class-slsru4): Google sign-in against the configured project.
   // It has no TALA data namespace, so the app makes no Firestore, Storage or
-  // Functions requests and writes nothing to the project's databases. TALA
+  // SDK Functions requests and writes nothing to the project's databases. TALA
   // data features stay off until a separate, reviewed TALA database exists.
   if (
     populated(env, "VITE_FIREBASE_PRODUCTION_APPROVED") ||
@@ -384,9 +420,8 @@ export function resolveFirebaseConfiguration(
     );
   const options = cloudOptions(env);
   if (
-    !/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(options.projectId!) ||
-    options.projectId!.startsWith("demo-") ||
-    !/^[a-z0-9.-]+\.(firebaseapp\.com|web\.app)$/.test(options.authDomain!) ||
+    options.projectId !== SKIPCLASS_PRODUCTION_PROJECT ||
+    options.authDomain !== `${SKIPCLASS_PRODUCTION_PROJECT}.firebaseapp.com` ||
     !/^1:\d+:web:[a-f0-9]+$/.test(options.appId!)
   )
     throw new FirebaseConfigurationError(
