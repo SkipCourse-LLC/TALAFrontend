@@ -16,6 +16,9 @@ const titles: Record<string, string> = {
   "/payment": "Payment",
   "/two-factor": "Two-factor authentication",
   "/dashboard": "Student hub",
+  "/dashboard/student": "Student dashboard",
+  "/dashboard/parent": "Parent dashboard",
+  "/dashboard/admin": "Admin dashboard",
 };
 const descriptions: Record<string, string> = {
   "/": "Tucson Adaptive Learning Academy combines accredited K-12 education and pediatric clinical care for medically fragile students and learners with developmental disabilities.",

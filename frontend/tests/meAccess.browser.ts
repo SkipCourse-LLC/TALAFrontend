@@ -121,6 +121,9 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(
     page.getByRole("heading", { name: "Student dashboard" }),
   ).toBeVisible();
+  await expect(page).toHaveTitle(
+    "Student dashboard | Tucson Adaptive Learning Academy",
+  );
   await expect(
     page.getByText("Dashboard data and classes are coming soon."),
   ).toBeVisible();
@@ -132,6 +135,9 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(
     page.getByRole("heading", { name: "Parent dashboard" }),
   ).toBeVisible();
+  await expect(page).toHaveTitle(
+    "Parent dashboard | Tucson Adaptive Learning Academy",
+  );
   await changeUser("slow");
   await requestStarted;
   await expect(page.getByText("Checking your account access…")).toBeVisible();
@@ -147,6 +153,9 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(
     page.getByRole("heading", { name: "Admin dashboard" }),
   ).toBeVisible();
+  await expect(page).toHaveTitle(
+    "Admin dashboard | Tucson Adaptive Learning Academy",
+  );
   await page.evaluate(() => {
     (window as unknown as { failSignOut: boolean }).failSignOut = true;
   });
