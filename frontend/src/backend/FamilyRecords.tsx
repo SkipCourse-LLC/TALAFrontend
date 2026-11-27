@@ -80,6 +80,7 @@ function StudentRecords({
           const items = isRecord(value) ? value[service.field] : undefined;
           if (
             !isRecord(value) ||
+            value.student_id !== studentId ||
             !Array.isArray(items) ||
             !items.every(
               (item: unknown) =>
