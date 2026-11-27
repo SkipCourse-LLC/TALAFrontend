@@ -136,7 +136,7 @@ test("live Firebase is sign-in only and never activates from a client approval f
   expect(configuration.emulator).toBeUndefined();
 });
 
-test("live auth verifies the configured Web App before initializing the SDK", async () => {
+test("live auth initializes without a metadata preflight request", async () => {
   const config = resolveFirebaseConfiguration(
     {
       VITE_BACKEND_MODE: "firebase",
@@ -149,35 +149,16 @@ test("live auth verifies the configured Web App before initializing the SDK", as
     "localhost",
   );
   let initialized = false;
-  const failed = prepareFirebaseInitialization(
+  const prepared = prepareFirebaseInitialization(
     config,
     () => {
       initialized = true;
     },
-    async () =>
-      new Response(
-        JSON.stringify({
-          projectId: "other",
-          authorizedDomains: ["skip-class-slsru4.firebaseapp.com"],
-        }),
-      ),
-  );
-  await expect(failed.ready).rejects.toThrow("could not be verified");
-  expect(initialized).toBe(false);
-  const success = prepareFirebaseInitialization(
-    config,
-    () => {
-      initialized = true;
+    async () => {
+      throw new Error("No request expected");
     },
-    async () =>
-      new Response(
-        JSON.stringify({
-          projectId: "skip-class-slsru4",
-          authorizedDomains: ["skip-class-slsru4.firebaseapp.com"],
-        }),
-      ),
   );
-  await success.ready;
+  await prepared.ready;
   expect(initialized).toBe(true);
 });
 

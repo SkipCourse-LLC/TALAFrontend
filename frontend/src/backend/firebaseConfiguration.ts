@@ -144,44 +144,6 @@ export async function verifyFirebaseTestProject(
   }
 }
 
-async function verifyLiveFirebaseProject(
-  configuration: FirebaseClientConfiguration,
-  fetcher: typeof fetch,
-): Promise<void> {
-  const { projectId, apiKey, appId, authDomain } = configuration.options;
-  const url = new URL("https://identitytoolkit.googleapis.com/v1/projects");
-  url.searchParams.set("key", apiKey!);
-  url.searchParams.set("firebaseAppId", appId!);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
-  try {
-    const response = await fetcher(url, {
-      credentials: "omit",
-      cache: "no-store",
-      redirect: "error",
-      referrerPolicy: "no-referrer",
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error();
-    const metadata: unknown = await response.json();
-    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata))
-      throw new Error();
-    const result = metadata as Record<string, unknown>;
-    if (
-      result.projectId !== projectId ||
-      !Array.isArray(result.authorizedDomains) ||
-      !result.authorizedDomains.includes(authDomain)
-    )
-      throw new Error();
-  } catch {
-    throw new FirebaseConfigurationError(
-      "Firebase Auth configuration could not be verified. Check the Web App configuration and connection.",
-    );
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 /** SDK services cannot be restored or accessed until their cloud project is verified. */
 export function prepareFirebaseInitialization<T>(
   configuration: FirebaseClientConfiguration,
@@ -202,7 +164,11 @@ export function prepareFirebaseInitialization<T>(
   } else if (configuration.mode === "firebase-test") {
     ready = verifyFirebaseTestProject(configuration, fetcher).then(run);
   } else if (configuration.mode === "firebase") {
-    ready = verifyLiveFirebaseProject(configuration, fetcher).then(run);
+    // The Web App values are pinned to the production project and Auth domain
+    // when resolved; Auth itself rejects unauthorized domains. A browser-side
+    // metadata preflight is unreliable with referrer-restricted API keys.
+    run();
+    ready = Promise.resolve();
   } else {
     ready = Promise.reject(
       new FirebaseConfigurationError(
