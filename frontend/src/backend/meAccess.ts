@@ -10,7 +10,14 @@ export interface MeAccess {
 export const ME_ACCESS_URL =
   "https://us-central1-skip-class-slsru4.cloudfunctions.net/me-access/me/access";
 
-export class MeAccessError extends Error {}
+export class MeAccessError extends Error {
+  constructor(
+    message: string,
+    readonly emailNotVerified = false,
+  ) {
+    super(message);
+  }
+}
 
 export async function fetchMeAccess(
   user: { uid: string; getIdToken: () => Promise<string> },
@@ -39,6 +46,19 @@ export async function fetchMeAccess(
     referrerPolicy: "no-referrer",
     signal,
   });
+  if (response.status === 403) {
+    const body: unknown = await response.json().catch(() => undefined);
+    if (
+      body &&
+      typeof body === "object" &&
+      "error" in body &&
+      body.error === "email_not_verified"
+    )
+      throw new MeAccessError(
+        "Verify your email address before opening your dashboard.",
+        true,
+      );
+  }
   if (response.status === 401 || response.status === 403)
     throw new MeAccessError(
       "Your account could not be authorized. Contact the school or sign in with another account.",

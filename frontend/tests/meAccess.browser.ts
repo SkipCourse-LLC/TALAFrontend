@@ -20,6 +20,8 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
       export const safeFirebaseAuthError = () => ({message: "Authentication unavailable"});
       export const firebaseAuthService = {
         cancelMfaSignIn() {},
+        async signIn(email) { window.changeUser(email.split("@")[0]); },
+        async sendPasswordReset(email) { window.resetRequests.push(email); if (window.failReset) throw new Error("failed"); },
         async signInWithGoogle() {
           if (window.failLogin) throw new Error("offline");
           window.changeUser("student");
@@ -37,6 +39,8 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
       contentType: "application/javascript",
       body: `
       window.testAuth = {currentUser: null};
+      window.resetRequests = [];
+      window.verificationRequests = 0;
       let listener;
       window.changeUser = (uid) => {
         const user = uid ? {uid, email: uid + "@example.test", displayName: uid, getIdToken: async () => uid} : null;
@@ -45,6 +49,8 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
       };
       export function onIdTokenChanged(auth, next) { listener = next; queueMicrotask(() => next(auth.currentUser)); return () => { listener = undefined; }; }
       export function getIdTokenResult() {}
+      export async function sendEmailVerification() { window.verificationRequests++; }
+      export async function reload() {}
     `,
     }),
   );
@@ -58,6 +64,8 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   });
   const consoleErrors: string[] = [];
   const requests: string[] = [];
+  const mutations: Array<{ path: string; body: Record<string, unknown> }> = [];
+  let failLink = false;
   let invalidProgress = false;
   let bookingOffline = false;
   page.on("console", (message) => {
@@ -68,8 +76,8 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
     async (route) => {
       const headers = {
         "access-control-allow-origin": "*",
-        "access-control-allow-headers": "authorization",
-        "access-control-allow-methods": "GET, OPTIONS",
+        "access-control-allow-headers": "authorization,content-type",
+        "access-control-allow-methods": "GET, POST, OPTIONS",
       };
       if (route.request().method() === "OPTIONS") {
         await route.fulfill({ status: 204, headers });
@@ -82,6 +90,64 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
         .authorization?.replace("Bearer ", "");
       if (!url.pathname.includes("/me-access/")) {
         requests.push(`${url.pathname}${url.search}|${uid}`);
+        if (url.pathname.endsWith("/tala-admissions/students")) {
+          await route.fulfill({
+            headers,
+            json: {
+              students: [
+                { uid: "linked-student", email: "linked-student@example.test" },
+              ],
+            },
+          });
+          return;
+        }
+        if (url.pathname.includes("/tala-admissions/students/")) {
+          const json = url.pathname.endsWith("/projects")
+            ? {
+                student_id: "linked-student",
+                projects: [{ job_id: "p", essay_name: "Family project" }],
+              }
+            : {
+                student_id: "linked-student",
+                courses: [
+                  {
+                    course: "Family science",
+                    standards_count: 2,
+                    average_grade: 85,
+                  },
+                ],
+              };
+          await route.fulfill({ headers, json });
+          return;
+        }
+        if (
+          url.pathname.endsWith("/tala-admissions/accounts") ||
+          url.pathname.endsWith("/tala-admissions/relationships")
+        ) {
+          const body = route.request().postDataJSON() as Record<
+            string,
+            unknown
+          >;
+          mutations.push({ path: url.pathname, body });
+          if (url.pathname.endsWith("/relationships") && failLink) {
+            await route.fulfill({
+              status: 409,
+              headers,
+              json: { error: "relationship_requires_review" },
+            });
+          } else {
+            await route.fulfill({
+              headers,
+              json: url.pathname.endsWith("/accounts")
+                ? {
+                    uid: String(body.email).split("@")[0],
+                    created: true,
+                  }
+                : { status: "active", created: true },
+            });
+          }
+          return;
+        }
         if (url.pathname.includes("/tala-")) {
           if (url.pathname.endsWith("/tala-booking") && bookingOffline) {
             await route.abort("failed");
@@ -128,20 +194,6 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
               },
             ],
           };
-        } else if (url.pathname.endsWith("/relationships/principal/parent")) {
-          json = {
-            relationships: [
-              {
-                student_id: "linked-student",
-                principal_id: "parent",
-                relationship_type: "student_parent",
-                status: "active",
-              },
-            ],
-            count: 1,
-            has_more: true,
-            next_cursor: null,
-          };
         } else if (url.pathname.endsWith("/relationships/stats")) {
           json = { total_relationships: 4, by_type: {} };
         } else if (url.pathname.endsWith("/get-aggregate-admin-stats")) {
@@ -155,6 +207,14 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
       }
       if (uid === "denied") {
         await route.fulfill({ status: 403, headers });
+        return;
+      }
+      if (uid === "unverified") {
+        await route.fulfill({
+          status: 403,
+          headers,
+          json: { error: "email_not_verified" },
+        });
         return;
       }
       if (uid === "slow") {
@@ -188,6 +248,29 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
       uid,
     );
   await page.goto("/#/login");
+  await page.getByLabel("Email", { exact: true }).fill("student@example.test");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("secret-test-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: /Student dashboard:/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await changeUser("unverified");
+  await expect(
+    page.getByText("Verify your email address before opening your dashboard."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Send verification email" }).click();
+  await expect(page.getByText(/Verification email requested/)).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { verificationRequests: number })
+          .verificationRequests,
+    ),
+  ).toBe(1);
+  await page.getByRole("button", { name: "Sign out" }).click();
   await page.evaluate(() => {
     (window as unknown as { failLogin: boolean }).failLogin = true;
   });
@@ -290,11 +373,18 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(page).toHaveTitle(
     "Parent dashboard | Tucson Adaptive Learning Academy",
   );
-  await expect(page.getByText("linked-student", { exact: true })).toBeVisible();
-  await expect(page.getByText(/more records are available/)).toBeVisible();
+  await expect(
+    page.getByRole("option", { name: "linked-student@example.test" }),
+  ).toHaveAttribute("value", "linked-student");
+  await page
+    .getByLabel("View student records (read-only)")
+    .selectOption("linked-student");
+  await expect(page.getByText("Family project", { exact: true })).toBeVisible();
   expect(
     requests.some((value) =>
-      value.includes("relationship_type=student_parent"),
+      value.includes(
+        "/tala-admissions/students/linked-student/projects|parent",
+      ),
     ),
   ).toBe(true);
   await expect(page.getByText("My project", { exact: true })).toHaveCount(0);
@@ -317,6 +407,87 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
     "Admin dashboard | Tucson Adaptive Learning Academy",
   );
   await expect(page.getByText("4 relationships.")).toBeVisible();
+  await page
+    .getByLabel("Parent email addresses, one per line")
+    .fill("family@example.test\nfamily2@example.test");
+  await page
+    .getByLabel("Student email addresses, one per line")
+    .fill("learner@example.test\nlearner2@example.test");
+  await page
+    .getByLabel("Date and time consent was obtained from family@example.test")
+    .fill("2025-01-01T10:00");
+  await page
+    .getByLabel("Date and time consent was obtained from family2@example.test")
+    .fill("2025-01-02T10:00");
+  await page.getByLabel(/I attest that the listed family/).check();
+  await page.getByLabel(/I understand existing accounts/).check();
+  failLink = true;
+  await page.getByRole("button", { name: "Set up family accounts" }).click();
+  await expect(
+    page.getByText(
+      /existing inactive or revoked relationship requires manual review/,
+    ),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { resetRequests: string[] }).resetRequests,
+    ),
+  ).toEqual([]);
+  failLink = false;
+  await page.getByRole("button", { name: "Set up family accounts" }).click();
+  await expect(
+    page.getByText(/Firebase accepted the password-reset requests/),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { resetRequests: string[] }).resetRequests,
+    ),
+  ).toEqual([
+    "family@example.test",
+    "family2@example.test",
+    "learner@example.test",
+    "learner2@example.test",
+  ]);
+  const links = mutations
+    .filter((item) => item.path.endsWith("/relationships"))
+    .slice(1)
+    .map((item) => item.body);
+  expect(links).toEqual([
+    {
+      parent_uid: "family",
+      student_uid: "learner",
+      consent_attested: true,
+      consent_given_at: new Date("2025-01-01T10:00").toISOString(),
+    },
+    {
+      parent_uid: "family",
+      student_uid: "learner2",
+      consent_attested: true,
+      consent_given_at: new Date("2025-01-01T10:00").toISOString(),
+    },
+    {
+      parent_uid: "family2",
+      student_uid: "learner",
+      consent_attested: true,
+      consent_given_at: new Date("2025-01-02T10:00").toISOString(),
+    },
+    {
+      parent_uid: "family2",
+      student_uid: "learner2",
+      consent_attested: true,
+      consent_given_at: new Date("2025-01-02T10:00").toISOString(),
+    },
+  ]);
+  await page.evaluate(() => {
+    (window as unknown as { failReset: boolean }).failReset = true;
+  });
+  await page.getByRole("button", { name: "Set up family accounts" }).click();
+  await expect(
+    page.getByText(/Password reset requests failed for:/),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    (window as unknown as { failReset: boolean }).failReset = false;
+  });
   await page.getByRole("button", { name: "Learning summaries" }).click();
   await expect(
     page.getByRole("heading", {

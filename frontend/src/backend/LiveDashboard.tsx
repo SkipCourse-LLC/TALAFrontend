@@ -7,6 +7,9 @@ import { LearningJourney } from "../product/LearningJourney";
 import { workspaceViews } from "../product/workspaceViews";
 import type { WorkspaceView } from "../product/workspaceViews";
 import { dashboardSources, fetchDashboardSource } from "./dashboardData";
+import { LiveAdmissions } from "./LiveAdmissions";
+import { FamilyRecords } from "./FamilyRecords";
+import type { FamilyStudent } from "./FamilyRecords";
 import type { DashboardResult, DashboardSource } from "./dashboardData";
 import type { AccessRole } from "./meAccess";
 import "../product/product.css";
@@ -92,7 +95,7 @@ const adminSections: Section[] = [
   {
     id: "admissions",
     label: "Admissions",
-    sources: ["admissions", "relationship-stats"],
+    sources: ["relationship-stats"],
   },
   { id: "classes", label: "Classes", sources: ["classes", "calendar"] },
   { id: "payments", label: "Payments", sources: ["billing"] },
@@ -115,6 +118,14 @@ const glyphs = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFamilyStudent(value: unknown): value is FamilyStudent {
+  return (
+    isRecord(value) &&
+    typeof value.uid === "string" &&
+    typeof value.email === "string"
+  );
 }
 
 function DataView({
@@ -172,9 +183,11 @@ function DataView({
 function SourceCard({
   source,
   result,
+  user,
 }: {
   source: DashboardSource;
   result?: DashboardResult;
+  user: User;
 }) {
   return (
     <article className="live-dashboard-card">
@@ -186,6 +199,14 @@ function SourceCard({
       )}
       {!result ? (
         <p role="status">Loading…</p>
+      ) : result.ok &&
+        source.id === "family-links" &&
+        isRecord(result.data) &&
+        Array.isArray(result.data.students) ? (
+        <FamilyRecords
+          user={user}
+          students={result.data.students.filter(isFamilyStudent)}
+        />
       ) : result.ok ? (
         <DataView source={source} data={result.data} />
       ) : (
@@ -266,6 +287,7 @@ export function LiveDashboard({
           key={source.id}
           source={source}
           result={results[source.id]}
+          user={user}
         />
       ))}
     </div>
@@ -313,6 +335,7 @@ export function LiveDashboard({
               {section.label}
             </h2>
           </div>
+          {section.id === "admissions" && <LiveAdmissions user={user} />}
           {cardsView}
         </section>
       </div>
