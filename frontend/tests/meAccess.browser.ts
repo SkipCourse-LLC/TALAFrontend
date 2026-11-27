@@ -228,6 +228,9 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(
     page.getByRole("heading", { name: "Evidence", exact: true, level: 2 }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Evidence", exact: true, level: 2 }),
+  ).toBeFocused();
   await expect(page.getByText("My project", { exact: true })).toBeVisible();
   await page
     .getByRole("navigation", { name: "Workspace sections" })
@@ -258,6 +261,17 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(
     page.getByRole("heading", { name: "Meetings", level: 2 }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Meetings", level: 2 }),
+  ).toBeFocused();
+  await page.goBack();
+  await expect(
+    page.getByRole("heading", { name: "Progress", exact: true, level: 2 }),
+  ).toBeFocused();
+  await page.goForward();
+  await expect(
+    page.getByRole("heading", { name: "Meetings", exact: true, level: 2 }),
+  ).toBeFocused();
   await expect(page.getByRole("alert").first()).toContainText("network");
   expect(
     consoleErrors.some((text) =>
@@ -304,6 +318,13 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   );
   await expect(page.getByText("4 relationships.")).toBeVisible();
   await page.getByRole("button", { name: "Learning summaries" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Learning summaries",
+      exact: true,
+      level: 2,
+    }),
+  ).toBeFocused();
   await expect(
     page.getByText("7 assessments in the last 30 days."),
   ).toBeVisible();

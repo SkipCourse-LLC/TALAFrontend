@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { User } from "firebase/auth";
 import { Icon } from "../shared/Icon";
@@ -224,9 +224,18 @@ export function LiveDashboard({
   const param = role === "talaadmin" ? "panel" : "view";
   const section =
     sections.find((item) => item.id === params.get(param)) ?? sections[0]!;
+  const sectionHeading = useRef<HTMLHeadingElement>(null);
+  const previousSection = useRef(section.id);
   const [results, setResults] = useState<Results>({});
   const [attempt, setAttempt] = useState(0);
   const name = user.displayName?.trim() || user.email || "TALA member";
+
+  useEffect(() => {
+    if (previousSection.current === section.id) return;
+    previousSection.current = section.id;
+    sectionHeading.current?.focus({ preventScroll: true });
+    sectionHeading.current?.scrollIntoView({ block: "start" });
+  }, [section.id]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -300,7 +309,9 @@ export function LiveDashboard({
         </div>
         <section className="operator-panel">
           <div className="operator-section-heading">
-            <h2>{section.label}</h2>
+            <h2 ref={sectionHeading} tabIndex={-1}>
+              {section.label}
+            </h2>
           </div>
           {cardsView}
         </section>
@@ -393,7 +404,9 @@ export function LiveDashboard({
           </div>
           <section className="learning-overview-full">
             <div className="learning-overview-heading">
-              <h2>{section.label}</h2>
+              <h2 ref={sectionHeading} tabIndex={-1}>
+                {section.label}
+              </h2>
             </div>
             {section.id === "overview" && (
               <>
