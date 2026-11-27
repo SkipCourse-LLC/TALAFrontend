@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
     resolveFirebaseConfiguration(environment, "localhost");
   } else if (
     environment.VITE_BACKEND_MODE &&
-    !["demo", "api"].includes(environment.VITE_BACKEND_MODE)
+    !["demo", "api", "firebase"].includes(environment.VITE_BACKEND_MODE)
   ) {
     resolveFirebaseConfiguration(environment, "localhost");
   }

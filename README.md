@@ -78,6 +78,21 @@ For an isolated product review, run `npm run dev:review --prefix frontend`. It s
 
 The earlier visual demo remains available through `npm run dev:demo --prefix frontend`. Its identities, availability and payments are fixtures. Legacy Firebase tooling is opt-in and separate from the default independent backend.
 
+### Firebase me-access sign-in
+
+The opt-in `VITE_BACKEND_MODE=firebase` build uses Firebase Auth and the me-access service, independently of the local API and isolated Firebase test modes. Set the public `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, and `VITE_FIREBASE_APP_ID` to the production Web App values at build time (see `frontend/.env.example`). No secrets belong in Vite variables.
+
+The manual **taladev** hosting workflow selects Firebase mode. Before running it, configure these four GitHub Actions repository or organization variables under Settings → Secrets and variables → Actions → Variables:
+
+- `VITE_FIREBASE_PROJECT_ID` — `skip-class-slsru4`
+- `VITE_FIREBASE_API_KEY` — the public Firebase Web App API key
+- `VITE_FIREBASE_AUTH_DOMAIN` — `skip-class-slsru4.firebaseapp.com`
+- `VITE_FIREBASE_APP_ID` — the Firebase Web App ID for that project
+
+The workflow fails before building if any variable is blank. The browser verifies the Web App's Auth project before initializing Firebase. These values are public build configuration, not service-account credentials; the separate production **tala** workflow remains unchanged.
+
+The function deployment base is `https://us-central1-skip-class-slsru4.cloudfunctions.net/me-access`; the browser requests `/me-access/me/access` because the service handles `/me/access` inside that deployment. Confirm that deployment strips the function prefix. The service must allow the exact browser origin, including local development origins if used, and Firebase Auth must authorize that origin. CORS preflight must allow GET and the Authorization header. An unavailable service, unverified email, mismatched UID, school other than `tala`, or unrecognized role fails closed. Admin, parent and student dashboards currently contain placeholders only; account provisioning, recovery, data and payments are not connected in this mode.
+
 HubSpot's official quarterly and individual-session Checkout links are connected to staff-authorized, persisted payment items in the family portal. Automatic receipt verification still requires authorized server API access and exact receipt-to-item reconciliation; a return URL never proves payment. The legacy visual demo remains separate. See [HubSpot Payments](server/HUBSPOT-PAYMENTS.md) for the implemented boundary, Sponsor confirmations and transaction-free local testing.
 
 Zoom, email delivery/recovery, production MFA and AI assessment remain unconnected. The server binds to loopback and refuses production mode until hosting, HTTPS, recovery, backups and privacy controls are reviewed. Use invented accounts and files; real minors' records, medical information and recordings require sponsor-approved collection and access policies. These commands do not deploy the application.
