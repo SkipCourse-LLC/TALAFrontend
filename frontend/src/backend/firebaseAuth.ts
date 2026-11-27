@@ -249,7 +249,7 @@ export const firebaseAuthService = {
   signIn(email: string, password: string): Promise<FirebaseSession> {
     return exclusive(async () => {
       const client = getFirebaseClient();
-      validateSyntheticAccountEmail(email);
+      validateSessionEmail(email);
       await client.ready;
       pendingMfa.clear();
       try {
@@ -344,8 +344,7 @@ export const firebaseAuthService = {
   async sendPasswordReset(email: string): Promise<void> {
     try {
       const client = getFirebaseClient();
-      requireIsolatedAuthWrites();
-      validateSyntheticAccountEmail(email);
+      validateSessionEmail(email);
       if (client.mode === "firebase-test")
         throw new FirebaseAuthServiceError("TEST_EMAIL_DELIVERY_UNAVAILABLE");
       await client.ready;

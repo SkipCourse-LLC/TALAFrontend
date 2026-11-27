@@ -1,4 +1,5 @@
 import type { AccessRole } from "./meAccess";
+import { ADMISSIONS_URL } from "./admissionsApi";
 
 const FUNCTIONS_BASE =
   "https://us-central1-skip-class-slsru4.cloudfunctions.net";
@@ -62,16 +63,15 @@ function validResponse(
       );
     case "family-links":
       return (
-        Array.isArray(data.relationships) &&
-        data.relationships.every(
-          (link: unknown) =>
-            record(link) &&
-            link.principal_id === uid &&
-            link.relationship_type === "student_parent" &&
-            typeof link.student_id === "string" &&
-            typeof link.status === "string",
-        ) &&
-        typeof data.has_more === "boolean"
+        Array.isArray(data.students) &&
+        data.students.every(
+          (student: unknown) =>
+            record(student) &&
+            typeof student.uid === "string" &&
+            student.uid.length > 0 &&
+            typeof student.email === "string" &&
+            student.email.length > 0,
+        )
       );
     case "relationship-stats":
       return typeof data.total_relationships === "number";
@@ -135,7 +135,6 @@ const plan = probe("learning-plan", "Learning plan");
 const evidence = probe("evidence", "Evidence");
 const familyLearning = probe("family-learning", "Student learning records");
 const familyProgress = probe("family-progress", "Student progress");
-const admissions = probe("admissions", "Admissions");
 const review = probe("evidence-review", "Evidence review");
 
 const fromDate = () =>
@@ -172,9 +171,8 @@ export const dashboardSources: Record<AccessRole, DashboardSource[]> = {
   parent: [
     {
       id: "family-links",
-      title: "Student relationships",
-      url: (uid) =>
-        `${FUNCTIONS_BASE}/manage-relationships/relationships/principal/${encodeURIComponent(uid)}?limit=20&relationship_type=student_parent`,
+      title: "Linked students",
+      url: () => `${ADMISSIONS_URL}/students`,
     },
     classes,
     updates,
@@ -198,7 +196,6 @@ export const dashboardSources: Record<AccessRole, DashboardSource[]> = {
       title: "Relationship statistics",
       url: () => `${FUNCTIONS_BASE}/manage-relationships/relationships/stats`,
     },
-    admissions,
     classes,
     review,
     calendar,

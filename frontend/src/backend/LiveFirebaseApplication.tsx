@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { onIdTokenChanged } from "firebase/auth";
+import { onIdTokenChanged, sendEmailVerification, reload } from "firebase/auth";
 import type { User } from "firebase/auth";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { SiteLayout } from "../shared/SiteLayout";
@@ -31,7 +31,55 @@ type State =
       message: string;
       canSignOut: boolean;
       signOutFailed?: boolean;
+      verificationUser?: User;
     };
+
+function EmailVerification({ user, retry }: { user: User; retry: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          void sendEmailVerification(user)
+            .then(
+              () =>
+                setNotice(
+                  "Verification email requested. Open the link, then check verification.",
+                ),
+              () =>
+                setNotice(
+                  "Could not request the verification email. Try again.",
+                ),
+            )
+            .finally(() => setBusy(false));
+        }}
+      >
+        Send verification email
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          void reload(user)
+            .then(() => user.getIdToken(true))
+            .then(retry)
+            .catch(() => {
+              setNotice("Could not refresh verification. Try again.");
+              setBusy(false);
+            });
+        }}
+      >
+        Check verification
+      </button>
+      {notice && <p role="status">{notice}</p>}
+    </div>
+  );
+}
 
 export function LiveFirebaseApplication() {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -92,6 +140,11 @@ export function LiveFirebaseApplication() {
                           ? failure.message
                           : "We could not confirm access. Check your account and connection, then try again.",
                       canSignOut: true,
+                      verificationUser:
+                        failure instanceof MeAccessError &&
+                        failure.emailNotVerified
+                          ? user
+                          : undefined,
                     });
                 })
                 .finally(() => clearTimeout(timeout));
@@ -174,6 +227,12 @@ export function LiveFirebaseApplication() {
       <section className="container state-panel" role="alert">
         <h1>Account access unavailable</h1>
         <p>{state.message}</p>
+        {state.verificationUser && (
+          <EmailVerification
+            user={state.verificationUser}
+            retry={() => setAttempt((n) => n + 1)}
+          />
+        )}
         {!state.signOutFailed && (
           <button
             type="button"
@@ -209,6 +268,7 @@ export function LiveFirebaseApplication() {
                     }
                   : null
               }
+
               backend="firebase"
             />
           }

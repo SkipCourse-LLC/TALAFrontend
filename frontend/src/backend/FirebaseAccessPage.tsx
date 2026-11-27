@@ -34,7 +34,7 @@ export function FirebaseAccessPage({
   const errorBox = useRef<HTMLParagraphElement>(null);
   const local = backendMode === "firebase-emulator";
   const isolated = local || backendMode === "firebase-test";
-  // Sign-in-only cloud mode (taladev): Google accounts, no test-account form.
+  // Live accounts are provisioned by an administrator, not by this form.
   const live = backendMode === "firebase";
   useEffect(() => {
     mounted.current = true;
@@ -130,7 +130,7 @@ export function FirebaseAccessPage({
           {local
             ? "Firebase Local Emulator · Synthetic test data only. No SkipCourse production accounts are changed."
             : live
-              ? "Sign in with your Google account."
+              ? "Sign in with your enrolled Google account or email and password."
               : "Approved Firebase test cloud · Synthetic accounts only. The test operator must approve and verify your account before protected services are available."}
         </p>
         {register && !isolated ? (
@@ -138,149 +138,152 @@ export function FirebaseAccessPage({
             Live registration is awaiting the team's account provisioning and
             consent contract. <Link to="/login">Sign in</Link>
           </p>
-        ) : live && !mfa && !register ? (
-          <div className="firebase-google-sign-in">
-            <button
-              type="button"
-              className="button"
-              disabled={pending}
-              onClick={() =>
-                void run(async () => {
-                  await firebaseAuthService.signInWithGoogle();
-                  if (mounted.current)
-                    navigate("/dashboard", { replace: true });
-                })
-              }
-            >
-              {pending ? "Signing in…" : "Continue with Google"}
-            </button>
-          </div>
         ) : (
-          <form onSubmit={submit}>
-            <fieldset disabled={pending} className="firebase-fields">
-              <legend className="sr-only">
-                {mfa
-                  ? "Authenticator verification"
-                  : register
-                    ? "Test account details"
-                    : "Sign-in details"}
-              </legend>
-              {mfa ? (
-                <>
-                  <label className="form-field">
-                    Verification method
-                    <select
-                      value={factor}
-                      onChange={(e) => setFactor(e.target.value)}
-                      required
-                    >
-                      <option value="">Choose a supported method</option>
-                      {mfa.factors
-                        .filter((item) => item.type === "totp")
-                        .map((item) => (
-                          <option key={item.uid} value={item.uid}>
-                            {item.label}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label className="form-field">
-                    Six-digit code
-                    <input
-                      value={code}
-                      onChange={(e) =>
-                        setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-                      }
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      pattern="[0-9]{6}"
-                      maxLength={6}
-                      required
-                      aria-describedby="firebase-code-help"
-                    />
-                  </label>
-                  <p id="firebase-code-help">
-                    Use the current code from your authenticator. The
-                    authentication service verifies it.
-                  </p>
-                  {!factor && (
-                    <p role="status">
-                      This account requires a method not supported here. Use the
-                      team's existing sign-in service.
-                    </p>
-                  )}
-                </>
-              ) : (
-                <>
-                  {register && (
+          <>
+            {live && !mfa && !register && (
+              <div className="firebase-google-sign-in">
+                <button
+                  type="button"
+                  className="button"
+                  disabled={pending}
+                  onClick={() =>
+                    void run(async () => {
+                      await firebaseAuthService.signInWithGoogle();
+                      if (mounted.current)
+                        navigate("/dashboard", { replace: true });
+                    })
+                  }
+                >
+                  {pending ? "Signing in…" : "Continue with Google"}
+                </button>
+              </div>
+            )}
+            <form onSubmit={submit}>
+              <fieldset disabled={pending} className="firebase-fields">
+                <legend className="sr-only">
+                  {mfa
+                    ? "Authenticator verification"
+                    : register
+                      ? "Test account details"
+                      : "Sign-in details"}
+                </legend>
+                {mfa ? (
+                  <>
                     <label className="form-field">
-                      Display name
+                      Verification method
+                      <select
+                        value={factor}
+                        onChange={(e) => setFactor(e.target.value)}
+                        required
+                      >
+                        <option value="">Choose a supported method</option>
+                        {mfa.factors
+                          .filter((item) => item.type === "totp")
+                          .map((item) => (
+                            <option key={item.uid} value={item.uid}>
+                              {item.label}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="form-field">
+                      Six-digit code
                       <input
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        autoComplete="nickname"
-                        maxLength={80}
+                        value={code}
+                        onChange={(e) =>
+                          setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                        }
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        pattern="[0-9]{6}"
+                        maxLength={6}
+                        required
+                        aria-describedby="firebase-code-help"
+                      />
+                    </label>
+                    <p id="firebase-code-help">
+                      Use the current code from your authenticator. The
+                      authentication service verifies it.
+                    </p>
+                    {!factor && (
+                      <p role="status">
+                        This account requires a method not supported here. Use
+                        the team's existing sign-in service.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {register && (
+                      <label className="form-field">
+                        Display name
+                        <input
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          autoComplete="nickname"
+                          maxLength={80}
+                          required
+                        />
+                      </label>
+                    )}
+                    <label className="form-field">
+                      Email
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="username"
+                        maxLength={254}
+                        required
+                        aria-describedby={
+                          isolated ? "firebase-email-help" : undefined
+                        }
+                      />
+                    </label>
+                    {isolated && (
+                      <p id="firebase-email-help">
+                        For isolated testing use a made-up address, such as
+                        learner@example.test.
+                      </p>
+                    )}
+                    <label className="form-field">
+                      Password
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete={
+                          register ? "new-password" : "current-password"
+                        }
+                        minLength={register ? 12 : undefined}
+                        maxLength={128}
                         required
                       />
                     </label>
-                  )}
-                  <label className="form-field">
-                    Email
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      autoComplete="username"
-                      maxLength={254}
-                      required
-                      aria-describedby={
-                        isolated ? "firebase-email-help" : undefined
-                      }
-                    />
-                  </label>
-                  {isolated && (
-                    <p id="firebase-email-help">
-                      For isolated testing use a made-up address, such as
-                      learner@example.test.
-                    </p>
-                  )}
-                  <label className="form-field">
-                    Password
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete={
-                        register ? "new-password" : "current-password"
-                      }
-                      minLength={register ? 12 : undefined}
-                      maxLength={128}
-                      required
-                    />
-                  </label>
-                  {register && (
-                    <p>
-                      Use a unique test password with at least 12 characters. Do
-                      not reuse a real password.
-                    </p>
-                  )}
-                </>
-              )}
-              <button
-                className="button button-primary button-full"
-                type="submit"
-                disabled={pending || (!!mfa && !factor)}
-              >
-                {pending
-                  ? "Please wait…"
-                  : mfa
-                    ? "Verify and sign in"
-                    : register
-                      ? "Create test account"
-                      : "Sign in"}
-              </button>
-            </fieldset>
-          </form>
+                    {register && (
+                      <p>
+                        Use a unique test password with at least 12 characters.
+                        Do not reuse a real password.
+                      </p>
+                    )}
+                  </>
+                )}
+                <button
+                  className="button button-primary button-full"
+                  type="submit"
+                  disabled={pending || (!!mfa && !factor)}
+                >
+                  {pending
+                    ? "Please wait…"
+                    : mfa
+                      ? "Verify and sign in"
+                      : register
+                        ? "Create test account"
+                        : "Sign in"}
+                </button>
+              </fieldset>
+            </form>
+          </>
         )}
         {error && (
           <p className="notice error" role="alert" tabIndex={-1} ref={errorBox}>
@@ -309,7 +312,7 @@ export function FirebaseAccessPage({
           </button>
         ) : (
           <>
-            {!register && local && (
+            {!register && (local || live) && (
               <button
                 type="button"
                 className="button button-outline"
@@ -319,7 +322,9 @@ export function FirebaseAccessPage({
                     await firebaseAuthService.sendPasswordReset(email);
                     if (mounted.current)
                       setNotice(
-                        "If this account can receive password-reset instructions, they have been requested. In Emulator mode, use the local action link in the emulator terminal.",
+                        local
+                          ? "If this account can receive password-reset instructions, they have been requested. In Emulator mode, use the local action link in the emulator terminal."
+                          : "If this account can receive password-reset instructions, they have been requested.",
                       );
                   })
                 }
