@@ -1,16 +1,8 @@
-.live-dashboard {
-  padding-block: 32px;
-}
-.live-dashboard-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-block: 16px 24px;
-}
 .live-dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 20px;
+  margin-block: 24px;
 }
 .live-dashboard-card {
   min-width: 0;
@@ -19,7 +11,7 @@
   border: var(--border-panel);
   border-radius: var(--radius-card);
 }
-.live-dashboard-card h2 {
+.live-dashboard-card h3 {
   font-size: 1.2rem;
 }
 .live-dashboard-card pre {
@@ -31,4 +23,26 @@
 }
 .live-dashboard-error {
   color: #8a1c1c;
+}
+.live-probe-note {
+  color: #596b62;
+  font-size: 0.875rem;
+}
+.live-record-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+}
+.live-record-list li {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f3f7f3;
+  overflow-wrap: anywhere;
+}
+.operator-tabs > button[aria-current="page"] {
+  color: var(--op-forest);
+  border-bottom-color: var(--op-forest);
 }

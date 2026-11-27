@@ -259,7 +259,7 @@ export function LiveFirebaseApplication() {
                 ) : (
                   state.kind === "ready" && (
                     <LiveDashboard
-                      key={state.user.uid}
+                      key={`${state.user.uid}-${state.access.role}`}
                       user={state.user}
                       role={state.access.role}
                       onLogout={() => void logout()}

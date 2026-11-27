@@ -25,6 +25,63 @@ export interface DashboardFailure {
 export type DashboardResult =
   { ok: true; data: unknown } | { ok: false; failure: DashboardFailure };
 
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validResponse(
+  source: DashboardSource,
+  data: unknown,
+  uid: string,
+): boolean {
+  if (!record(data) || source.unsupported) return false;
+  switch (source.id) {
+    case "student-profile":
+    case "course-progress":
+      return (
+        data.student_id === uid &&
+        Array.isArray(data.courses) &&
+        data.courses.every(
+          (course: unknown) =>
+            record(course) &&
+            typeof course.course === "string" &&
+            typeof course.average_grade === "number" &&
+            typeof course.standards_count === "number",
+        )
+      );
+    case "student-projects":
+      return (
+        data.student_id === uid &&
+        Array.isArray(data.projects) &&
+        data.projects.every(
+          (project: unknown) =>
+            record(project) &&
+            typeof project.job_id === "string" &&
+            typeof project.essay_name === "string",
+        )
+      );
+    case "family-links":
+      return (
+        Array.isArray(data.relationships) &&
+        data.relationships.every(
+          (link: unknown) =>
+            record(link) &&
+            link.principal_id === uid &&
+            link.relationship_type === "student_parent" &&
+            typeof link.student_id === "string" &&
+            typeof link.status === "string",
+        ) &&
+        typeof data.has_more === "boolean"
+      );
+    case "relationship-stats":
+      return typeof data.total_relationships === "number";
+    case "admin-stats":
+      return typeof data.found_job_count === "number";
+    default:
+      return false;
+  }
+}
+
 // Calendar, booking and billing are provided by Google Workspace tooling, not
 // skipcourse-backend-cloud-run. They are still requested so the real failure
 // (404, CORS or network) is visible in the console and on the page.
@@ -37,7 +94,11 @@ const workspaceService = (
   path: string,
 ): DashboardSource["url"] => {
   const base = configured(`VITE_TALA_${key}_URL`, `${FUNCTIONS_BASE}/${path}`);
-  return (uid) => `${base}?uid=${encodeURIComponent(uid)}`;
+  return (uid) => {
+    const url = new URL(base);
+    url.searchParams.set("uid", uid);
+    return url.toString();
+  };
 };
 
 const calendar: DashboardSource = {
@@ -58,6 +119,24 @@ const billing: DashboardSource = {
   url: workspaceService("BILLING", "tala-billing"),
   unsupported: true,
 };
+
+// These URLs are probes, not confirmed service contracts. They must not be
+// interpreted as working integrations merely because a server returns JSON.
+const probe = (id: string, title: string): DashboardSource => ({
+  id,
+  title,
+  url: workspaceService(id.replaceAll("-", "_").toUpperCase(), `tala-${id}`),
+  unsupported: true,
+});
+
+const classes = probe("classes", "Classes and requests");
+const updates = probe("updates", "Updates");
+const plan = probe("learning-plan", "Learning plan");
+const evidence = probe("evidence", "Evidence");
+const familyLearning = probe("family-learning", "Student learning records");
+const familyProgress = probe("family-progress", "Student progress");
+const admissions = probe("admissions", "Admissions");
+const review = probe("evidence-review", "Evidence review");
 
 const fromDate = () =>
   new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
@@ -82,6 +161,10 @@ export const dashboardSources: Record<AccessRole, DashboardSource[]> = {
       url: (uid) =>
         `${FUNCTIONS_BASE}/list-student-projects?student_id=${encodeURIComponent(uid)}&limit=25`,
     },
+    classes,
+    updates,
+    plan,
+    evidence,
     calendar,
     booking,
     billing,
@@ -89,10 +172,16 @@ export const dashboardSources: Record<AccessRole, DashboardSource[]> = {
   parent: [
     {
       id: "family-links",
-      title: "Linked students",
+      title: "Student relationships",
       url: (uid) =>
-        `${FUNCTIONS_BASE}/manage-relationships/relationships/principal/${encodeURIComponent(uid)}?limit=20`,
+        `${FUNCTIONS_BASE}/manage-relationships/relationships/principal/${encodeURIComponent(uid)}?limit=20&relationship_type=student_parent`,
     },
+    classes,
+    updates,
+    plan,
+    evidence,
+    familyLearning,
+    familyProgress,
     calendar,
     booking,
     billing,
@@ -109,6 +198,9 @@ export const dashboardSources: Record<AccessRole, DashboardSource[]> = {
       title: "Relationship statistics",
       url: () => `${FUNCTIONS_BASE}/manage-relationships/relationships/stats`,
     },
+    admissions,
+    classes,
+    review,
     calendar,
     booking,
     billing,
@@ -144,16 +236,34 @@ export async function fetchDashboardSource(
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
 ): Promise<DashboardResult> {
-  const url = source.url(user.uid);
+  let url: string;
+  try {
+    url = source.url(user.uid);
+  } catch (error) {
+    return fail(source, "(invalid service URL)", {
+      kind: "invalid-response",
+      message: `Invalid service URL: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
   let token: string;
   try {
     token = await user.getIdToken();
   } catch (error) {
+    if (signal.aborted)
+      return fail(source, url, {
+        kind: "cancelled",
+        message: "Request cancelled",
+      });
     return fail(source, url, {
       kind: "auth",
       message: `Could not obtain a Firebase ID token: ${error instanceof Error ? error.message : String(error)}`,
     });
   }
+  if (signal.aborted)
+    return fail(source, url, {
+      kind: "cancelled",
+      message: "Request cancelled",
+    });
   let response: Response;
   try {
     response = await fetcher(url, {
@@ -175,7 +285,20 @@ export async function fetchDashboardSource(
       message: `${error instanceof Error ? error.message : String(error)}. The service may be missing, unreachable, or blocking this origin (CORS).`,
     });
   }
-  const text = await response.text().catch(() => "");
+  let text: string;
+  try {
+    text = await response.text();
+  } catch (error) {
+    if (signal.aborted)
+      return fail(source, url, {
+        kind: "cancelled",
+        message: "Request cancelled",
+      });
+    return fail(source, url, {
+      kind: "network",
+      message: `Could not read the response: ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
   if (!response.ok)
     return fail(source, url, {
       kind: "http",
@@ -184,7 +307,16 @@ export async function fetchDashboardSource(
       detail: text.slice(0, 500),
     });
   try {
-    return { ok: true, data: JSON.parse(text) as unknown };
+    const data: unknown = JSON.parse(text);
+    if (!validResponse(source, data, user.uid))
+      return fail(source, url, {
+        kind: "invalid-response",
+        status: response.status,
+        message: source.unsupported
+          ? "A response was received, but this service has no confirmed integration contract."
+          : "The service response did not match the expected contract.",
+      });
+    return { ok: true, data };
   } catch {
     return fail(source, url, {
       kind: "invalid-response",
