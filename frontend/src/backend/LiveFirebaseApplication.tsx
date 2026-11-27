@@ -4,7 +4,6 @@ import {
   getMultiFactorResolver,
   onIdTokenChanged,
   signInWithEmailAndPassword,
-  signOut,
   TotpMultiFactorGenerator,
 } from "firebase/auth";
 import type {
@@ -27,7 +26,12 @@ import {
 import { CommunityPage } from "../public-site/CommunityPage";
 import { NotFoundPage } from "../public-site/NotFoundPage";
 import { safeFirebaseAuthError } from "./firebaseAuthTypes";
-import { getLiveAuth } from "./liveFirebase";
+import {
+  getLiveAuth,
+  isLiveLogoutRequired,
+  runLiveSignIn,
+  signOutLiveAuth,
+} from "./liveFirebase";
 import { dashboardPath, fetchMeAccess } from "./meAccess";
 import type { MeAccess } from "./meAccess";
 import "./FirebaseWorkspace.css";
@@ -49,7 +53,6 @@ export function LiveFirebaseApplication() {
   const revision = useRef(0);
   const controller = useRef<AbortController | null>(null);
   const signingOut = useRef(false);
-  const signOutRequired = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -65,7 +68,7 @@ export function LiveFirebaseApplication() {
           (user) => {
             const current = ++revision.current;
             controller.current?.abort();
-            if (signOutRequired.current) return;
+            if (isLiveLogoutRequired()) return;
             if (!user) {
               setState({ kind: "signed-out" });
               return;
@@ -81,7 +84,7 @@ export function LiveFirebaseApplication() {
                   current === revision.current &&
                   !abort.signal.aborted &&
                   auth.currentUser === user &&
-                  !signOutRequired.current
+                  !isLiveLogoutRequired()
                 )
                   setState({ kind: "ready", user, access });
               })
@@ -90,7 +93,7 @@ export function LiveFirebaseApplication() {
                   active &&
                   current === revision.current &&
                   auth.currentUser === user &&
-                  !signOutRequired.current
+                  !isLiveLogoutRequired()
                 )
                   setState({
                     kind: "error",
@@ -104,7 +107,7 @@ export function LiveFirebaseApplication() {
           () => {
             revision.current++;
             controller.current?.abort();
-            if (active && !signOutRequired.current)
+            if (active && !isLiveLogoutRequired())
               setState({
                 kind: "error",
                 message: "Authentication is unavailable. Try again.",
@@ -133,13 +136,11 @@ export function LiveFirebaseApplication() {
   async function logout() {
     if (signingOut.current) return;
     signingOut.current = true;
-    signOutRequired.current = true;
     revision.current++;
     controller.current?.abort();
     setState({ kind: "loading" });
     try {
-      await signOut(await getLiveAuth());
-      signOutRequired.current = false;
+      await signOutLiveAuth();
       setState({ kind: "signed-out" });
       navigate("/login", { replace: true });
     } catch {
@@ -298,13 +299,17 @@ function LiveLogin() {
     setError("");
     try {
       if (resolver) {
-        await resolver.resolveSignIn(
-          TotpMultiFactorGenerator.assertionForSignIn(factor, code),
+        await runLiveSignIn(() =>
+          resolver.resolveSignIn(
+            TotpMultiFactorGenerator.assertionForSignIn(factor, code),
+          ),
         );
       } else {
         const auth: Auth = await getLiveAuth();
         try {
-          await signInWithEmailAndPassword(auth, email.trim(), password);
+          await runLiveSignIn(() =>
+            signInWithEmailAndPassword(auth, email.trim(), password),
+          );
         } catch (failure) {
           if (
             typeof failure === "object" &&

@@ -1,5 +1,5 @@
 import { getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, signOut } from "firebase/auth";
 import type { Auth } from "firebase/auth";
 import {
   SKIPCLASS_PRODUCTION_PROJECT,
@@ -7,6 +7,9 @@ import {
 } from "./firebaseConfiguration";
 
 let pending: Promise<Auth> | undefined;
+const pendingSignIns = new Set<Promise<unknown>>();
+let logoutRequired = false;
+let logoutInProgress: Promise<void> | undefined;
 
 export function getLiveAuth(): Promise<Auth> {
   if (pending) return pending;
@@ -15,6 +18,38 @@ export function getLiveAuth(): Promise<Auth> {
     throw error;
   });
   return pending;
+}
+
+export function isLiveLogoutRequired(): boolean {
+  return logoutRequired;
+}
+
+export function runLiveSignIn<T>(action: () => Promise<T>): Promise<T> {
+  if (logoutRequired)
+    return Promise.reject(new Error("Sign-in is unavailable during sign-out."));
+  const operation = Promise.resolve().then(action);
+  pendingSignIns.add(operation);
+  void operation.then(
+    () => pendingSignIns.delete(operation),
+    () => pendingSignIns.delete(operation),
+  );
+  return operation;
+}
+
+export function signOutLiveAuth(): Promise<void> {
+  if (logoutInProgress) return logoutInProgress;
+  logoutRequired = true;
+  const operation = (async () => {
+    await Promise.allSettled([...pendingSignIns]);
+    const auth = await getLiveAuth();
+    await signOut(auth);
+    if (auth.currentUser) await signOut(auth);
+    logoutRequired = false;
+  })();
+  logoutInProgress = operation.finally(() => {
+    logoutInProgress = undefined;
+  });
+  return logoutInProgress;
 }
 
 async function initialize(): Promise<Auth> {
