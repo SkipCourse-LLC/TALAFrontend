@@ -68,6 +68,10 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
         await route.fulfill({ status: 204, headers });
         return;
       }
+      if (route.request().url().includes("/tala-calendar")) {
+        await route.fulfill({ status: 404, headers });
+        return;
+      }
       const uid = route
         .request()
         .headers()
@@ -124,9 +128,7 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(page).toHaveTitle(
     "Student dashboard | Tucson Adaptive Learning Academy",
   );
-  await expect(
-    page.getByText("Dashboard data and classes are coming soon."),
-  ).toBeVisible();
+  await expect(page.getByRole("alert").first()).toContainText("404");
   await page.goto("/#/dashboard/admin");
   await expect(
     page.getByRole("heading", { name: "Student dashboard" }),

@@ -1,0 +1,34 @@
+.live-dashboard {
+  padding-block: 32px;
+}
+.live-dashboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block: 16px 24px;
+}
+.live-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+.live-dashboard-card {
+  min-width: 0;
+  padding: 20px;
+  background: var(--color-surface);
+  border: var(--border-panel);
+  border-radius: var(--radius-card);
+}
+.live-dashboard-card h2 {
+  font-size: 1.2rem;
+}
+.live-dashboard-card pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}
+.live-dashboard-error {
+  color: #8a1c1c;
+}

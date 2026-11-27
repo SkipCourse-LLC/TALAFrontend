@@ -18,6 +18,7 @@ import { FirebaseAccessPage } from "./FirebaseAccessPage";
 import { getFirebaseClient } from "./firebaseClient";
 import { firebaseAuthService, safeFirebaseAuthError } from "./firebaseAuth";
 import { dashboardPath, fetchMeAccess, MeAccessError } from "./meAccess";
+import { LiveDashboard } from "./LiveDashboard";
 import type { MeAccess } from "./meAccess";
 import "./FirebaseWorkspace.css";
 
@@ -256,20 +257,14 @@ export function LiveFirebaseApplication() {
                 (dashboard !== `/dashboard/${role}` ? (
                   <Navigate to={dashboard} replace />
                 ) : (
-                  <section className="container state-panel">
-                    <h1>
-                      {role === "admin"
-                        ? "Admin"
-                        : role === "parent"
-                          ? "Parent"
-                          : "Student"}{" "}
-                      dashboard
-                    </h1>
-                    <p>Dashboard data and classes are coming soon.</p>
-                    <button type="button" onClick={() => void logout()}>
-                      Sign out
-                    </button>
-                  </section>
+                  state.kind === "ready" && (
+                    <LiveDashboard
+                      key={state.user.uid}
+                      user={state.user}
+                      role={state.access.role}
+                      onLogout={() => void logout()}
+                    />
+                  )
                 ))
               }
             />
