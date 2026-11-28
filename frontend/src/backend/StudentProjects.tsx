@@ -81,7 +81,7 @@ export function StudentProjects({ user, data }: { user: User; data: unknown }) {
   );
 }
 
-function ProjectDetail({ user, jobId }: { user: User; jobId: string }) {
+export function ProjectDetail({ user, jobId }: { user: User; jobId: string }) {
   const [detail, setDetail] = useState<{ essay: string; feedback: string }>();
   const [error, setError] = useState("");
   useEffect(() => {

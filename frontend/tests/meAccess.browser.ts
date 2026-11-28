@@ -72,6 +72,7 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   let uploadQueued = false;
   let uploadOffline = false;
   let projectOffline = false;
+  let graphState: "ready" | "empty" | "invalid" | "offline" = "ready";
   let uploadedFiles: string[] = [];
   let firstArchive: Buffer | undefined;
   page.on("console", (message) => {
@@ -207,14 +208,70 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
           return;
         }
         let json: object;
-        if (url.pathname.endsWith("/get-student-profile")) {
-          json = {
-            student_id: uid,
-            courses: [
-              { course: "Science", standards_count: 2, average_grade: 85 },
-            ],
-            completed_jobs: 1,
-          };
+        if (url.pathname.endsWith("/get-student-graph/curriculum")) {
+          if (graphState === "offline") {
+            await route.fulfill({
+              status: 503,
+              headers,
+              json: { error: "curriculum_graph_unavailable" },
+            });
+            return;
+          }
+          json =
+            graphState === "invalid"
+              ? { student_id: "someone-else", nodes: [], edges: [] }
+              : {
+                  student_id: uid,
+                  nodes:
+                    graphState === "empty"
+                      ? []
+                      : [
+                          {
+                            id: "course:Science",
+                            label: "Science",
+                            node_type: "course",
+                          },
+                          {
+                            id: "standard:s1",
+                            label: "S1",
+                            node_type: "standard",
+                            description: "Explain the water cycle",
+                            grade: 85,
+                          },
+                          {
+                            id: "project:one",
+                            label: "My project",
+                            node_type: "project",
+                            job_id: "one",
+                          },
+                          {
+                            id: "skill:research",
+                            label: "Research",
+                            node_type: "skill",
+                          },
+                        ],
+                  edges:
+                    graphState === "empty"
+                      ? []
+                      : [
+                          {
+                            source: "course:Science",
+                            target: "standard:s1",
+                            relation: "IN_COURSE",
+                          },
+                          {
+                            source: "project:one",
+                            target: "standard:s1",
+                            relation: "DEMONSTRATES",
+                            grade: 85,
+                          },
+                          {
+                            source: "standard:s1",
+                            target: "skill:research",
+                            relation: "REQUIRES_SKILL",
+                          },
+                        ],
+                };
         } else if (url.pathname.endsWith("/get-course-progress")) {
           json = invalidProgress
             ? { error: "Unexpected response" }
@@ -345,7 +402,95 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
     "Student dashboard | Tucson Adaptive Learning Academy",
   );
   await expect(page.getByRole("alert").first()).toContainText("404");
-  await expect(page.getByText("Science", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Map of your work" }),
+  ).toBeVisible();
+  await expect(page.getByRole("group", { name: "Map of your work" })).toHaveCSS(
+    "position",
+    "relative",
+  );
+  await expect(
+    page.getByRole("button", { name: /Science/ }).first(),
+  ).toBeVisible();
+  expect(
+    requests.some((value) =>
+      value.includes(
+        "/get-student-graph/curriculum?student_id=student|student",
+      ),
+    ),
+  ).toBe(true);
+  await page
+    .locator("#tala-curriculum-map label")
+    .filter({ hasText: "Skills" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /Research/ }).first(),
+  ).toBeVisible();
+  await page
+    .locator("#tala-curriculum-map label")
+    .filter({ hasText: "Courses" })
+    .click();
+  await page
+    .getByRole("button", { name: /Science/ })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("complementary", { name: "Details" }),
+  ).toContainText("Explain the water cycle");
+  await page
+    .getByRole("complementary", { name: "Details" })
+    .getByRole("button", { name: "My project" })
+    .click();
+  await expect(page.getByLabel("Selected project")).toContainText(
+    "My submitted work",
+  );
+  await page.getByRole("button", { name: "Close project" }).click();
+  graphState = "offline";
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "503" }),
+  ).toBeVisible();
+  expect(
+    consoleErrors.some((text) =>
+      text.includes("Learning profile fetch failed (http 503)"),
+    ),
+  ).toBe(true);
+  graphState = "invalid";
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "expected contract" }),
+  ).toBeVisible();
+  graphState = "empty";
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(
+    page.getByText("Submit a project to start building your map."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Add project", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Evidence", exact: true, level: 2 }),
+  ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Workspace sections" })
+    .first()
+    .getByRole("button", { name: "Overview", exact: true })
+    .click();
+  graphState = "ready";
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(
+    page.getByRole("button", { name: /Science/ }).first(),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("group", { name: "Map of your work" }),
+  ).toBeVisible();
+  await page
+    .locator("#tala-curriculum-map label")
+    .filter({ hasText: "Skills" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /Research/ }).first(),
+  ).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 800 });
   await expect(page.getByText("My project", { exact: true })).toBeVisible();
   projectOffline = true;
   await page.getByRole("button", { name: "View work: My project" }).click();

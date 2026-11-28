@@ -1,5 +1,6 @@
 import type { AccessRole } from "./meAccess";
 import { ADMISSIONS_URL } from "./admissionsApi";
+import { isCurriculumGraph } from "./myMap/graph";
 
 const FUNCTIONS_BASE =
   "https://us-central1-skip-class-slsru4.cloudfunctions.net";
@@ -38,6 +39,7 @@ function validResponse(
   if (!record(data) || source.unsupported) return false;
   switch (source.id) {
     case "student-profile":
+      return isCurriculumGraph(data, uid);
     case "course-progress":
       return (
         data.student_id === uid &&
@@ -153,7 +155,7 @@ export const dashboardSources: Record<AccessRole, DashboardSource[]> = {
       id: "student-profile",
       title: "Learning profile",
       url: (uid) =>
-        `${FUNCTIONS_BASE}/get-student-profile?student_id=${encodeURIComponent(uid)}`,
+        `${FUNCTIONS_BASE}/get-student-graph/curriculum?student_id=${encodeURIComponent(uid)}`,
     },
     {
       id: "course-progress",

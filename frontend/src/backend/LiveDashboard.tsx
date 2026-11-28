@@ -11,6 +11,8 @@ import { LiveAdmissions } from "./LiveAdmissions";
 import { FamilyRecords } from "./FamilyRecords";
 import { EvidenceUpload } from "./EvidenceUpload";
 import { StudentProjects } from "./StudentProjects";
+import { CurriculumMap } from "./CurriculumMap";
+import { isCurriculumGraph } from "./myMap/graph";
 import type { FamilyStudent } from "./FamilyRecords";
 import type { DashboardResult, DashboardSource } from "./dashboardData";
 import type { AccessRole } from "./meAccess";
@@ -189,13 +191,17 @@ function SourceCard({
   source,
   result,
   user,
+  onAddProject,
 }: {
   source: DashboardSource;
   result?: DashboardResult;
   user: User;
+  onAddProject: () => void;
 }) {
   return (
-    <article className="live-dashboard-card">
+    <article
+      className={`live-dashboard-card${source.id === "student-profile" ? " live-dashboard-map-card" : ""}`}
+    >
       <h3>{source.title}</h3>
       {source.unsupported && (
         <p className="live-probe-note">
@@ -214,6 +220,14 @@ function SourceCard({
         />
       ) : result.ok && source.id === "student-projects" ? (
         <StudentProjects user={user} data={result.data} />
+      ) : result.ok &&
+        source.id === "student-profile" &&
+        isCurriculumGraph(result.data, user.uid) ? (
+        <CurriculumMap
+          graph={result.data}
+          user={user}
+          onAddProject={onAddProject}
+        />
       ) : result.ok ? (
         <DataView source={source} data={result.data} />
       ) : (
@@ -300,6 +314,7 @@ export function LiveDashboard({
           source={source}
           result={results[source.id]}
           user={user}
+          onAddProject={() => navigate("evidence")}
         />
       ))}
     </div>
