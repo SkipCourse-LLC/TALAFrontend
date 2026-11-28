@@ -53,20 +53,38 @@ export function isCourseProgress(
 }
 
 export function lowScoringStandards(graph: CurriculumGraph): GraphNode[] {
-  const projectIds = new Set(
+  const projects = new Map(
     graph.nodes
       .filter((node) => node.node_type === "project")
-      .map((node) => node.id),
+      .map((node) => [node.id, node]),
   );
-  const assessedIds = new Set(
-    graph.edges
-      .filter(
-        (edge) =>
-          edge.relation === "DEMONSTRATES" && projectIds.has(edge.source),
-      )
-      .map((edge) => edge.target),
-  );
+  const assessedIds = new Set<string>();
+  const gradesByStandard = new Map<string, Map<string, number>>();
+  for (const edge of graph.edges) {
+    const project = projects.get(edge.source);
+    if (edge.relation !== "DEMONSTRATES" || !project) continue;
+    assessedIds.add(edge.target);
+    if (edge.grade === undefined) continue;
+
+    const grades = gradesByStandard.get(edge.target) ?? new Map<string, number>();
+    const jobId = project.job_id || project.id.replace(/^project:/, "");
+    const existing = grades.get(jobId);
+    if (existing === undefined || edge.grade > existing) {
+      grades.set(jobId, edge.grade);
+    }
+    gradesByStandard.set(edge.target, grades);
+  }
   return graph.nodes
+    .map((node) => {
+      if (node.node_type !== "standard" || node.grade !== undefined) return node;
+      const grades = [...(gradesByStandard.get(node.id)?.values() ?? [])];
+      return grades.length
+        ? {
+            ...node,
+            grade: grades.reduce((sum, grade) => sum + grade, 0) / grades.length,
+          }
+        : node;
+    })
     .filter(
       (node) =>
         node.node_type === "standard" &&
