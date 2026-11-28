@@ -68,6 +68,7 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   const mutations: Array<{ path: string; body: Record<string, unknown> }> = [];
   let failLink = false;
   let invalidProgress = false;
+  let partialProgress = false;
   let bookingOffline = false;
   let uploadQueued = false;
   let uploadOffline = false;
@@ -249,6 +250,13 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
                             label: "Research",
                             node_type: "skill",
                           },
+                          ...Array.from({ length: 6 }, (_, index) => ({
+                            id: `standard:low${index}`,
+                            label: `Low ${index + 1}`,
+                            node_type: "standard",
+                            description: `Practice skill ${index + 1}`,
+                            grade: 20 + index,
+                          })),
                         ],
                   edges:
                     graphState === "empty"
@@ -270,21 +278,65 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
                             target: "skill:research",
                             relation: "REQUIRES_SKILL",
                           },
+                          ...Array.from({ length: 6 }, (_, index) => ({
+                            source: "project:one",
+                            target: `standard:low${index}`,
+                            relation: "DEMONSTRATES",
+                          })),
                         ],
                 };
         } else if (url.pathname.endsWith("/get-course-progress")) {
           json = invalidProgress
             ? { error: "Unexpected response" }
-            : {
-                student_id: uid,
-                courses: [
-                  {
-                    course: "Mathematics",
-                    standards_count: 3,
-                    average_grade: 90,
-                  },
-                ],
-              };
+            : partialProgress
+              ? {
+                  student_id: uid,
+                  courses: [
+                    {
+                      course: "Mathematics",
+                      standards_count: 3,
+                      average_grade: 90,
+                    },
+                  ],
+                }
+              : {
+                  student_id: uid,
+                  courses: [
+                    {
+                      course: "Mathematics",
+                      standards_count: 3,
+                      average_grade: 90,
+                      standards_met: 3,
+                      standards: [],
+                    },
+                    {
+                      course: "Science",
+                      standards_count: 4,
+                      standards_met: 3,
+                      average_grade: 70,
+                      standards: [
+                        {
+                          human_code: "S2",
+                          description: "Explain evaporation",
+                          grade: 40,
+                        },
+                      ],
+                    },
+                    ...Array.from({ length: 5 }, (_, index) => ({
+                      course: `Z Course ${index + 1}`,
+                      standards_count: 4,
+                      standards_met: 3,
+                      average_grade: 70,
+                      standards: [
+                        {
+                          human_code: `C${index + 1}`,
+                          description: `Practice course ${index + 1}`,
+                          grade: 40,
+                        },
+                      ],
+                    })),
+                  ],
+                };
         } else if (url.pathname.endsWith("/list-student-projects/mine")) {
           json = {
             student_id: uid,
@@ -402,6 +454,34 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
     "Student dashboard | Tucson Adaptive Learning Academy",
   );
   await expect(page.getByRole("alert").first()).toContainText("404");
+  await expect(page.getByText("Practice skill 1")).toBeVisible();
+  await expect(page.getByText("Practice skill 6")).toBeHidden();
+  await page.getByRole("button", { name: "Show all 6 standards" }).click();
+  await expect(page.getByText("Practice skill 6")).toBeVisible();
+  await expect(page.getByText("Practice course 5")).toBeHidden();
+  await page
+    .getByRole("button", { name: "Show all 6 course standards" })
+    .click();
+  await expect(page.getByText("Practice course 5")).toBeVisible();
+  await expect(page.getByText("Explain evaporation")).toBeVisible();
+  await expect(
+    page.getByText("Science · 3 of 4 assessed standards met"),
+  ).toBeVisible();
+  expect(requests.some((value) => value.includes("/tala-learning-plan"))).toBe(
+    false,
+  );
+  await page
+    .getByRole("navigation", { name: "Workspace sections" })
+    .first()
+    .getByRole("button", { name: "Plan", exact: true })
+    .click();
+  await expect(page.getByText("Explain evaporation")).toBeVisible();
+  await expect(page.getByText("Practice skill 1")).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Workspace sections" })
+    .first()
+    .getByRole("button", { name: "Overview", exact: true })
+    .click();
   await expect(
     page.getByRole("group", { name: "Map of your work" }),
   ).toBeVisible();
@@ -448,8 +528,9 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   graphState = "offline";
   await page.getByRole("button", { name: "Refresh" }).click();
   await expect(
-    page.getByRole("alert").filter({ hasText: "503" }),
+    page.getByRole("alert").filter({ hasText: "503" }).first(),
   ).toBeVisible();
+  await expect(page.getByText("Explain evaporation")).toBeVisible();
   expect(
     consoleErrors.some((text) =>
       text.includes("Learning profile fetch failed (http 503)"),
@@ -458,12 +539,15 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   graphState = "invalid";
   await page.getByRole("button", { name: "Refresh" }).click();
   await expect(
-    page.getByRole("alert").filter({ hasText: "expected contract" }),
+    page.getByRole("alert").filter({ hasText: "expected contract" }).first(),
   ).toBeVisible();
   graphState = "empty";
   await page.getByRole("button", { name: "Refresh" }).click();
   await expect(
     page.getByText("Submit a project to start building your map."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("No low-scoring assessed standards found."),
   ).toBeVisible();
   await page.getByRole("button", { name: "Add project", exact: true }).click();
   await expect(
@@ -602,7 +686,12 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   invalidProgress = true;
   await page.getByRole("button", { name: "Refresh" }).click();
   await expect(
-    page.getByText("The service response did not match the expected contract."),
+    page
+      .getByRole("alert")
+      .filter({
+        hasText: "The service response did not match the expected contract.",
+      })
+      .first(),
   ).toBeVisible();
   expect(
     consoleErrors.some((text) =>
@@ -612,6 +701,21 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   invalidProgress = false;
   await page.getByRole("button", { name: "Refresh" }).click();
   await expect(page.getByText("Mathematics", { exact: true })).toBeVisible();
+  partialProgress = true;
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "did not include valid assessed-standard details" }),
+  ).toBeVisible();
+  await expect(page.getByText("Mathematics", { exact: true })).toBeVisible();
+  await expect(page.getByText("Practice skill 1")).toBeVisible();
+  expect(
+    consoleErrors.some((text) =>
+      text.includes("Learning plan: course progress did not include"),
+    ),
+  ).toBe(true);
+  partialProgress = false;
   bookingOffline = true;
   await page.getByRole("button", { name: "Refresh" }).click();
   await page.setViewportSize({ width: 390, height: 844 });

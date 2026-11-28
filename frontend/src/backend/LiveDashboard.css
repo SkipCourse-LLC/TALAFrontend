@@ -17,6 +17,14 @@
 .live-dashboard-map-card {
   grid-column: 1 / -1;
 }
+.live-learning-plan {
+  grid-column: 1 / -1;
+}
+.live-learning-plan-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 20px;
+}
 .live-map-project {
   margin-top: 16px;
 }
