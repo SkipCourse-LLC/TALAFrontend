@@ -1,9 +1,185 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { admissionsRequest } from "./admissionsApi";
+import { isCourseProgress } from "./learningPlanData";
+import type { CourseProgress as CourseProgressData } from "./learningPlanData";
 
-type Result = { name: string; data?: Record<string, unknown>; error?: string };
 export type FamilyStudent = { uid: string; email: string };
+
+function CourseProgress({ data }: { data: CourseProgressData }) {
+  if (!data.courses.length) return <p>No course progress is available yet.</p>;
+  return (
+    <ul className="live-record-list">
+      {data.courses.map((course, index) => (
+        <li key={`${course.course}-${index}`}>
+          <strong>{course.course}</strong>
+          <span>
+            Standards met: {course.standards_met} of {course.standards_count} assessed
+          </span>
+          <label>
+            Average score: {course.average_grade.toFixed(2)}%
+            <progress
+              max={100}
+              value={Math.max(0, Math.min(100, course.average_grade))}
+            />
+          </label>
+          <span>{course.standards_count} standards</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ProgressDialog({
+  user,
+  student,
+  onClose,
+}: {
+  user: User;
+  student: FamilyStudent;
+  onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [data, setData] = useState<CourseProgressData | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    void admissionsRequest(
+      user,
+      `/students/${encodeURIComponent(student.uid)}/progress`,
+      controller.signal,
+    )
+      .then((value) => {
+        if (!isCourseProgress(value, student.uid))
+          throw new Error(
+            "The course progress service returned an invalid response.",
+          );
+        if (!controller.signal.aborted) setData(value);
+      })
+      .catch((failure: unknown) => {
+        if (!controller.signal.aborted)
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : "Course progress is unavailable.",
+          );
+      });
+    return () => controller.abort();
+  }, [student.uid, user]);
+
+  return (
+    <dialog
+      ref={dialog}
+      className="family-progress-dialog"
+      aria-labelledby="family-progress-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <h3 id="family-progress-title">Course progress: {student.email}</h3>
+      <p>Live learning record · Read-only</p>
+      {error ? (
+        <p role="alert">{error}</p>
+      ) : data ? (
+        <CourseProgress data={data} />
+      ) : (
+        <p role="status">Loading course progress…</p>
+      )}
+      <button
+        type="button"
+        className="button button-secondary"
+        onClick={onClose}
+      >
+        Close
+      </button>
+    </dialog>
+  );
+}
+
+export function FamilyRecords({
+  user,
+  students,
+  progressOnly = false,
+}: {
+  user: User;
+  students: FamilyStudent[];
+  progressOnly?: boolean;
+}) {
+  const [selectedId, setSelectedId] = useState("");
+  const [selected, setSelected] = useState<FamilyStudent | null>(null);
+  if (!progressOnly) {
+    return (
+      <div>
+        {students.length === 0 ? (
+          <p>No eligible student relationships found.</p>
+        ) : (
+          <label className="form-field">
+            View student records (read-only)
+            <select
+              value={selectedId}
+              onChange={(event) => setSelectedId(event.target.value)}
+            >
+              <option value="">Choose a student</option>
+              {students.map((student) => (
+                <option value={student.uid} key={student.uid}>
+                  {student.email}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {selectedId &&
+          students.some((student) => student.uid === selectedId) && (
+            <StudentRecords
+              key={selectedId}
+              user={user}
+              studentId={selectedId}
+            />
+          )}
+      </div>
+    );
+  }
+  return (
+    <>
+      {students.length === 0 ? (
+        <p>
+          No eligible student relationships found. Contact the school to confirm
+          the relationship and consent.
+        </p>
+      ) : (
+        <ul className="live-record-list">
+          {students.map((student) => (
+            <li key={student.uid}>
+              <button
+                type="button"
+                className="family-student-link"
+                onClick={() => setSelected(student)}
+              >
+                {student.email}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {selected && students.some((student) => student.uid === selected.uid) && (
+        <ProgressDialog
+          key={selected.uid}
+          user={user}
+          student={selected}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </>
+  );
+}
+
 const services = [
   {
     id: "profile",
@@ -19,45 +195,9 @@ const services = [
   },
   { id: "projects", name: "Projects", field: "projects", title: "essay_name" },
 ] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function FamilyRecords({
-  user,
-  students,
-}: {
-  user: User;
-  students: FamilyStudent[];
-}) {
-  const [selected, setSelected] = useState("");
-  return (
-    <div>
-      {students.length === 0 ? (
-        <p>No eligible student relationships found.</p>
-      ) : (
-        <label className="form-field">
-          View student records (read-only)
-          <select
-            value={selected}
-            onChange={(event) => setSelected(event.target.value)}
-          >
-            <option value="">Choose a student</option>
-            {students.map((student) => (
-              <option value={student.uid} key={student.uid}>
-                {student.email}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {selected && students.some((student) => student.uid === selected) && (
-        <StudentRecords key={selected} user={user} studentId={selected} />
-      )}
-    </div>
-  );
-}
+type Result = { name: string; data?: Record<string, unknown>; error?: string };
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 function StudentRecords({
   user,

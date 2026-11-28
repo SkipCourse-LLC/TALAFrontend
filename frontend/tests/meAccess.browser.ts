@@ -67,6 +67,7 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   const requests: string[] = [];
   const mutations: Array<{ path: string; body: Record<string, unknown> }> = [];
   let failLink = false;
+  let transcriptMissing = true;
   let invalidProgress = false;
   let partialProgress = false;
   let bookingOffline = false;
@@ -98,6 +99,27 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
         .authorization?.replace("Bearer ", "");
       if (!url.pathname.includes("/me-access/")) {
         requests.push(`${url.pathname}${url.search}|${uid}`);
+        if (url.pathname.includes("/tala-transcript/students/")) {
+          if (route.request().method() === "POST") {
+            await route.fulfill({
+              headers,
+              json: { student_id: "linked-student", status: "generated" },
+            });
+          } else if (transcriptMissing) {
+            await route.fulfill({
+              status: 404,
+              headers,
+              json: { error: "transcript_not_found" },
+            });
+          } else {
+            await route.fulfill({
+              headers,
+              contentType: "application/pdf",
+              body: "%PDF-1.4\nsynthetic",
+            });
+          }
+          return;
+        }
         if (url.pathname.endsWith("/list-student-projects/mine/one")) {
           await route.fulfill({
             status: projectOffline ? 502 : 200,
@@ -162,6 +184,8 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
                     course: "Family science",
                     standards_count: 2,
                     average_grade: 85,
+                    standards_met: 2,
+                    standards: [],
                   },
                 ],
               };
@@ -749,6 +773,23 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(
     page.getByRole("heading", { name: /Student dashboard:/ }),
   ).toBeVisible();
+  await page
+    .getByRole("navigation", { name: "Workspace sections" })
+    .first()
+    .getByRole("button", { name: "Learning", exact: true })
+    .click();
+  transcriptMissing = false;
+  const studentDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download transcript PDF" }).click();
+  expect((await studentDownload).suggestedFilename()).toBe(
+    "tala-transcript.pdf",
+  );
+  expect(
+    requests.some((value) =>
+      value.includes("/tala-transcript/students/student/transcript|student"),
+    ),
+  ).toBe(true);
+  transcriptMissing = true;
   await changeUser("parent");
   await expect(
     page.getByRole("heading", { name: /Parent dashboard:/ }),
@@ -771,6 +812,35 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
     ),
   ).toBe(true);
   await expect(page.getByText("My project", { exact: true })).toHaveCount(0);
+  await page
+    .getByRole("navigation", { name: "Workspace sections" })
+    .first()
+    .getByRole("button", { name: "Learning", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "linked-student@example.test" })
+    .click();
+  const progressDialog = page.getByRole("dialog", {
+    name: "Course progress: linked-student@example.test",
+  });
+  await expect(progressDialog.getByText("Family science")).toBeVisible();
+  await expect(progressDialog.getByText("Completion: 20%")).toBeVisible();
+  await progressDialog.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "Download transcript PDF" }).click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "No official transcript has been generated yet." }),
+  ).toBeVisible();
+  transcriptMissing = false;
+  const parentDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download transcript PDF" }).click();
+  expect((await parentDownload).suggestedFilename()).toBe(
+    "tala-transcript.pdf",
+  );
+  expect(
+    requests.some((value) => value.includes("/tala-family-learning")),
+  ).toBe(false);
   await changeUser("slow");
   await requestStarted;
   await expect(page.getByText("Checking your account access…")).toBeVisible();
@@ -882,6 +952,16 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(
     page.getByText("7 assessments in the last 30 days."),
   ).toBeVisible();
+  await page.getByLabel("Student UID").fill("linked-student");
+  await page.getByRole("button", { name: "Generate transcript" }).click();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "official transcript was generated" }),
+  ).toBeVisible();
+  const adminDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download transcript PDF" }).click();
+  expect((await adminDownload).suggestedFilename()).toBe("tala-transcript.pdf");
   await page.evaluate(() => {
     (window as unknown as { failSignOut: boolean }).failSignOut = true;
   });
