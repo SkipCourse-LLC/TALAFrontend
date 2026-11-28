@@ -973,7 +973,7 @@ export default function MyMapView({
             } : undefined}
             onClose={() => {
               setDetailsOpen(false);
-              const id = selectedStandardId ?? focusThemeId;
+              const id = selectedStandardId ?? 'center';
               if (id) focusMapNode(id);
             }}
           />
