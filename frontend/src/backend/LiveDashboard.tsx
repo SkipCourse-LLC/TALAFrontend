@@ -12,6 +12,7 @@ import { FamilyRecords } from "./FamilyRecords";
 import { EvidenceUpload } from "./EvidenceUpload";
 import { StudentProjects } from "./StudentProjects";
 import { CurriculumMap } from "./CurriculumMap";
+import { LiveLearningPlan } from "./LiveLearningPlan";
 import { isCurriculumGraph } from "./myMap/graph";
 import type { FamilyStudent } from "./FamilyRecords";
 import type { DashboardResult, DashboardSource } from "./dashboardData";
@@ -307,6 +308,13 @@ export function LiveDashboard({
         <div hidden={section.id !== "overview" && section.id !== "evidence"}>
           <EvidenceUpload user={user} onSubmitted={refresh} />
         </div>
+      )}
+      {role === "student" && section.sources.includes("learning-plan") && (
+        <LiveLearningPlan
+          uid={user.uid}
+          graph={results["student-profile"]}
+          progress={results["course-progress"]}
+        />
       )}
       {cards.map((source) => (
         <SourceCard

@@ -170,7 +170,6 @@ export const dashboardSources: Record<AccessRole, DashboardSource[]> = {
     },
     classes,
     updates,
-    plan,
     calendar,
     booking,
     billing,
