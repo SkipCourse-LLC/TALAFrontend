@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { strFromU8, unzipSync } from "fflate";
 
 test("Google sign-in and role changes fail closed until access is confirmed", async ({
   page,
@@ -68,6 +69,11 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   let failLink = false;
   let invalidProgress = false;
   let bookingOffline = false;
+  let uploadQueued = false;
+  let uploadOffline = false;
+  let projectOffline = false;
+  let uploadedFiles: string[] = [];
+  let firstArchive: Buffer | undefined;
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
@@ -90,6 +96,46 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
         .authorization?.replace("Bearer ", "");
       if (!url.pathname.includes("/me-access/")) {
         requests.push(`${url.pathname}${url.search}|${uid}`);
+        if (url.pathname.endsWith("/list-student-projects/mine/one")) {
+          await route.fulfill({
+            status: projectOffline ? 502 : 200,
+            headers,
+            json: {
+              job_id: "one",
+              essay_text: "My submitted work",
+              feedback: "Great work",
+            },
+          });
+          return;
+        }
+        if (url.pathname.endsWith("/agentic-pre-processor")) {
+          const bytes = route.request().postDataBuffer()!;
+          const contentType = route.request().headers()["content-type"]!;
+          const boundary = contentType.split("boundary=")[1]!;
+          const fileStart = bytes.indexOf(Buffer.from("\r\n\r\n")) + 4;
+          const fileEnd = bytes.indexOf(
+            Buffer.from(`\r\n--${boundary}`),
+            fileStart,
+          );
+          const extracted = unzipSync(bytes.subarray(fileStart, fileEnd));
+          uploadedFiles = Object.keys(extracted);
+          expect(strFromU8(extracted["notes.txt"]!)).toBe("My work");
+          expect(strFromU8(extracted["report.txt"]!)).toBe("More work");
+          const archive = bytes.subarray(fileStart, fileEnd);
+          if (firstArchive) expect(archive.equals(firstArchive)).toBe(true);
+          else firstArchive = Buffer.from(archive);
+          expect(bytes.toString("utf8")).toContain("My new work");
+          await route.fulfill({
+            status: uploadOffline ? 503 : 202,
+            headers,
+            json: {
+              job_id: "new-project",
+              status: "queued",
+              enqueued: uploadQueued,
+            },
+          });
+          return;
+        }
         if (url.pathname.endsWith("/tala-admissions/students")) {
           await route.fulfill({
             headers,
@@ -182,13 +228,23 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
                   },
                 ],
               };
-        } else if (url.pathname.endsWith("/list-student-projects")) {
+        } else if (url.pathname.endsWith("/list-student-projects/mine")) {
           json = {
             student_id: uid,
             projects: [
+              ...(uploadQueued
+                ? [
+                    {
+                      job_id: "new-project",
+                      essay_name: "New work",
+                      status: "queued",
+                    },
+                  ]
+                : []),
               {
                 job_id: "one",
                 essay_name: "My project",
+                status: "completed",
                 standards_count: 2,
                 average_grade: 80,
               },
@@ -291,6 +347,19 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
   await expect(page.getByRole("alert").first()).toContainText("404");
   await expect(page.getByText("Science", { exact: true })).toBeVisible();
   await expect(page.getByText("My project", { exact: true })).toBeVisible();
+  projectOffline = true;
+  await page.getByRole("button", { name: "View work: My project" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "HTTP 502" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close work" }).click();
+  projectOffline = false;
+  await page.getByRole("button", { name: "View work: My project" }).click();
+  await expect(page.getByText("My submitted work")).toBeVisible();
+  await expect(page.getByText("Great work")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Submit evidence" }),
+  ).toBeVisible();
   await expect
     .poll(() =>
       consoleErrors.some((text) =>
@@ -315,6 +384,71 @@ test("Google sign-in and role changes fail closed until access is confirmed", as
     page.getByRole("heading", { name: "Evidence", exact: true, level: 2 }),
   ).toBeFocused();
   await expect(page.getByText("My project", { exact: true })).toBeVisible();
+  await page.getByLabel("Project title (optional)").fill("My new work");
+  await page
+    .getByLabel("Choose evidence files (maximum 15 MiB total)")
+    .setInputFiles({
+      name: "large.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.alloc(1_000_001),
+    });
+  await page.getByRole("button", { name: "Submit evidence" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "at most 1 MB" }),
+  ).toBeVisible();
+  expect(
+    requests.some((value) => value.includes("/agentic-pre-processor|student")),
+  ).toBe(false);
+  await page
+    .getByLabel("Choose evidence files (maximum 15 MiB total)")
+    .setInputFiles([
+      {
+        name: "notes.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("My work"),
+      },
+      {
+        name: "report.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("More work"),
+      },
+    ]);
+  await page
+    .getByRole("navigation", { name: "Workspace sections" })
+    .first()
+    .getByRole("button", { name: "Classes", exact: false })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace sections" })
+    .first()
+    .getByRole("button", { name: "Evidence", exact: true })
+    .click();
+  await expect(page.getByLabel("Project title (optional)")).toHaveValue(
+    "My new work",
+  );
+  uploadOffline = true;
+  await page.getByRole("button", { name: "Submit evidence" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "HTTP 503" }),
+  ).toBeVisible();
+  uploadOffline = false;
+  await page.getByRole("button", { name: "Submit evidence" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "could not be queued" }),
+  ).toBeVisible();
+  expect(uploadedFiles).toEqual(["notes.txt", "report.txt"]);
+  uploadQueued = true;
+  await page.getByRole("button", { name: "Submit evidence" }).click();
+  await expect(page.getByText(/Your work was submitted/)).toBeVisible();
+  await expect(page.getByText("New work", { exact: true })).toBeVisible();
+  expect(
+    requests.some((value) => value.includes("/agentic-pre-processor|student")),
+  ).toBe(true);
+  expect(
+    requests.some((value) =>
+      value.includes("/list-student-projects/mine?limit=25|student"),
+    ),
+  ).toBe(true);
   await page
     .getByRole("navigation", { name: "Workspace sections" })
     .first()
