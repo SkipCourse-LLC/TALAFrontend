@@ -967,7 +967,10 @@ export default function MyMapView({
             onSelectStandard={selectStandard}
             onClearStandard={clearStandard}
             highlightedProjectId={highlightedProjectId}
-            onOpenProject={onOpenProject}
+            onOpenProject={onOpenProject ? (jobId) => {
+              setExpanded(false);
+              onOpenProject(jobId);
+            } : undefined}
             onClose={() => {
               setDetailsOpen(false);
               const id = selectedStandardId ?? focusThemeId;
