@@ -13,13 +13,9 @@ function CourseProgress({ data }: { data: CourseProgressData }) {
       {data.courses.map((course, index) => (
         <li key={`${course.course}-${index}`}>
           <strong>{course.course}</strong>
-          <label>
-            Completion: {course.standards_count * 10}%
-            <progress
-              max={100}
-              value={Math.min(100, course.standards_count * 10)}
-            />
-          </label>
+          <span>
+            Standards met: {course.standards_met} of {course.standards_count} assessed
+          </span>
           <label>
             Average score: {course.average_grade.toFixed(2)}%
             <progress
