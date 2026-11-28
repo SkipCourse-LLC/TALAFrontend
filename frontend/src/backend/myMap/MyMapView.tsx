@@ -743,7 +743,7 @@ export default function MyMapView({
               {GROUPINGS.map((g) => (
                 <label
                   key={g.value}
-                  className={`inline-flex min-h-11 cursor-pointer items-center rounded-full px-3 text-sm ${
+                  className={`inline-flex min-h-11 cursor-pointer items-center rounded-full px-3 text-sm focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-[#1E3A8A] ${
                     grouping === g.value ? 'bg-white font-medium text-gray-900 shadow-sm' : 'text-gray-700 hover:text-gray-900'
                   }`}
                 >
