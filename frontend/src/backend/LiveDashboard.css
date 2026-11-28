@@ -39,6 +39,15 @@
   margin: 0;
   padding: 0;
 }
+.live-evidence-upload fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.live-evidence-upload textarea,
+.live-evidence-upload input:not([type="file"]) {
+  width: 100%;
+}
 .live-admissions textarea {
   width: 100%;
 }

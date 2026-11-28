@@ -58,7 +58,14 @@ function validResponse(
           (project: unknown) =>
             record(project) &&
             typeof project.job_id === "string" &&
-            typeof project.essay_name === "string",
+            typeof project.essay_name === "string" &&
+            typeof project.status === "string" &&
+            (project.created_at === undefined ||
+              typeof project.created_at === "string") &&
+            (project.average_grade === undefined ||
+              typeof project.average_grade === "number") &&
+            (project.standards_count === undefined ||
+              typeof project.standards_count === "number"),
         )
       );
     case "family-links":
@@ -157,13 +164,11 @@ export const dashboardSources: Record<AccessRole, DashboardSource[]> = {
     {
       id: "student-projects",
       title: "Projects",
-      url: (uid) =>
-        `${FUNCTIONS_BASE}/list-student-projects?student_id=${encodeURIComponent(uid)}&limit=25`,
+      url: () => `${FUNCTIONS_BASE}/list-student-projects/mine?limit=25`,
     },
     classes,
     updates,
     plan,
-    evidence,
     calendar,
     booking,
     billing,

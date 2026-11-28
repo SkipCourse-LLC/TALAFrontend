@@ -9,6 +9,8 @@ import type { WorkspaceView } from "../product/workspaceViews";
 import { dashboardSources, fetchDashboardSource } from "./dashboardData";
 import { LiveAdmissions } from "./LiveAdmissions";
 import { FamilyRecords } from "./FamilyRecords";
+import { EvidenceUpload } from "./EvidenceUpload";
+import { StudentProjects } from "./StudentProjects";
 import type { FamilyStudent } from "./FamilyRecords";
 import type { DashboardResult, DashboardSource } from "./dashboardData";
 import type { AccessRole } from "./meAccess";
@@ -52,7 +54,7 @@ const studentSections: HubSection[] = [
   {
     id: "evidence",
     label: "Evidence",
-    sources: ["evidence", "student-projects"],
+    sources: ["student-projects"],
   },
   {
     id: "progress",
@@ -162,6 +164,9 @@ function DataView({
               {String(item.essay_name ?? item.student_id ?? item.course)}
             </strong>
             {typeof item.status === "string" && <span>{item.status}</span>}
+            {source.id === "student-projects" &&
+              typeof item.created_at === "string" &&
+              item.created_at && <span>Submitted: {item.created_at}</span>}
             {typeof item.average_grade === "number" && (
               <span>Average score: {item.average_grade}%</span>
             )}
@@ -207,6 +212,8 @@ function SourceCard({
           user={user}
           students={result.data.students.filter(isFamilyStudent)}
         />
+      ) : result.ok && source.id === "student-projects" ? (
+        <StudentProjects user={user} data={result.data} />
       ) : result.ok ? (
         <DataView source={source} data={result.data} />
       ) : (
@@ -282,6 +289,11 @@ export function LiveDashboard({
     .filter((source): source is DashboardSource => !!source);
   const cardsView = (
     <div className="live-dashboard-grid">
+      {role === "student" && (
+        <div hidden={section.id !== "overview" && section.id !== "evidence"}>
+          <EvidenceUpload user={user} onSubmitted={refresh} />
+        </div>
+      )}
       {cards.map((source) => (
         <SourceCard
           key={source.id}
