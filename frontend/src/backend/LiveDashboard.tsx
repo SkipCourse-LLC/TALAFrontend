@@ -9,6 +9,7 @@ import type { WorkspaceView } from "../product/workspaceViews";
 import { dashboardSources, fetchDashboardSource } from "./dashboardData";
 import { LiveAdmissions } from "./LiveAdmissions";
 import { FamilyRecords } from "./FamilyRecords";
+import { TranscriptAdmin, TranscriptDownloads } from "./Transcripts";
 import { EvidenceUpload } from "./EvidenceUpload";
 import { StudentProjects } from "./StudentProjects";
 import { CurriculumMap } from "./CurriculumMap";
@@ -86,7 +87,7 @@ const parentSections: HubSection[] = [
   {
     id: "learning",
     label: "Learning",
-    sources: ["family-learning", "family-links"],
+    sources: ["family-links"],
   },
   { id: "evidence", label: "Evidence", sources: ["evidence", "family-links"] },
   {
@@ -193,11 +194,13 @@ function SourceCard({
   result,
   user,
   onAddProject,
+  familyProgressOnly,
 }: {
   source: DashboardSource;
   result?: DashboardResult;
   user: User;
   onAddProject: () => void;
+  familyProgressOnly: boolean;
 }) {
   return (
     <article
@@ -218,6 +221,7 @@ function SourceCard({
         <FamilyRecords
           user={user}
           students={result.data.students.filter(isFamilyStudent)}
+          progressOnly={familyProgressOnly}
         />
       ) : result.ok && source.id === "student-projects" ? (
         <StudentProjects user={user} data={result.data} />
@@ -302,6 +306,13 @@ export function LiveDashboard({
   const cards = section.sources
     .map((id) => sources.find((source) => source.id === id))
     .filter((source): source is DashboardSource => !!source);
+  const familyResult = results["family-links"];
+  const familyStudents =
+    familyResult?.ok &&
+    isRecord(familyResult.data) &&
+    Array.isArray(familyResult.data.students)
+      ? familyResult.data.students.filter(isFamilyStudent)
+      : null;
   const cardsView = (
     <div className="live-dashboard-grid">
       {role === "student" && (
@@ -316,6 +327,27 @@ export function LiveDashboard({
           progress={results["course-progress"]}
         />
       )}
+      {section.id === "learning" && role !== "talaadmin" && (
+        <article className="live-dashboard-card">
+          <h3>Student learning records</h3>
+          {role === "student" ? (
+            <TranscriptDownloads
+              user={user}
+              students={[
+                { uid: user.uid, email: user.email || "Your transcript" },
+              ]}
+            />
+          ) : familyStudents ? (
+            <TranscriptDownloads user={user} students={familyStudents} />
+          ) : familyResult && !familyResult.ok ? (
+            <p role="alert">
+              Could not load eligible students. {familyResult.failure.message}
+            </p>
+          ) : (
+            <p role="status">Loading eligible students…</p>
+          )}
+        </article>
+      )}
       {cards.map((source) => (
         <SourceCard
           key={source.id}
@@ -323,6 +355,7 @@ export function LiveDashboard({
           result={results[source.id]}
           user={user}
           onAddProject={() => navigate("evidence")}
+          familyProgressOnly={role === "parent" && section.id === "learning"}
         />
       ))}
     </div>
@@ -371,6 +404,7 @@ export function LiveDashboard({
             </h2>
           </div>
           {section.id === "admissions" && <LiveAdmissions user={user} />}
+          {section.id === "learning" && <TranscriptAdmin user={user} />}
           {cardsView}
         </section>
       </div>

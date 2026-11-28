@@ -142,7 +142,6 @@ const classes = probe("classes", "Classes and requests");
 const updates = probe("updates", "Updates");
 const plan = probe("learning-plan", "Learning plan");
 const evidence = probe("evidence", "Evidence");
-const familyLearning = probe("family-learning", "Student learning records");
 const familyProgress = probe("family-progress", "Student progress");
 const review = probe("evidence-review", "Evidence review");
 
@@ -184,7 +183,6 @@ export const dashboardSources: Record<AccessRole, DashboardSource[]> = {
     updates,
     plan,
     evidence,
-    familyLearning,
     familyProgress,
     calendar,
     booking,

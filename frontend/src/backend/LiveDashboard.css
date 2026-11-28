@@ -76,6 +76,32 @@
   margin-top: 16px;
   padding-top: 16px;
 }
+.family-student-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #155e43;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+}
+.family-progress-dialog {
+  width: min(90vw, 680px);
+  max-height: 85vh;
+  overflow: auto;
+  border: var(--border-panel);
+  border-radius: var(--radius-card);
+  padding: 24px;
+}
+.family-progress-dialog::backdrop {
+  background: rgb(0 0 0 / 50%);
+}
+.family-progress-dialog progress {
+  display: block;
+  width: 100%;
+  accent-color: #5e35b1;
+}
 .live-record-list {
   display: grid;
   gap: 12px;
